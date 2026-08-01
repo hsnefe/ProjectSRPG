@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:project_srpg/screens/kariyer_merkezi_screen.dart';
 import 'package:project_srpg/widgets/glass_panel.dart';
 import 'package:project_srpg/widgets/new_game_button.dart';
 
@@ -74,7 +75,15 @@ class LandingScreen extends StatelessWidget {
                     ),
                     alignment: Alignment.bottomRight,
                     padding: const EdgeInsets.fromLTRB(24, 24, 32, 32),
-                    child: const NewGameButton(),
+                    child: NewGameButton(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const KariyerMerkeziScreen(),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
