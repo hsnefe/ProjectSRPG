@@ -1,7 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:project_srpg/screens/kariyer_merkezi_screen.dart';
+import 'package:project_srpg/screens/career_center_screen.dart';
 import 'package:project_srpg/widgets/glass_panel.dart';
 import 'package:project_srpg/widgets/new_game_button.dart';
 
@@ -79,7 +79,7 @@ class LandingScreen extends StatelessWidget {
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute<void>(
-                            builder: (_) => const KariyerMerkeziScreen(),
+                            builder: (_) => const CareerCenterScreen(),
                           ),
                         );
                       },

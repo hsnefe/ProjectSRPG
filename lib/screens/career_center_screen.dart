@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:project_srpg/screens/match_detail_screen.dart';
+import 'package:project_srpg/screens/relationships_screen.dart';
+import 'package:project_srpg/screens/pre_match_screen.dart';
 import 'package:project_srpg/widgets/expand_page_route.dart';
 
-class KariyerMerkeziScreen extends StatelessWidget {
-  const KariyerMerkeziScreen({super.key});
+class CareerCenterScreen extends StatelessWidget {
+  const CareerCenterScreen({super.key});
 
   static const _surface1 = Color(0xFF1A1D24);
   static const _surface2 = Color(0xFF22262F);
@@ -65,7 +66,7 @@ class _HeaderSection extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: KariyerMerkeziScreen._border,
+            color: CareerCenterScreen._border,
             width: 0.5,
           ),
         ),
@@ -77,13 +78,13 @@ class _HeaderSection extends StatelessWidget {
             height: 44,
             alignment: Alignment.center,
             decoration: const BoxDecoration(
-              color: KariyerMerkeziScreen._accentBg,
+              color: CareerCenterScreen._accentBg,
               shape: BoxShape.circle,
             ),
             child: const Text(
               'EK',
               style: TextStyle(
-                color: KariyerMerkeziScreen._accent,
+                color: CareerCenterScreen._accent,
                 fontWeight: FontWeight.w500,
                 fontSize: 14,
               ),
@@ -97,7 +98,7 @@ class _HeaderSection extends StatelessWidget {
                 Text(
                   'Efe Kaan',
                   style: TextStyle(
-                    color: KariyerMerkeziScreen._textPrimary,
+                    color: CareerCenterScreen._textPrimary,
                     fontWeight: FontWeight.w500,
                     fontSize: 15,
                   ),
@@ -105,7 +106,7 @@ class _HeaderSection extends StatelessWidget {
                 Text(
                   'Orta saha · FK Yıldız',
                   style: TextStyle(
-                    color: KariyerMerkeziScreen._textSecondary,
+                    color: CareerCenterScreen._textSecondary,
                     fontSize: 13,
                   ),
                 ),
@@ -115,8 +116,8 @@ class _HeaderSection extends StatelessWidget {
           OutlinedButton.icon(
             onPressed: () {},
             style: OutlinedButton.styleFrom(
-              foregroundColor: KariyerMerkeziScreen._textPrimary,
-              side: const BorderSide(color: KariyerMerkeziScreen._border),
+              foregroundColor: CareerCenterScreen._textPrimary,
+              side: const BorderSide(color: CareerCenterScreen._border),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -129,7 +130,7 @@ class _HeaderSection extends StatelessWidget {
           const Icon(
             Icons.settings_outlined,
             size: 20,
-            color: KariyerMerkeziScreen._textMuted,
+            color: CareerCenterScreen._textMuted,
           ),
         ],
       ),
@@ -147,7 +148,7 @@ class _ProgressSection extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: KariyerMerkeziScreen._border,
+            color: CareerCenterScreen._border,
             width: 0.5,
           ),
         ),
@@ -157,7 +158,7 @@ class _ProgressSection extends StatelessWidget {
           const Text(
             'İlerleme',
             style: TextStyle(
-              color: KariyerMerkeziScreen._textMuted,
+              color: CareerCenterScreen._textMuted,
               fontSize: 12,
             ),
           ),
@@ -169,7 +170,7 @@ class _ProgressSection extends StatelessWidget {
                   label: 'Yetenek',
                   value: 68,
                   max: 100,
-                  color: KariyerMerkeziScreen._accent,
+                  color: CareerCenterScreen._accent,
                 ),
               ),
               SizedBox(width: 16),
@@ -178,7 +179,7 @@ class _ProgressSection extends StatelessWidget {
                   label: 'Şöhret',
                   value: 42,
                   max: 100,
-                  color: KariyerMerkeziScreen._success,
+                  color: CareerCenterScreen._success,
                 ),
               ),
             ],
@@ -221,7 +222,7 @@ class _StatBar extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            color: KariyerMerkeziScreen._textPrimary,
+            color: CareerCenterScreen._textPrimary,
             fontSize: 12,
           ),
         ),
@@ -231,7 +232,7 @@ class _StatBar extends StatelessWidget {
           child: LinearProgressIndicator(
             value: value / max,
             minHeight: 4,
-            backgroundColor: KariyerMerkeziScreen._surface1,
+            backgroundColor: CareerCenterScreen._surface1,
             color: color,
           ),
         ),
@@ -239,7 +240,7 @@ class _StatBar extends StatelessWidget {
         Text(
           '$value/$max',
           style: const TextStyle(
-            color: KariyerMerkeziScreen._textMuted,
+            color: CareerCenterScreen._textMuted,
             fontSize: 11,
           ),
         ),
@@ -259,7 +260,7 @@ class _InfoTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: KariyerMerkeziScreen._surface1,
+        color: CareerCenterScreen._surface1,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -268,7 +269,7 @@ class _InfoTile extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(
-              color: KariyerMerkeziScreen._textMuted,
+              color: CareerCenterScreen._textMuted,
               fontSize: 12,
             ),
           ),
@@ -276,7 +277,7 @@ class _InfoTile extends StatelessWidget {
           Text(
             value,
             style: const TextStyle(
-              color: KariyerMerkeziScreen._textPrimary,
+              color: CareerCenterScreen._textPrimary,
               fontWeight: FontWeight.w500,
               fontSize: 18,
             ),
@@ -310,7 +311,7 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
     Navigator.of(context).push(
       ExpandPageRoute<void>(
         rect: rect,
-        page: const MatchDetailScreen(),
+        page: const PreMatchScreen(),
       ),
     );
   }
@@ -333,7 +334,7 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
               spreadRadius: -8,
             ),
             BoxShadow(
-              color: KariyerMerkeziScreen._accent.withValues(alpha: 0.22),
+              color: CareerCenterScreen._accent.withValues(alpha: 0.22),
               blurRadius: 48,
               spreadRadius: -10,
             ),
@@ -440,7 +441,7 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
                           Text(
                             'SONRAKİ MAÇ',
                             style: TextStyle(
-                              color: KariyerMerkeziScreen._accent
+                              color: CareerCenterScreen._accent
                                   .withValues(alpha: 0.95),
                               fontWeight: FontWeight.w600,
                               fontSize: 11,
@@ -451,7 +452,7 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
                           const Text(
                             'Cumartesi, 20:00',
                             style: TextStyle(
-                              color: KariyerMerkeziScreen._textPrimary,
+                              color: CareerCenterScreen._textPrimary,
                               fontWeight: FontWeight.w600,
                               fontSize: 15,
                             ),
@@ -463,13 +464,13 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
                               Icon(
                                 Icons.cloud_outlined,
                                 size: 14,
-                                color: KariyerMerkeziScreen._textSecondary,
+                                color: CareerCenterScreen._textSecondary,
                               ),
                               SizedBox(width: 4),
                               Text(
                                 '16°C, parçalı bulutlu',
                                 style: TextStyle(
-                                  color: KariyerMerkeziScreen._textSecondary,
+                                  color: CareerCenterScreen._textSecondary,
                                   fontSize: 12,
                                 ),
                               ),
@@ -483,15 +484,15 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
                         children: [
                           const _TeamBadge(
                             name: 'FK Yıldız',
-                            background: KariyerMerkeziScreen._accentBg,
-                            iconColor: KariyerMerkeziScreen._accent,
+                            background: CareerCenterScreen._accentBg,
+                            iconColor: CareerCenterScreen._accent,
                           ),
                           const Padding(
                             padding: EdgeInsets.symmetric(horizontal: 28),
                             child: Text(
                               'vs',
                               style: TextStyle(
-                                color: KariyerMerkeziScreen._textMuted,
+                                color: CareerCenterScreen._textMuted,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -499,8 +500,8 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
                           ),
                           const _TeamBadge(
                             name: 'Deniz SK',
-                            background: KariyerMerkeziScreen._dangerBg,
-                            iconColor: KariyerMerkeziScreen._danger,
+                            background: CareerCenterScreen._dangerBg,
+                            iconColor: CareerCenterScreen._danger,
                           ),
                         ],
                       ),
@@ -511,15 +512,15 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: KariyerMerkeziScreen._successBg,
+                          color: CareerCenterScreen._successBg,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: KariyerMerkeziScreen._success
+                            color: CareerCenterScreen._success
                                 .withValues(alpha: 0.35),
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: KariyerMerkeziScreen._success
+                              color: CareerCenterScreen._success
                                   .withValues(alpha: 0.18),
                               blurRadius: 12,
                             ),
@@ -528,7 +529,7 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
                         child: const Text(
                           'İlk 11',
                           style: TextStyle(
-                            color: KariyerMerkeziScreen._success,
+                            color: CareerCenterScreen._success,
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                           ),
@@ -576,7 +577,7 @@ class _TeamBadge extends StatelessWidget {
         Text(
           name,
           style: const TextStyle(
-            color: KariyerMerkeziScreen._textPrimary,
+            color: CareerCenterScreen._textPrimary,
             fontSize: 13,
           ),
         ),
@@ -594,7 +595,7 @@ class _NewsSection extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: KariyerMerkeziScreen._border,
+            color: CareerCenterScreen._border,
             width: 0.5,
           ),
         ),
@@ -607,12 +608,12 @@ class _NewsSection extends StatelessWidget {
               Container(
                 height: 120,
                 width: double.infinity,
-                color: KariyerMerkeziScreen._surface1,
+                color: CareerCenterScreen._surface1,
                 alignment: Alignment.center,
                 child: const Icon(
                   Icons.image_outlined,
                   size: 32,
-                  color: KariyerMerkeziScreen._textMuted,
+                  color: CareerCenterScreen._textMuted,
                 ),
               ),
               Positioned(
@@ -622,13 +623,13 @@ class _NewsSection extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: KariyerMerkeziScreen._dangerBg,
+                    color: CareerCenterScreen._dangerBg,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Text(
                     'Transfer',
                     style: TextStyle(
-                      color: KariyerMerkeziScreen._danger,
+                      color: CareerCenterScreen._danger,
                       fontSize: 11,
                     ),
                   ),
@@ -644,7 +645,7 @@ class _NewsSection extends StatelessWidget {
                 Text(
                   "Deniz SK, orta saha transferi için FK Yıldız'ı ziyaret etti",
                   style: TextStyle(
-                    color: KariyerMerkeziScreen._textPrimary,
+                    color: CareerCenterScreen._textPrimary,
                     fontWeight: FontWeight.w500,
                     fontSize: 14,
                     height: 1.4,
@@ -654,7 +655,7 @@ class _NewsSection extends StatelessWidget {
                 Text(
                   'Spor Manşet · 2 saat önce',
                   style: TextStyle(
-                    color: KariyerMerkeziScreen._textMuted,
+                    color: CareerCenterScreen._textMuted,
                     fontSize: 12,
                   ),
                 ),
@@ -682,7 +683,13 @@ class _ActionsSection extends StatelessWidget {
                 child: _ActionButton(
                   icon: Icons.people_outline,
                   label: 'İlişkiler',
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const RelationshipsScreen(),
+                      ),
+                    );
+                  },
                 ),
               ),
               const SizedBox(width: 8),
@@ -726,8 +733,8 @@ class _ActionButton extends StatelessWidget {
     return OutlinedButton.icon(
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
-        foregroundColor: KariyerMerkeziScreen._textPrimary,
-        side: const BorderSide(color: KariyerMerkeziScreen._border),
+        foregroundColor: CareerCenterScreen._textPrimary,
+        side: const BorderSide(color: CareerCenterScreen._border),
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
         textStyle: const TextStyle(fontSize: 13),
       ),

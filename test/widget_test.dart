@@ -2,17 +2,41 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:project_srpg/main.dart';
 
+Future<void> _openCareerCenter(WidgetTester tester) async {
+  await tester.pumpWidget(const MyApp());
+  await tester.tap(find.text('New Game'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
-  testWidgets('New Game navigates to Kariyer Merkezi', (WidgetTester tester) async {
-    await tester.pumpWidget(const MyApp());
-
-    expect(find.text('SRPG'), findsOneWidget);
-    expect(find.text('New Game'), findsOneWidget);
-
-    await tester.tap(find.text('New Game'));
-    await tester.pumpAndSettle();
+  testWidgets('New Game navigates to Career Center', (WidgetTester tester) async {
+    await _openCareerCenter(tester);
 
     expect(find.text('Efe Kaan'), findsOneWidget);
     expect(find.text('İlerleme'), findsOneWidget);
+  });
+
+  testWidgets('İlişkiler button navigates to RelationshipsScreen',
+      (WidgetTester tester) async {
+    await _openCareerCenter(tester);
+
+    await tester.tap(find.text('İlişkiler'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Antrenör'), findsOneWidget);
+    expect(find.text('Takım Arkadaşları'), findsOneWidget);
+    expect(find.text('Partner'), findsOneWidget);
+  });
+
+  testWidgets('Match card navigates to PreMatchScreen',
+      (WidgetTester tester) async {
+    await _openCareerCenter(tester);
+
+    await tester.tap(find.text('SONRAKİ MAÇ'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Maça Çıkış'), findsOneWidget);
+    expect(find.text('Saha dizilişi (yakında)'), findsOneWidget);
+    expect(find.text('Antrenörle konuş'), findsOneWidget);
   });
 }
