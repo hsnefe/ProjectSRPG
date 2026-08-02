@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/screens/match_detail_screen.dart';
+import 'package:project_srpg/widgets/expand_page_route.dart';
 
 class KariyerMerkeziScreen extends StatelessWidget {
   const KariyerMerkeziScreen({super.key});
@@ -285,98 +287,261 @@ class _InfoTile extends StatelessWidget {
   }
 }
 
-class _MatchPreviewSection extends StatelessWidget {
+class _MatchPreviewSection extends StatefulWidget {
   const _MatchPreviewSection();
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 190),
-      padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: KariyerMerkeziScreen._border,
-            width: 0.5,
-          ),
-        ),
+  State<_MatchPreviewSection> createState() => _MatchPreviewSectionState();
+}
+
+class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
+  static const _cardTop = Color(0xFF2E3440);
+  static const _cardMid = Color(0xFF252932);
+  static const _cardBottom = Color(0xFF181C23);
+
+  final _cardKey = GlobalKey();
+
+  void _openMatchDetail() {
+    final renderBox = _cardKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.hasSize) return;
+
+    final rect = renderBox.localToGlobal(Offset.zero) & renderBox.size;
+
+    Navigator.of(context).push(
+      ExpandPageRoute<void>(
+        rect: rect,
+        page: const MatchDetailScreen(),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Column(
-            children: [
-              Text(
-                'Cumartesi, 20:00',
-                style: TextStyle(
-                  color: KariyerMerkeziScreen._textPrimary,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 13,
-                ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+      child: GestureDetector(
+        key: _cardKey,
+        onTap: _openMatchDetail,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.6),
+              blurRadius: 32,
+              offset: const Offset(0, 16),
+              spreadRadius: -8,
+            ),
+            BoxShadow(
+              color: KariyerMerkeziScreen._accent.withValues(alpha: 0.22),
+              blurRadius: 48,
+              spreadRadius: -10,
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.4),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white.withValues(alpha: 0.22),
+                Colors.white.withValues(alpha: 0.06),
+                Colors.black.withValues(alpha: 0.35),
+              ],
+            ),
+          ),
+          padding: const EdgeInsets.all(1),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 210),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(15),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [_cardTop, _cardMid, _cardBottom],
+                stops: [0.0, 0.42, 1.0],
               ),
-              SizedBox(height: 2),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.cloud_outlined,
-                    size: 14,
-                    color: KariyerMerkeziScreen._textSecondary,
-                  ),
-                  SizedBox(width: 4),
-                  Text(
-                    '16°C, parçalı bulutlu',
-                    style: TextStyle(
-                      color: KariyerMerkeziScreen._textSecondary,
-                      fontSize: 12,
+            ),
+            child: Stack(
+              children: [
+                Positioned(
+                  top: 0,
+                  left: 20,
+                  right: 20,
+                  child: Container(
+                    height: 1,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.transparent,
+                          Colors.white.withValues(alpha: 0.42),
+                          Colors.white.withValues(alpha: 0.42),
+                          Colors.transparent,
+                        ],
+                      ),
                     ),
                   ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const _TeamBadge(
-                name: 'FK Yıldız',
-                background: KariyerMerkeziScreen._accentBg,
-                iconColor: KariyerMerkeziScreen._accent,
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 28),
-                child: Text(
-                  'vs',
-                  style: TextStyle(
-                    color: KariyerMerkeziScreen._textMuted,
-                    fontSize: 12,
+                ),
+                Positioned(
+                  top: 14,
+                  bottom: 14,
+                  left: 0,
+                  child: Container(
+                    width: 1,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.white.withValues(alpha: 0.14),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              const _TeamBadge(
-                name: 'Deniz SK',
-                background: KariyerMerkeziScreen._dangerBg,
-                iconColor: KariyerMerkeziScreen._danger,
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: KariyerMerkeziScreen._successBg,
-              borderRadius: BorderRadius.circular(8),
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    height: 48,
+                    decoration: BoxDecoration(
+                      borderRadius: const BorderRadius.vertical(
+                        bottom: Radius.circular(15),
+                      ),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.28),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        children: [
+                          Text(
+                            'SONRAKİ MAÇ',
+                            style: TextStyle(
+                              color: KariyerMerkeziScreen._accent
+                                  .withValues(alpha: 0.95),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 11,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'Cumartesi, 20:00',
+                            style: TextStyle(
+                              color: KariyerMerkeziScreen._textPrimary,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.cloud_outlined,
+                                size: 14,
+                                color: KariyerMerkeziScreen._textSecondary,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                '16°C, parçalı bulutlu',
+                                style: TextStyle(
+                                  color: KariyerMerkeziScreen._textSecondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const _TeamBadge(
+                            name: 'FK Yıldız',
+                            background: KariyerMerkeziScreen._accentBg,
+                            iconColor: KariyerMerkeziScreen._accent,
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 28),
+                            child: Text(
+                              'vs',
+                              style: TextStyle(
+                                color: KariyerMerkeziScreen._textMuted,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          const _TeamBadge(
+                            name: 'Deniz SK',
+                            background: KariyerMerkeziScreen._dangerBg,
+                            iconColor: KariyerMerkeziScreen._danger,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: KariyerMerkeziScreen._successBg,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: KariyerMerkeziScreen._success
+                                .withValues(alpha: 0.35),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: KariyerMerkeziScreen._success
+                                  .withValues(alpha: 0.18),
+                              blurRadius: 12,
+                            ),
+                          ],
+                        ),
+                        child: const Text(
+                          'İlk 11',
+                          style: TextStyle(
+                            color: KariyerMerkeziScreen._success,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            child: const Text(
-              'İlk 11',
-              style: TextStyle(
-                color: KariyerMerkeziScreen._success,
-                fontSize: 12,
-              ),
-            ),
           ),
-        ],
+        ),
+        ),
       ),
     );
   }
