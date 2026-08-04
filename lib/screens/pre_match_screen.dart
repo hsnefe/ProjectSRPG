@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/screens/match_screen.dart';
 
 class PreMatchScreen extends StatelessWidget {
   const PreMatchScreen({super.key});
@@ -341,8 +342,13 @@ class _ActionRow extends StatelessWidget {
             width: 64,
             height: 64,
             child: OutlinedButton(
-              onPressed: () =>
-                  _showStubMessage(context, 'Maç simülasyonu yakında'),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const MatchScreen(),
+                  ),
+                );
+              },
               style: OutlinedButton.styleFrom(
                 foregroundColor: PreMatchScreen._textPrimary,
                 side: const BorderSide(color: PreMatchScreen._border),

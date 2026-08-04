@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:project_srpg/main.dart';
@@ -38,5 +39,21 @@ void main() {
     expect(find.text('Maça Çıkış'), findsOneWidget);
     expect(find.text('Saha dizilişi (yakında)'), findsOneWidget);
     expect(find.text('Antrenörle konuş'), findsOneWidget);
+  });
+
+  testWidgets('Play button navigates to MatchScreen',
+      (WidgetTester tester) async {
+    await _openCareerCenter(tester);
+
+    await tester.tap(find.text('SONRAKİ MAÇ'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.play_arrow));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Maç sahnesi (boş)'), findsOneWidget);
+    expect(find.text('Efor'), findsOneWidget);
+    expect(find.text('Sertlik'), findsOneWidget);
+    expect(find.text("62'"), findsOneWidget);
   });
 }
