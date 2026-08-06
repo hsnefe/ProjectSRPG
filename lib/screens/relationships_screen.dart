@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/screens/dialog_screen.dart';
+import 'package:project_srpg/widgets/expand_page_route.dart';
 
 class RelationshipsScreen extends StatelessWidget {
   const RelationshipsScreen({super.key});
@@ -27,6 +29,14 @@ class RelationshipsScreen extends StatelessWidget {
       iconColor: _accent,
       iconBg: _accentBg,
       barColor: _accent,
+      contactName: 'Antrenör Mert',
+      dialogMessage:
+          'Son maçta bireysel performansın iyiydi ama takım oyununda seni daha aktif görmek istiyorum. Bu konuda ne düşünüyorsun?',
+      dialogChoices: [
+        'Haklısınız hocam, daha fazla paylaşımcı olacağım.',
+        'Bence bireysel oynamam takıma zarar vermiyor.',
+        'Bu konuyu maç sonrasında konuşalım mı?',
+      ],
     ),
     _RelationshipData(
       name: 'Takım Arkadaşları',
@@ -36,6 +46,13 @@ class RelationshipsScreen extends StatelessWidget {
       iconColor: _success,
       iconBg: _successBg,
       barColor: _success,
+      contactName: 'Takım grubu',
+      dialogMessage:
+          'Bu hafta antrenmanlarda iletişim iyi gidiyor. Maç günü aynı enerjiyi sahaya taşıyalım mı?',
+      dialogChoices: [
+        'Evet, birlikte daha güçlüyüz.',
+        'Biraz daha zaman lazım.',
+      ],
     ),
     _RelationshipData(
       name: 'Medya',
@@ -45,6 +62,14 @@ class RelationshipsScreen extends StatelessWidget {
       iconColor: _danger,
       iconBg: _dangerBg,
       barColor: _danger,
+      contactName: 'Spor Manşet',
+      dialogMessage:
+          'Maç sonrası kısa bir röportaj için müsait misiniz? Transfer söylentileri hakkında da sorularımız var.',
+      dialogChoices: [
+        'Tabii, 10 dakika ayırabilirim.',
+        'Bugün konuşmak istemiyorum.',
+        'Sadece maç hakkında konuşalım.',
+      ],
     ),
     _RelationshipData(
       name: 'Partner',
@@ -54,6 +79,13 @@ class RelationshipsScreen extends StatelessWidget {
       iconColor: _warning,
       iconBg: _warningBg,
       barColor: _warning,
+      contactName: 'Elif',
+      dialogMessage:
+          'Bu akşam maçın var diye biliyorum. Yine de kısa bir telefon konuşması yapabilir miyiz?',
+      dialogChoices: [
+        'Maçtan sonra ararım.',
+        'Şimdi 5 dakika konuşabiliriz.',
+      ],
     ),
     _RelationshipData(
       name: 'Aile / Sosyal Çevre',
@@ -63,6 +95,14 @@ class RelationshipsScreen extends StatelessWidget {
       iconColor: _accent,
       iconBg: _accentBg,
       barColor: _accent,
+      contactName: 'Anne',
+      dialogMessage:
+          'Seni özledik. Bu hafta sonu eve uğrayabilir misin? Maç programını da merak ediyoruz.',
+      dialogChoices: [
+        'Cumartesi antrenman sonrası gelirim.',
+        'Bu hafta maç var, gelemem.',
+        'Pazar öğleden sonra konuşalım.',
+      ],
     ),
   ];
 
@@ -120,6 +160,9 @@ class _RelationshipData {
     required this.iconColor,
     required this.iconBg,
     required this.barColor,
+    required this.contactName,
+    required this.dialogMessage,
+    required this.dialogChoices,
   });
 
   final String name;
@@ -129,6 +172,9 @@ class _RelationshipData {
   final Color iconColor;
   final Color iconBg;
   final Color barColor;
+  final String contactName;
+  final String dialogMessage;
+  final List<String> dialogChoices;
 }
 
 class _HeaderSection extends StatelessWidget {
@@ -170,13 +216,41 @@ class _HeaderSection extends StatelessWidget {
   }
 }
 
-class _RelationshipCard extends StatelessWidget {
+class _RelationshipCard extends StatefulWidget {
   const _RelationshipCard({required this.data});
 
   final _RelationshipData data;
 
   @override
+  State<_RelationshipCard> createState() => _RelationshipCardState();
+}
+
+class _RelationshipCardState extends State<_RelationshipCard> {
+  final _callButtonKey = GlobalKey();
+
+  void _openDialog() {
+    final renderBox =
+        _callButtonKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.hasSize) return;
+
+    final rect = renderBox.localToGlobal(Offset.zero) & renderBox.size;
+
+    Navigator.of(context).push(
+      ExpandPageRoute<void>(
+        rect: rect,
+        page: DialogScreen(
+          contactName: widget.data.contactName,
+          message: widget.data.dialogMessage,
+          choices: widget.data.dialogChoices,
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final data = widget.data;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
@@ -245,15 +319,8 @@ class _RelationshipCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               OutlinedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('${data.name} aranıyor...'),
-                      behavior: SnackBarBehavior.floating,
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                },
+                key: _callButtonKey,
+                onPressed: _openDialog,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: RelationshipsScreen._textPrimary,
                   side: const BorderSide(color: RelationshipsScreen._border),

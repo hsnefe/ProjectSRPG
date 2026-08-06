@@ -56,4 +56,21 @@ void main() {
     expect(find.text('Sertlik'), findsOneWidget);
     expect(find.text("62'"), findsOneWidget);
   });
+
+  testWidgets('Ara button navigates to DialogScreen',
+      (WidgetTester tester) async {
+    await _openCareerCenter(tester);
+
+    await tester.tap(find.text('İlişkiler'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Ara').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Antrenör Mert'), findsOneWidget);
+    expect(
+      find.text('Haklısınız hocam, daha fazla paylaşımcı olacağım.'),
+      findsOneWidget,
+    );
+  });
 }
