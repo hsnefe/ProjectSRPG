@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:project_srpg/screens/relationships_screen.dart';
+import 'package:project_srpg/screens/league_table_screen.dart';
+import 'package:project_srpg/screens/news_detail_screen.dart';
 import 'package:project_srpg/screens/pre_match_screen.dart';
+import 'package:project_srpg/screens/relationships_screen.dart';
+import 'package:project_srpg/screens/settings_screen.dart';
 import 'package:project_srpg/widgets/expand_page_route.dart';
 
 class CareerCenterScreen extends StatelessWidget {
@@ -95,13 +98,29 @@ class _HeaderSection extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Efe Kaan',
-                  style: TextStyle(
-                    color: CareerCenterScreen._textPrimary,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 15,
-                  ),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        'Efe Kaan',
+                        style: TextStyle(
+                          color: CareerCenterScreen._textPrimary,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 15,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      '₺48.200',
+                      style: TextStyle(
+                        color: CareerCenterScreen._success,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
                 ),
                 Text(
                   'Orta saha · FK Yıldız',
@@ -113,24 +132,42 @@ class _HeaderSection extends StatelessWidget {
               ],
             ),
           ),
-          OutlinedButton.icon(
-            onPressed: () {},
-            style: OutlinedButton.styleFrom(
-              foregroundColor: CareerCenterScreen._textPrimary,
+          IconButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const LeagueTableScreen(),
+                ),
+              );
+            },
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            style: IconButton.styleFrom(
               side: const BorderSide(color: CareerCenterScreen._border),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              textStyle: const TextStyle(fontSize: 13),
+              shape: const CircleBorder(),
             ),
-            icon: const Icon(Icons.table_chart_outlined, size: 16),
-            label: const Text('Lig tablosu'),
+            icon: const Icon(
+              Icons.emoji_events_outlined,
+              size: 18,
+              color: CareerCenterScreen._textPrimary,
+            ),
           ),
-          const SizedBox(width: 8),
-          const Icon(
-            Icons.settings_outlined,
-            size: 20,
-            color: CareerCenterScreen._textMuted,
+          const SizedBox(width: 4),
+          IconButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const SettingsScreen(),
+                ),
+              );
+            },
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            icon: const Icon(
+              Icons.settings_outlined,
+              size: 20,
+              color: CareerCenterScreen._textMuted,
+            ),
           ),
         ],
       ),
@@ -141,149 +178,199 @@ class _HeaderSection extends StatelessWidget {
 class _ProgressSection extends StatelessWidget {
   const _ProgressSection();
 
+  static const _condition = 86;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: CareerCenterScreen._border,
-            width: 0.5,
-          ),
-        ),
-      ),
-      child: Column(
-        children: [
-          const Text(
-            'İlerleme',
-            style: TextStyle(
-              color: CareerCenterScreen._textMuted,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 10),
-          const Row(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: _LitCard(
+        borderRadius: 12,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: _StatBar(
-                  label: 'Yetenek',
-                  value: 68,
-                  max: 100,
-                  color: CareerCenterScreen._accent,
-                ),
+              const Row(
+                children: [
+                  Text(
+                    'Kondisyon',
+                    style: TextStyle(
+                      color: CareerCenterScreen._textMuted,
+                      fontSize: 12,
+                    ),
+                  ),
+                  Spacer(),
+                  Text(
+                    '%$_condition',
+                    style: TextStyle(
+                      color: CareerCenterScreen._textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
-              SizedBox(width: 16),
-              Expanded(
-                child: _StatBar(
-                  label: 'Şöhret',
-                  value: 42,
-                  max: 100,
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: _condition / 100,
+                  minHeight: 8,
+                  backgroundColor: CareerCenterScreen._surface1,
                   color: CareerCenterScreen._success,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: _InfoTile(label: 'Bakiye', value: '₺48.200'),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _InfoTile(label: 'Kondisyon', value: '%86'),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _StatBar extends StatelessWidget {
-  const _StatBar({
-    required this.label,
-    required this.value,
-    required this.max,
-    required this.color,
+class _LitCard extends StatelessWidget {
+  const _LitCard({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.minHeight,
+    this.borderRadius = 16,
   });
 
-  final String label;
-  final int value;
-  final int max;
-  final Color color;
+  static const _cardTop = Color(0xFF2E3440);
+  static const _cardMid = Color(0xFF252932);
+  static const _cardBottom = Color(0xFF181C23);
+
+  final Widget child;
+  final VoidCallback? onTap;
+  final double? minHeight;
+  final double borderRadius;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: CareerCenterScreen._textPrimary,
-            fontSize: 12,
-          ),
-        ),
-        const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(2),
-          child: LinearProgressIndicator(
-            value: value / max,
-            minHeight: 4,
-            backgroundColor: CareerCenterScreen._surface1,
-            color: color,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '$value/$max',
-          style: const TextStyle(
-            color: CareerCenterScreen._textMuted,
-            fontSize: 11,
-          ),
-        ),
-      ],
-    );
-  }
-}
+    final innerRadius = borderRadius - 1;
 
-class _InfoTile extends StatelessWidget {
-  const _InfoTile({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
+    final card = DecoratedBox(
       decoration: BoxDecoration(
-        color: CareerCenterScreen._surface1,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: CareerCenterScreen._textMuted,
-              fontSize: 12,
-            ),
+        borderRadius: BorderRadius.circular(borderRadius),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.6),
+            blurRadius: 32,
+            offset: const Offset(0, 16),
+            spreadRadius: -8,
           ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              color: CareerCenterScreen._textPrimary,
-              fontWeight: FontWeight.w500,
-              fontSize: 18,
-            ),
+          BoxShadow(
+            color: CareerCenterScreen._accent.withValues(alpha: 0.22),
+            blurRadius: 48,
+            spreadRadius: -10,
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.4),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(borderRadius),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white.withValues(alpha: 0.22),
+              Colors.white.withValues(alpha: 0.06),
+              Colors.black.withValues(alpha: 0.35),
+            ],
+          ),
+        ),
+        padding: const EdgeInsets.all(1),
+        child: Container(
+          constraints:
+              minHeight != null ? BoxConstraints(minHeight: minHeight!) : null,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(innerRadius),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [_cardTop, _cardMid, _cardBottom],
+              stops: [0.0, 0.42, 1.0],
+            ),
+          ),
+          child: Stack(
+            children: [
+              Positioned(
+                top: 0,
+                left: 20,
+                right: 20,
+                child: Container(
+                  height: 1,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.transparent,
+                        Colors.white.withValues(alpha: 0.42),
+                        Colors.white.withValues(alpha: 0.42),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 14,
+                bottom: 14,
+                left: 0,
+                child: Container(
+                  width: 1,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.white.withValues(alpha: 0.14),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  height: 48,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.vertical(
+                      bottom: Radius.circular(innerRadius),
+                    ),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.28),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              child,
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (onTap == null) return card;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: card,
     );
   }
 }
@@ -296,10 +383,6 @@ class _MatchPreviewSection extends StatefulWidget {
 }
 
 class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
-  static const _cardTop = Color(0xFF2E3440);
-  static const _cardMid = Color(0xFF252932);
-  static const _cardBottom = Color(0xFF181C23);
-
   final _cardKey = GlobalKey();
 
   void _openMatchDetail() {
@@ -320,228 +403,116 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-      child: GestureDetector(
+      child: _LitCard(
         key: _cardKey,
         onTap: _openMatchDetail,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.6),
-              blurRadius: 32,
-              offset: const Offset(0, 16),
-              spreadRadius: -8,
-            ),
-            BoxShadow(
-              color: CareerCenterScreen._accent.withValues(alpha: 0.22),
-              blurRadius: 48,
-              spreadRadius: -10,
-            ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.4),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withValues(alpha: 0.22),
-                Colors.white.withValues(alpha: 0.06),
-                Colors.black.withValues(alpha: 0.35),
-              ],
-            ),
-          ),
-          padding: const EdgeInsets.all(1),
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 210),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(15),
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [_cardTop, _cardMid, _cardBottom],
-                stops: [0.0, 0.42, 1.0],
-              ),
-            ),
-            child: Stack(
-              children: [
-                Positioned(
-                  top: 0,
-                  left: 20,
-                  right: 20,
-                  child: Container(
-                    height: 1,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.transparent,
-                          Colors.white.withValues(alpha: 0.42),
-                          Colors.white.withValues(alpha: 0.42),
-                          Colors.transparent,
-                        ],
-                      ),
+        minHeight: 210,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                children: [
+                  Text(
+                    'SONRAKİ MAÇ',
+                    style: TextStyle(
+                      color:
+                          CareerCenterScreen._accent.withValues(alpha: 0.95),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                      letterSpacing: 1.2,
                     ),
                   ),
-                ),
-                Positioned(
-                  top: 14,
-                  bottom: 14,
-                  left: 0,
-                  child: Container(
-                    width: 1,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.white.withValues(alpha: 0.14),
-                          Colors.transparent,
-                        ],
-                      ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Cumartesi, 20:00',
+                    style: TextStyle(
+                      color: CareerCenterScreen._textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
                     ),
                   ),
-                ),
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    height: 48,
-                    decoration: BoxDecoration(
-                      borderRadius: const BorderRadius.vertical(
-                        bottom: Radius.circular(15),
-                      ),
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.28),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  const SizedBox(height: 4),
+                  const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Column(
-                        children: [
-                          Text(
-                            'SONRAKİ MAÇ',
-                            style: TextStyle(
-                              color: CareerCenterScreen._accent
-                                  .withValues(alpha: 0.95),
-                              fontWeight: FontWeight.w600,
-                              fontSize: 11,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          const Text(
-                            'Cumartesi, 20:00',
-                            style: TextStyle(
-                              color: CareerCenterScreen._textPrimary,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 15,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.cloud_outlined,
-                                size: 14,
-                                color: CareerCenterScreen._textSecondary,
-                              ),
-                              SizedBox(width: 4),
-                              Text(
-                                '16°C, parçalı bulutlu',
-                                style: TextStyle(
-                                  color: CareerCenterScreen._textSecondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                      Icon(
+                        Icons.cloud_outlined,
+                        size: 14,
+                        color: CareerCenterScreen._textSecondary,
                       ),
-                      const SizedBox(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const _TeamBadge(
-                            name: 'FK Yıldız',
-                            background: CareerCenterScreen._accentBg,
-                            iconColor: CareerCenterScreen._accent,
-                          ),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 28),
-                            child: Text(
-                              'vs',
-                              style: TextStyle(
-                                color: CareerCenterScreen._textMuted,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                          const _TeamBadge(
-                            name: 'Deniz SK',
-                            background: CareerCenterScreen._dangerBg,
-                            iconColor: CareerCenterScreen._danger,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: CareerCenterScreen._successBg,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: CareerCenterScreen._success
-                                .withValues(alpha: 0.35),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: CareerCenterScreen._success
-                                  .withValues(alpha: 0.18),
-                              blurRadius: 12,
-                            ),
-                          ],
-                        ),
-                        child: const Text(
-                          'İlk 11',
-                          style: TextStyle(
-                            color: CareerCenterScreen._success,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
+                      SizedBox(width: 4),
+                      Text(
+                        '16°C, parçalı bulutlu',
+                        style: TextStyle(
+                          color: CareerCenterScreen._textSecondary,
+                          fontSize: 12,
                         ),
                       ),
                     ],
                   ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const _TeamBadge(
+                    name: 'FK Yıldız',
+                    background: CareerCenterScreen._accentBg,
+                    iconColor: CareerCenterScreen._accent,
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 28),
+                    child: Text(
+                      'vs',
+                      style: TextStyle(
+                        color: CareerCenterScreen._textMuted,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const _TeamBadge(
+                    name: 'Deniz SK',
+                    background: CareerCenterScreen._dangerBg,
+                    iconColor: CareerCenterScreen._danger,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
                 ),
-              ],
-            ),
+                decoration: BoxDecoration(
+                  color: CareerCenterScreen._successBg,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color:
+                        CareerCenterScreen._success.withValues(alpha: 0.35),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color:
+                          CareerCenterScreen._success.withValues(alpha: 0.18),
+                      blurRadius: 12,
+                    ),
+                  ],
+                ),
+                child: const Text(
+                  'İlk 11',
+                  style: TextStyle(
+                    color: CareerCenterScreen._success,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ),
         ),
       ),
     );
@@ -589,80 +560,137 @@ class _TeamBadge extends StatelessWidget {
 class _NewsSection extends StatelessWidget {
   const _NewsSection();
 
+  static const _news = [
+    NewsItem(
+      category: 'Transfer',
+      title: "Deniz SK, orta saha transferi için FK Yıldız'ı ziyaret etti",
+      source: 'Spor Manşet',
+      timeAgo: '2 saat önce',
+      body:
+          'Deniz SK yönetimi, sezon ortası transfer penceresinde orta saha rotasyonunu güçlendirmek amacıyla FK Yıldız tesislerinde görüşmeler gerçekleştirdi.\n\n'
+          'Kaynaklara göre hedef listesinde genç orta saha oyuncuları öne çıkıyor. Kulüp yetkilileri, görüşmelerin olumlu geçtiğini ancak henüz resmi bir teklif yapılmadığını belirtti.\n\n'
+          'FK Yıldız tarafı ise kadro planlamasını korumak istediğini ve kritik oyuncular için aceleci davranmayacaklarını açıkladı. Gelişmeler takip ediliyor.',
+    ),
+    NewsItem(
+      category: 'Maç',
+      title: 'FK Yıldız, deplasmanda 2-1 galip geldi',
+      source: 'Lig Ajansı',
+      timeAgo: '1 gün önce',
+      body:
+          'FK Yıldız, zorlu deplasmanda sahadan 2-1 galip ayrılarak ligde üçüncülüğünü pekiştirdi.\n\n'
+          'İlk yarıda dengeyi koruyan misafir ekip, ikinci yarının başında öne geçti. Rakibin geç eşitliği ardından gelen gol, üç puanı getirdi.\n\n'
+          'Teknik direktör, oyuncuların disiplinli savunma ve hızlı geçiş oyununu övdü. Bir sonraki hafta ev sahibi avantajıyla kritik bir karşılaşma oynanacak.',
+    ),
+    NewsItem(
+      category: 'Röportaj',
+      title: 'Antrenör Mert: "Gençlerimiz doğru yolda"',
+      source: 'Saha Sohbeti',
+      timeAgo: '3 gün önce',
+      body:
+          'FK Yıldız antrenörü Mert, sezon değerlendirmesinde genç oyuncuların gelişimine vurgu yaptı.\n\n'
+          '"Antrenman temposu yüksek ve rekabet sağlıklı. Bireysel performans kadar takım oyunu da yükseliyor," dedi.\n\n'
+          'Özellikle orta saha hattında iletişim ve topa sahip olma oranının arttığını belirten antrenör, ligin ikinci yarısında daha istikrarlı sonuçlar beklediklerini ifade etti.',
+    ),
+    NewsItem(
+      category: 'Analiz',
+      title: 'Lig tablosu sıkışık: Üst sıralar tek puanlık farklarda',
+      source: 'Taktik Defter',
+      timeAgo: '5 gün önce',
+      body:
+          'Sezonun ilk yarısında lig üst sıraları beklenenden daha rekabetçi bir tablo çiziyor.\n\n'
+          'Deniz SK liderliğini korurken Anadolu FC ve FK Yıldız yakın takipte. Uzmanlara göre kalan maçlarda deplasman performansı şampiyonluk yarışını belirleyebilir.\n\n'
+          'Orta sıralardaki takımlar da puan farkını kapatma peşinde; her hafta sürpriz sonuçlar mümkün görünüyor.',
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: CareerCenterScreen._border,
-            width: 0.5,
-          ),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Stack(
-            children: [
-              Container(
-                height: 120,
-                width: double.infinity,
-                color: CareerCenterScreen._surface1,
-                alignment: Alignment.center,
-                child: const Icon(
-                  Icons.image_outlined,
-                  size: 32,
-                  color: CareerCenterScreen._textMuted,
-                ),
+    final item = _news.first;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: _LitCard(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => NewsDetailScreen(
+                news: _news,
+                initialIndex: 0,
               ),
-              Positioned(
-                top: 10,
-                left: 10,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: CareerCenterScreen._dangerBg,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Text(
-                    'Transfer',
-                    style: TextStyle(
-                      color: CareerCenterScreen._danger,
-                      fontSize: 11,
+            ),
+          );
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(15),
+              ),
+              child: Stack(
+                children: [
+                  Container(
+                    height: 120,
+                    width: double.infinity,
+                    color: CareerCenterScreen._surface1,
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.image_outlined,
+                      size: 32,
+                      color: CareerCenterScreen._textMuted,
                     ),
                   ),
-                ),
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: CareerCenterScreen._dangerBg,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        item.category,
+                        style: const TextStyle(
+                          color: CareerCenterScreen._danger,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 12, 20, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Deniz SK, orta saha transferi için FK Yıldız'ı ziyaret etti",
-                  style: TextStyle(
-                    color: CareerCenterScreen._textPrimary,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 14,
-                    height: 1.4,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Spor Manşet · 2 saat önce',
-                  style: TextStyle(
-                    color: CareerCenterScreen._textMuted,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
             ),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title,
+                    style: const TextStyle(
+                      color: CareerCenterScreen._textPrimary,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 14,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${item.source} · ${item.timeAgo}',
+                    style: const TextStyle(
+                      color: CareerCenterScreen._textMuted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -674,7 +702,7 @@ class _ActionsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: Column(
         children: [
           Row(
@@ -692,7 +720,7 @@ class _ActionsSection extends StatelessWidget {
                   },
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Expanded(
                 child: _ActionButton(
                   icon: Icons.fitness_center,
@@ -702,7 +730,7 @@ class _ActionsSection extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
             child: _ActionButton(
@@ -730,16 +758,30 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      onPressed: onPressed,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: CareerCenterScreen._textPrimary,
-        side: const BorderSide(color: CareerCenterScreen._border),
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-        textStyle: const TextStyle(fontSize: 13),
+    return _LitCard(
+      onTap: onPressed,
+      borderRadius: 12,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: CareerCenterScreen._textPrimary,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                color: CareerCenterScreen._textPrimary,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
       ),
-      icon: Icon(icon, size: 16),
-      label: Text(label),
     );
   }
 }
