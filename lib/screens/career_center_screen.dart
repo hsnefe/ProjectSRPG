@@ -4,6 +4,7 @@ import 'package:project_srpg/screens/news_detail_screen.dart';
 import 'package:project_srpg/screens/pre_match_screen.dart';
 import 'package:project_srpg/screens/relationships_screen.dart';
 import 'package:project_srpg/screens/settings_screen.dart';
+import 'package:project_srpg/screens/training_screen.dart';
 import 'package:project_srpg/widgets/expand_page_route.dart';
 
 class CareerCenterScreen extends StatelessWidget {
@@ -725,7 +726,13 @@ class _ActionsSection extends StatelessWidget {
                 child: _ActionButton(
                   icon: Icons.fitness_center,
                   label: 'Antrenman',
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const TrainingScreen(),
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
