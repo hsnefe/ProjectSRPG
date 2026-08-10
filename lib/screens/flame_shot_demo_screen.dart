@@ -64,10 +64,10 @@ class _FlameShotDemoScreenState extends State<FlameShotDemoScreen> {
                   child: Column(
                     children: [
                       _Header(onReset: _game.reset),
-                      _TargetPicker(
-                        targets: ShotTarget.all,
-                        selected: _game.target,
-                        onSelected: _game.selectTarget,
+                      _DirectionPad(
+                        facing: _game.facing,
+                        ahead: _game.target,
+                        onTurn: _game.turnTo,
                       ),
                       Expanded(
                         child: Padding(
@@ -144,63 +144,106 @@ class _Header extends StatelessWidget {
   }
 }
 
-/// The options are always all visible; picking one only turns the camera.
-class _TargetPicker extends StatelessWidget {
-  const _TargetPicker({
-    required this.targets,
-    required this.selected,
-    required this.onSelected,
+/// A compass rather than a destination list: the world is fixed, so the only
+/// thing to choose is which way to look. The arrow you are facing is red.
+class _DirectionPad extends StatelessWidget {
+  const _DirectionPad({
+    required this.facing,
+    required this.ahead,
+    required this.onTurn,
   });
 
-  final List<ShotTarget> targets;
-  final ShotTarget selected;
-  final ValueChanged<ShotTarget> onSelected;
+  final Facing facing;
+  final ShotTarget? ahead;
+  final ValueChanged<Facing> onTurn;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
       decoration: const BoxDecoration(
         border: Border(
           bottom: BorderSide(color: FlameShotDemoScreen._border, width: 0.5),
         ),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          for (final t in targets) ...[
-            Expanded(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => onSelected(t),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  decoration: BoxDecoration(
-                    color: t == selected
-                        ? FlameShotDemoScreen._accent
-                        : FlameShotDemoScreen._surface1,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    t.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: t == selected
-                          ? FlameShotDemoScreen._textPrimary
-                          : FlameShotDemoScreen._textSecondary,
-                      fontSize: 11,
-                      fontWeight:
-                          t == selected ? FontWeight.w600 : FontWeight.w400,
-                    ),
+          _Arrow(
+            icon: Icons.arrow_upward,
+            direction: Facing.forward,
+            facing: facing,
+            onTurn: onTurn,
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _Arrow(
+                icon: Icons.arrow_back,
+                direction: Facing.left,
+                facing: facing,
+                onTurn: onTurn,
+              ),
+              SizedBox(
+                width: 120,
+                child: Text(
+                  ahead?.label ?? 'boşluk',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: FlameShotDemoScreen._textSecondary,
+                    fontSize: 11,
                   ),
                 ),
               ),
-            ),
-            if (t != targets.last) const SizedBox(width: 6),
-          ],
+              _Arrow(
+                icon: Icons.arrow_forward,
+                direction: Facing.right,
+                facing: facing,
+                onTurn: onTurn,
+              ),
+            ],
+          ),
+          _Arrow(
+            icon: Icons.arrow_downward,
+            direction: Facing.back,
+            facing: facing,
+            onTurn: onTurn,
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _Arrow extends StatelessWidget {
+  const _Arrow({
+    required this.icon,
+    required this.direction,
+    required this.facing,
+    required this.onTurn,
+  });
+
+  static const _facingColor = Color(0xFFE5484D);
+
+  final IconData icon;
+  final Facing direction;
+  final Facing facing;
+  final ValueChanged<Facing> onTurn;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = direction == facing;
+    return IconButton(
+      onPressed: () => onTurn(direction),
+      padding: const EdgeInsets.all(4),
+      constraints: const BoxConstraints(),
+      visualDensity: VisualDensity.compact,
+      icon: Icon(
+        icon,
+        size: 22,
+        color: active ? _facingColor : Colors.white,
       ),
     );
   }

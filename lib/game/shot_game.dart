@@ -12,6 +12,19 @@ import 'package:project_srpg/game/pitch_projector.dart';
 
 enum ShotPhase { aim, strike, flight, result }
 
+/// The four bearings the player can turn to face. Nothing in the world is
+/// rebuilt when this changes — it only drives the camera angle.
+enum Facing {
+  forward(0),
+  right(math.pi / 2),
+  back(math.pi),
+  left(-math.pi / 2);
+
+  const Facing(this.angle);
+
+  final double angle;
+}
+
 /// A selectable destination. The player picks one, the camera turns to face
 /// it, and the same two-phase shot mechanic plays out toward it — including
 /// targets behind the player.
@@ -37,6 +50,22 @@ class ShotTarget {
   static const backPass = ShotTarget(label: 'Geri pas', x: 0.05, y: -0.75);
 
   static const all = [goal, leftWing, rightBack, backPass];
+
+  /// Whatever stands closest to the given bearing, if anything does. The
+  /// player turns to look somewhere; what is in front of them follows from
+  /// the world, rather than being picked from a menu.
+  static ShotTarget? inFrontOf(Facing facing) {
+    ShotTarget? best;
+    var bestDiff = double.infinity;
+    for (final t in all) {
+      final diff = ShotGame.shortestAngle(t.facingAngle - facing.angle).abs();
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        best = t;
+      }
+    }
+    return bestDiff <= math.pi / 4 ? best : null;
+  }
 }
 
 /// Flame port of the shot prototype.
@@ -52,11 +81,16 @@ class ShotGame extends FlameGame {
   final VoidCallback onStateChanged;
 
   ShotPhase phase = ShotPhase.aim;
-  ShotTarget target = ShotTarget.goal;
 
-  /// Camera facing, and the angle it is easing toward after a target switch.
+  /// The bearing the player has turned to. The world does not change with it.
+  Facing facing = Facing.forward;
+
+  /// Live camera angle, and the angle it is easing toward after a turn.
   double cameraAngle = 0;
   double desiredAngle = 0;
+
+  /// Whatever the player is currently looking at, derived from [facing].
+  ShotTarget? get target => ShotTarget.inFrontOf(facing);
 
   // Aim (phase 1)
   Offset? _dragStart;
@@ -86,8 +120,9 @@ class ShotGame extends FlameGame {
       PitchProjector(size: screenSize, cameraAngle: cameraAngle);
 
   /// Distance to the arrival plane, so a farther target genuinely takes a
-  /// longer, flatter shot instead of being a reskin of the same one.
-  double get targetDistance => target.distance;
+  /// longer, flatter shot instead of being a reskin of the same one. With
+  /// nobody ahead, the ball still travels a sensible way into open space.
+  double get targetDistance => target?.distance ?? 1.0;
 
   double get timeToTarget => _vy == 0 ? 0 : targetDistance / _vy;
 
@@ -119,7 +154,7 @@ class ShotGame extends FlameGame {
     // angle so the turn always takes the short way around. This is purely
     // visual, so it deliberately does not notify Flutter — Flame already
     // redraws every frame and the readout never shows the angle.
-    final delta = _shortestAngle(desiredAngle - cameraAngle);
+    final delta = shortestAngle(desiredAngle - cameraAngle);
     if (delta.abs() > 0.001) {
       cameraAngle += delta * math.min(1, dt * 6);
     }
@@ -130,16 +165,18 @@ class ShotGame extends FlameGame {
     }
   }
 
-  static double _shortestAngle(double a) {
+  static double shortestAngle(double a) {
     var r = a % (2 * math.pi);
     if (r > math.pi) r -= 2 * math.pi;
     if (r < -math.pi) r += 2 * math.pi;
     return r;
   }
 
-  void selectTarget(ShotTarget next) {
-    target = next;
-    desiredAngle = next.facingAngle;
+  /// Turn to a new bearing. Only the camera moves — the goal, the keeper and
+  /// the teammates are the same objects they were before the turn.
+  void turnTo(Facing next) {
+    facing = next;
+    desiredAngle = next.angle;
     reset();
   }
 
@@ -242,7 +279,10 @@ class ShotGame extends FlameGame {
     final x = lateralAt(tg);
     final z = heightAt(tg);
 
-    if (!target.isGoal) {
+    final aimedAt = target;
+    if (aimedAt == null) return 'BOŞLUĞA';
+
+    if (!aimedAt.isGoal) {
       final caught =
           x.abs() < ShotWorld.passCatchRadius && z < ShotWorld.passCatchHeight;
       return caught ? 'PAS TUTTU' : 'PAS KAÇTI';
@@ -440,7 +480,7 @@ class TargetsComponent extends Component with HasGameReference<ShotGame> {
       final depth = p.depthOf(t.x, t.y);
       if (!p.isPointVisible(depth)) continue;
 
-      final selected = t == game.target;
+      final ahead = t == game.target;
       final feet = p.projectWorld(t.x, t.y, 0);
       final s = p.scale(depth);
       final h = 0.26 * p.zScale * s;
@@ -456,7 +496,7 @@ class TargetsComponent extends Component with HasGameReference<ShotGame> {
           const Radius.circular(3),
         ),
         Paint()
-          ..color = selected
+          ..color = ahead
               ? _success.withValues(alpha: 0.9)
               : Colors.white.withValues(alpha: 0.55),
       );
@@ -478,7 +518,7 @@ class KeeperComponent extends Component with HasGameReference<ShotGame> {
 
   @override
   void render(Canvas canvas) {
-    if (!game.target.isGoal) return;
+    if (game.target?.isGoal != true) return;
     final p = game.projector;
 
     // The keeper stands on the goal line, so his absolute position follows
