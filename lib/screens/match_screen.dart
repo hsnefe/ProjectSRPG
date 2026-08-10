@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/screens/flame_shot_demo_screen.dart';
 
 class MatchScreen extends StatelessWidget {
   const MatchScreen({super.key});
@@ -194,25 +195,49 @@ class _MatchScenePlaceholder extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: MatchScreen._surface1,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: MatchScreen._border,
-            width: 1,
-            strokeAlign: BorderSide.strokeAlignInside,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const FlameShotDemoScreen(),
+            ),
+          );
+        },
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: MatchScreen._surface1,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: MatchScreen._border,
+              width: 1,
+              strokeAlign: BorderSide.strokeAlignInside,
+            ),
           ),
-        ),
-        child: CustomPaint(
-          painter: _DashedBorderPainter(color: MatchScreen._border),
-          child: const Center(
-            child: Text(
-              'Maç sahnesi (boş)',
-              style: TextStyle(
-                color: MatchScreen._textMuted,
-                fontSize: 12,
+          child: CustomPaint(
+            painter: _DashedBorderPainter(color: MatchScreen._border),
+            child: const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Maç sahnesi (boş)',
+                    style: TextStyle(
+                      color: MatchScreen._textMuted,
+                      fontSize: 12,
+                    ),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    'Şut prototipini aç →',
+                    style: TextStyle(
+                      color: MatchScreen._textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
