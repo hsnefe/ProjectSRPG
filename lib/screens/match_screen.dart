@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:project_srpg/screens/shot_prototype_screen.dart';
+import 'package:project_srpg/screens/flame_shot_demo_screen.dart';
 
 class MatchScreen extends StatelessWidget {
   const MatchScreen({super.key});
@@ -200,7 +200,7 @@ class _MatchScenePlaceholder extends StatelessWidget {
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute<void>(
-              builder: (_) => const ShotPrototypeScreen(),
+              builder: (_) => const FlameShotDemoScreen(),
             ),
           );
         },
