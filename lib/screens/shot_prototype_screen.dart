@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import 'package:project_srpg/screens/flame_shot_demo_screen.dart';
+
 /// A two-phase shot prototype.
 ///
 /// 1. Aim (flick): the drag vector's direction (x) and the target height
@@ -763,15 +765,37 @@ class _Header extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          const Text(
-            'Şut Prototipi',
-            style: TextStyle(
-              color: ShotPrototypeScreen._textPrimary,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
+          const Flexible(
+            child: Text(
+              'Şut Prototipi',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: ShotPrototypeScreen._textPrimary,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
             ),
           ),
           const Spacer(),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const FlameShotDemoScreen(),
+                ),
+              );
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: ShotPrototypeScreen._textSecondary,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              textStyle: const TextStyle(fontSize: 12),
+            ),
+            child: const Text('Flame →'),
+          ),
+          const SizedBox(width: 4),
           IconButton(
             onPressed: onReset,
             padding: EdgeInsets.zero,
