@@ -371,7 +371,12 @@ class InputLayer extends PositionComponent
   }
 }
 
-/// Grass, touchlines, penalty box and the goal frame.
+/// Grass, the markings and the goal frame.
+///
+/// Everything here is pinned to absolute world coordinates, so turning the
+/// camera slides the pitch past you instead of dragging it along. That is what
+/// makes the compass mean anything: without markings the only cue was the
+/// grass, and the grass used to be painted in camera space.
 class PitchComponent extends Component with HasGameReference<ShotGame> {
   @override
   int get priority => 0;
@@ -380,6 +385,7 @@ class PitchComponent extends Component with HasGameReference<ShotGame> {
   void render(Canvas canvas) {
     final p = game.projector;
     _paintGrass(canvas, p);
+    _paintMarkings(canvas, p);
     _paintGoal(canvas, p);
   }
 
@@ -388,22 +394,172 @@ class PitchComponent extends Component with HasGameReference<ShotGame> {
       Rect.fromLTWH(0, 0, p.size.width, p.size.height),
       Paint()..color = _grassDark,
     );
-    // Stripes that narrow with depth. They are drawn in camera space so they
-    // stay put no matter which way the camera faces.
-    const bands = 7;
+
+    // Mowing bands, as world-space strips rather than screen-space stripes, so
+    // they turn with the markings. Outside the touchlines the darker base
+    // shows through, which is what makes the pitch read as a rectangle.
+    const back = PitchLines.backY;
+    const front = PitchLines.goalLineY;
+    const w = PitchLines.halfWidth;
+    final bands = ((front - back) / PitchLines.mowBandDepth).round();
+    final paint = Paint()..color = _grassLight;
+
     for (var i = 0; i < bands; i += 2) {
-      final d0 = i / bands;
-      final d1 = (i + 1) / bands;
-      canvas.drawPath(
-        Path()
-          ..moveTo(0, p.groundY(d0))
-          ..lineTo(p.size.width, p.groundY(d0))
-          ..lineTo(p.size.width, p.groundY(d1))
-          ..lineTo(0, p.groundY(d1))
-          ..close(),
-        Paint()..color = _grassLight,
+      final y0 = back + (front - back) * i / bands;
+      final y1 = back + (front - back) * (i + 1) / bands;
+      final corners = p.projectGroundPolygon([
+        (x: -w, y: y0),
+        (x: w, y: y0),
+        (x: w, y: y1),
+        (x: -w, y: y1),
+      ]);
+      if (corners.length < 3) continue;
+
+      final path = Path()..moveTo(corners.first.dx, corners.first.dy);
+      for (final corner in corners.skip(1)) {
+        path.lineTo(corner.dx, corner.dy);
+      }
+      canvas.drawPath(path..close(), paint);
+    }
+  }
+
+  void _paintMarkings(Canvas canvas, PitchProjector p) {
+    final paint = Paint()
+      ..color = _lineColor
+      ..strokeWidth = 1.2
+      ..strokeCap = StrokeCap.round;
+
+    const w = PitchLines.halfWidth;
+    const front = PitchLines.goalLineY;
+    const back = PitchLines.backY;
+
+    // Touchlines and the goal line. There is no halfway line to draw: at this
+    // scale it sits at [PitchLines.backY], past the top of the screen.
+    _seg(canvas, p, paint, (x: -w, y: back), (x: -w, y: front));
+    _seg(canvas, p, paint, (x: w, y: back), (x: w, y: front));
+    _seg(canvas, p, paint, (x: -w, y: front), (x: w, y: front));
+
+    _box(canvas, p, paint, PitchLines.penaltyHalfWidth, PitchLines.penaltyDepth);
+    _box(
+      canvas,
+      p,
+      paint,
+      PitchLines.goalAreaHalfWidth,
+      PitchLines.goalAreaDepth,
+    );
+
+    _paintPenaltySpot(canvas, p);
+    _paintPenaltyArc(canvas, p, paint);
+
+    // Corner arcs curl into the pitch, so each one starts a quarter turn back
+    // from the corner it sits on.
+    for (final side in [-1, 1]) {
+      _arc(
+        canvas,
+        p,
+        paint,
+        centre: (x: w * side, y: front),
+        radius: PitchLines.cornerArcRadius,
+        from: side > 0 ? math.pi : -math.pi / 2,
+        sweep: math.pi / 2,
+        samples: 8,
       );
     }
+  }
+
+  /// A goal-side box: two sides running back from the goal line and the front
+  /// line joining them. The fourth edge *is* the goal line, already drawn.
+  void _box(
+    Canvas canvas,
+    PitchProjector p,
+    Paint paint,
+    double halfWidth,
+    double depth,
+  ) {
+    final y = PitchLines.goalLineY - depth;
+    for (final side in [-1, 1]) {
+      _seg(
+        canvas,
+        p,
+        paint,
+        (x: halfWidth * side, y: PitchLines.goalLineY),
+        (x: halfWidth * side, y: y),
+      );
+    }
+    _seg(canvas, p, paint, (x: -halfWidth, y: y), (x: halfWidth, y: y));
+  }
+
+  void _paintPenaltySpot(Canvas canvas, PitchProjector p) {
+    const spot = (x: 0.0, y: PitchLines.penaltySpotY);
+    final depth = p.depthOf(spot.x, spot.y);
+    if (!p.isPointVisible(depth)) return;
+
+    canvas.drawCircle(
+      p.projectWorld(spot.x, spot.y, 0),
+      0.02 * p.halfWidth * p.scale(depth),
+      Paint()..color = _lineColor,
+    );
+  }
+
+  /// Only the sliver of the arc that pokes out in front of the penalty area —
+  /// the rest is inside the box and never drawn.
+  void _paintPenaltyArc(Canvas canvas, PitchProjector p, Paint paint) {
+    const radius = PitchLines.penaltyArcRadius;
+    const reach = PitchLines.penaltySpotY - PitchLines.penaltyFrontY;
+    if (radius <= reach) return;
+
+    final half = math.acos(reach / radius);
+    _arc(
+      canvas,
+      p,
+      paint,
+      centre: (x: 0.0, y: PitchLines.penaltySpotY),
+      radius: radius,
+      from: -math.pi / 2 - half,
+      sweep: half * 2,
+      samples: 16,
+    );
+  }
+
+  /// Curves are the one thing the projection cannot draw exactly, so they get
+  /// sampled. Pushing every sample pair through [_seg] means near and far
+  /// clipping come for free, and the round cap hides the joins.
+  void _arc(
+    Canvas canvas,
+    PitchProjector p,
+    Paint paint, {
+    required GroundPoint centre,
+    required double radius,
+    required double from,
+    required double sweep,
+    required int samples,
+  }) {
+    GroundPoint at(int i) {
+      final a = from + sweep * i / samples;
+      return (
+        x: centre.x + radius * math.cos(a),
+        y: centre.y + radius * math.sin(a),
+      );
+    }
+
+    var previous = at(0);
+    for (var i = 1; i <= samples; i++) {
+      final current = at(i);
+      _seg(canvas, p, paint, previous, current);
+      previous = current;
+    }
+  }
+
+  void _seg(
+    Canvas canvas,
+    PitchProjector p,
+    Paint paint,
+    GroundPoint a,
+    GroundPoint b,
+  ) {
+    final segment = p.projectGroundSegment(a, b);
+    if (segment == null) return;
+    canvas.drawLine(segment.$1, segment.$2, paint);
   }
 
   void _paintGoal(Canvas canvas, PitchProjector p) {
@@ -451,17 +607,6 @@ class PitchComponent extends Component with HasGameReference<ShotGame> {
     canvas.drawLine(bl, tl, frame);
     canvas.drawLine(br, tr, frame);
     canvas.drawLine(tl, tr, frame);
-
-    // The goal line reaches wider than the frame, so it needs its own check.
-    if (p.isVisible(p.depthOf(-1, 1)) && p.isVisible(p.depthOf(1, 1))) {
-      canvas.drawLine(
-        p.projectWorld(-1, 1, 0),
-        p.projectWorld(1, 1, 0),
-        Paint()
-          ..color = _lineColor
-          ..strokeWidth = 1.2,
-      );
-    }
   }
 }
 
