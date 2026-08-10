@@ -497,7 +497,10 @@ class PitchComponent extends Component with HasGameReference<ShotGame> {
     canvas.drawCircle(
       p.projectWorld(spot.x, spot.y, 0),
       0.02 * p.halfWidth * p.scale(depth),
-      Paint()..color = _lineColor,
+      Paint()
+        ..color = _lineColor.withValues(
+          alpha: _lineColor.a * p.pointOpacity(depth),
+        ),
     );
   }
 
@@ -626,6 +629,7 @@ class TargetsComponent extends Component with HasGameReference<ShotGame> {
       if (!p.isPointVisible(depth)) continue;
 
       final ahead = t == game.target;
+      final o = p.pointOpacity(depth);
       final feet = p.projectWorld(t.x, t.y, 0);
       final s = p.scale(depth);
       final h = 0.26 * p.zScale * s;
@@ -633,7 +637,7 @@ class TargetsComponent extends Component with HasGameReference<ShotGame> {
 
       canvas.drawOval(
         Rect.fromCenter(center: feet, width: w * 1.6, height: w * 0.5),
-        Paint()..color = Colors.black.withValues(alpha: 0.35),
+        Paint()..color = Colors.black.withValues(alpha: 0.35 * o),
       );
       canvas.drawRRect(
         RRect.fromRectAndRadius(
@@ -642,14 +646,19 @@ class TargetsComponent extends Component with HasGameReference<ShotGame> {
         ),
         Paint()
           ..color = ahead
-              ? _success.withValues(alpha: 0.9)
-              : Colors.white.withValues(alpha: 0.55),
+              ? _success.withValues(alpha: 0.9 * o)
+              : Colors.white.withValues(alpha: 0.55 * o),
       );
     }
   }
 }
 
-/// Only guards the goal, and only when the camera is facing it.
+/// Stands on the goal line whenever the goal is in view.
+///
+/// Visibility comes from geometry, never from which target is selected.
+/// [ShotGame.turnTo] flips `facing` in one frame while the camera eases over
+/// the next half second, so gating the keeper on `target.isGoal` deleted him
+/// from a shot the camera was still pointing at.
 class KeeperComponent extends Component with HasGameReference<ShotGame> {
   @override
   int get priority => 2;
@@ -663,7 +672,6 @@ class KeeperComponent extends Component with HasGameReference<ShotGame> {
 
   @override
   void render(Canvas canvas) {
-    if (game.target?.isGoal != true) return;
     final p = game.projector;
 
     // The keeper stands on the goal line, so his absolute position follows
@@ -674,6 +682,7 @@ class KeeperComponent extends Component with HasGameReference<ShotGame> {
     final depth = p.depthOf(wx, wy);
     if (!p.isPointVisible(depth)) return;
 
+    final o = p.pointOpacity(depth);
     final s = p.scale(depth);
     final feet = p.projectWorld(wx, wy, 0);
     final w = 0.20 * p.halfWidth * s;
@@ -684,7 +693,7 @@ class KeeperComponent extends Component with HasGameReference<ShotGame> {
         Rect.fromLTWH(feet.dx - w / 2, feet.dy - h, w, h),
         const Radius.circular(3),
       ),
-      Paint()..color = _warning.withValues(alpha: 0.85),
+      Paint()..color = _warning.withValues(alpha: 0.85 * o),
     );
   }
 }

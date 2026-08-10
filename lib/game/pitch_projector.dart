@@ -149,6 +149,21 @@ class PitchProjector {
   /// no far end to smear toward, so it only has to be in front of the camera.
   bool isPointVisible(double depth) => depth > 0.02;
 
+  /// Depth at which a point-like object reaches full opacity.
+  static const pointFadeDepth = 0.4;
+
+  /// How solid a point-like object at this depth should be.
+  ///
+  /// There is no field of view to carry a player out of frame as the camera
+  /// swings past them: `scale(depth)` tends to 1 and the lateral offset tends
+  /// to the object's distance, so screen x converges on
+  /// `width / 2 ± distance * halfWidth` — bounded. The back-pass marker ends
+  /// up 60 px inside the left edge of a phone and the keeper 24 px, so culling
+  /// them at [isPointVisible] blinked them out mid-screen. Fading over the last
+  /// stretch of the swing reads as leaving instead.
+  double pointOpacity(double depth) =>
+      (depth / pointFadeDepth).clamp(0.0, 1.0);
+
   /// Far limit for clipped ground geometry, and deliberately generous.
   ///
   /// [horizonY] is not a horizon: it is merely where depth 1 lands. [groundY]

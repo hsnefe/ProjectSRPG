@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:project_srpg/game/pitch_projector.dart';
+import 'package:project_srpg/game/shot_game.dart';
 
 const _size = Size(360, 600);
 
@@ -244,6 +245,77 @@ void main() {
             );
           }
         }
+      }
+    });
+  });
+
+  group('point objects fade out of frame', () {
+    test('opacity ramps from nothing to solid', () {
+      const p = PitchProjector(size: _size);
+
+      expect(p.pointOpacity(-0.3), 0);
+      expect(p.pointOpacity(0), 0);
+      expect(p.pointOpacity(PitchProjector.pointFadeDepth), 1);
+      expect(p.pointOpacity(3), 1);
+
+      var previous = 0.0;
+      for (var d = 0.0; d <= PitchProjector.pointFadeDepth; d += 0.02) {
+        final o = p.pointOpacity(d);
+        expect(o, greaterThanOrEqualTo(previous));
+        previous = o;
+      }
+    });
+
+    test('a player culled at the near plane is still inside the viewport', () {
+      // Why the fade exists. There is no field of view, so as the camera swings
+      // past a player their screen x converges on a bounded offset instead of
+      // running off the edge — culling at isPointVisible blinks them out in
+      // plain sight. Every target and the keeper hit that.
+      // The goal is not one of these — TargetsComponent skips it and draws the
+      // frame instead.
+      final standing = [
+        for (final t in ShotTarget.all)
+          if (!t.isGoal) (label: t.label, x: t.x, y: t.y),
+        (label: 'keeper', x: 0.0, y: 0.97),
+      ];
+
+      const barelyVisible = 0.021;
+      for (final o in standing) {
+        // Turn until the object sits just inside the cull threshold.
+        final distance = math.sqrt(o.x * o.x + o.y * o.y);
+        final offAxis = math.acos((barelyVisible / distance).clamp(-1.0, 1.0));
+        final p = PitchProjector(
+          size: _size,
+          cameraAngle: PitchProjector.angleToward(o.x, o.y) + offAxis,
+        );
+
+        final depth = p.depthOf(o.x, o.y);
+        expect(depth, closeTo(barelyVisible, 1e-9), reason: o.label);
+        expect(p.isPointVisible(depth), isTrue, reason: o.label);
+
+        final screenX = p.projectWorld(o.x, o.y, 0).dx;
+        expect(screenX, greaterThan(0), reason: o.label);
+        expect(screenX, lessThan(_size.width), reason: o.label);
+
+        // ...and it is nearly transparent there, so the cull cannot be seen.
+        expect(p.pointOpacity(depth), lessThan(0.06), reason: o.label);
+      }
+    });
+
+    test('the keeper is culled by geometry, not by which target is picked', () {
+      const keeper = (x: 0.0, y: 0.97);
+
+      for (final facing in Facing.values) {
+        final p = PitchProjector(size: _size, cameraAngle: facing.angle);
+        final depth = p.depthOf(keeper.x, keeper.y);
+        final guarding = ShotTarget.inFrontOf(facing)?.isGoal ?? false;
+
+        expect(
+          p.isPointVisible(depth),
+          guarding,
+          reason: 'facing ${facing.name}: the goal is either in view or not, '
+              'and the keeper follows the camera either way',
+        );
       }
     });
   });
