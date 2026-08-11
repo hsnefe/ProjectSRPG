@@ -1,6 +1,7 @@
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
+import 'package:project_srpg/game/pitch_projector.dart';
 import 'package:project_srpg/game/shot_game.dart';
 
 /// Flame-based version of the shot prototype.
@@ -257,9 +258,9 @@ class _Readout extends StatelessWidget {
   String get _hint {
     switch (game.phase) {
       case ShotPhase.aim:
-        return '1) Sürükle: yön ve yükseklik seç, bırak';
+        return '1) Sürükle: sahada bir nokta seç, bırak';
       case ShotPhase.strike:
-        return '2) Topa vur: merkez = güç, kenar = kavis';
+        return '2) Topa vur: merkez = güç, kenar = kavis, alt = yükselt';
       case ShotPhase.flight:
         return 'Uçuşta…';
       case ShotPhase.result:
@@ -289,10 +290,19 @@ class _Readout extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             children: [
-              _Stat(label: 'Yön', value: game.aimX, signed: true),
-              _Stat(label: 'Yükseklik', value: game.lift),
+              _Stat(
+                label: 'Yön',
+                value: game.aimLateral,
+                max: ShotWorld.maxAimLateral,
+                signed: true,
+              ),
+              _Stat(
+                label: 'Mesafe',
+                value: game.aimDepth,
+                max: ShotWorld.maxAimDepth,
+              ),
               _Stat(label: 'Güç', value: game.power),
-              _Stat(label: 'Mesafe', value: game.targetDistance),
+              _Stat(label: 'Yükseklik', value: game.loft),
             ],
           ),
         ],
@@ -305,16 +315,21 @@ class _Stat extends StatelessWidget {
   const _Stat({
     required this.label,
     required this.value,
+    this.max = 1.0,
     this.signed = false,
   });
 
   final String label;
   final double value;
+
+  /// Full-bar value. The number stays raw; only the bar is normalised, so a
+  /// distance of 2.30 reads as 2.30 rather than pinning the bar at 1.
+  final double max;
   final bool signed;
 
   @override
   Widget build(BuildContext context) {
-    final magnitude = value.abs().clamp(0.0, 1.0);
+    final magnitude = (value.abs() / max).clamp(0.0, 1.0);
     return Expanded(
       child: Padding(
         padding: const EdgeInsets.only(right: 8),

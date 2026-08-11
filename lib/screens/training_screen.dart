@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:project_srpg/screens/explore_screen.dart';
+import 'package:project_srpg/screens/training_radar_screen.dart';
+import 'package:project_srpg/state/player_scope.dart';
 
 enum _TrainingTab { physical, tactical }
 
@@ -39,8 +40,6 @@ class TrainingScreen extends StatefulWidget {
 }
 
 class _TrainingScreenState extends State<TrainingScreen> {
-  static const _condition = 72;
-
   static const _physical = [
     _TrainingItem(
       title: 'Kondisyon Koşusu',
@@ -101,6 +100,8 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final condition = PlayerScope.of(context).condition;
+
     return Scaffold(
       backgroundColor: TrainingScreen._surface1,
       body: SafeArea(
@@ -123,11 +124,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
                   child: Column(
                     children: [
                       _HeaderSection(
-                        condition: _condition,
+                        condition: condition,
                         onExplore: () {
                           Navigator.of(context).push(
                             MaterialPageRoute<void>(
-                              builder: (_) => const ExploreScreen(),
+                              builder: (_) => const TrainingRadarScreen(),
                             ),
                           );
                         },
