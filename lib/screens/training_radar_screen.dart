@@ -51,6 +51,8 @@ class TrainingRadarScreen extends StatelessWidget {
                           accentColor: _accent,
                           gridShape: RadarGridShape.polygon,
                           backgroundColor: _surface2,
+                          smooth: true,
+                          glow: true,
                         ),
                       ),
                       const Padding(

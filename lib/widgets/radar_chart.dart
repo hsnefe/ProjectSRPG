@@ -16,6 +16,8 @@ class RadarChart extends StatelessWidget {
     this.gridColor = const Color(0xFF333845),
     this.labelColor = const Color(0xFFA0A6B0),
     this.backgroundColor = const Color(0xFF1A1D24),
+    this.smooth = false,
+    this.glow = false,
   }) : assert(labels.length == values.length && labels.length >= 3);
 
   final List<String> labels;
@@ -27,6 +29,13 @@ class RadarChart extends StatelessWidget {
   final Color gridColor;
   final Color labelColor;
   final Color backgroundColor;
+
+  /// Renders the data outline as a smooth Catmull-Rom curve through each
+  /// value point instead of straight polygon edges.
+  final bool smooth;
+
+  /// Adds a soft neon-style glow behind the data outline and fill.
+  final bool glow;
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +52,8 @@ class RadarChart extends StatelessWidget {
           gridColor: gridColor,
           labelColor: labelColor,
           backgroundColor: backgroundColor,
+          smooth: smooth,
+          glow: glow,
         ),
       ),
     );
@@ -60,6 +71,8 @@ class _RadarChartPainter extends CustomPainter {
     required this.gridColor,
     required this.labelColor,
     required this.backgroundColor,
+    required this.smooth,
+    required this.glow,
   });
 
   final List<String> labels;
@@ -71,6 +84,8 @@ class _RadarChartPainter extends CustomPainter {
   final Color gridColor;
   final Color labelColor;
   final Color backgroundColor;
+  final bool smooth;
+  final bool glow;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -128,19 +143,43 @@ class _RadarChartPainter extends CustomPainter {
       canvas.drawLine(center, pointFor(i, 1), gridPaint);
     }
 
-    final dataPath = Path();
     final dataPoints = <Offset>[];
     for (var i = 0; i < n; i++) {
       final fraction = (values[i] / max).clamp(0.0, 1.0);
-      final p = pointFor(i, fraction);
-      dataPoints.add(p);
-      if (i == 0) {
-        dataPath.moveTo(p.dx, p.dy);
-      } else {
-        dataPath.lineTo(p.dx, p.dy);
-      }
+      dataPoints.add(pointFor(i, fraction));
     }
-    dataPath.close();
+    final dataPath = smooth
+        ? _smoothClosedPath(dataPoints)
+        : _straightClosedPath(dataPoints);
+
+    if (glow) {
+      // Soft outer bloom: wide, heavily blurred fill + stroke passes.
+      canvas.drawPath(
+        dataPath,
+        Paint()
+          ..color = accentColor.withValues(alpha: 0.16)
+          ..style = PaintingStyle.fill
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
+      );
+      canvas.drawPath(
+        dataPath,
+        Paint()
+          ..color = accentColor.withValues(alpha: 0.55)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 7
+          ..strokeJoin = StrokeJoin.round
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+      );
+      canvas.drawPath(
+        dataPath,
+        Paint()
+          ..color = accentColor.withValues(alpha: 0.8)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3.5
+          ..strokeJoin = StrokeJoin.round
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+      );
+    }
 
     canvas.drawPath(
       dataPath,
@@ -158,6 +197,15 @@ class _RadarChartPainter extends CustomPainter {
     );
 
     for (final p in dataPoints) {
+      if (glow) {
+        canvas.drawCircle(
+          p,
+          6,
+          Paint()
+            ..color = accentColor.withValues(alpha: 0.6)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+        );
+      }
       canvas.drawCircle(p, 3.5, Paint()..color = accentColor);
       canvas.drawCircle(
         p,
@@ -199,6 +247,43 @@ class _RadarChartPainter extends CustomPainter {
     }
   }
 
+  static Path _straightClosedPath(List<Offset> points) {
+    final path = Path();
+    for (var i = 0; i < points.length; i++) {
+      final p = points[i];
+      if (i == 0) {
+        path.moveTo(p.dx, p.dy);
+      } else {
+        path.lineTo(p.dx, p.dy);
+      }
+    }
+    path.close();
+    return path;
+  }
+
+  /// Builds a closed Catmull-Rom spline through [points], converted to
+  /// cubic Bezier segments, producing a smooth "blob" outline instead of
+  /// sharp polygon corners.
+  static Path _smoothClosedPath(List<Offset> points) {
+    final n = points.length;
+    if (n < 3) return _straightClosedPath(points);
+
+    Offset at(int i) => points[((i % n) + n) % n];
+
+    final path = Path()..moveTo(at(0).dx, at(0).dy);
+    for (var i = 0; i < n; i++) {
+      final p0 = at(i - 1);
+      final p1 = at(i);
+      final p2 = at(i + 1);
+      final p3 = at(i + 2);
+      final cp1 = p1 + (p2 - p0) / 6;
+      final cp2 = p2 - (p3 - p1) / 6;
+      path.cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, p2.dx, p2.dy);
+    }
+    path.close();
+    return path;
+  }
+
   @override
   bool shouldRepaint(covariant _RadarChartPainter oldDelegate) {
     return oldDelegate.labels != labels ||
@@ -209,6 +294,8 @@ class _RadarChartPainter extends CustomPainter {
         oldDelegate.accentColor != accentColor ||
         oldDelegate.gridColor != gridColor ||
         oldDelegate.labelColor != labelColor ||
-        oldDelegate.backgroundColor != backgroundColor;
+        oldDelegate.backgroundColor != backgroundColor ||
+        oldDelegate.smooth != smooth ||
+        oldDelegate.glow != glow;
   }
 }
