@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:project_srpg/screens/match_screen.dart';
+import 'package:project_srpg/state/player_scope.dart';
 
 class PreMatchScreen extends StatelessWidget {
   const PreMatchScreen({super.key});
@@ -265,14 +266,16 @@ class _ConditionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final condition = PlayerScope.of(context).condition;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
       child: Column(
         children: [
-          const Row(
+          Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              const Text(
                 'Kondisyon',
                 style: TextStyle(
                   color: PreMatchScreen._textMuted,
@@ -280,8 +283,8 @@ class _ConditionBar extends StatelessWidget {
                 ),
               ),
               Text(
-                '86/100',
-                style: TextStyle(
+                '$condition/100',
+                style: const TextStyle(
                   color: PreMatchScreen._textSecondary,
                   fontSize: 12,
                 ),
@@ -292,7 +295,7 @@ class _ConditionBar extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(3),
             child: LinearProgressIndicator(
-              value: 0.86,
+              value: condition / 100,
               minHeight: 6,
               backgroundColor: PreMatchScreen._surface1,
               color: PreMatchScreen._success,

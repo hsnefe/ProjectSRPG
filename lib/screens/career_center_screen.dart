@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:project_srpg/screens/league_table_screen.dart';
+import 'package:project_srpg/screens/lifestyle_screen.dart';
 import 'package:project_srpg/screens/news_detail_screen.dart';
 import 'package:project_srpg/screens/pre_match_screen.dart';
 import 'package:project_srpg/screens/relationships_screen.dart';
 import 'package:project_srpg/screens/settings_screen.dart';
 import 'package:project_srpg/screens/training_screen.dart';
+import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/widgets/expand_page_route.dart';
 
 class CareerCenterScreen extends StatelessWidget {
@@ -65,6 +67,8 @@ class _HeaderSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final moneyLabel = PlayerScope.of(context).moneyLabel;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: const BoxDecoration(
@@ -95,13 +99,13 @@ class _HeaderSection extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Flexible(
+                    const Flexible(
                       child: Text(
                         'Efe Kaan',
                         style: TextStyle(
@@ -112,10 +116,10 @@ class _HeaderSection extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Text(
-                      '₺48.200',
-                      style: TextStyle(
+                      moneyLabel,
+                      style: const TextStyle(
                         color: CareerCenterScreen._success,
                         fontWeight: FontWeight.w500,
                         fontSize: 13,
@@ -123,7 +127,7 @@ class _HeaderSection extends StatelessWidget {
                     ),
                   ],
                 ),
-                Text(
+                const Text(
                   'Orta saha · FK Yıldız',
                   style: TextStyle(
                     color: CareerCenterScreen._textSecondary,
@@ -179,10 +183,10 @@ class _HeaderSection extends StatelessWidget {
 class _ProgressSection extends StatelessWidget {
   const _ProgressSection();
 
-  static const _condition = 86;
-
   @override
   Widget build(BuildContext context) {
+    final condition = PlayerScope.of(context).condition;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       child: _LitCard(
@@ -192,19 +196,19 @@ class _ProgressSection extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
-                  Text(
+                  const Text(
                     'Kondisyon',
                     style: TextStyle(
                       color: CareerCenterScreen._textMuted,
                       fontSize: 12,
                     ),
                   ),
-                  Spacer(),
+                  const Spacer(),
                   Text(
-                    '%$_condition',
-                    style: TextStyle(
+                    '%$condition',
+                    style: const TextStyle(
                       color: CareerCenterScreen._textPrimary,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
@@ -216,7 +220,7 @@ class _ProgressSection extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
-                  value: _condition / 100,
+                  value: condition / 100,
                   minHeight: 8,
                   backgroundColor: CareerCenterScreen._surface1,
                   color: CareerCenterScreen._success,
@@ -743,7 +747,13 @@ class _ActionsSection extends StatelessWidget {
             child: _ActionButton(
               icon: Icons.home_outlined,
               label: 'Yaşam tarzı',
-              onPressed: () {},
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const LifestyleScreen(),
+                  ),
+                );
+              },
             ),
           ),
         ],
