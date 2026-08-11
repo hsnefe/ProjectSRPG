@@ -92,14 +92,17 @@ class ShotGame extends FlameGame {
   /// Whatever the player is currently looking at, derived from [facing].
   ShotTarget? get target => ShotTarget.inFrontOf(facing);
 
-  // Aim (phase 1)
+  // Aim (phase 1). A ground point in camera space, free of whatever the compass
+  // happens to be facing — the ball goes where you point it and the outcome
+  // follows from what is actually there.
   Offset? _dragStart;
-  double aimX = 0;
-  double lift = 0;
+  double aimLateral = 0;
+  double aimDepth = ShotWorld.defaultAimDepth;
 
   // Strike (phase 2)
   double power = 0;
   double spin = 0;
+  double loft = 0;
   double ringT = 0;
 
   // Flight (phase 3)
@@ -110,6 +113,10 @@ class ShotGame extends FlameGame {
   double flightDuration = 0;
   double keeperX = 0;
 
+  /// Where along the goal line the keeper commits to, fixed at launch. Zero
+  /// when the shot never reaches the line, so he holds his ground for a pass.
+  double _keeperTarget = 0;
+
   String? result;
 
   late final BallComponent ball;
@@ -119,12 +126,9 @@ class ShotGame extends FlameGame {
   PitchProjector get projector =>
       PitchProjector(size: screenSize, cameraAngle: cameraAngle);
 
-  /// Distance to the arrival plane, so a farther target genuinely takes a
-  /// longer, flatter shot instead of being a reskin of the same one. With
-  /// nobody ahead, the ball still travels a sensible way into open space.
-  double get targetDistance => target?.distance ?? 1.0;
-
-  double get timeToTarget => _vy == 0 ? 0 : targetDistance / _vy;
+  /// Time to the aim point. A farther aim genuinely takes a longer, flatter
+  /// shot instead of being a reskin of the same one.
+  double get timeToTarget => _vy == 0 ? 0 : aimDepth / _vy;
 
   double get strikeRadius => math.min(size.x * 0.17, 62.0);
 
@@ -187,11 +191,26 @@ class ShotGame extends FlameGame {
     _dragStart = local;
   }
 
+  /// Carries the reticle across the ground: sideways for direction, up and down
+  /// for distance. Height is no longer set here — it comes out of where the boot
+  /// meets the ball, in [_strike].
   void updateAim(Offset local) {
     if (phase != ShotPhase.aim || _dragStart == null) return;
     final delta = local - _dragStart!;
-    aimX = (delta.dx / (size.x * 0.30)).clamp(-1.0, 1.0);
-    lift = (-delta.dy / (size.y * 0.22)).clamp(0.0, 1.0);
+
+    final reach = ShotWorld.maxAimDepth - ShotWorld.minAimDepth;
+    aimDepth = (ShotWorld.defaultAimDepth - delta.dy / (size.y * 0.34) * reach)
+        .clamp(ShotWorld.minAimDepth, ShotWorld.maxAimDepth);
+
+    // Two caps: the gameplay one, and whatever is still on screen at this
+    // depth, kept just inside the edge.
+    final limit = math.min(
+      ShotWorld.maxAimLateral,
+      projector.visibleLateral(aimDepth) * 0.97,
+    );
+    aimLateral =
+        (delta.dx / (size.x * 0.32) * ShotWorld.maxAimLateral).clamp(-limit, limit);
+
     onStateChanged();
   }
 
@@ -212,8 +231,8 @@ class ShotGame extends FlameGame {
   }
 
   /// Striking the ball: distance from the tap point to center reduces power,
-  /// horizontal offset sets curve. Full power when the ring lines up with the
-  /// ball's edge.
+  /// horizontal offset sets curve, and getting under it lifts it. Full power
+  /// when the ring lines up with the ball's edge.
   void _strike(Offset local) {
     final center = projector.projectCamera(0, 0, 0);
     final offset = local - center;
@@ -230,21 +249,41 @@ class ShotGame extends FlameGame {
     power = (0.62 + 0.38 * timing) * (1 - 0.25 * offCenter);
     // Striking the right side of the ball curves it left.
     spin = -normX;
+    // Under the ball lifts it; over the top keeps it driven. The power the loft
+    // costs you is already priced in by offCenter.
+    loft = normY.clamp(0.0, 1.0);
 
-    _launch();
+    launch();
   }
 
-  void _launch() {
+  /// Fires the ball at the aim point. Internal rather than private so the
+  /// outcome table can be exercised without a game loop — nothing here reads
+  /// [size].
+  void launch() {
     _vy = ShotWorld.baseDepthSpeed * power;
-    final tg = targetDistance / _vy;
-    // Solve the parabola that reaches the desired height at the arrival plane.
-    final targetHeight = lift * ShotWorld.maxAimHeight;
+    final tg = aimDepth / _vy;
+    // Solve the parabola that reaches the desired height at the aim point.
+    final targetHeight = loft * ShotWorld.maxAimHeight;
     _vz = (targetHeight + 0.5 * ShotWorld.gravity * tg * tg) / tg;
-    _vx = aimX * _vy;
+    // Without spin the ball lands exactly on the aim point; spin bends it off.
+    _vx = (aimLateral / aimDepth) * _vy;
 
     flightT = 0;
     keeperX = 0;
     flightDuration = tg + 0.55;
+
+    // The keeper reads your body shape, not the curve you put on it, so he
+    // commits to the unspun line. Bending the ball away from where he goes is
+    // the whole counterplay — send him to the real crossing point and he is
+    // unbeatable, because he always leaves exactly when you do.
+    _keeperTarget = _shotAtGoal() == null
+        ? 0
+        : _goalLineCrossing(withSpin: false)?.x.clamp(
+              -ShotWorld.keeperMaxX,
+              ShotWorld.keeperMaxX,
+            ) ??
+            0;
+
     phase = ShotPhase.flight;
     result = null;
     onStateChanged();
@@ -252,8 +291,11 @@ class ShotGame extends FlameGame {
 
   // --- Trajectory (camera space: lateral, depth, height) -----------------
 
-  double lateralAt(double t) =>
-      _vx * t + spin * ShotWorld.curveStrength * t * t;
+  double lateralAt(double t) => _lateralAt(t, withSpin: true);
+
+  /// The unspun line is what the keeper gets to read, so it needs a name.
+  double _lateralAt(double t, {required bool withSpin}) =>
+      _vx * t + (withSpin ? spin * ShotWorld.curveStrength * t * t : 0);
 
   double depthAt(double t) => _vy * t;
 
@@ -263,54 +305,147 @@ class ShotGame extends FlameGame {
   double keeperReachAt(double t) {
     final diveTime = math.max(0.0, t - ShotWorld.keeperReaction);
     final maxTravel = diveTime * ShotWorld.keeperSpeed;
-    final aim = aimX.clamp(-ShotWorld.keeperMaxX, ShotWorld.keeperMaxX);
+    final aim = _keeperTarget;
     return aim.abs() <= maxTravel ? aim : maxTravel * aim.sign;
+  }
+
+  /// Where the ball is in absolute world coordinates at time [t].
+  GroundPoint worldAt(double t) =>
+      PitchProjector.cameraToWorld(lateralAt(t), depthAt(t), cameraAngle);
+
+  /// The first moment the ball crosses the goal line, or null if it never does.
+  ///
+  /// The path is not straight in world terms — spin adds a t² term and the
+  /// camera can face anywhere — so it is sampled and then narrowed between the
+  /// two samples that bracket the crossing, the same way the pitch arcs are
+  /// drawn.
+  ({double t, double x, double z})? _goalLineCrossing({bool withSpin = true}) {
+    if (flightDuration <= 0) return null;
+
+    GroundPoint at(double t) => PitchProjector.cameraToWorld(
+          _lateralAt(t, withSpin: withSpin),
+          depthAt(t),
+          cameraAngle,
+        );
+
+    const samples = 180;
+    var previousT = 0.0;
+    var previousY = at(0).y;
+
+    for (var i = 1; i <= samples; i++) {
+      final t = flightDuration * i / samples;
+      final y = at(t).y;
+      if (y >= PitchLines.goalLineY) {
+        final span = y - previousY;
+        final f = span.abs() < 1e-12
+            ? 0.0
+            : (PitchLines.goalLineY - previousY) / span;
+        final hit = previousT + (t - previousT) * f;
+        return (t: hit, x: at(hit).x, z: heightAt(hit));
+      }
+      previousT = t;
+      previousY = y;
+    }
+    return null;
+  }
+
+  /// Whoever the ball is aimed at, if anyone. Past two and a half catch radii
+  /// it was not aimed at a person at all.
+  ({ShotTarget player, double gap})? _receiver() {
+    final landing = worldAt(timeToTarget);
+
+    ShotTarget? nearest;
+    var nearestGap = double.infinity;
+    for (final t in ShotTarget.all) {
+      if (t.isGoal) continue;
+      final dx = t.x - landing.x;
+      final dy = t.y - landing.y;
+      final gap = math.sqrt(dx * dx + dy * dy);
+      if (gap < nearestGap) {
+        nearestGap = gap;
+        nearest = t;
+      }
+    }
+
+    if (nearest == null || nearestGap > ShotWorld.passCatchRadius * 2.5) {
+      return null;
+    }
+    return (player: nearest, gap: nearestGap);
+  }
+
+  /// The crossing that counts, or null when this was not a shot at goal.
+  ///
+  /// The flight deliberately runs on past the aim point for the look of it, so a
+  /// pass to a team mate would otherwise trundle across the goal line and be
+  /// scored as a shot. Whoever gets to the ball first wins: a receiver standing
+  /// on the aim point takes it before it can run on.
+  ({double t, double x, double z})? _shotAtGoal() {
+    final crossing = _goalLineCrossing();
+    if (crossing == null) return null;
+    if (crossing.t > timeToTarget && _receiver() != null) return null;
+    return crossing;
   }
 
   void finishFlight() {
     phase = ShotPhase.result;
-    result ??= _judge();
+    result ??= judge();
     add(ResultBanner(result!));
     onStateChanged();
   }
 
-  String _judge() {
+  /// Reads the outcome off the ball's actual world path rather than off
+  /// whichever target the compass had selected. That is what makes a pass to a
+  /// team mate possible from a shooting position: aim at them and the ball never
+  /// reaches the goal line, so it is judged as a pass.
+  ///
+  /// Internal rather than private so the outcome table can be tested directly.
+  String judge() {
+    const r = ShotWorld.ballRadius;
+
+    final atGoal = _shotAtGoal();
+    if (atGoal != null) {
+      final x = atGoal.x;
+      final z = atGoal.z;
+
+      if (x.abs() > ShotWorld.goalHalfWidth + r) return 'AUT';
+      if (z > ShotWorld.crossbarHeight + r) return 'ÜSTTEN AUT';
+      if (x.abs() > ShotWorld.goalHalfWidth - r ||
+          z > ShotWorld.crossbarHeight - r) {
+        return 'DİREK';
+      }
+
+      // Keeper reach: harder to get to high balls.
+      final reach = z < 0.28 ? 0.15 : (z < 0.42 ? 0.07 : 0.0);
+      if ((keeperReachAt(atGoal.t) - x).abs() < reach) return 'KURTARIŞ';
+
+      return 'GOL!';
+    }
+
     final tg = timeToTarget;
-    final x = lateralAt(tg);
-    final z = heightAt(tg);
-
-    final aimedAt = target;
-    if (aimedAt == null) return 'BOŞLUĞA';
-
-    if (!aimedAt.isGoal) {
-      final caught =
-          x.abs() < ShotWorld.passCatchRadius && z < ShotWorld.passCatchHeight;
+    final receiver = _receiver();
+    if (receiver != null) {
+      final caught = receiver.gap < ShotWorld.passCatchRadius &&
+          heightAt(tg) < ShotWorld.passCatchHeight;
       return caught ? 'PAS TUTTU' : 'PAS KAÇTI';
     }
 
-    const r = ShotWorld.ballRadius;
-    if (x.abs() > ShotWorld.goalHalfWidth + r) return 'AUT';
-    if (z > ShotWorld.crossbarHeight + r) return 'ÜSTTEN AUT';
-    if (x.abs() > ShotWorld.goalHalfWidth - r ||
-        z > ShotWorld.crossbarHeight - r) {
-      return 'DİREK';
-    }
-
-    // Keeper reach: harder to get to high balls.
-    final reach = z < 0.28 ? 0.15 : (z < 0.42 ? 0.07 : 0.0);
-    if ((keeperReachAt(tg) - x).abs() < reach) return 'KURTARIŞ';
-
-    return 'GOL!';
+    final landing = worldAt(tg);
+    final inPlay = landing.x.abs() <= PitchLines.halfWidth &&
+        landing.y <= PitchLines.goalLineY &&
+        landing.y >= PitchLines.backY;
+    return inPlay ? 'BOŞLUĞA' : 'AUT';
   }
 
   void reset() {
     phase = ShotPhase.aim;
-    aimX = 0;
-    lift = 0;
+    aimLateral = 0;
+    aimDepth = ShotWorld.defaultAimDepth;
     power = 0;
     spin = 0;
+    loft = 0;
     flightT = 0;
     keeperX = 0;
+    _keeperTarget = 0;
     ringT = 0;
     result = null;
     _dragStart = null;
@@ -613,9 +748,13 @@ class PitchComponent extends Component with HasGameReference<ShotGame> {
   }
 }
 
-/// Every option the player can pick, drawn wherever it actually is. Options
-/// behind the camera are culled rather than hidden, so turning around reveals
-/// them naturally.
+/// Everyone on the pitch, drawn wherever they actually are. Players behind the
+/// camera are culled rather than hidden, so turning around reveals them
+/// naturally.
+///
+/// Nobody is highlighted: with the aim free of the compass there is no
+/// "selected" player to mark, and any of them can be picked out by pointing the
+/// reticle at them.
 class TargetsComponent extends Component with HasGameReference<ShotGame> {
   @override
   int get priority => 1;
@@ -628,7 +767,6 @@ class TargetsComponent extends Component with HasGameReference<ShotGame> {
       final depth = p.depthOf(t.x, t.y);
       if (!p.isPointVisible(depth)) continue;
 
-      final ahead = t == game.target;
       final o = p.pointOpacity(depth);
       final feet = p.projectWorld(t.x, t.y, 0);
       final s = p.scale(depth);
@@ -644,10 +782,7 @@ class TargetsComponent extends Component with HasGameReference<ShotGame> {
           Rect.fromLTWH(feet.dx - w / 2, feet.dy - h, w, h),
           const Radius.circular(3),
         ),
-        Paint()
-          ..color = ahead
-              ? _success.withValues(alpha: 0.9 * o)
-              : Colors.white.withValues(alpha: 0.55 * o),
+        Paint()..color = Colors.white.withValues(alpha: 0.55 * o),
       );
     }
   }
@@ -698,7 +833,13 @@ class KeeperComponent extends Component with HasGameReference<ShotGame> {
   }
 }
 
-/// Reticle plus the curve-free preview trajectory, shown while aiming.
+/// The spot on the pitch the ball is aimed at, plus the line it will run along
+/// to get there.
+///
+/// The reticle sits on the ground rather than hanging in the air, because
+/// height is not decided until the strike — the player picks a place, then picks
+/// how to hit it. It is drawn for the whole aim phase so the shot is legible
+/// before the first drag.
 class AimComponent extends Component with HasGameReference<ShotGame> {
   @override
   int get priority => 3;
@@ -706,35 +847,48 @@ class AimComponent extends Component with HasGameReference<ShotGame> {
   @override
   void render(Canvas canvas) {
     if (game.phase != ShotPhase.aim) return;
-    if (game.aimX == 0 && game.lift == 0) return;
 
     final p = game.projector;
-    final dist = game.targetDistance;
-    final height = game.lift * ShotWorld.maxAimHeight;
+    final spot = p.projectCamera(game.aimLateral, game.aimDepth, 0);
 
-    // Aim reticle: where the ball would cross the arrival plane.
-    final target = p.projectCamera(game.aimX, dist, height);
+    // Dotted run-up along the ground. Height would be a guess at this point.
+    final dot = Paint()..color = Colors.white.withValues(alpha: 0.35);
+    for (var i = 1; i < 16; i++) {
+      final f = i / 16;
+      canvas.drawCircle(
+        p.projectCamera(game.aimLateral * f, game.aimDepth * f, 0),
+        1.6,
+        dot,
+      );
+    }
+
+    // The reticle is flattened to sit on the grass, and shrinks with distance
+    // the same way every other ground object does.
+    final s = p.scale(game.aimDepth);
+    final radius = math.max(4.0, 0.09 * p.halfWidth * s);
     final reticle = Paint()
       ..color = _warning
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.6;
-    canvas.drawCircle(target, 7, reticle);
-    canvas.drawLine(target.translate(-11, 0), target.translate(11, 0), reticle);
-    canvas.drawLine(target.translate(0, -11), target.translate(0, 11), reticle);
 
-    final vy = ShotWorld.baseDepthSpeed;
-    final tg = dist / vy;
-    final vz = (height + 0.5 * ShotWorld.gravity * tg * tg) / tg;
-    final dot = Paint()..color = Colors.white.withValues(alpha: 0.45);
-    for (var i = 1; i <= 16; i++) {
-      final ts = tg * i / 16;
-      final z = math.max(0.0, vz * ts - 0.5 * ShotWorld.gravity * ts * ts);
-      canvas.drawCircle(
-        p.projectCamera(game.aimX * vy * ts, vy * ts, z),
-        1.8,
-        dot,
-      );
-    }
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: spot,
+        width: radius * 2,
+        height: radius * 0.7,
+      ),
+      reticle,
+    );
+    canvas.drawLine(
+      spot.translate(-radius * 1.5, 0),
+      spot.translate(radius * 1.5, 0),
+      reticle,
+    );
+    canvas.drawLine(
+      spot.translate(0, -radius * 0.9),
+      spot.translate(0, radius * 0.9),
+      reticle,
+    );
   }
 }
 

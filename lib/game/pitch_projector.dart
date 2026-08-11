@@ -28,6 +28,22 @@ class ShotWorld {
   /// A pass counts as received inside this radius of the target.
   static const passCatchRadius = 0.20;
   static const passCatchHeight = 0.38;
+
+  // Aim reach, in world units from the ball.
+  //
+  // Depth is capped by what the projection can show, not by the pitch: ground
+  // runs off the top of the screen at depth ~1.33 (see
+  // [PitchProjector.farPlane]), and an aim you cannot see is not an aim. 1.2
+  // reaches a little past the goal line, which is as far as anything worth
+  // hitting gets. Lateral has a gameplay cap here and a second, depth-dependent
+  // one from [PitchProjector.visibleLateral] so the reticle cannot leave frame.
+  static const maxAimLateral = 1.75;
+  static const minAimDepth = 0.15;
+  static const maxAimDepth = 1.2;
+
+  /// Where the reticle rests before the player drags: the goal line, when the
+  /// camera is facing it.
+  static const defaultAimDepth = 1.0;
 }
 
 /// Where the pitch markings sit, in the same world units.
@@ -113,6 +129,21 @@ class PitchProjector {
   /// The camera-facing angle that puts an absolute ground point dead ahead.
   static double angleToward(double wx, double wy) => math.atan2(wx, wy);
 
+  /// A camera-space ground point back in absolute world coordinates.
+  ///
+  /// [depthOf] and [lateralOf] are a rotation, so this is its transpose. It is
+  /// static and takes the angle because the shot decides its outcome from where
+  /// the ball really ends up, and that question has nothing to do with a screen.
+  static GroundPoint cameraToWorld(
+    double lateral,
+    double depth,
+    double angle,
+  ) =>
+      (
+        x: lateral * math.cos(angle) + depth * math.sin(angle),
+        y: depth * math.cos(angle) - lateral * math.sin(angle),
+      );
+
   double scale(double depth) => 1 / (1 + k * depth);
 
   /// depth (0..1) → depth compressed to 0..1 on screen.
@@ -133,6 +164,14 @@ class PitchProjector {
   /// Projects an absolute ground point, rotating it into camera space first.
   Offset projectWorld(double wx, double wy, double z) =>
       projectCamera(lateralOf(wx, wy), depthOf(wx, wy), z);
+
+  /// The widest lateral offset still inside the viewport at this depth.
+  ///
+  /// Close to the camera the ground fans out fast, so a fixed lateral cap would
+  /// push the aim reticle off the side of the screen near the player while
+  /// leaving most of the visible pitch unreachable further out.
+  double visibleLateral(double depth) =>
+      (size.width / 2) / (halfWidth * scale(depth));
 
   /// Near plane. Geometry closer than this is culled rather than drawn:
   /// as depth approaches zero, `groundY` races to the bottom of the screen
