@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:project_srpg/screens/dialog_screen.dart';
-import 'package:project_srpg/screens/explore_screen.dart';
+import 'package:project_srpg/screens/relationships_radar_screen.dart';
 import 'package:project_srpg/widgets/expand_page_route.dart';
 
 class RelationshipsScreen extends StatelessWidget {
@@ -216,7 +216,7 @@ class _HeaderSection extends StatelessWidget {
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => const ExploreScreen(),
+                  builder: (_) => const RelationshipsRadarScreen(),
                 ),
               );
             },

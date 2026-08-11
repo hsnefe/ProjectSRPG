@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/widgets/radar_chart.dart';
 
-class ExploreScreen extends StatelessWidget {
-  const ExploreScreen({super.key});
+class RelationshipsRadarScreen extends StatelessWidget {
+  const RelationshipsRadarScreen({super.key});
 
   static const _surface1 = Color(0xFF1A1D24);
   static const _surface2 = Color(0xFF22262F);
   static const _border = Color(0xFF333845);
   static const _textPrimary = Color(0xFFE8EAED);
   static const _textMuted = Color(0xFF6B7280);
+  static const _accent = Color(0xFFE85D5D);
+
+  static const _labels = ['Antrenör', 'Takım', 'Medya', 'Partner', 'Aile'];
+  static const _values = [74.0, 58.0, 51.0, 63.0, 29.0];
 
   @override
   Widget build(BuildContext context) {
@@ -31,34 +36,22 @@ class ExploreScreen extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const _HeaderSection(),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 28, 24, 8),
+                        child: RadarChart(
+                          labels: _labels,
+                          values: _values,
+                          accentColor: _accent,
+                          gridShape: RadarGridShape.circle,
+                          backgroundColor: _surface2,
+                        ),
+                      ),
                       const Padding(
-                        padding: EdgeInsets.fromLTRB(20, 24, 20, 32),
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.explore_outlined,
-                              size: 48,
-                              color: _textMuted,
-                            ),
-                            SizedBox(height: 16),
-                            Text(
-                              'Keşfet',
-                              style: TextStyle(
-                                color: _textPrimary,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 16,
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              'Bu alan yakında açılacak.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: _textMuted,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
+                        padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
+                        child: Text(
+                          'Çevrendeki bağların genel dengesi. Merkeze yakın eksenler ilgi ister.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: _textMuted, fontSize: 12),
                         ),
                       ),
                     ],
@@ -82,7 +75,10 @@ class _HeaderSection extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: ExploreScreen._border, width: 0.5),
+          bottom: BorderSide(
+            color: RelationshipsRadarScreen._border,
+            width: 0.5,
+          ),
         ),
       ),
       child: Row(
@@ -94,14 +90,14 @@ class _HeaderSection extends StatelessWidget {
             icon: const Icon(
               Icons.chevron_left,
               size: 24,
-              color: ExploreScreen._textMuted,
+              color: RelationshipsRadarScreen._textMuted,
             ),
           ),
           const SizedBox(width: 10),
           const Text(
-            'Keşfet',
+            'İlişki Haritası',
             style: TextStyle(
-              color: ExploreScreen._textPrimary,
+              color: RelationshipsRadarScreen._textPrimary,
               fontWeight: FontWeight.w500,
               fontSize: 16,
             ),

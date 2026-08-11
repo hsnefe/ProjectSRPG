@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:project_srpg/screens/explore_screen.dart';
+import 'package:project_srpg/screens/training_radar_screen.dart';
 
 enum _TrainingTab { physical, tactical }
 
@@ -127,7 +127,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
                         onExplore: () {
                           Navigator.of(context).push(
                             MaterialPageRoute<void>(
-                              builder: (_) => const ExploreScreen(),
+                              builder: (_) => const TrainingRadarScreen(),
                             ),
                           );
                         },
