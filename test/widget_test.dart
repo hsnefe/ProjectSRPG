@@ -57,14 +57,14 @@ void main() {
     expect(find.text("62'"), findsOneWidget);
   });
 
-  testWidgets('Ara button navigates to DialogScreen',
+  testWidgets('ARA button navigates to DialogScreen',
       (WidgetTester tester) async {
     await _openCareerCenter(tester);
 
     await tester.tap(find.text('İlişkiler'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Ara').first);
+    await tester.tap(find.text('ARA').first);
     await tester.pumpAndSettle();
 
     expect(find.text('Antrenör Mert'), findsOneWidget);
