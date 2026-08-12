@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:project_srpg/screens/dialog_screen.dart';
 import 'package:project_srpg/screens/relationships_radar_screen.dart';
 import 'package:project_srpg/widgets/character_card.dart';
+import 'package:project_srpg/widgets/character_profile_modal.dart';
 import 'package:project_srpg/widgets/expand_page_route.dart';
 
 class RelationshipsScreen extends StatelessWidget {
@@ -37,6 +38,14 @@ class RelationshipsScreen extends StatelessWidget {
       rightTag: '+3',
       dateLabel: '12 Ağu · 14:30',
       contactName: 'Antrenör Mert',
+      personName: 'Mert Çalışkan',
+      age: 48,
+      occupation: 'Baş antrenör',
+      hobbies: ['Satranç', 'Yüzme', 'Maç analizi'],
+      bio:
+          'Disiplinli ve veriye güvenen bir isim. Sahada bireysel parlamak '
+          'yerine takım oyununu görmek istiyor; kararlarını istatistiklere '
+          'dayandırıyor.',
       dialogueTree: DialogueTree(
         startId: 'start',
         nodes: {
@@ -88,6 +97,13 @@ class RelationshipsScreen extends StatelessWidget {
       rightTag: '+1',
       dateLabel: '13 Ağu · 09:10',
       contactName: 'Takım grubu',
+      personName: 'Burak Şen',
+      age: 26,
+      occupation: 'Profesyonel futbolcu · Kaptan',
+      hobbies: ['PlayStation', 'Basketbol', 'Podcast'],
+      bio:
+          'Soyunma odasının sesi. Takım içi gerginlikleri büyümeden çözmesiyle '
+          'biliniyor, yeni gelenleri ilk o sahiplenir.',
       dialogueTree: DialogueTree(
         startId: 'start',
         nodes: {
@@ -126,6 +142,13 @@ class RelationshipsScreen extends StatelessWidget {
       rightTag: '−2',
       dateLabel: '09 Ağu · 18:45',
       contactName: 'Spor Manşet',
+      personName: 'Ayça Kılıç',
+      age: 34,
+      occupation: 'Spor muhabiri · Spor Manşet',
+      hobbies: ['Koşu', 'Fotoğrafçılık', 'Vinil plak'],
+      bio:
+          'Transfer haberlerini ilk veren isimlerden. Verdiğin her demeç '
+          'ertesi sabah manşete dönüşebilir, kelimelerini tartarak seç.',
       dialogueTree: DialogueTree(
         startId: 'start',
         nodes: {
@@ -175,6 +198,13 @@ class RelationshipsScreen extends StatelessWidget {
       rightTag: '+4',
       dateLabel: '14 Ağu · 08:05',
       contactName: 'Elif',
+      personName: 'Elif Demir',
+      age: 24,
+      occupation: 'Grafik tasarımcı',
+      hobbies: ['Resim', 'Kahve', 'Seyahat'],
+      bio:
+          'Maç takvimine anlayışla yaklaşıyor ama uzun sessizlikleri sevmiyor. '
+          'Kısa bir telefon bile ilişkiye iyi geliyor.',
       dialogueTree: DialogueTree(
         startId: 'start',
         nodes: {
@@ -213,6 +243,13 @@ class RelationshipsScreen extends StatelessWidget {
       rightTag: '−1',
       dateLabel: '28 Tem · 20:15',
       contactName: 'Anne',
+      personName: 'Sevgi Yılmaz',
+      age: 55,
+      occupation: 'Emekli öğretmen',
+      hobbies: ['Bahçe işleri', 'Örgü', 'Akşam dizileri'],
+      bio:
+          'Her maçını televizyondan takip ediyor. Aramaların seyrekleştiğinde '
+          'bunu dile getirmese de ilişki puanı hızla düşüyor.',
       dialogueTree: DialogueTree(
         startId: 'start',
         nodes: {
@@ -369,6 +406,11 @@ class _RelationshipData {
     required this.rightTag,
     required this.dateLabel,
     required this.contactName,
+    required this.personName,
+    required this.age,
+    required this.occupation,
+    required this.hobbies,
+    required this.bio,
     required this.dialogueTree,
   });
 
@@ -383,6 +425,15 @@ class _RelationshipData {
   final String rightTag;
   final String dateLabel;
   final String contactName;
+
+  /// Kartın arkasındaki kişinin tam adı; [contactName] rehberdeki kısa ad.
+  final String personName;
+
+  final int age;
+  final String occupation;
+  final List<String> hobbies;
+  final String bio;
+
   final DialogueTree dialogueTree;
 
   /// Karta beslenen görsel model; diyalog metinleri widget katmanına sızmaz.
@@ -398,6 +449,23 @@ class _RelationshipData {
       leftTag: leftTag,
       rightTag: rightTag,
       dateLabel: dateLabel,
+    );
+  }
+
+  /// Profil modalına beslenen künye.
+  CharacterProfile toProfile() {
+    return CharacterProfile(
+      name: personName,
+      relationLabel: name,
+      age: age,
+      occupation: occupation,
+      hobbies: hobbies,
+      bio: bio,
+      badgeCode: badgeCode,
+      icon: icon,
+      tint: tint,
+      score: score,
+      lastContact: dateLabel,
     );
   }
 }
@@ -511,13 +579,18 @@ class _RelationshipCharacterCard extends StatefulWidget {
 class _RelationshipCharacterCardState
     extends State<_RelationshipCharacterCard> {
   final _callButtonKey = GlobalKey();
+  final _cardKey = GlobalKey();
+
+  /// Anahtarın işaret ettiği widget'ın ekran koordinatındaki dikdörtgeni.
+  Rect? _globalRect(GlobalKey key) {
+    final renderBox = key.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.hasSize) return null;
+    return renderBox.localToGlobal(Offset.zero) & renderBox.size;
+  }
 
   void _openDialog() {
-    final renderBox =
-        _callButtonKey.currentContext?.findRenderObject() as RenderBox?;
-    if (renderBox == null || !renderBox.hasSize) return;
-
-    final rect = renderBox.localToGlobal(Offset.zero) & renderBox.size;
+    final rect = _globalRect(_callButtonKey);
+    if (rect == null) return;
 
     Navigator.of(context).push(
       ExpandPageRoute<void>(
@@ -531,21 +604,26 @@ class _RelationshipCharacterCardState
     );
   }
 
-  void _openRadar() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const RelationshipsRadarScreen()),
+  /// Modal kartın kendi dikdörtgeninden büyüyor: kart öne geliyormuş gibi
+  /// görünsün diye.
+  void _openProfile() {
+    showCharacterProfile(
+      context,
+      profile: widget.data.toProfile(),
+      originRect: _globalRect(_cardKey),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return CharacterCard(
+      key: _cardKey,
       data: widget.data.toCardData(),
       width: widget.width,
       height: widget.height,
       primaryKey: _callButtonKey,
       onPrimary: _openDialog,
-      onSecondary: _openRadar,
+      onSecondary: _openProfile,
     );
   }
 }

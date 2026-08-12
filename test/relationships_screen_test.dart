@@ -6,6 +6,7 @@ import 'package:project_srpg/screens/dialog_screen.dart';
 import 'package:project_srpg/screens/relationships_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/widgets/character_card.dart';
+import 'package:project_srpg/widgets/character_profile_modal.dart';
 
 /// Kartın kendisini hedefler; metinler cam panelin içinde kalıyor.
 Finder _card(String name) {
@@ -94,10 +95,34 @@ void main() {
     expect(find.byType(CharacterCard), findsNothing);
   });
 
-  testWidgets('HARİTA butonu ilişki haritasına gider', (tester) async {
+  testWidgets('PROFİL butonu kişinin künye modalını açar', (tester) async {
     await tester.pumpWidget(_wrap(const RelationshipsScreen()));
 
-    await tester.tap(find.text('HARİTA').first);
+    await tester.tap(find.text('PROFİL').first);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CharacterProfileModal), findsOneWidget);
+
+    // Künye alanları: isim, yaş, meslek, hobiler. İsim hem başlıkta hem
+    // künye satırında geçiyor.
+    expect(find.text('Mert Çalışkan'), findsNWidgets(2));
+    expect(find.text('İsim'), findsOneWidget);
+    expect(find.text('48'), findsOneWidget);
+    expect(find.text('Baş antrenör'), findsOneWidget);
+    expect(find.text('HOBİLER'), findsOneWidget);
+    expect(find.text('Satranç'), findsOneWidget);
+
+    await tester.tap(find.text('Kapat'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CharacterProfileModal), findsNothing);
+    expect(_card('Antrenör'), findsOneWidget);
+  });
+
+  testWidgets('başlıktaki pusula ilişki haritasına gider', (tester) async {
+    await tester.pumpWidget(_wrap(const RelationshipsScreen()));
+
+    await tester.tap(find.byIcon(Icons.explore_outlined));
     await tester.pumpAndSettle();
 
     expect(find.text('İlişki Haritası'), findsOneWidget);

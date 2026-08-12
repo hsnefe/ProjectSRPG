@@ -60,7 +60,7 @@ class CharacterCard extends StatelessWidget {
     this.height = 300,
     this.borderRadius = 22,
     this.primaryLabel = 'ARA',
-    this.secondaryLabel = 'HARİTA',
+    this.secondaryLabel = 'PROFİL',
     this.primaryKey,
     this.onPrimary,
     this.onSecondary,
