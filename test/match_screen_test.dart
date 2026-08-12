@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:project_srpg/game/match_feed.dart';
@@ -10,7 +11,8 @@ class _FakeMatchFeed implements MatchFeed {
   final _controller = StreamController<MatchEvent>();
 
   @override
-  Stream<MatchEvent> events() => _controller.stream;
+  Stream<MatchEvent> events({ValueListenable<MatchSpeed>? speed}) =>
+      _controller.stream;
 
   void emit(MatchEvent event) => _controller.add(event);
 
@@ -133,6 +135,35 @@ void main() {
 
     expect(find.text('1'), findsOneWidget);
     expect(find.text('0'), findsOneWidget);
+
+    feed.close();
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('cycles the feed speed through three steps on tap',
+      (tester) async {
+    final feed = _FakeMatchFeed();
+    await _pumpMatchScreen(tester, feed);
+
+    final arrows = find.byIcon(Icons.play_arrow_rounded);
+    final minuteButton = find.ancestor(
+      of: find.byIcon(Icons.directions_run_outlined),
+      matching: find.byType(OutlinedButton),
+    );
+
+    expect(arrows, findsNothing); // yavaş
+
+    await tester.tap(minuteButton);
+    await tester.pump();
+    expect(arrows, findsOneWidget); // orta
+
+    await tester.tap(minuteButton);
+    await tester.pump();
+    expect(arrows, findsNWidgets(2)); // hızlı
+
+    await tester.tap(minuteButton);
+    await tester.pump();
+    expect(arrows, findsNothing); // üçüncü basışta başa döner
 
     feed.close();
     await tester.pumpWidget(const SizedBox.shrink());

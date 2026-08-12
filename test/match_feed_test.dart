@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:project_srpg/game/match_feed.dart';
 
@@ -46,6 +47,37 @@ void main() {
       final emitted = await feed.events().toList();
 
       expect(emitted, equals(customScript));
+    });
+
+    test('scales the tick with the given speed', () async {
+      const script = [MatchEvent(minute: 1, side: MatchSide.home, text: 'a')];
+      const feed = ScriptedMatchFeed(
+        script: script,
+        tick: Duration(milliseconds: 200),
+      );
+      final speed = ValueNotifier(MatchSpeed.fast);
+
+      final watch = Stopwatch()..start();
+      await feed.events(speed: speed).toList();
+      watch.stop();
+
+      // fast = 0.25 * 200ms; yavaş kademe olsaydı 200ms'yi geçerdi.
+      expect(watch.elapsedMilliseconds, lessThan(150));
+      speed.dispose();
+    });
+  });
+
+  group('MatchSpeed', () {
+    test('returns to the first step after three steps', () {
+      expect(MatchSpeed.slow.next, MatchSpeed.medium);
+      expect(MatchSpeed.medium.next, MatchSpeed.fast);
+      expect(MatchSpeed.fast.next, MatchSpeed.slow);
+    });
+
+    test('draws one more arrow at each step', () {
+      expect(MatchSpeed.slow.arrows, 0);
+      expect(MatchSpeed.medium.arrows, 1);
+      expect(MatchSpeed.fast.arrows, 2);
     });
   });
 }

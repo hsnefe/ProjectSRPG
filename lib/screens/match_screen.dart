@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:project_srpg/game/match_feed.dart';
-import 'package:project_srpg/screens/flame_shot_demo_screen.dart';
 
 class MatchScreen extends StatefulWidget {
   const MatchScreen({
@@ -36,6 +35,9 @@ class _MatchScreenState extends State<MatchScreen> {
   final List<MatchEvent> _events = [];
   final ScrollController _scroll = ScrollController();
 
+  /// Feed bunu her olaydan önce okur; setState de butonun okunu tazeler.
+  final ValueNotifier<MatchSpeed> _speed = ValueNotifier(MatchSpeed.slow);
+
   StreamSubscription<MatchEvent>? _sub;
   int _minute = 0;
   int _homeGoals = 0;
@@ -44,7 +46,11 @@ class _MatchScreenState extends State<MatchScreen> {
   @override
   void initState() {
     super.initState();
-    _sub = widget.feed.events().listen(_onEvent);
+    _sub = widget.feed.events(speed: _speed).listen(_onEvent);
+  }
+
+  void _cycleSpeed() {
+    setState(() => _speed.value = _speed.value.next);
   }
 
   void _onEvent(MatchEvent event) {
@@ -73,6 +79,7 @@ class _MatchScreenState extends State<MatchScreen> {
   @override
   void dispose() {
     _sub?.cancel();
+    _speed.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -109,6 +116,8 @@ class _MatchScreenState extends State<MatchScreen> {
                           homeGoals: _homeGoals,
                           awayGoals: _awayGoals,
                           minute: _minute,
+                          speed: _speed.value,
+                          onSpeedTap: _cycleSpeed,
                         ),
                         const _PhaseStrip(),
                         Expanded(
@@ -138,6 +147,8 @@ class _MatchBar extends StatelessWidget {
     required this.homeGoals,
     required this.awayGoals,
     required this.minute,
+    required this.speed,
+    required this.onSpeedTap,
   });
 
   final String home;
@@ -145,6 +156,10 @@ class _MatchBar extends StatelessWidget {
   final int homeGoals;
   final int awayGoals;
   final int minute;
+  final MatchSpeed speed;
+
+  /// Dakika butonu: her basışta hızı bir kademe ilerletir.
+  final VoidCallback onSpeedTap;
 
   @override
   Widget build(BuildContext context) {
@@ -225,35 +240,39 @@ class _MatchBar extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             flex: 1,
-            child: OutlinedButton(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const FlameShotDemoScreen(),
-                  ),
-                );
-              },
-              style: OutlinedButton.styleFrom(
-                foregroundColor: MatchScreen._textPrimary,
-                backgroundColor: MatchScreen._surface1,
-                side: BorderSide.none,
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.directions_run_outlined, size: 16),
-                  const SizedBox(height: 2),
-                  Text(
-                    "$minute'",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 12,
+            child: Tooltip(
+              message: 'Akış hızı: ${speed.label}',
+              child: OutlinedButton(
+                onPressed: onSpeedTap,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: MatchScreen._textPrimary,
+                  backgroundColor: MatchScreen._surface1,
+                  side: BorderSide.none,
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.directions_run_outlined, size: 16),
+                        for (var i = 0; i < speed.arrows; i++)
+                          const Icon(Icons.play_arrow_rounded, size: 12),
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 2),
+                    Text(
+                      "$minute'",
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

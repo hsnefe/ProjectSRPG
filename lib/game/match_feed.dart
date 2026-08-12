@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// Bir maç olayının hangi tarafa ait olduğu.
@@ -29,6 +30,28 @@ class MatchEvent {
   final IconData? icon;
 }
 
+/// Yorum akışının oynatma hızı.
+///
+/// Skorborddaki dakika butonu bu üç kademe arasında sırayla dolaşır, yani
+/// her üç basışta başlangıçtaki [MatchSpeed.slow] kademesine geri döner.
+enum MatchSpeed {
+  slow('Yavaş', 1, 0),
+  medium('Orta', 0.5, 1),
+  fast('Hızlı', 0.25, 2);
+
+  const MatchSpeed(this.label, this.tickScale, this.arrows);
+
+  final String label;
+
+  /// Feed'in temel bekleme süresi bu katsayıyla çarpılır.
+  final double tickScale;
+
+  /// Butonda koşu ikonunun yanında çizilen sağ ok sayısı.
+  final int arrows;
+
+  MatchSpeed get next => values[(index + 1) % values.length];
+}
+
 /// Maç olaylarını üreten kaynak.
 ///
 /// Şimdilik yerel senaryo ([ScriptedMatchFeed]) çalışıyor; ileride FastAPI
@@ -37,7 +60,10 @@ class MatchEvent {
 /// kaynak değiştiğinde `match_screen.dart` değişmez.
 abstract class MatchFeed {
   /// Maç boyunca üretilen olayları sırayla yayınlar.
-  Stream<MatchEvent> events();
+  ///
+  /// [speed] verilirse akış hızı oyun sırasında değiştirilebilir; değer her
+  /// olaydan önce yeniden okunur. Hız kavramı olmayan kaynaklar yok sayabilir.
+  Stream<MatchEvent> events({ValueListenable<MatchSpeed>? speed});
 }
 
 /// Sabit bir senaryoyu verilen aralıklarla tek tek yayınlar.
@@ -53,9 +79,10 @@ class ScriptedMatchFeed implements MatchFeed {
   final Duration tick;
 
   @override
-  Stream<MatchEvent> events() async* {
+  Stream<MatchEvent> events({ValueListenable<MatchSpeed>? speed}) async* {
     for (final event in script) {
-      await Future<void>.delayed(tick);
+      final scale = (speed?.value ?? MatchSpeed.slow).tickScale;
+      await Future<void>.delayed(tick * scale);
       yield event;
     }
   }
