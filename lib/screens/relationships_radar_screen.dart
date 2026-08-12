@@ -11,7 +11,7 @@ class RelationshipsRadarScreen extends StatelessWidget {
   static const _textMuted = Color(0xFF6B7280);
   static const _accent = Color(0xFFE85D5D);
 
-  static const _labels = ['Antrenör', 'Takım', 'Medya', 'Partner', 'Aile'];
+  static const _labels = ['Cazibe', 'Kibarlık', 'Özgüven','Zeka', 'Beceriklilik'];
   static const _values = [74.0, 58.0, 51.0, 63.0, 29.0];
 
   @override
