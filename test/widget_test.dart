@@ -49,12 +49,21 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.byIcon(Icons.play_arrow));
-    await tester.pumpAndSettle();
+    await tester.pump();
 
-    expect(find.text('Maç sahnesi (boş)'), findsOneWidget);
     expect(find.text('Efor'), findsOneWidget);
     expect(find.text('Sertlik'), findsOneWidget);
-    expect(find.text("62'"), findsOneWidget);
+    expect(find.text('FK Yıldız'), findsOneWidget);
+    expect(find.text('Deniz SK'), findsOneWidget);
+    expect(find.text('Kick Off'), findsOneWidget);
+
+    // Let the first scripted commentary event arrive.
+    await tester.pump(const Duration(milliseconds: 1900));
+    expect(find.textContaining('Başlama vuruşu'), findsOneWidget);
+
+    // Unmount so MatchScreen.dispose() cancels the scripted feed's pending
+    // timer before the test ends.
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('ARA button navigates to DialogScreen',

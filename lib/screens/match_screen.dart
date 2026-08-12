@@ -1,8 +1,20 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:project_srpg/game/match_feed.dart';
 import 'package:project_srpg/screens/flame_shot_demo_screen.dart';
 
-class MatchScreen extends StatelessWidget {
-  const MatchScreen({super.key});
+class MatchScreen extends StatefulWidget {
+  const MatchScreen({
+    super.key,
+    this.feed = const ScriptedMatchFeed(),
+    this.home = 'FK Yıldız',
+    this.away = 'Deniz SK',
+  });
+
+  final MatchFeed feed;
+  final String home;
+  final String away;
 
   static const _surface1 = Color(0xFF1A1D24);
   static const _surface2 = Color(0xFF22262F);
@@ -11,6 +23,59 @@ class MatchScreen extends StatelessWidget {
   static const _textSecondary = Color(0xFFA0A6B0);
   static const _textMuted = Color(0xFF6B7280);
   static const _success = Color(0xFF3DDC97);
+  static const _accent = Color(0xFF1E6FD9);
+  static const _accentBg = Color(0x33228BFF);
+  static const _danger = Color(0xFFE85D5D);
+  static const _dangerBg = Color(0x33E85D5D);
+
+  @override
+  State<MatchScreen> createState() => _MatchScreenState();
+}
+
+class _MatchScreenState extends State<MatchScreen> {
+  final List<MatchEvent> _events = [];
+  final ScrollController _scroll = ScrollController();
+
+  StreamSubscription<MatchEvent>? _sub;
+  int _minute = 0;
+  int _homeGoals = 0;
+  int _awayGoals = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = widget.feed.events().listen(_onEvent);
+  }
+
+  void _onEvent(MatchEvent event) {
+    if (!mounted) return;
+    setState(() {
+      _events.add(event);
+      _minute = event.minute;
+      if (event.isGoal) {
+        if (event.side == MatchSide.home) {
+          _homeGoals++;
+        } else if (event.side == MatchSide.away) {
+          _awayGoals++;
+        }
+      }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients) return;
+      _scroll.animateTo(
+        _scroll.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    _scroll.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +84,7 @@ class MatchScreen extends StatelessWidget {
         24;
 
     return Scaffold(
-      backgroundColor: _surface1,
+      backgroundColor: MatchScreen._surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -30,17 +95,29 @@ class MatchScreen extends StatelessWidget {
                 height: panelHeight,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: _surface2,
+                    color: MatchScreen._surface2,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _border, width: 0.5),
+                    border: Border.all(color: MatchScreen._border, width: 0.5),
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: const Column(
+                    child: Column(
                       children: [
-                        _MatchBar(),
-                        Expanded(child: _MatchScenePlaceholder()),
-                        _ActionBar(),
+                        _MatchBar(
+                          home: widget.home,
+                          away: widget.away,
+                          homeGoals: _homeGoals,
+                          awayGoals: _awayGoals,
+                          minute: _minute,
+                        ),
+                        const _PhaseStrip(),
+                        Expanded(
+                          child: _CommentaryFeed(
+                            events: _events,
+                            controller: _scroll,
+                          ),
+                        ),
+                        const _ActionBar(),
                       ],
                     ),
                   ),
@@ -55,7 +132,19 @@ class MatchScreen extends StatelessWidget {
 }
 
 class _MatchBar extends StatelessWidget {
-  const _MatchBar();
+  const _MatchBar({
+    required this.home,
+    required this.away,
+    required this.homeGoals,
+    required this.awayGoals,
+    required this.minute,
+  });
+
+  final String home;
+  final String away;
+  final int homeGoals;
+  final int awayGoals;
+  final int minute;
 
   @override
   Widget build(BuildContext context) {
@@ -74,8 +163,10 @@ class _MatchBar extends StatelessWidget {
               children: [
                 Expanded(
                   child: _ScoreChip(
+                    tint: MatchScreen._accent,
+                    tintBg: MatchScreen._accentBg,
                     child: Text(
-                      'FK Yıldız',
+                      home,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -87,11 +178,11 @@ class _MatchBar extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 6),
-                const _ScoreChip(
+                _ScoreChip(
                   minWidth: 30,
                   child: Text(
-                    '1',
-                    style: TextStyle(
+                    '$homeGoals',
+                    style: const TextStyle(
                       color: MatchScreen._textPrimary,
                       fontWeight: FontWeight.w600,
                       fontSize: 15,
@@ -99,11 +190,11 @@ class _MatchBar extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 6),
-                const _ScoreChip(
+                _ScoreChip(
                   minWidth: 30,
                   child: Text(
-                    '0',
-                    style: TextStyle(
+                    '$awayGoals',
+                    style: const TextStyle(
                       color: MatchScreen._textPrimary,
                       fontWeight: FontWeight.w600,
                       fontSize: 15,
@@ -113,8 +204,10 @@ class _MatchBar extends StatelessWidget {
                 const SizedBox(width: 6),
                 Expanded(
                   child: _ScoreChip(
+                    tint: MatchScreen._danger,
+                    tintBg: MatchScreen._dangerBg,
                     child: Text(
-                      'Deniz SK',
+                      away,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
@@ -133,7 +226,13 @@ class _MatchBar extends StatelessWidget {
           Expanded(
             flex: 1,
             child: OutlinedButton(
-              onPressed: () {},
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const FlameShotDemoScreen(),
+                  ),
+                );
+              },
               style: OutlinedButton.styleFrom(
                 foregroundColor: MatchScreen._textPrimary,
                 backgroundColor: MatchScreen._surface1,
@@ -142,14 +241,14 @@ class _MatchBar extends StatelessWidget {
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              child: const Column(
+              child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.directions_run_outlined, size: 16),
-                  SizedBox(height: 2),
+                  const Icon(Icons.directions_run_outlined, size: 16),
+                  const SizedBox(height: 2),
                   Text(
-                    "62'",
-                    style: TextStyle(
+                    "$minute'",
+                    style: const TextStyle(
                       fontWeight: FontWeight.w500,
                       fontSize: 12,
                     ),
@@ -164,14 +263,47 @@ class _MatchBar extends StatelessWidget {
   }
 }
 
+/// Skorbordun altındaki ince, ortalanmış maç durumu şeridi
+/// ("Kick Off", "Devre arası" gibi ilk/nötr olayı vurgular).
+class _PhaseStrip extends StatelessWidget {
+  const _PhaseStrip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: const BoxDecoration(
+        color: MatchScreen._surface1,
+        border: Border(
+          bottom: BorderSide(color: MatchScreen._border, width: 0.5),
+        ),
+      ),
+      alignment: Alignment.center,
+      child: const Text(
+        'Kick Off',
+        style: TextStyle(
+          color: MatchScreen._textSecondary,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
 class _ScoreChip extends StatelessWidget {
   const _ScoreChip({
     required this.child,
     this.minWidth,
+    this.tint,
+    this.tintBg,
   });
 
   final Widget child;
   final double? minWidth;
+  final Color? tint;
+  final Color? tintBg;
 
   @override
   Widget build(BuildContext context) {
@@ -179,8 +311,9 @@ class _ScoreChip extends StatelessWidget {
       constraints: BoxConstraints(minWidth: minWidth ?? 0),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: MatchScreen._surface1,
+        color: tintBg ?? MatchScreen._surface1,
         borderRadius: BorderRadius.circular(8),
+        border: tint == null ? null : Border.all(color: tint!, width: 0.5),
       ),
       alignment: Alignment.center,
       child: child,
@@ -188,103 +321,117 @@ class _ScoreChip extends StatelessWidget {
   }
 }
 
-class _MatchScenePlaceholder extends StatelessWidget {
-  const _MatchScenePlaceholder();
+/// Kayan maç yorumu akışı. Ekranın boş sahne yer tutucusunun yerini alır.
+class _CommentaryFeed extends StatelessWidget {
+  const _CommentaryFeed({required this.events, required this.controller});
+
+  final List<MatchEvent> events;
+  final ScrollController controller;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => const FlameShotDemoScreen(),
-            ),
-          );
-        },
-        child: Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: MatchScreen._surface1,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: MatchScreen._border,
-              width: 1,
-              strokeAlign: BorderSide.strokeAlignInside,
-            ),
-          ),
-          child: CustomPaint(
-            painter: _DashedBorderPainter(color: MatchScreen._border),
-            child: const Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Maç sahnesi (boş)',
-                    style: TextStyle(
-                      color: MatchScreen._textMuted,
-                      fontSize: 12,
-                    ),
-                  ),
-                  SizedBox(height: 6),
-                  Text(
-                    'Şut prototipini aç →',
-                    style: TextStyle(
-                      color: MatchScreen._textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+    if (events.isEmpty) {
+      return const Center(
+        child: Text(
+          'Maç başlıyor…',
+          style: TextStyle(color: MatchScreen._textMuted, fontSize: 12),
         ),
-      ),
+      );
+    }
+
+    return ListView.separated(
+      controller: controller,
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      itemCount: events.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder: (context, index) => _EventCard(event: events[index]),
     );
   }
 }
 
-class _DashedBorderPainter extends CustomPainter {
-  _DashedBorderPainter({required this.color});
+class _EventCard extends StatelessWidget {
+  const _EventCard({required this.event});
 
-  final Color color;
+  final MatchEvent event;
 
   @override
-  void paint(Canvas canvas, Size size) {
-    const dashWidth = 6.0;
-    const dashSpace = 4.0;
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
+  Widget build(BuildContext context) {
+    final side = event.side;
+    final isNeutral = side == MatchSide.neutral;
+    final tint = side == MatchSide.home
+        ? MatchScreen._accent
+        : side == MatchSide.away
+            ? MatchScreen._danger
+            : MatchScreen._textMuted;
+    final tintBg = side == MatchSide.home
+        ? MatchScreen._accentBg
+        : side == MatchSide.away
+            ? MatchScreen._dangerBg
+            : MatchScreen._surface1;
+    final alignment = side == MatchSide.home
+        ? Alignment.centerLeft
+        : side == MatchSide.away
+            ? Alignment.centerRight
+            : Alignment.center;
 
-    final path = Path()
-      ..addRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(0, 0, size.width, size.height),
-          const Radius.circular(8),
+    final card = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: tintBg,
+        borderRadius: BorderRadius.circular(8),
+        border: event.isGoal ? Border.all(color: tint, width: 1) : null,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: MatchScreen._surface1,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              "${event.minute}'",
+              style: const TextStyle(
+                color: MatchScreen._textMuted,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (event.icon != null) ...[
+            Icon(event.icon, size: 14, color: tint),
+            const SizedBox(width: 6),
+          ],
+          Flexible(
+            child: Text(
+              event.text,
+              style: TextStyle(
+                color: event.isGoal ? tint : MatchScreen._textPrimary,
+                fontSize: event.isGoal ? 13 : 12,
+                fontWeight: event.isGoal ? FontWeight.w700 : FontWeight.w400,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return Align(
+      alignment: alignment,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: isNeutral
+              ? double.infinity
+              : MediaQuery.sizeOf(context).width * 0.85,
         ),
-      );
-
-    for (final metric in path.computeMetrics()) {
-      var distance = 0.0;
-      while (distance < metric.length) {
-        final next = distance + dashWidth;
-        canvas.drawPath(
-          metric.extractPath(distance, next.clamp(0, metric.length)),
-          paint,
-        );
-        distance = next + dashSpace;
-      }
-    }
+        child: isNeutral ? SizedBox(width: double.infinity, child: card) : card,
+      ),
+    );
   }
-
-  @override
-  bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) =>
-      oldDelegate.color != color;
 }
 
 class _ActionBar extends StatelessWidget {
