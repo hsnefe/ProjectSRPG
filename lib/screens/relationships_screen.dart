@@ -37,13 +37,44 @@ class RelationshipsScreen extends StatelessWidget {
       rightTag: '+3',
       dateLabel: '12 Ağu · 14:30',
       contactName: 'Antrenör Mert',
-      dialogMessage:
-          'Son maçta bireysel performansın iyiydi ama takım oyununda seni daha aktif görmek istiyorum. Bu konuda ne düşünüyorsun?',
-      dialogChoices: [
-        'Haklısınız hocam, daha fazla paylaşımcı olacağım.',
-        'Bence bireysel oynamam takıma zarar vermiyor.',
-        'Bu konuyu maç sonrasında konuşalım mı?',
-      ],
+      dialogueTree: DialogueTree(
+        startId: 'start',
+        nodes: {
+          'start': DialogueNode(
+            id: 'start',
+            line:
+                'Son maçta bireysel performansın iyiydi ama takım oyununda seni daha aktif görmek istiyorum. Bu konuda ne düşünüyorsun?',
+            options: [
+              DialogueOption(
+                text: 'Haklısınız hocam, daha fazla paylaşımcı olacağım.',
+                nextId: 'r0',
+              ),
+              DialogueOption(
+                text: 'Bence bireysel oynamam takıma zarar vermiyor.',
+                nextId: 'r1',
+              ),
+              DialogueOption(
+                text: 'Bu konuyu maç sonrasında konuşalım mı?',
+                nextId: 'r2',
+              ),
+            ],
+          ),
+          'r0': DialogueNode(
+            id: 'r0',
+            line:
+                'Bunu duymak güzel. Bu hafta antrenmanlarda bunu göreceğimi umuyorum.',
+          ),
+          'r1': DialogueNode(
+            id: 'r1',
+            line:
+                'Anlıyorum ama istatistikler farklı söylüyor. Bu konuşmayı unutma.',
+          ),
+          'r2': DialogueNode(
+            id: 'r2',
+            line: 'Olur, o zaman daha sakin kafayla devam ederiz.',
+          ),
+        },
+      ),
     ),
     _RelationshipData(
       id: 'team',
@@ -57,12 +88,31 @@ class RelationshipsScreen extends StatelessWidget {
       rightTag: '+1',
       dateLabel: '13 Ağu · 09:10',
       contactName: 'Takım grubu',
-      dialogMessage:
-          'Bu hafta antrenmanlarda iletişim iyi gidiyor. Maç günü aynı enerjiyi sahaya taşıyalım mı?',
-      dialogChoices: [
-        'Evet, birlikte daha güçlüyüz.',
-        'Biraz daha zaman lazım.',
-      ],
+      dialogueTree: DialogueTree(
+        startId: 'start',
+        nodes: {
+          'start': DialogueNode(
+            id: 'start',
+            line:
+                'Bu hafta antrenmanlarda iletişim iyi gidiyor. Maç günü aynı enerjiyi sahaya taşıyalım mı?',
+            options: [
+              DialogueOption(
+                text: 'Evet, birlikte daha güçlüyüz.',
+                nextId: 'r0',
+              ),
+              DialogueOption(text: 'Biraz daha zaman lazım.', nextId: 'r1'),
+            ],
+          ),
+          'r0': DialogueNode(
+            id: 'r0',
+            line: 'Harika, o zaman maç günü aynı ekipteyiz!',
+          ),
+          'r1': DialogueNode(
+            id: 'r1',
+            line: 'Sorun değil, adım adım ilerleriz.',
+          ),
+        },
+      ),
     ),
     _RelationshipData(
       id: 'media',
@@ -76,13 +126,42 @@ class RelationshipsScreen extends StatelessWidget {
       rightTag: '−2',
       dateLabel: '09 Ağu · 18:45',
       contactName: 'Spor Manşet',
-      dialogMessage:
-          'Maç sonrası kısa bir röportaj için müsait misiniz? Transfer söylentileri hakkında da sorularımız var.',
-      dialogChoices: [
-        'Tabii, 10 dakika ayırabilirim.',
-        'Bugün konuşmak istemiyorum.',
-        'Sadece maç hakkında konuşalım.',
-      ],
+      dialogueTree: DialogueTree(
+        startId: 'start',
+        nodes: {
+          'start': DialogueNode(
+            id: 'start',
+            line:
+                'Maç sonrası kısa bir röportaj için müsait misiniz? Transfer söylentileri hakkında da sorularımız var.',
+            options: [
+              DialogueOption(
+                text: 'Tabii, 10 dakika ayırabilirim.',
+                nextId: 'r0',
+              ),
+              DialogueOption(
+                text: 'Bugün konuşmak istemiyorum.',
+                nextId: 'r1',
+              ),
+              DialogueOption(
+                text: 'Sadece maç hakkında konuşalım.',
+                nextId: 'r2',
+              ),
+            ],
+          ),
+          'r0': DialogueNode(
+            id: 'r0',
+            line: 'Harika, maç sonrası sahada bekliyoruz.',
+          ),
+          'r1': DialogueNode(
+            id: 'r1',
+            line: 'Anlıyoruz, başka zaman tekrar deneriz.',
+          ),
+          'r2': DialogueNode(
+            id: 'r2',
+            line: 'Elbette, transferle ilgili soru sormayacağız.',
+          ),
+        },
+      ),
     ),
     _RelationshipData(
       id: 'partner',
@@ -96,9 +175,31 @@ class RelationshipsScreen extends StatelessWidget {
       rightTag: '+4',
       dateLabel: '14 Ağu · 08:05',
       contactName: 'Elif',
-      dialogMessage:
-          'Bu akşam maçın var diye biliyorum. Yine de kısa bir telefon konuşması yapabilir miyiz?',
-      dialogChoices: ['Maçtan sonra ararım.', 'Şimdi 5 dakika konuşabiliriz.'],
+      dialogueTree: DialogueTree(
+        startId: 'start',
+        nodes: {
+          'start': DialogueNode(
+            id: 'start',
+            line:
+                'Bu akşam maçın var diye biliyorum. Yine de kısa bir telefon konuşması yapabilir miyiz?',
+            options: [
+              DialogueOption(text: 'Maçtan sonra ararım.', nextId: 'r0'),
+              DialogueOption(
+                text: 'Şimdi 5 dakika konuşabiliriz.',
+                nextId: 'r1',
+              ),
+            ],
+          ),
+          'r0': DialogueNode(
+            id: 'r0',
+            line: 'Tamam, seni bekliyorum. Bol şans!',
+          ),
+          'r1': DialogueNode(
+            id: 'r1',
+            line: 'Ne güzel, seni duymak iyi geldi.',
+          ),
+        },
+      ),
     ),
     _RelationshipData(
       id: 'family',
@@ -112,13 +213,36 @@ class RelationshipsScreen extends StatelessWidget {
       rightTag: '−1',
       dateLabel: '28 Tem · 20:15',
       contactName: 'Anne',
-      dialogMessage:
-          'Seni özledik. Bu hafta sonu eve uğrayabilir misin? Maç programını da merak ediyoruz.',
-      dialogChoices: [
-        'Cumartesi antrenman sonrası gelirim.',
-        'Bu hafta maç var, gelemem.',
-        'Pazar öğleden sonra konuşalım.',
-      ],
+      dialogueTree: DialogueTree(
+        startId: 'start',
+        nodes: {
+          'start': DialogueNode(
+            id: 'start',
+            line:
+                'Seni özledik. Bu hafta sonu eve uğrayabilir misin? Maç programını da merak ediyoruz.',
+            options: [
+              DialogueOption(
+                text: 'Cumartesi antrenman sonrası gelirim.',
+                nextId: 'r0',
+              ),
+              DialogueOption(text: 'Bu hafta maç var, gelemem.', nextId: 'r1'),
+              DialogueOption(
+                text: 'Pazar öğleden sonra konuşalım.',
+                nextId: 'r2',
+              ),
+            ],
+          ),
+          'r0': DialogueNode(
+            id: 'r0',
+            line: 'Harika, seni bekliyoruz canım.',
+          ),
+          'r1': DialogueNode(
+            id: 'r1',
+            line: 'Anlıyoruz, bir dahaki sefere görüşürüz.',
+          ),
+          'r2': DialogueNode(id: 'r2', line: 'Olur, o zaman seni ararım.'),
+        },
+      ),
     ),
   ];
 
@@ -245,8 +369,7 @@ class _RelationshipData {
     required this.rightTag,
     required this.dateLabel,
     required this.contactName,
-    required this.dialogMessage,
-    required this.dialogChoices,
+    required this.dialogueTree,
   });
 
   final String id;
@@ -260,8 +383,7 @@ class _RelationshipData {
   final String rightTag;
   final String dateLabel;
   final String contactName;
-  final String dialogMessage;
-  final List<String> dialogChoices;
+  final DialogueTree dialogueTree;
 
   /// Karta beslenen görsel model; diyalog metinleri widget katmanına sızmaz.
   CharacterCardData toCardData() {
@@ -402,8 +524,8 @@ class _RelationshipCharacterCardState
         rect: rect,
         page: DialogScreen(
           contactName: widget.data.contactName,
-          message: widget.data.dialogMessage,
-          choices: widget.data.dialogChoices,
+          tree: widget.data.dialogueTree,
+          tint: widget.data.tint,
         ),
       ),
     );
