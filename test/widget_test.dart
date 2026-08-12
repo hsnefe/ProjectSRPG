@@ -14,7 +14,7 @@ void main() {
     await _openCareerCenter(tester);
 
     expect(find.text('Efe Kaan'), findsOneWidget);
-    expect(find.text('İlerleme'), findsOneWidget);
+    expect(find.text('Kondisyon'), findsOneWidget);
   });
 
   testWidgets('İlişkiler button navigates to RelationshipsScreen',

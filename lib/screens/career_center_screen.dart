@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:project_srpg/screens/league_table_screen.dart';
 import 'package:project_srpg/screens/lifestyle_screen.dart';
 import 'package:project_srpg/screens/news_detail_screen.dart';
+import 'package:project_srpg/screens/player_profile_screen.dart';
 import 'package:project_srpg/screens/pre_match_screen.dart';
 import 'package:project_srpg/screens/relationships_screen.dart';
 import 'package:project_srpg/screens/settings_screen.dart';
@@ -68,7 +69,7 @@ class _HeaderSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final moneyLabel = PlayerScope.of(context).moneyLabel;
+    final player = PlayerScope.of(context);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -82,60 +83,79 @@ class _HeaderSection extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: CareerCenterScreen._accentBg,
-              shape: BoxShape.circle,
-            ),
-            child: const Text(
-              'EK',
-              style: TextStyle(
-                color: CareerCenterScreen._accent,
-                fontWeight: FontWeight.w500,
-                fontSize: 14,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
+          // Avatar + isim bloğu tek dokunulabilir birim: oyuncu profilini
+          // açar. Bakiye de bu bloğun içinde olduğu için ona basmak da
+          // profili açıyor — kimlik alanının parçası, kabul edilebilir.
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Flexible(
-                      child: Text(
-                        'Efe Kaan',
-                        style: TextStyle(
-                          color: CareerCenterScreen._textPrimary,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 15,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      moneyLabel,
-                      style: const TextStyle(
-                        color: CareerCenterScreen._success,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-                const Text(
-                  'Orta saha · FK Yıldız',
-                  style: TextStyle(
-                    color: CareerCenterScreen._textSecondary,
-                    fontSize: 13,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const PlayerProfileScreen(),
                   ),
-                ),
-              ],
+                );
+              },
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(
+                      color: CareerCenterScreen._accentBg,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      player.initials,
+                      style: const TextStyle(
+                        color: CareerCenterScreen._accent,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                player.name,
+                                style: const TextStyle(
+                                  color: CareerCenterScreen._textPrimary,
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 15,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              player.moneyLabel,
+                              style: const TextStyle(
+                                color: CareerCenterScreen._success,
+                                fontWeight: FontWeight.w500,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          '${player.position} · ${player.teamName}',
+                          style: const TextStyle(
+                            color: CareerCenterScreen._textSecondary,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           IconButton(

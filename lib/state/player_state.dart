@@ -6,6 +6,19 @@ class PlayerState extends ChangeNotifier {
   int _condition = 72;
   int _money = 48200;
 
+  /// Oyuncunun kimliği. Şimdilik sabit; kariyer merkezi, profil ve sözleşme
+  /// ekranları aynı metinleri kopyalamasın diye burada duruyor.
+  String get name => 'Efe Kaan';
+
+  /// Avatar dairesinde gösterilen baş harfler.
+  String get initials => 'EK';
+
+  String get position => 'Orta saha';
+
+  String get teamName => 'FK Yıldız';
+
+  int get age => 21;
+
   /// 0-100 arası kondisyon.
   int get condition => _condition;
 
