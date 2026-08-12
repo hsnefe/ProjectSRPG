@@ -27,6 +27,24 @@ class PlayerState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Satın alınmış ürünlerin kimlikleri.
+  final Set<String> _owned = <String>{};
+
+  bool owns(String id) => _owned.contains(id);
+
+  bool canAfford(int price) => _money >= price;
+
+  /// Bir ürünü satın alır. [applyActivity]'den farklı olarak bakiyeyi eksiye
+  /// düşürmez ve aynı ürünün ikinci kez alınmasına izin vermez; alınamadıysa
+  /// false döner ve hiçbir şey değişmez.
+  bool purchase({required String id, required int price}) {
+    if (_owned.contains(id) || !canAfford(price)) return false;
+    _money -= price;
+    _owned.add(id);
+    notifyListeners();
+    return true;
+  }
+
   static String _thousands(int value) {
     final digits = value.abs().toString();
     final buffer = StringBuffer(value < 0 ? '-' : '');

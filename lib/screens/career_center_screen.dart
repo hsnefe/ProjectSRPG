@@ -22,6 +22,7 @@ class CareerCenterScreen extends StatelessWidget {
   static const _accentBg = Color(0x33228BFF);
   static const _success = Color(0xFF3DDC97);
   static const _successBg = Color(0x333DDC97);
+  static const _warning = Color(0xFFF5A623);
   static const _danger = Color(0xFFE85D5D);
   static const _dangerBg = Color(0x33E85D5D);
 
@@ -568,6 +569,8 @@ class _NewsSection extends StatelessWidget {
   static const _news = [
     NewsItem(
       category: 'Transfer',
+      icon: Icons.swap_horiz,
+      tint: CareerCenterScreen._accent,
       title: "Deniz SK, orta saha transferi için FK Yıldız'ı ziyaret etti",
       source: 'Spor Manşet',
       timeAgo: '2 saat önce',
@@ -578,6 +581,8 @@ class _NewsSection extends StatelessWidget {
     ),
     NewsItem(
       category: 'Maç',
+      icon: Icons.sports_soccer,
+      tint: CareerCenterScreen._success,
       title: 'FK Yıldız, deplasmanda 2-1 galip geldi',
       source: 'Lig Ajansı',
       timeAgo: '1 gün önce',
@@ -588,6 +593,8 @@ class _NewsSection extends StatelessWidget {
     ),
     NewsItem(
       category: 'Röportaj',
+      icon: Icons.record_voice_over_outlined,
+      tint: CareerCenterScreen._warning,
       title: 'Antrenör Mert: "Gençlerimiz doğru yolda"',
       source: 'Saha Sohbeti',
       timeAgo: '3 gün önce',
@@ -598,6 +605,8 @@ class _NewsSection extends StatelessWidget {
     ),
     NewsItem(
       category: 'Analiz',
+      icon: Icons.insights,
+      tint: CareerCenterScreen._danger,
       title: 'Lig tablosu sıkışık: Üst sıralar tek puanlık farklarda',
       source: 'Taktik Defter',
       timeAgo: '5 gün önce',
@@ -634,15 +643,38 @@ class _NewsSection extends StatelessWidget {
               ),
               child: Stack(
                 children: [
-                  Container(
+                  // Detay ekranındaki hero ile aynı ton ve ikon: liste kartı ile
+                  // açılan haber aynı şeye benziyor.
+                  SizedBox(
                     height: 120,
                     width: double.infinity,
-                    color: CareerCenterScreen._surface1,
-                    alignment: Alignment.center,
-                    child: const Icon(
-                      Icons.image_outlined,
-                      size: 32,
-                      color: CareerCenterScreen._textMuted,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                item.tint.withValues(alpha: 0.55),
+                                item.tint.withValues(alpha: 0.22),
+                                const Color(0xFF12151B).withValues(alpha: 0.92),
+                              ],
+                              stops: const [0.0, 0.45, 1.0],
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          right: -12,
+                          top: -12,
+                          child: Icon(
+                            item.icon,
+                            size: 96,
+                            color: Colors.white.withValues(alpha: 0.14),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   Positioned(
@@ -650,18 +682,23 @@ class _NewsSection extends StatelessWidget {
                     left: 10,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
+                        horizontal: 10,
+                        vertical: 5,
                       ),
                       decoration: BoxDecoration(
-                        color: CareerCenterScreen._dangerBg,
-                        borderRadius: BorderRadius.circular(8),
+                        color: item.tint.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: item.tint.withValues(alpha: 0.35),
+                          width: 0.5,
+                        ),
                       ),
                       child: Text(
                         item.category,
-                        style: const TextStyle(
-                          color: CareerCenterScreen._danger,
+                        style: TextStyle(
+                          color: item.tint,
                           fontSize: 11,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),

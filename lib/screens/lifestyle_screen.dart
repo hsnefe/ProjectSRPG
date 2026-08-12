@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/screens/shop_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/widgets/activity_card.dart';
 
@@ -403,7 +404,9 @@ class _HeaderSection extends StatelessWidget {
           ),
           const Spacer(),
           IconButton(
-            onPressed: () => _showStubMessage(context, 'Alışveriş yakında.'),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const ShopScreen()),
+            ),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
             tooltip: 'Alışveriş',
@@ -417,16 +420,6 @@ class _HeaderSection extends StatelessWidget {
       ),
     );
   }
-}
-
-void _showStubMessage(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(message),
-      behavior: SnackBarBehavior.floating,
-      duration: const Duration(seconds: 2),
-    ),
-  );
 }
 
 class _TabToggle extends StatelessWidget {
@@ -560,8 +553,14 @@ class _ActivitySection extends StatelessWidget {
         SizedBox(
           height: _cardHeight,
           child: ListView.separated(
+            // Şerit, dıştaki liste bölümü geri dönüştürdüğünde ya da sekme
+            // değiştiğinde kaldığı yerden devam etsin.
+            key: PageStorageKey<String>('lifestyle-row-${section.title}'),
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
+            // Kart gölgeleri ve renk tonu parıltısı taşabilsin; panelin dış
+            // ClipRRect'i zaten sınırda kırpıyor.
+            clipBehavior: Clip.none,
             itemCount: section.activities.length,
             separatorBuilder: (_, _) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
