@@ -2,15 +2,33 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flame/components.dart';
-import 'package:flame/effects.dart';
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
-import 'package:flutter/material.dart'
-    show Colors, Curves, TextStyle, FontWeight;
+import 'package:flutter/material.dart' show Colors, ValueChanged;
 
+import 'package:project_srpg/game/game_banner.dart';
 import 'package:project_srpg/game/pitch_projector.dart';
+import 'package:project_srpg/game/training_result.dart';
 
 enum ShotPhase { aim, strike, flight, result }
+
+/// What a finished flight is being judged *for*.
+///
+/// The world is identical in every mode — the pitch, the targets and [ShotGame
+/// .resolve] do not know the mode exists. Only the success criterion, the
+/// starting bearing and the surrounding chrome differ, which is what keeps the
+/// demo and the two drills one game.
+enum ShotMode {
+  /// The prototype: turn anywhere, shoot forever, nothing is scored.
+  free(null),
+  shot('GOL!'),
+  pass('PAS TUTTU');
+
+  const ShotMode(this.successLabel);
+
+  /// The one label out of [ShotGame.resolve] that counts as a made attempt.
+  final String? successLabel;
+}
 
 /// The four bearings the player can turn to face. Nothing in the world is
 /// rebuilt when this changes — it only drives the camera angle.
@@ -97,10 +115,31 @@ class ShotTarget {
 /// the structure: one component per concern, each with its own update loop,
 /// plus the effects system for the result banner.
 class ShotGame extends FlameGame {
-  ShotGame({required this.onStateChanged});
+  ShotGame({
+    required this.onStateChanged,
+    this.mode = ShotMode.free,
+    this.onFinished,
+  }) {
+    // A pass drill starts looking at a team mate rather than at the goal. The
+    // bearing is the only thing the mode moves — [ShotTarget.all] is the same
+    // list it always was.
+    if (mode == ShotMode.pass) {
+      facing = Facing.left;
+      desiredAngle = Facing.left.angle;
+      cameraAngle = Facing.left.angle;
+    }
+  }
 
   /// Lets the surrounding Flutter UI rebuild its readout.
   final VoidCallback onStateChanged;
+
+  /// Defaulted so the prototype screen and the existing tests construct this
+  /// game exactly as they always did.
+  final ShotMode mode;
+
+  /// Fired once, when a scored session runs out of attempts. Never in
+  /// [ShotMode.free].
+  final ValueChanged<TrainingResult>? onFinished;
 
   ShotPhase phase = ShotPhase.aim;
 
@@ -158,6 +197,36 @@ class ShotGame extends FlameGame {
 
   String? result;
 
+  // --- Session accounting (every mode but [ShotMode.free]) -----------------
+
+  static const attemptsPerSession = 3;
+
+  /// Best of three. Two out of three is a session you can be pleased with.
+  static const madeToPass = 2;
+
+  /// One entry per resolved flight, in order — the footer draws a pip from
+  /// each. Deliberately survives [reset], which is how you take the *next*
+  /// attempt.
+  final List<bool> attemptLog = <bool>[];
+
+  int get attempts => attemptLog.length;
+
+  int get made => attemptLog.where((made) => made).length;
+
+  bool get lastAttemptSucceeded =>
+      mode.successLabel != null && result == mode.successLabel;
+
+  TrainingResult get sessionResult => TrainingResult(
+        drill: mode == ShotMode.pass ? TrainingDrill.pass : TrainingDrill.shot,
+        outcome: made >= madeToPass
+            ? TrainingOutcome.success
+            : TrainingOutcome.failure,
+        score: made / attemptsPerSession,
+        detail: mode == ShotMode.pass
+            ? '$made/$attemptsPerSession isabetli pas'
+            : '$made/$attemptsPerSession gol',
+      );
+
   Size get screenSize => Size(size.x, size.y);
 
   PitchProjector get projector =>
@@ -214,6 +283,10 @@ class ShotGame extends FlameGame {
   /// Turn to a new bearing. Only the camera moves — the goal, the keeper and
   /// the teammates are the same objects they were before the turn.
   void turnTo(Facing next) {
+    // A drill fixes the bearing, so a stray turn cannot quietly reset the
+    // attempt. The compass is hidden in those modes anyway; the guard is what
+    // makes that an invariant rather than a UI accident.
+    if (mode != ShotMode.free) return;
     facing = next;
     desiredAngle = next.angle;
     reset();
@@ -563,9 +636,25 @@ class ShotGame extends FlameGame {
   void finishFlight() {
     phase = ShotPhase.result;
     result ??= judge();
-    add(ResultBanner(result!));
+    // Purely visual, and there is no view in a headless test — which is where
+    // the session accounting below gets driven from.
+    if (isMounted) {
+      add(GameBanner(result!, highlight: _isGoodOutcome(result!)));
+    }
+
+    if (mode != ShotMode.free) {
+      attemptLog.add(lastAttemptSucceeded);
+      if (attempts >= attemptsPerSession) onFinished?.call(sessionResult);
+    }
+
     onStateChanged();
   }
+
+  /// Which labels the banner paints green. Broader than the mode's success
+  /// criterion on purpose: a caught pass reads as a good ball even in a
+  /// shooting drill, it just does not score.
+  static bool _isGoodOutcome(String label) =>
+      label == 'GOL!' || label == 'PAS TUTTU';
 
   /// Reads the outcome off the ball's actual world path rather than off
   /// whichever target the compass had selected. That is what makes a pass to a
@@ -638,6 +727,9 @@ class ShotGame extends FlameGame {
     return (label: inPlay ? 'BOŞLUĞA' : 'AUT', t: _flightSpan, touched: false);
   }
 
+  /// Clears the shot, not the session. [handleTap] calls this in the result
+  /// phase to line up the next attempt, so zeroing [attempts] here would mean a
+  /// scored session never ends — use [restartSession] for that.
   void reset() {
     phase = ShotPhase.aim;
     aimLateral = 0;
@@ -655,8 +747,14 @@ class ShotGame extends FlameGame {
     ringT = 0;
     result = null;
     _dragStart = null;
-    children.whereType<ResultBanner>().forEach((c) => c.removeFromParent());
+    children.whereType<GameBanner>().forEach((c) => c.removeFromParent());
     onStateChanged();
+  }
+
+  /// Starts the drill over: the shot *and* the tally.
+  void restartSession() {
+    attemptLog.clear();
+    reset();
   }
 }
 
@@ -1260,50 +1358,3 @@ class StrikeComponent extends Component with HasGameReference<ShotGame> {
 
 /// The result banner — the one place a Flame effect genuinely pays off,
 /// since the pop-in is declarative instead of another hand-rolled tween.
-class ResultBanner extends PositionComponent
-    with HasGameReference<ShotGame> {
-  ResultBanner(this.text) : super(anchor: Anchor.center, scale: Vector2.all(0.6));
-
-  final String text;
-
-  late final TextPaint _painter = TextPaint(
-    style: TextStyle(
-      color: text == 'GOL!' || text == 'PAS TUTTU'
-          ? _success
-          : const Color(0xFFE8EAED),
-      fontSize: 30,
-      fontWeight: FontWeight.w800,
-      letterSpacing: 2,
-    ),
-  );
-
-  @override
-  int get priority => 10;
-
-  @override
-  Future<void> onLoad() async {
-    position = Vector2(game.size.x / 2, game.size.y * 0.42);
-    add(
-      ScaleEffect.to(
-        Vector2.all(1),
-        EffectController(duration: 0.25, curve: Curves.easeOutBack),
-      ),
-    );
-  }
-
-  @override
-  void render(Canvas canvas) {
-    final metrics = _painter.getLineMetrics(text);
-    final w = metrics.width;
-    final h = metrics.height;
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(-w / 2 - 18, -h / 2 - 10, w + 36, h + 20),
-        const Radius.circular(10),
-      ),
-      Paint()..color = Colors.black.withValues(alpha: 0.55),
-    );
-    _painter.render(canvas, text, Vector2(-w / 2, -h / 2));
-  }
-}
