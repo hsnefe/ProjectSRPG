@@ -225,9 +225,20 @@ void main() {
     });
 
     test('a wide blast that runs over the line is out, not into space', () {
-      final game = _aimingAt(-1.5, 0.9, cameraAngle: 0)..launch();
+      // Aimed short of the wing rather than level with him: at 0.9 deep this
+      // line runs straight through him, which is now a collision rather than a
+      // near miss. See the test below.
+      final game = _aimingAt(-1.5, 0.55, cameraAngle: 0)..launch();
 
       expect(game.judge(), 'AUT');
+    });
+
+    test('a ball smashed through your own man is not a shot at all', () {
+      // The line to (-1.5, 0.9) passes within a hundredth of a unit of the left
+      // wing. It used to sail through him and be judged against the goal.
+      final game = _aimingAt(-1.5, 0.9, cameraAngle: 0)..launch();
+
+      expect(game.judge(), 'PAS KAÇTI');
     });
 
     test('the keeper only commits when the ball is coming at him', () {
@@ -241,6 +252,93 @@ void main() {
 
       expect(pass.keeperReachAt(pass.timeToTarget), 0);
       expect(shot.keeperReachAt(shot.timeToTarget).abs(), greaterThan(0));
+    });
+  });
+
+  group('rivals', () {
+    test('a shot straight at a defender hits him', () {
+      // The near half of the goal is behind the centre back. Firing through the
+      // space he is standing in is not a shot on goal.
+      final game = _aimingAt(-0.45, PitchLines.goalLineY, cameraAngle: 0)
+        ..launch();
+
+      expect(game.judge(), 'RAKİP KESTİ');
+    });
+
+    test('threading it just past him is not enough, because he closes', () {
+      // Half a body width clear of where he is standing when you strike it —
+      // and he is not standing there by the time the ball arrives.
+      final game = _aimingAt(-0.30, PitchLines.goalLineY, cameraAngle: 0)
+        ..launch();
+
+      expect(game.judge(), 'RAKİP KESTİ');
+    });
+
+    test('lifting the same ball over him beats him', () {
+      final game = _aimingAt(
+        -0.30,
+        PitchLines.goalLineY,
+        cameraAngle: 0,
+        loft: 1,
+      )..launch();
+
+      // Over the defender, and — at full loft — over the bar as well.
+      expect(game.judge(), 'ÜSTTEN AUT');
+    });
+
+    test('a rival is never a receiver', () {
+      final rival = ShotTarget.rivalFullBack;
+      final game = _aimingAt(rival.x, rival.y, cameraAngle: 0)..launch();
+
+      expect(game.judge(), 'RAKİP KESTİ');
+    });
+
+    test('nobody moves before the ball is struck', () {
+      final game = _game(cameraAngle: 0, aimLateral: 0, aimDepth: 1);
+
+      for (final rival in ShotTarget.rivals) {
+        final spot = game.rivalAt(rival, 0);
+        expect(spot.x, closeTo(rival.x, 1e-9), reason: rival.label);
+        expect(spot.y, closeTo(rival.y, 1e-9), reason: rival.label);
+      }
+    });
+
+    test('a ball gone before he can react leaves him standing', () {
+      // Blasted wide and flat: it passes the midfielder inside his reaction
+      // time, so he never leaves his post, however long you wait.
+      final game = _aimingAt(-1.5, 0.55, cameraAngle: 0)..launch();
+      final spot = game.rivalAt(ShotTarget.rivalMidfielder, 10);
+
+      expect(spot.x, closeTo(ShotTarget.rivalMidfielder.x, 1e-9));
+      expect(spot.y, closeTo(ShotTarget.rivalMidfielder.y, 1e-9));
+    });
+
+    test('a ball he can get to brings him off his post', () {
+      final game = _aimingAt(-0.30, PitchLines.goalLineY, cameraAngle: 0)
+        ..launch();
+      final rival = ShotTarget.rivalCentreBack;
+      final spot = game.rivalAt(rival, game.flightDuration);
+      final moved = math.sqrt(
+        math.pow(spot.x - rival.x, 2) + math.pow(spot.y - rival.y, 2),
+      );
+
+      expect(moved, greaterThan(0.05));
+      expect(moved, lessThanOrEqualTo(ShotWorld.rivalRange + 1e-9));
+    });
+
+    test('the ball stops where it is blocked instead of flying on', () {
+      final game = _aimingAt(-0.45, PitchLines.goalLineY, cameraAngle: 0)
+        ..launch();
+
+      // The full flight would run on past the aim point; this one does not.
+      expect(game.flightDuration, lessThan(game.timeToTarget + 0.55));
+
+      // And once it is stopped it stays put, dropping out of the air.
+      final hit = game.ballAt(game.flightDuration - ShotWorld.settleTime);
+      final settled = game.ballAt(game.flightDuration);
+      expect(settled.depth, closeTo(hit.depth, 1e-9));
+      expect(settled.lateral, closeTo(hit.lateral, 1e-9));
+      expect(settled.z, lessThanOrEqualTo(hit.z));
     });
   });
 

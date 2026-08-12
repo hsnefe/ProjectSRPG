@@ -20,10 +20,32 @@ class ShotWorld {
   /// Depth speed at full power (units/second).
   static const baseDepthSpeed = 0.95;
 
+  // Bodies. A player is a vertical cylinder, and the renderer is given the same
+  // numbers the ball is tested against — what you see is what it hits.
+  static const playerHalfWidth = 0.08;
+  static const playerHeight = 0.26;
+  static const keeperHalfWidth = 0.10;
+  static const keeperHeight = 0.30;
+
+  /// How close the ball's centre has to pass to be blocked, and how high it has
+  /// to be to clear a body altogether.
+  static const blockRadius = playerHalfWidth + ballRadius;
+  static const blockHeight = playerHeight + ballRadius;
+
   // Keeper
   static const keeperReaction = 0.28;
   static const keeperSpeed = 0.55;
   static const keeperMaxX = 0.62;
+
+  // Rivals. Slower off the mark than the keeper and slower across the ground,
+  // and they never abandon their zone completely — a defender who could chase
+  // any ball anywhere would leave no lane worth finding.
+  static const rivalReaction = 0.32;
+  static const rivalSpeed = 0.45;
+  static const rivalRange = 0.35;
+
+  /// How long the ball is given to drop and settle after someone touches it.
+  static const settleTime = 0.25;
 
   /// A pass counts as received inside this radius of the target.
   static const passCatchRadius = 0.20;

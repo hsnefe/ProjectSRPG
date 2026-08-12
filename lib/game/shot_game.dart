@@ -28,18 +28,24 @@ enum Facing {
 /// A selectable destination. The player picks one, the camera turns to face
 /// it, and the same two-phase shot mechanic plays out toward it — including
 /// targets behind the player.
+///
+/// Rivals ride in the same class because the ball does not care whose shirt a
+/// body is wearing, but they are kept out of [all]: that list means "things you
+/// can pick out", and nobody passes to the opposition.
 class ShotTarget {
   const ShotTarget({
     required this.label,
     required this.x,
     required this.y,
     this.isGoal = false,
+    this.isRival = false,
   });
 
   final String label;
   final double x;
   final double y;
   final bool isGoal;
+  final bool isRival;
 
   double get distance => math.sqrt(x * x + y * y);
   double get facingAngle => PitchProjector.angleToward(x, y);
@@ -49,7 +55,23 @@ class ShotTarget {
   static const rightBack = ShotTarget(label: 'Sağ bek', x: 0.95, y: 0.15);
   static const backPass = ShotTarget(label: 'Geri pas', x: 0.05, y: -0.75);
 
+  /// The opposition. They stand off the obvious lines rather than on them —
+  /// a defender parked on the shot you are about to take is not a decision —
+  /// and close the ball down once it is struck.
+  static const rivalCentreBack =
+      ShotTarget(label: 'Rakip stoper', x: -0.45, y: 0.80, isRival: true);
+  static const rivalMidfielder =
+      ShotTarget(label: 'Rakip orta saha', x: -0.50, y: 0.66, isRival: true);
+  static const rivalFullBack =
+      ShotTarget(label: 'Rakip bek', x: 0.85, y: 0.40, isRival: true);
+
   static const all = [goal, leftWing, rightBack, backPass];
+
+  static const rivals = [rivalCentreBack, rivalMidfielder, rivalFullBack];
+
+  /// Everyone with a body on the pitch: what the ball can run into, and what
+  /// gets drawn. The goal has no body and the keeper is his own component.
+  static const players = [leftWing, rightBack, backPass, ...rivals];
 
   /// Whatever stands closest to the given bearing, if anything does. The
   /// player turns to look somewhere; what is in front of them follows from
@@ -110,16 +132,31 @@ class ShotGame extends FlameGame {
   double _vx = 0;
   double _vy = 0;
   double _vz = 0;
+
+  /// How long the ball is animated for. Shorter than [_flightSpan] whenever
+  /// somebody gets a touch on it, because that is where it stops.
   double flightDuration = 0;
-  double keeperX = 0;
+
+  /// The full flight the strike would produce if the pitch were empty. Every
+  /// sweep reads this rather than [flightDuration], so shortening the animation
+  /// cannot feed back into the outcome.
+  double _flightSpan = 0;
 
   /// Where along the goal line the keeper commits to, fixed at launch. Zero
   /// when the shot never reaches the line, so he holds his ground for a pass.
   double _keeperTarget = 0;
 
-  String? result;
+  /// Where each rival has decided to go, also fixed at launch. Empty outside a
+  /// flight, which is what leaves everyone standing on their post.
+  final Map<ShotTarget, GroundPoint> _rivalRuns = {};
 
-  late final BallComponent ball;
+  /// The first body the ball runs into, if it runs into one.
+  ({double t, ShotTarget player})? _contact;
+
+  /// When the ball stopped because somebody touched it. Null when nobody did.
+  double? _stopT;
+
+  String? result;
 
   Size get screenSize => Size(size.x, size.y);
 
@@ -138,10 +175,8 @@ class ShotGame extends FlameGame {
   Future<void> onLoad() async {
     addAll([
       PitchComponent(),
-      TargetsComponent(),
-      KeeperComponent(),
       AimComponent(),
-      ball = BallComponent(),
+      ActorsComponent(),
       StrikeComponent(),
       InputLayer(),
     ]);
@@ -269,8 +304,15 @@ class ShotGame extends FlameGame {
     _vx = (aimLateral / aimDepth) * _vy;
 
     flightT = 0;
-    keeperX = 0;
-    flightDuration = tg + 0.55;
+    // Deliberately running on past the aim point, for the look of it.
+    _flightSpan = tg + 0.55;
+
+    // Order matters here, and only in one direction: the rivals read a path
+    // that knows nothing about them, the contact sweep needs to know where they
+    // went, and both the keeper and the outcome need to know whether the ball
+    // ever gets through.
+    _readRivalRuns();
+    _contact = _firstContact();
 
     // The keeper reads your body shape, not the curve you put on it, so he
     // commits to the unspun line. Bending the ball away from where he goes is
@@ -284,8 +326,15 @@ class ShotGame extends FlameGame {
             ) ??
             0;
 
+    final outcome = resolve();
+    result = outcome.label;
+    // A touched ball stops where it was touched and is given a moment to drop;
+    // everything else plays out the whole flight.
+    _stopT = outcome.touched ? outcome.t : null;
+    flightDuration =
+        outcome.touched ? outcome.t + ShotWorld.settleTime : _flightSpan;
+
     phase = ShotPhase.flight;
-    result = null;
     onStateChanged();
   }
 
@@ -313,6 +362,128 @@ class ShotGame extends FlameGame {
   GroundPoint worldAt(double t) =>
       PitchProjector.cameraToWorld(lateralAt(t), depthAt(t), cameraAngle);
 
+  // --- Rivals -------------------------------------------------------------
+
+  /// Where a rival is at time [t]: on his post until he reacts, then walking
+  /// the straight line to the spot he committed to at launch.
+  GroundPoint rivalAt(ShotTarget rival, double t) {
+    final aim = _rivalRuns[rival];
+    if (aim == null) return (x: rival.x, y: rival.y);
+
+    final dx = aim.x - rival.x;
+    final dy = aim.y - rival.y;
+    final gap = math.sqrt(dx * dx + dy * dy);
+    if (gap < 1e-9) return (x: rival.x, y: rival.y);
+
+    final travel = math.min(
+      gap,
+      math.max(0.0, t - ShotWorld.rivalReaction) * ShotWorld.rivalSpeed,
+    );
+    return (x: rival.x + dx / gap * travel, y: rival.y + dy / gap * travel);
+  }
+
+  /// Each rival picks the point on the ball's path he wants to be standing on.
+  ///
+  /// Like the keeper he reads the unspun line, so the counterplay is the same
+  /// one: bend it round him, lift it over him, or hit it hard enough that he is
+  /// still turning when it goes past. He stays on his post for a ball he could
+  /// never get to, and never strays further than [ShotWorld.rivalRange].
+  void _readRivalRuns() {
+    _rivalRuns.clear();
+    for (final rival in ShotTarget.rivals) {
+      final spot = _closestApproach((x: rival.x, y: rival.y));
+      if (spot == null || spot.t <= ShotWorld.rivalReaction) continue;
+      if (spot.gap < 1e-9) continue;
+
+      final reach = math.min(spot.gap, ShotWorld.rivalRange);
+      _rivalRuns[rival] = (
+        x: rival.x + (spot.point.x - rival.x) / spot.gap * reach,
+        y: rival.y + (spot.point.y - rival.y) / spot.gap * reach,
+      );
+    }
+  }
+
+  /// The closest the unspun path ever comes to a standing player, and when.
+  ({double t, GroundPoint point, double gap})? _closestApproach(
+    GroundPoint post,
+  ) {
+    if (_flightSpan <= 0) return null;
+
+    ({double t, GroundPoint point, double gap})? best;
+    for (var i = 0; i <= _sweepSamples; i++) {
+      final t = _flightSpan * i / _sweepSamples;
+      final point = PitchProjector.cameraToWorld(
+        _lateralAt(t, withSpin: false),
+        depthAt(t),
+        cameraAngle,
+      );
+      final gap = _gap(point, post);
+      if (best == null || gap < best.gap) {
+        best = (t: t, point: point, gap: gap);
+      }
+    }
+    return best;
+  }
+
+  // --- Contact ------------------------------------------------------------
+
+  /// How the flight is sampled. At a typical span the step is about 6 ms, or
+  /// a hundredth of a world unit — well inside [ShotWorld.blockRadius], so
+  /// nothing tunnels through anybody.
+  static const _sweepSamples = 180;
+
+  /// The first body the ball runs into.
+  ///
+  /// The keeper is not in here: he keeps his own reach test at the goal line,
+  /// which is graded by height in a way a plain cylinder is not.
+  ({double t, ShotTarget player})? _firstContact() {
+    if (_flightSpan <= 0) return null;
+
+    for (var i = 1; i <= _sweepSamples; i++) {
+      final t = _flightSpan * i / _sweepSamples;
+      // Over everyone's head there is nothing to hit.
+      if (heightAt(t) >= ShotWorld.blockHeight) continue;
+
+      final ball = worldAt(t);
+      for (final player in ShotTarget.players) {
+        final at = playerAt(player, t);
+        if (_gap(ball, at) < ShotWorld.blockRadius) {
+          return (t: t, player: player);
+        }
+      }
+    }
+    return null;
+  }
+
+  /// Where a player is standing at time [t]. Only rivals ever move.
+  GroundPoint playerAt(ShotTarget player, double t) =>
+      player.isRival ? rivalAt(player, t) : (x: player.x, y: player.y);
+
+  static double _gap(GroundPoint a, GroundPoint b) {
+    final dx = a.x - b.x;
+    final dy = a.y - b.y;
+    return math.sqrt(dx * dx + dy * dy);
+  }
+
+  /// Where to draw the ball at time [t]. Once somebody has touched it, it stops
+  /// dead there and drops out of the air.
+  ({double lateral, double depth, double z}) ballAt(double t) {
+    final stop = _stopT;
+    if (stop == null || t <= stop) {
+      return (lateral: lateralAt(t), depth: depthAt(t), z: heightAt(t));
+    }
+
+    final fall = t - stop;
+    return (
+      lateral: lateralAt(stop),
+      depth: depthAt(stop),
+      z: math.max(
+        0,
+        heightAt(stop) - 0.5 * ShotWorld.gravity * fall * fall,
+      ),
+    );
+  }
+
   /// The first moment the ball crosses the goal line, or null if it never does.
   ///
   /// The path is not straight in world terms — spin adds a t² term and the
@@ -320,7 +491,7 @@ class ShotGame extends FlameGame {
   /// two samples that bracket the crossing, the same way the pitch arcs are
   /// drawn.
   ({double t, double x, double z})? _goalLineCrossing({bool withSpin = true}) {
-    if (flightDuration <= 0) return null;
+    if (_flightSpan <= 0) return null;
 
     GroundPoint at(double t) => PitchProjector.cameraToWorld(
           _lateralAt(t, withSpin: withSpin),
@@ -328,12 +499,12 @@ class ShotGame extends FlameGame {
           cameraAngle,
         );
 
-    const samples = 180;
+    const samples = _sweepSamples;
     var previousT = 0.0;
     var previousY = at(0).y;
 
     for (var i = 1; i <= samples; i++) {
-      final t = flightDuration * i / samples;
+      final t = _flightSpan * i / samples;
       final y = at(t).y;
       if (y >= PitchLines.goalLineY) {
         final span = y - previousY;
@@ -358,9 +529,7 @@ class ShotGame extends FlameGame {
     var nearestGap = double.infinity;
     for (final t in ShotTarget.all) {
       if (t.isGoal) continue;
-      final dx = t.x - landing.x;
-      final dy = t.y - landing.y;
-      final gap = math.sqrt(dx * dx + dy * dy);
+      final gap = _gap(landing, (x: t.x, y: t.y));
       if (gap < nearestGap) {
         nearestGap = gap;
         nearest = t;
@@ -377,11 +546,16 @@ class ShotGame extends FlameGame {
   ///
   /// The flight deliberately runs on past the aim point for the look of it, so a
   /// pass to a team mate would otherwise trundle across the goal line and be
-  /// scored as a shot. Whoever gets to the ball first wins: a receiver standing
-  /// on the aim point takes it before it can run on.
+  /// scored as a shot. Whoever gets to the ball first wins: anybody it runs into
+  /// takes it before it can run on, and so does a receiver it merely arrives at
+  /// — [ShotWorld.passCatchRadius] is more generous than a body is wide, and a
+  /// pass that only just misses its man is still a pass.
   ({double t, double x, double z})? _shotAtGoal() {
     final crossing = _goalLineCrossing();
     if (crossing == null) return null;
+
+    final contact = _contact;
+    if (contact != null && contact.t <= crossing.t) return null;
     if (crossing.t > timeToTarget && _receiver() != null) return null;
     return crossing;
   }
@@ -399,26 +573,44 @@ class ShotGame extends FlameGame {
   /// reaches the goal line, so it is judged as a pass.
   ///
   /// Internal rather than private so the outcome table can be tested directly.
-  String judge() {
+  String judge() => resolve().label;
+
+  /// The outcome, the moment it happens, and whether anybody got a touch on the
+  /// ball — which is what decides where the flight stops.
+  ///
+  /// Nothing in here reads the clock, so it says the same thing at launch as it
+  /// does when the ball lands.
+  ({String label, double t, bool touched}) resolve() {
     const r = ShotWorld.ballRadius;
 
     final atGoal = _shotAtGoal();
     if (atGoal != null) {
       final x = atGoal.x;
       final z = atGoal.z;
+      // Anything that beats the keeper keeps flying; only a save stops here.
+      ({String label, double t, bool touched}) past(String label) =>
+          (label: label, t: _flightSpan, touched: false);
 
-      if (x.abs() > ShotWorld.goalHalfWidth + r) return 'AUT';
-      if (z > ShotWorld.crossbarHeight + r) return 'ÜSTTEN AUT';
+      if (x.abs() > ShotWorld.goalHalfWidth + r) return past('AUT');
+      if (z > ShotWorld.crossbarHeight + r) return past('ÜSTTEN AUT');
       if (x.abs() > ShotWorld.goalHalfWidth - r ||
           z > ShotWorld.crossbarHeight - r) {
-        return 'DİREK';
+        return past('DİREK');
       }
 
       // Keeper reach: harder to get to high balls.
       final reach = z < 0.28 ? 0.15 : (z < 0.42 ? 0.07 : 0.0);
-      if ((keeperReachAt(atGoal.t) - x).abs() < reach) return 'KURTARIŞ';
+      if ((keeperReachAt(atGoal.t) - x).abs() < reach) {
+        return (label: 'KURTARIŞ', t: atGoal.t, touched: true);
+      }
 
-      return 'GOL!';
+      return past('GOL!');
+    }
+
+    // Nobody in your shirt gets it now: a rival got there first.
+    final contact = _contact;
+    if (contact != null && contact.player.isRival) {
+      return (label: 'RAKİP KESTİ', t: contact.t, touched: true);
     }
 
     final tg = timeToTarget;
@@ -426,14 +618,24 @@ class ShotGame extends FlameGame {
     if (receiver != null) {
       final caught = receiver.gap < ShotWorld.passCatchRadius &&
           heightAt(tg) < ShotWorld.passCatchHeight;
-      return caught ? 'PAS TUTTU' : 'PAS KAÇTI';
+      return (
+        label: caught ? 'PAS TUTTU' : 'PAS KAÇTI',
+        t: contact?.t ?? tg,
+        touched: contact != null,
+      );
+    }
+
+    // It ran into one of your own without having been meant for him: still a
+    // ball you gave away, just not one you meant to give.
+    if (contact != null) {
+      return (label: 'PAS KAÇTI', t: contact.t, touched: true);
     }
 
     final landing = worldAt(tg);
     final inPlay = landing.x.abs() <= PitchLines.halfWidth &&
         landing.y <= PitchLines.goalLineY &&
         landing.y >= PitchLines.backY;
-    return inPlay ? 'BOŞLUĞA' : 'AUT';
+    return (label: inPlay ? 'BOŞLUĞA' : 'AUT', t: _flightSpan, touched: false);
   }
 
   void reset() {
@@ -444,8 +646,12 @@ class ShotGame extends FlameGame {
     spin = 0;
     loft = 0;
     flightT = 0;
-    keeperX = 0;
+    flightDuration = 0;
+    _flightSpan = 0;
     _keeperTarget = 0;
+    _rivalRuns.clear();
+    _contact = null;
+    _stopT = null;
     ringT = 0;
     result = null;
     _dragStart = null;
@@ -464,6 +670,7 @@ const _lineColor = Color(0x55FFFFFF);
 const _accent = Color(0xFF1E6FD9);
 const _success = Color(0xFF3DDC97);
 const _warning = Color(0xFFF5A623);
+const _rival = Color(0xFFE5484D);
 
 /// A full-bleed component that receives gestures. Component-level input is
 /// the modern Flame API — the deprecated game-level detectors would work too,
@@ -748,91 +955,6 @@ class PitchComponent extends Component with HasGameReference<ShotGame> {
   }
 }
 
-/// Everyone on the pitch, drawn wherever they actually are. Players behind the
-/// camera are culled rather than hidden, so turning around reveals them
-/// naturally.
-///
-/// Nobody is highlighted: with the aim free of the compass there is no
-/// "selected" player to mark, and any of them can be picked out by pointing the
-/// reticle at them.
-class TargetsComponent extends Component with HasGameReference<ShotGame> {
-  @override
-  int get priority => 1;
-
-  @override
-  void render(Canvas canvas) {
-    final p = game.projector;
-    for (final t in ShotTarget.all) {
-      if (t.isGoal) continue;
-      final depth = p.depthOf(t.x, t.y);
-      if (!p.isPointVisible(depth)) continue;
-
-      final o = p.pointOpacity(depth);
-      final feet = p.projectWorld(t.x, t.y, 0);
-      final s = p.scale(depth);
-      final h = 0.26 * p.zScale * s;
-      final w = 0.16 * p.halfWidth * s;
-
-      canvas.drawOval(
-        Rect.fromCenter(center: feet, width: w * 1.6, height: w * 0.5),
-        Paint()..color = Colors.black.withValues(alpha: 0.35 * o),
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(feet.dx - w / 2, feet.dy - h, w, h),
-          const Radius.circular(3),
-        ),
-        Paint()..color = Colors.white.withValues(alpha: 0.55 * o),
-      );
-    }
-  }
-}
-
-/// Stands on the goal line whenever the goal is in view.
-///
-/// Visibility comes from geometry, never from which target is selected.
-/// [ShotGame.turnTo] flips `facing` in one frame while the camera eases over
-/// the next half second, so gating the keeper on `target.isGoal` deleted him
-/// from a shot the camera was still pointing at.
-class KeeperComponent extends Component with HasGameReference<ShotGame> {
-  @override
-  int get priority => 2;
-
-  @override
-  void update(double dt) {
-    if (game.phase == ShotPhase.flight) {
-      game.keeperX = game.keeperReachAt(game.flightT);
-    }
-  }
-
-  @override
-  void render(Canvas canvas) {
-    final p = game.projector;
-
-    // The keeper stands on the goal line, so his absolute position follows
-    // the lateral offset the dive has taken him to.
-    const depthOnPitch = 0.97;
-    final wx = game.keeperX;
-    final wy = depthOnPitch;
-    final depth = p.depthOf(wx, wy);
-    if (!p.isPointVisible(depth)) return;
-
-    final o = p.pointOpacity(depth);
-    final s = p.scale(depth);
-    final feet = p.projectWorld(wx, wy, 0);
-    final w = 0.20 * p.halfWidth * s;
-    final h = 0.30 * p.zScale * s;
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(feet.dx - w / 2, feet.dy - h, w, h),
-        const Radius.circular(3),
-      ),
-      Paint()..color = _warning.withValues(alpha: 0.85 * o),
-    );
-  }
-}
-
 /// The spot on the pitch the ball is aimed at, plus the line it will run along
 /// to get there.
 ///
@@ -892,8 +1014,23 @@ class AimComponent extends Component with HasGameReference<ShotGame> {
   }
 }
 
-/// The ball and its shadow. Owns the flight integration in its own update.
-class BallComponent extends Component with HasGameReference<ShotGame> {
+/// Everyone on the pitch and the ball, painted back to front.
+///
+/// They share one component because they share one ground plane and there is no
+/// depth buffer to sort them out: with a component each, Flame's priority
+/// decides who covers whom, and the ball — drawn last — went straight through
+/// the bodies it was supposed to be behind. Painting the whole cast in depth
+/// order is the only thing that puts the ball behind a defender it has yet to
+/// reach.
+///
+/// Players behind the camera are culled rather than hidden, so turning around
+/// reveals them naturally. Nobody is highlighted: with the aim free of the
+/// compass there is no "selected" player to mark, and any of them can be picked
+/// out by pointing the reticle at them.
+class ActorsComponent extends Component with HasGameReference<ShotGame> {
+  /// Where the keeper stands: on the line, a stride in front of it.
+  static const keeperDepth = 0.97;
+
   @override
   int get priority => 4;
 
@@ -910,15 +1047,117 @@ class BallComponent extends Component with HasGameReference<ShotGame> {
   @override
   void render(Canvas canvas) {
     final p = game.projector;
+    final actors = <({double depth, void Function() paint})>[];
 
-    if (game.phase == ShotPhase.strike) return;
+    void at(
+      double wx,
+      double wy,
+      void Function(double depth) paint, {
+      bool cull = true,
+    }) {
+      final depth = p.depthOf(wx, wy);
+      if (cull && !p.isPointVisible(depth)) return;
+      actors.add((depth: depth, paint: () => paint(depth)));
+    }
 
-    final flying =
-        game.phase == ShotPhase.flight || game.phase == ShotPhase.result;
-    final lateral = flying ? game.lateralAt(game.flightT) : 0.0;
-    final depth = flying ? game.depthAt(game.flightT) : 0.0;
-    final z = flying ? game.heightAt(game.flightT) : 0.0;
+    for (final player in ShotTarget.players) {
+      final spot = game.playerAt(player, game.flightT);
+      at(
+        spot.x,
+        spot.y,
+        (depth) => _paintBody(
+          canvas,
+          p,
+          feet: p.projectWorld(spot.x, spot.y, 0),
+          depth: depth,
+          halfWidth: ShotWorld.playerHalfWidth,
+          height: ShotWorld.playerHeight,
+          color: player.isRival ? _rival : Colors.white,
+          alpha: player.isRival ? 0.75 : 0.55,
+        ),
+      );
+    }
 
+    // The keeper's absolute position follows the lateral offset his dive has
+    // taken him to.
+    final keeperX = game.keeperReachAt(game.flightT);
+    at(
+      keeperX,
+      keeperDepth,
+      (depth) => _paintBody(
+        canvas,
+        p,
+        feet: p.projectWorld(keeperX, keeperDepth, 0),
+        depth: depth,
+        halfWidth: ShotWorld.keeperHalfWidth,
+        height: ShotWorld.keeperHeight,
+        color: _warning,
+        alpha: 0.85,
+      ),
+    );
+
+    if (game.phase != ShotPhase.strike) {
+      final ball = game.ballAt(game.flightT);
+      final resting = game.phase == ShotPhase.aim;
+      final lateral = resting ? 0.0 : ball.lateral;
+      final depth = resting ? 0.0 : ball.depth;
+      final z = resting ? 0.0 : ball.z;
+      final world = PitchProjector.cameraToWorld(
+        lateral,
+        depth,
+        game.cameraAngle,
+      );
+      // Never culled: it starts at the camera line, where a body would be
+      // thrown away, and it is the one thing that always has to be on screen.
+      at(
+        world.x,
+        world.y,
+        (_) => _paintBall(canvas, p, lateral, depth, z),
+        cull: false,
+      );
+    }
+
+    actors.sort((a, b) => b.depth.compareTo(a.depth));
+    for (final actor in actors) {
+      actor.paint();
+    }
+  }
+
+  void _paintBody(
+    Canvas canvas,
+    PitchProjector p, {
+    required Offset feet,
+    required double depth,
+    required double halfWidth,
+    required double height,
+    required Color color,
+    required double alpha,
+  }) {
+    final o = p.pointOpacity(depth);
+    final s = p.scale(depth);
+    final w = halfWidth * 2 * p.halfWidth * s;
+    final h = height * p.zScale * s;
+
+    canvas.drawOval(
+      Rect.fromCenter(center: feet, width: w * 1.6, height: w * 0.5),
+      Paint()..color = Colors.black.withValues(alpha: 0.35 * o),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(feet.dx - w / 2, feet.dy - h, w, h),
+        const Radius.circular(3),
+      ),
+      Paint()..color = color.withValues(alpha: alpha * o),
+    );
+  }
+
+  void _paintBall(
+    Canvas canvas,
+    PitchProjector p,
+    double lateral,
+    double depth,
+    double z,
+  ) {
     _paintShadow(canvas, p, lateral, depth, z);
 
     final s = p.scale(depth);
