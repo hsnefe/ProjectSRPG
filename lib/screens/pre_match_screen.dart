@@ -1,10 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/net/match_api_client.dart';
 import 'package:project_srpg/net/match_models.dart';
 import 'package:project_srpg/screens/match_screen.dart';
 import 'package:project_srpg/state/match_controller.dart';
 import 'package:project_srpg/state/player_scope.dart';
 
-class PreMatchScreen extends StatelessWidget {
+const _weekdayLabels = [
+  'Pazartesi',
+  'Salı',
+  'Çarşamba',
+  'Perşembe',
+  'Cuma',
+  'Cumartesi',
+  'Pazar',
+];
+
+String _kickoffLabel(DateTime kickoffAt) {
+  final local = kickoffAt.toLocal();
+  final weekday = _weekdayLabels[local.weekday - 1];
+  final hh = local.hour.toString().padLeft(2, '0');
+  final mm = local.minute.toString().padLeft(2, '0');
+  return '$weekday, $hh:$mm';
+}
+
+class PreMatchScreen extends StatefulWidget {
   const PreMatchScreen({super.key});
 
   static const _surface1 = Color(0xFF1A1D24);
@@ -14,11 +33,85 @@ class PreMatchScreen extends StatelessWidget {
   static const _textSecondary = Color(0xFFA0A6B0);
   static const _textMuted = Color(0xFF6B7280);
   static const _success = Color(0xFF3DDC97);
+  static const _danger = Color(0xFFE85D5D);
+
+  @override
+  State<PreMatchScreen> createState() => _PreMatchScreenState();
+}
+
+class _PreMatchScreenState extends State<PreMatchScreen> {
+  final _apiClient = MatchApiClient();
+
+  NextMatchResponse? _next;
+  String? _loadError;
+  bool _starting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNext();
+  }
+
+  Future<void> _loadNext() async {
+    setState(() {
+      _loadError = null;
+      _next = null;
+    });
+    try {
+      final next = await _apiClient.fetchNextMatch();
+      if (!mounted) return;
+      setState(() => _next = next);
+    } on MatchApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _loadError = e.message ?? 'Maç bilgisi alınamadı.');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadError = 'Maç bilgisi alınamadı.');
+    }
+  }
+
+  Future<void> _startMatch() async {
+    final next = _next;
+    if (next == null || _starting) return;
+    setState(() => _starting = true);
+    try {
+      final start = await _apiClient.startMatch(
+        next.matchId,
+        userSide: next.userSide,
+        effort: next.defaults.effort,
+        aggression: next.defaults.aggression,
+        focus: next.defaults.focus,
+      );
+      if (!mounted) return;
+      final controller = MatchController(
+        matchId: start.matchId,
+        streamUrl: start.streamUrl,
+        userSide: next.userSide,
+        teams: next.teams,
+        staminaCatalog: next.stamina,
+        directiveOptions: next.directiveOptions,
+      );
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => MatchScreen(controller: controller)),
+      );
+      // /matches/next rezerve ettiği match_id /start ile tüketildi — geri
+      // dönüldüğünde bir sonraki maç için tazesini iste.
+      if (mounted) _loadNext();
+    } on MatchApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message ?? 'Maç başlatılamadı.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _starting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _surface1,
+      backgroundColor: PreMatchScreen._surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -27,22 +120,13 @@ class PreMatchScreen extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: _surface2,
+                  color: PreMatchScreen._surface2,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _border, width: 0.5),
+                  border: Border.all(color: PreMatchScreen._border, width: 0.5),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      _HeaderSection(),
-                      _FieldPlaceholder(),
-                      _TacticsRow(),
-                      _ConditionBar(),
-                      _ActionRow(),
-                    ],
-                  ),
+                  child: _buildBody(context),
                 ),
               ),
             ),
@@ -51,10 +135,104 @@ class PreMatchScreen extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildBody(BuildContext context) {
+    final next = _next;
+    if (_loadError != null) {
+      return _ErrorSection(message: _loadError!, onRetry: _loadNext);
+    }
+    if (next == null) {
+      return const _LoadingSection();
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _HeaderSection(
+          home: next.teams.home.name,
+          away: next.teams.away.name,
+          kickoffLabel: _kickoffLabel(next.kickoffAt),
+        ),
+        const _FieldPlaceholder(),
+        _TacticsRow(tacticLabel: next.teamTactic.label),
+        const _ConditionBar(),
+        _ActionRow(starting: _starting, onPlay: _startMatch),
+      ],
+    );
+  }
+}
+
+class _LoadingSection extends StatelessWidget {
+  const _LoadingSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      height: 320,
+      child: Center(
+        child: CircularProgressIndicator(color: PreMatchScreen._success),
+      ),
+    );
+  }
+}
+
+class _ErrorSection extends StatelessWidget {
+  const _ErrorSection({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 320,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                size: 28,
+                color: PreMatchScreen._danger,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: PreMatchScreen._textSecondary,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: onRetry,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: PreMatchScreen._textPrimary,
+                  side: const BorderSide(color: PreMatchScreen._border),
+                ),
+                child: const Text('Tekrar dene'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _HeaderSection extends StatelessWidget {
-  const _HeaderSection();
+  const _HeaderSection({
+    required this.home,
+    required this.away,
+    required this.kickoffLabel,
+  });
+
+  final String home;
+  final String away;
+  final String kickoffLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -88,21 +266,21 @@ class _HeaderSection extends StatelessWidget {
               ),
             ),
           ),
-          const Column(
+          Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                'FK Yıldız - Deniz SK',
-                style: TextStyle(
+                '$home - $away',
+                style: const TextStyle(
                   color: PreMatchScreen._textPrimary,
                   fontWeight: FontWeight.w500,
                   fontSize: 13,
                 ),
               ),
-              SizedBox(height: 2),
+              const SizedBox(height: 2),
               Text(
-                'Cumartesi, 20:00',
-                style: TextStyle(
+                kickoffLabel,
+                style: const TextStyle(
                   color: PreMatchScreen._textMuted,
                   fontSize: 11,
                 ),
@@ -203,19 +381,23 @@ class _DashedBorderPainter extends CustomPainter {
 }
 
 class _TacticsRow extends StatelessWidget {
-  const _TacticsRow();
+  const _TacticsRow({required this.tacticLabel});
+
+  final String tacticLabel;
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(20, 16, 20, 0),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
       child: Row(
         children: [
           Expanded(
-            child: _InfoTile(label: 'Takım taktiği', value: 'Yüksek Pres'),
+            child: _InfoTile(label: 'Takım taktiği', value: tacticLabel),
           ),
-          SizedBox(width: 12),
-          Expanded(
+          const SizedBox(width: 12),
+          // Bireysel rol: contract'ta karşılığı yok (§1.2, bireysel oyuncu
+          // katmanı yok) — sabit kalır.
+          const Expanded(
             child: _InfoTile(label: 'Bireysel rol', value: 'Oyun Kurucu'),
           ),
         ],
@@ -310,7 +492,10 @@ class _ConditionBar extends StatelessWidget {
 }
 
 class _ActionRow extends StatelessWidget {
-  const _ActionRow();
+  const _ActionRow({required this.starting, required this.onPlay});
+
+  final bool starting;
+  final VoidCallback onPlay;
 
   void _showStubMessage(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -347,40 +532,19 @@ class _ActionRow extends StatelessWidget {
             width: 64,
             height: 64,
             child: OutlinedButton(
-              onPressed: () {
-                // GEÇİCİ yer tutucu: MatchScreen artık bir MatchController
-                // gerektiriyor. Gerçek GET /next → POST /start akışı bir
-                // sonraki commit'te buraya bağlanacak; şimdilik derlemeyi
-                // ayakta tutmak için sabit değerlerle kuruluyor.
-                final controller = MatchController(
-                  matchId: 'placeholder',
-                  streamUrl: '/matches/placeholder/stream',
-                  userSide: 'home',
-                  teams: const MatchTeams(
-                    home: TeamInfo(name: 'FK Yıldız'),
-                    away: TeamInfo(name: 'Deniz SK'),
-                  ),
-                  staminaCatalog: const StaminaCatalog(
-                    current: 100,
-                    floor: 35,
-                    ceiling: 100,
-                    substitutionBonus: 6,
-                  ),
-                  directiveOptions:
-                      const DirectiveOptions(effort: [], aggression: [], focus: []),
-                );
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => MatchScreen(controller: controller),
-                  ),
-                );
-              },
+              onPressed: starting ? null : onPlay,
               style: OutlinedButton.styleFrom(
                 foregroundColor: PreMatchScreen._textPrimary,
                 side: const BorderSide(color: PreMatchScreen._border),
                 padding: EdgeInsets.zero,
               ),
-              child: const Icon(Icons.play_arrow, size: 28),
+              child: starting
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.play_arrow, size: 28),
             ),
           ),
         ],

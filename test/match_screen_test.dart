@@ -236,4 +236,31 @@ void main() {
 
     expect(source.controller.hasListener, isFalse);
   });
+
+  testWidgets('pops back and shows a message on a connection error',
+      (tester) async {
+    final source = _FakeSseClient();
+    final controller = _buildController(source);
+
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: Text('Geri ekran'))),
+    );
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    navigator.push(
+      MaterialPageRoute<void>(builder: (_) => MatchScreen(controller: controller)),
+    );
+    await tester.pumpAndSettle();
+
+    source.controller.addError(
+      MatchStreamException(404, code: 'match_not_found'),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(find.textContaining('match_not_found'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 1000));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Geri ekran'), findsOneWidget);
+  });
 }

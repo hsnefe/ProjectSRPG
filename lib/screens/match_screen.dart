@@ -36,6 +36,7 @@ class _MatchScreenState extends State<MatchScreen> {
   final ValueNotifier<MatchSpeed> _speed = ValueNotifier(MatchSpeed.slow);
 
   int _lastEventCount = 0;
+  bool _handledConnectionError = false;
 
   @override
   void initState() {
@@ -62,6 +63,25 @@ class _MatchScreenState extends State<MatchScreen> {
         );
       });
     }
+    final error = widget.controller.connectionError;
+    if (error != null && !_handledConnectionError) {
+      _handledConnectionError = true;
+      _handleConnectionError(error);
+    }
+  }
+
+  /// SSE akışı koptuğunda/404 döndüğünde (reconnect bu turda yok, §9.1) —
+  /// kullanıcıya mesajı gösterip bir önceki ekrana döner.
+  void _handleConnectionError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Maç akışı kesildi: $message'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    Future.delayed(const Duration(milliseconds: 900), () {
+      if (mounted) Navigator.of(context).maybePop();
+    });
   }
 
   @override
