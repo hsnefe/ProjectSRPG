@@ -1,19 +1,15 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:project_srpg/game/match_feed.dart';
+import 'package:project_srpg/game/match_labels.dart';
+import 'package:project_srpg/net/match_models.dart';
+import 'package:project_srpg/state/match_controller.dart';
 
 class MatchScreen extends StatefulWidget {
-  const MatchScreen({
-    super.key,
-    this.feed = const ScriptedMatchFeed(),
-    this.home = 'FK Yıldız',
-    this.away = 'Deniz SK',
-  });
+  const MatchScreen({super.key, required this.controller});
 
-  final MatchFeed feed;
-  final String home;
-  final String away;
+  /// Ekran, taze oluşturulmuş bir controller alır; bağlanma ve `dispose`
+  /// yaşam döngüsünün tamamına burada sahip çıkılır.
+  final MatchController controller;
 
   static const _surface1 = Color(0xFF1A1D24);
   static const _surface2 = Color(0xFF22262F);
@@ -22,6 +18,7 @@ class MatchScreen extends StatefulWidget {
   static const _textSecondary = Color(0xFFA0A6B0);
   static const _textMuted = Color(0xFF6B7280);
   static const _success = Color(0xFF3DDC97);
+  static const _warning = Color(0xFFE8B93D);
   static const _accent = Color(0xFF1E6FD9);
   static const _accentBg = Color(0x33228BFF);
   static const _danger = Color(0xFFE85D5D);
@@ -32,53 +29,45 @@ class MatchScreen extends StatefulWidget {
 }
 
 class _MatchScreenState extends State<MatchScreen> {
-  final List<MatchEvent> _events = [];
   final ScrollController _scroll = ScrollController();
 
-  /// Feed bunu her olaydan önce okur; setState de butonun okunu tazeler.
+  /// Skorbordun dakika butonu tarafından döngülenen, tamamen kozmetik akış
+  /// hızı — gerçek SSE akışı sunucu temposunda gelir, client hızlandıramaz.
   final ValueNotifier<MatchSpeed> _speed = ValueNotifier(MatchSpeed.slow);
 
-  StreamSubscription<MatchEvent>? _sub;
-  int _minute = 0;
-  int _homeGoals = 0;
-  int _awayGoals = 0;
+  int _lastEventCount = 0;
 
   @override
   void initState() {
     super.initState();
-    _sub = widget.feed.events(speed: _speed).listen(_onEvent);
+    widget.controller.addListener(_onControllerChanged);
+    widget.controller.connect();
   }
 
   void _cycleSpeed() {
     setState(() => _speed.value = _speed.value.next);
   }
 
-  void _onEvent(MatchEvent event) {
+  void _onControllerChanged() {
     if (!mounted) return;
-    setState(() {
-      _events.add(event);
-      _minute = event.minute;
-      if (event.isGoal) {
-        if (event.side == MatchSide.home) {
-          _homeGoals++;
-        } else if (event.side == MatchSide.away) {
-          _awayGoals++;
-        }
-      }
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scroll.hasClients) return;
-      _scroll.animateTo(
-        _scroll.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-      );
-    });
+    setState(() {});
+    if (widget.controller.events.length > _lastEventCount) {
+      _lastEventCount = widget.controller.events.length;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scroll.hasClients) return;
+        _scroll.animateTo(
+          _scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      });
+    }
   }
 
   @override
   void dispose() {
-    _sub?.cancel();
+    widget.controller.removeListener(_onControllerChanged);
+    widget.controller.dispose();
     _speed.dispose();
     _scroll.dispose();
     super.dispose();
@@ -86,6 +75,7 @@ class _MatchScreenState extends State<MatchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final controller = widget.controller;
     final panelHeight = MediaQuery.sizeOf(context).height -
         MediaQuery.paddingOf(context).vertical -
         24;
@@ -111,22 +101,24 @@ class _MatchScreenState extends State<MatchScreen> {
                     child: Column(
                       children: [
                         _MatchBar(
-                          home: widget.home,
-                          away: widget.away,
-                          homeGoals: _homeGoals,
-                          awayGoals: _awayGoals,
-                          minute: _minute,
+                          home: controller.teams.home.name,
+                          away: controller.teams.away.name,
+                          homeGoals: controller.score.home,
+                          awayGoals: controller.score.away,
+                          minute: controller.minute,
                           speed: _speed.value,
                           onSpeedTap: _cycleSpeed,
                         ),
-                        const _PhaseStrip(),
+                        _PhaseStrip(situation: controller.situation),
+                        _PossessionBar(possession: controller.possession),
+                        _TeamStatusRow(team: controller.team),
                         Expanded(
                           child: _CommentaryFeed(
-                            events: _events,
+                            events: controller.events,
                             controller: _scroll,
                           ),
                         ),
-                        const _ActionBar(),
+                        _ActionBar(controller: controller),
                       ],
                     ),
                   ),
@@ -282,10 +274,13 @@ class _MatchBar extends StatelessWidget {
   }
 }
 
-/// Skorbordun altındaki ince, ortalanmış maç durumu şeridi
-/// ("Kick Off", "Devre arası" gibi ilk/nötr olayı vurgular).
+/// Skorbordun altındaki ince, ortalanmış maç durumu şeridi. İlk tick
+/// gelene kadar sabit "Kick Off" gösterir; sonrasında `situation`'ın
+/// Türkçe karşılığını çizer (§3.3).
 class _PhaseStrip extends StatelessWidget {
-  const _PhaseStrip();
+  const _PhaseStrip({required this.situation});
+
+  final String? situation;
 
   @override
   Widget build(BuildContext context) {
@@ -299,14 +294,154 @@ class _PhaseStrip extends StatelessWidget {
         ),
       ),
       alignment: Alignment.center,
-      child: const Text(
-        'Kick Off',
-        style: TextStyle(
+      child: Text(
+        situation == null ? 'Kick Off' : situationLabel(situation!),
+        style: const TextStyle(
           color: MatchScreen._textSecondary,
           fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
       ),
+    );
+  }
+}
+
+/// İki takımın top hakimiyeti yüzdesini yatay iki segment olarak çizer.
+/// İlk tick gelene kadar 50/50 nötr bir çizgi gösterir.
+class _PossessionBar extends StatelessWidget {
+  const _PossessionBar({required this.possession});
+
+  final PossessionInfo? possession;
+
+  @override
+  Widget build(BuildContext context) {
+    final home = possession?.home ?? 50;
+    final away = possession?.away ?? 50;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: const BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: MatchScreen._border, width: 0.5),
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Text(
+                '%$home',
+                style: const TextStyle(
+                  color: MatchScreen._accent,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              const Text(
+                'Top hakimiyeti',
+                style: TextStyle(color: MatchScreen._textMuted, fontSize: 10),
+              ),
+              const Spacer(),
+              Text(
+                '%$away',
+                style: const TextStyle(
+                  color: MatchScreen._danger,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          ClipRRect(
+            borderRadius: const BorderRadius.all(Radius.circular(3)),
+            child: SizedBox(
+              height: 4,
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: home,
+                    child: const ColoredBox(color: MatchScreen._accent),
+                  ),
+                  Expanded(
+                    flex: away,
+                    child: const ColoredBox(color: MatchScreen._danger),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Kullanıcının takımının anlık duruşu: mentalite etiketi + sarı/kırmızı
+/// kart sayaçları (§3.2, takım toplamı — bireysel oyuncu katmanı yok).
+class _TeamStatusRow extends StatelessWidget {
+  const _TeamStatusRow({required this.team});
+
+  final TeamTickInfo? team;
+
+  @override
+  Widget build(BuildContext context) {
+    final mentality = team == null ? '—' : mentalityLabel(team!.mentality);
+    final yellow = team?.yellowCards ?? 0;
+    final red = team?.redCards ?? 0;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: const BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: MatchScreen._border, width: 0.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.psychology_outlined,
+              size: 14, color: MatchScreen._textMuted),
+          const SizedBox(width: 6),
+          Text(
+            mentality,
+            style: const TextStyle(
+              color: MatchScreen._textSecondary,
+              fontSize: 11,
+            ),
+          ),
+          const Spacer(),
+          if (yellow > 0) _CardBadge(color: MatchScreen._warning, count: yellow),
+          if (yellow > 0 && red > 0) const SizedBox(width: 8),
+          if (red > 0) _CardBadge(color: MatchScreen._danger, count: red),
+        ],
+      ),
+    );
+  }
+}
+
+class _CardBadge extends StatelessWidget {
+  const _CardBadge({required this.color, required this.count});
+
+  final Color color;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 9, height: 12, color: color),
+        const SizedBox(width: 4),
+        Text(
+          '$count',
+          style: const TextStyle(
+            color: MatchScreen._textSecondary,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -454,15 +589,148 @@ class _EventCard extends StatelessWidget {
 }
 
 class _ActionBar extends StatelessWidget {
-  const _ActionBar();
+  const _ActionBar({required this.controller});
 
-  void _showStubMessage(BuildContext context, String message) {
+  final MatchController controller;
+
+  void _showNote(BuildContext context, String? note) {
+    if (note == null) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(note),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ),
+    );
+  }
+
+  int _closestIndex(List<int> values, int? current) {
+    final target = current ?? 50;
+    var bestIndex = 0;
+    var bestDiff = 1 << 30;
+    for (var i = 0; i < values.length; i++) {
+      final diff = (values[i] - target).abs();
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestIndex = i;
+      }
+    }
+    return bestIndex;
+  }
+
+  Future<void> _openEffortSheet(BuildContext context) async {
+    final options = controller.directiveOptions.effort;
+    if (options.isEmpty) return;
+    var index = _closestIndex(
+      options.map((o) => o.value).toList(),
+      controller.directives?.effort,
+    );
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: MatchScreen._surface2,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            final selected = options[index];
+            return _DirectiveSheet(
+              title: 'Efor',
+              valueLabel: selected.label,
+              detailLabel: 'Maç başına ~${selected.offersPerMatch} teklif · '
+                  'Kondisyon çarpanı ×${selected.staminaMultiplier.toStringAsFixed(2)} · '
+                  'Tahmini bitiş kondisyonu ${selected.projectedEndStamina}',
+              sliderIndex: index,
+              sliderMax: options.length - 1,
+              onSliderChanged: (v) => setSheetState(() => index = v),
+              onConfirm: () async {
+                Navigator.of(sheetContext).pop();
+                await controller.sendDirective(effort: selected.value);
+                if (context.mounted) {
+                  _showNote(context, controller.lastDirectiveNote);
+                }
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _openAggressionSheet(BuildContext context) async {
+    final options = controller.directiveOptions.aggression;
+    if (options.isEmpty) return;
+    var index = _closestIndex(
+      options.map((o) => o.value).toList(),
+      controller.directives?.aggression,
+    );
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: MatchScreen._surface2,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            final selected = options[index];
+            return _DirectiveSheet(
+              title: 'Sertlik',
+              valueLabel: selected.label,
+              detailLabel: 'Faul çarpanı ×${selected.foulMultiplier.toStringAsFixed(2)}',
+              sliderIndex: index,
+              sliderMax: options.length - 1,
+              onSliderChanged: (v) => setSheetState(() => index = v),
+              onConfirm: () async {
+                Navigator.of(sheetContext).pop();
+                await controller.sendDirective(aggression: selected.value);
+                if (context.mounted) {
+                  _showNote(context, controller.lastDirectiveNote);
+                }
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _openFocusSheet(BuildContext context) async {
+    final options = controller.directiveOptions.focus;
+    if (options.isEmpty) return;
+    final currentFocus = controller.directives?.focus;
+    var index = options.indexWhere((o) => o.value == currentFocus);
+    if (index < 0) index = options.indexWhere((o) => o.value == null);
+    if (index < 0) index = 0;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: MatchScreen._surface2,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            return _FocusSheet(
+              options: options,
+              selectedIndex: index,
+              onSelected: (v) => setSheetState(() => index = v),
+              onConfirm: () async {
+                final selected = options[index];
+                Navigator.of(sheetContext).pop();
+                await controller.sendDirective(focus: selected.value);
+                if (context.mounted) {
+                  _showNote(context, controller.lastDirectiveNote);
+                }
+              },
+            );
+          },
+        );
+      },
     );
   }
 
@@ -477,38 +745,9 @@ class _ActionBar extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Kondisyon',
-                    style: TextStyle(
-                      color: MatchScreen._textMuted,
-                      fontSize: 12,
-                    ),
-                  ),
-                  Text(
-                    '72/100',
-                    style: TextStyle(
-                      color: MatchScreen._textSecondary,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 4),
-              ClipRRect(
-                borderRadius: BorderRadius.all(Radius.circular(3)),
-                child: LinearProgressIndicator(
-                  value: 0.72,
-                  minHeight: 6,
-                  backgroundColor: MatchScreen._surface1,
-                  color: MatchScreen._success,
-                ),
-              ),
-            ],
+          _StaminaBar(
+            stamina: controller.team?.stamina,
+            catalog: controller.staminaCatalog,
           ),
           const SizedBox(height: 14),
           Row(
@@ -517,8 +756,7 @@ class _ActionBar extends StatelessWidget {
                 child: _MatchActionButton(
                   icon: Icons.bolt_outlined,
                   label: 'Efor',
-                  onPressed: () =>
-                      _showStubMessage(context, 'Efor aksiyonu yakında'),
+                  onPressed: () => _openEffortSheet(context),
                 ),
               ),
               const SizedBox(width: 8),
@@ -526,8 +764,7 @@ class _ActionBar extends StatelessWidget {
                 child: _MatchActionButton(
                   icon: Icons.track_changes_outlined,
                   label: 'Rol',
-                  onPressed: () =>
-                      _showStubMessage(context, 'Rol aksiyonu yakında'),
+                  onPressed: () => _openFocusSheet(context),
                 ),
               ),
               const SizedBox(width: 8),
@@ -535,11 +772,220 @@ class _ActionBar extends StatelessWidget {
                 child: _MatchActionButton(
                   icon: Icons.shield_outlined,
                   label: 'Sertlik',
-                  onPressed: () =>
-                      _showStubMessage(context, 'Sertlik aksiyonu yakında'),
+                  onPressed: () => _openAggressionSheet(context),
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Kullanıcının takımının kondisyon barı — taban/tavan `StaminaCatalog`'dan
+/// gelir, hardcode edilmez (§6.4, §8.1). İlk tick gelene kadar yer tutucu.
+class _StaminaBar extends StatelessWidget {
+  const _StaminaBar({required this.stamina, required this.catalog});
+
+  final int? stamina;
+  final StaminaCatalog catalog;
+
+  @override
+  Widget build(BuildContext context) {
+    final range = (catalog.ceiling - catalog.floor).clamp(1, 1 << 30);
+    final frac = stamina == null
+        ? null
+        : ((stamina! - catalog.floor) / range).clamp(0.0, 1.0);
+    final color = frac == null
+        ? MatchScreen._textMuted
+        : frac >= 0.6
+            ? MatchScreen._success
+            : frac >= 0.3
+                ? MatchScreen._warning
+                : MatchScreen._danger;
+
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Kondisyon',
+              style: TextStyle(color: MatchScreen._textMuted, fontSize: 12),
+            ),
+            Text(
+              stamina == null ? '—/${catalog.ceiling}' : '$stamina/${catalog.ceiling}',
+              style: const TextStyle(
+                color: MatchScreen._textSecondary,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: const BorderRadius.all(Radius.circular(3)),
+          child: LinearProgressIndicator(
+            value: frac ?? 0,
+            minHeight: 6,
+            backgroundColor: MatchScreen._surface1,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Efor/Sertlik sheet'lerinin ortak gövdesi: başlık, seçili etiket, ek
+/// bilgi satırı, 5 kademeye snap eden slider ve onay butonu.
+class _DirectiveSheet extends StatelessWidget {
+  const _DirectiveSheet({
+    required this.title,
+    required this.valueLabel,
+    required this.detailLabel,
+    required this.sliderIndex,
+    required this.sliderMax,
+    required this.onSliderChanged,
+    required this.onConfirm,
+  });
+
+  final String title;
+  final String valueLabel;
+  final String detailLabel;
+  final int sliderIndex;
+  final int sliderMax;
+  final ValueChanged<int> onSliderChanged;
+  final VoidCallback onConfirm;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        16,
+        20,
+        MediaQuery.viewInsetsOf(context).bottom + 20,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: MatchScreen._textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            valueLabel,
+            style: const TextStyle(
+              color: MatchScreen._textPrimary,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            detailLabel,
+            style: const TextStyle(color: MatchScreen._textMuted, fontSize: 12),
+          ),
+          Slider(
+            value: sliderIndex.toDouble(),
+            min: 0,
+            max: sliderMax.toDouble(),
+            divisions: sliderMax == 0 ? null : sliderMax,
+            activeColor: MatchScreen._accent,
+            onChanged: (v) => onSliderChanged(v.round()),
+          ),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: onConfirm,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: MatchScreen._accent,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Uygula'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Rol (focus) sheet'i — 4 seçenekli (hücum/savunma/taktik/farketmez)
+/// segmented chip listesi.
+class _FocusSheet extends StatelessWidget {
+  const _FocusSheet({
+    required this.options,
+    required this.selectedIndex,
+    required this.onSelected,
+    required this.onConfirm,
+  });
+
+  final List<FocusOption> options;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+  final VoidCallback onConfirm;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        16,
+        20,
+        MediaQuery.viewInsetsOf(context).bottom + 20,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Rol',
+            style: TextStyle(
+              color: MatchScreen._textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (var i = 0; i < options.length; i++)
+                ChoiceChip(
+                  label: Text(options[i].label),
+                  selected: i == selectedIndex,
+                  onSelected: (_) => onSelected(i),
+                  selectedColor: MatchScreen._accentBg,
+                  backgroundColor: MatchScreen._surface1,
+                  labelStyle: TextStyle(
+                    color: i == selectedIndex
+                        ? MatchScreen._accent
+                        : MatchScreen._textSecondary,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: onConfirm,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: MatchScreen._accent,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Uygula'),
+            ),
           ),
         ],
       ),

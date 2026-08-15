@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/net/match_models.dart';
 import 'package:project_srpg/screens/match_screen.dart';
+import 'package:project_srpg/state/match_controller.dart';
 import 'package:project_srpg/state/player_scope.dart';
 
 class PreMatchScreen extends StatelessWidget {
@@ -346,9 +348,30 @@ class _ActionRow extends StatelessWidget {
             height: 64,
             child: OutlinedButton(
               onPressed: () {
+                // GEÇİCİ yer tutucu: MatchScreen artık bir MatchController
+                // gerektiriyor. Gerçek GET /next → POST /start akışı bir
+                // sonraki commit'te buraya bağlanacak; şimdilik derlemeyi
+                // ayakta tutmak için sabit değerlerle kuruluyor.
+                final controller = MatchController(
+                  matchId: 'placeholder',
+                  streamUrl: '/matches/placeholder/stream',
+                  userSide: 'home',
+                  teams: const MatchTeams(
+                    home: TeamInfo(name: 'FK Yıldız'),
+                    away: TeamInfo(name: 'Deniz SK'),
+                  ),
+                  staminaCatalog: const StaminaCatalog(
+                    current: 100,
+                    floor: 35,
+                    ceiling: 100,
+                    substitutionBonus: 6,
+                  ),
+                  directiveOptions:
+                      const DirectiveOptions(effort: [], aggression: [], focus: []),
+                );
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => const MatchScreen(),
+                    builder: (_) => MatchScreen(controller: controller),
                   ),
                 );
               },

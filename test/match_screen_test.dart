@@ -1,72 +1,119 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:project_srpg/game/match_feed.dart';
+import 'package:project_srpg/net/match_models.dart';
+import 'package:project_srpg/net/match_sse_client.dart';
 import 'package:project_srpg/screens/match_screen.dart';
+import 'package:project_srpg/state/match_controller.dart';
 
-/// A feed the test controls by hand instead of relying on real delays.
-class _FakeMatchFeed implements MatchFeed {
-  final _controller = StreamController<MatchEvent>();
+/// A stream source the test drives by hand instead of relying on real HTTP.
+class _FakeSseClient implements MatchStreamSource {
+  final controller = StreamController<MatchStreamMessage>();
 
   @override
-  Stream<MatchEvent> events({ValueListenable<MatchSpeed>? speed}) =>
-      _controller.stream;
+  Stream<MatchStreamMessage> connect(Uri uri) => controller.stream;
+}
 
-  void emit(MatchEvent event) => _controller.add(event);
+TickFrame _tick({
+  required int minute,
+  bool finished = false,
+  int homeScore = 0,
+  int awayScore = 0,
+  int stamina = 90,
+  List<TickEventDto> events = const [],
+}) {
+  return TickFrame(
+    seq: minute,
+    matchId: 'm_test',
+    minute: minute,
+    finished: finished,
+    situation: 'balanced',
+    score: ScoreInfo(home: homeScore, away: awayScore),
+    possession: const PossessionInfo(home: 55, away: 45),
+    team: TeamTickInfo(
+      userSide: 'home',
+      stamina: stamina,
+      mentality: 'balanced',
+      yellowCards: 0,
+      redCards: 0,
+    ),
+    directives: const DirectivesInfo(effort: 50, aggression: 50, focus: null),
+    events: events,
+  );
+}
 
-  void close() => _controller.close();
+MatchController _buildController(_FakeSseClient source) {
+  return MatchController(
+    matchId: 'm_test',
+    streamUrl: '/matches/m_test/stream',
+    userSide: 'home',
+    teams: const MatchTeams(
+      home: TeamInfo(name: 'FK Yıldız'),
+      away: TeamInfo(name: 'Deniz SK'),
+    ),
+    staminaCatalog: const StaminaCatalog(
+      current: 100,
+      floor: 35,
+      ceiling: 100,
+      substitutionBonus: 6,
+    ),
+    directiveOptions: const DirectiveOptions(effort: [], aggression: [], focus: []),
+    streamSource: source,
+  );
 }
 
 Future<void> _pumpMatchScreen(
   WidgetTester tester,
-  _FakeMatchFeed feed,
+  MatchController controller,
 ) async {
   await tester.pumpWidget(
-    MaterialApp(
-      home: MatchScreen(feed: feed, home: 'FK Yıldız', away: 'Deniz SK'),
-    ),
+    MaterialApp(home: MatchScreen(controller: controller)),
   );
   await tester.pump();
 }
 
-/// Emits an event and pumps twice: once to let the stream's microtask
-/// delivery reach the [StreamSubscription] listener and call `setState`,
+/// Emits a tick and pumps twice: once to let the stream's microtask
+/// delivery reach the controller's listener and call `notifyListeners`,
 /// and once more so the resulting rebuild is reflected in the tree.
-Future<void> _emit(
+Future<void> _emitTick(
   WidgetTester tester,
-  _FakeMatchFeed feed,
-  MatchEvent event,
+  _FakeSseClient source,
+  TickFrame tick,
 ) async {
-  feed.emit(event);
+  source.controller.add(MatchTickMessage(tick));
   await tester.pump();
   await tester.pump();
 }
 
 void main() {
-  testWidgets('shows an empty state before any event arrives',
-      (tester) async {
-    final feed = _FakeMatchFeed();
-    await _pumpMatchScreen(tester, feed);
+  testWidgets('shows an empty state before any tick arrives', (tester) async {
+    final source = _FakeSseClient();
+    await _pumpMatchScreen(tester, _buildController(source));
 
     expect(find.text('Maç başlıyor…'), findsOneWidget);
 
-    feed.close();
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('renders a home event in the accent tint', (tester) async {
-    final feed = _FakeMatchFeed();
-    await _pumpMatchScreen(tester, feed);
+    final source = _FakeSseClient();
+    await _pumpMatchScreen(tester, _buildController(source));
 
-    await _emit(
+    await _emitTick(
       tester,
-      feed,
-      const MatchEvent(
+      source,
+      _tick(
         minute: 5,
-        side: MatchSide.home,
-        text: 'Efe Kaan topu kazandı.',
+        events: const [
+          TickEventDto(
+            eventId: 'e_5_0',
+            side: 'home',
+            text: 'Efe Kaan topu kazandı.',
+            isGoal: false,
+            eventType: 'foul',
+          ),
+        ],
       ),
     );
 
@@ -82,21 +129,27 @@ void main() {
     final decoration = container.decoration! as BoxDecoration;
     expect(decoration.color, const Color(0x33228BFF));
 
-    feed.close();
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('renders an away event in the danger tint', (tester) async {
-    final feed = _FakeMatchFeed();
-    await _pumpMatchScreen(tester, feed);
+    final source = _FakeSseClient();
+    await _pumpMatchScreen(tester, _buildController(source));
 
-    await _emit(
+    await _emitTick(
       tester,
-      feed,
-      const MatchEvent(
+      source,
+      _tick(
         minute: 6,
-        side: MatchSide.away,
-        text: 'Deniz SK topu kesti.',
+        events: const [
+          TickEventDto(
+            eventId: 'e_6_0',
+            side: 'away',
+            text: 'Deniz SK topu kesti.',
+            isGoal: false,
+            eventType: 'foul',
+          ),
+        ],
       ),
     );
 
@@ -111,39 +164,44 @@ void main() {
     final decoration = container.decoration! as BoxDecoration;
     expect(decoration.color, const Color(0x33E85D5D));
 
-    feed.close();
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('updates the scoreboard when a goal event arrives',
       (tester) async {
-    final feed = _FakeMatchFeed();
-    await _pumpMatchScreen(tester, feed);
+    final source = _FakeSseClient();
+    await _pumpMatchScreen(tester, _buildController(source));
 
     expect(find.text('0'), findsNWidgets(2));
 
-    await _emit(
+    await _emitTick(
       tester,
-      feed,
-      const MatchEvent(
+      source,
+      _tick(
         minute: 27,
-        side: MatchSide.home,
-        text: 'GOL! Efe Kaan attı.',
-        isGoal: true,
+        homeScore: 1,
+        events: const [
+          TickEventDto(
+            eventId: 'e_27_0',
+            side: 'home',
+            text: 'GOL! Efe Kaan attı.',
+            isGoal: true,
+            eventType: 'goal',
+          ),
+        ],
       ),
     );
 
     expect(find.text('1'), findsOneWidget);
     expect(find.text('0'), findsOneWidget);
 
-    feed.close();
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('cycles the feed speed through three steps on tap',
       (tester) async {
-    final feed = _FakeMatchFeed();
-    await _pumpMatchScreen(tester, feed);
+    final source = _FakeSseClient();
+    await _pumpMatchScreen(tester, _buildController(source));
 
     final arrows = find.byIcon(Icons.play_arrow_rounded);
     final minuteButton = find.ancestor(
@@ -165,22 +223,17 @@ void main() {
     await tester.pump();
     expect(arrows, findsNothing); // üçüncü basışta başa döner
 
-    feed.close();
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('cancels the subscription on dispose', (tester) async {
-    final feed = _FakeMatchFeed();
-    await _pumpMatchScreen(tester, feed);
+  testWidgets('cancels the stream subscription on dispose', (tester) async {
+    final source = _FakeSseClient();
+    await _pumpMatchScreen(tester, _buildController(source));
+
+    expect(source.controller.hasListener, isTrue);
 
     await tester.pumpWidget(const SizedBox.shrink());
 
-    // Emitting after unmount must not throw or trigger setState-after-dispose.
-    expect(() => feed.emit(
-          const MatchEvent(minute: 1, side: MatchSide.home, text: 'x'),
-        ), returnsNormally);
-    await tester.pump();
-
-    feed.close();
+    expect(source.controller.hasListener, isFalse);
   });
 }
