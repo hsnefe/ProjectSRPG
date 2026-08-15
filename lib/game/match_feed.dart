@@ -15,6 +15,7 @@ class MatchEvent {
     required this.text,
     this.isGoal = false,
     this.icon,
+    this.eventType,
   });
 
   /// Olayın kaçıncı dakikada olduğu. Skorborddaki saat bu değeri izler.
@@ -28,6 +29,11 @@ class MatchEvent {
 
   /// Metnin önünde çizilen opsiyonel ikon (kart, değişiklik, korner...).
   final IconData? icon;
+
+  /// API'nin `event_type` alanı (§4.5) — yalnızca gerçek maçlardan gelen
+  /// olaylarda dolu; [icon] zaten bundan türetilip önceden hesaplanır, bu
+  /// alan bilgi/hata ayıklama amaçlıdır.
+  final String? eventType;
 }
 
 /// Yorum akışının oynatma hızı.
