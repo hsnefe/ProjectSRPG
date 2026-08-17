@@ -13,6 +13,10 @@ import 'package:project_srpg/widgets/expand_page_route.dart';
 class CareerCenterScreen extends StatelessWidget {
   const CareerCenterScreen({super.key});
 
+  /// Maç sonu akışı (RequestScreen) yığında geri dönerken bu adı arar —
+  /// uygulamada isimli route tablosu yok, tek tanımlayıcı `RouteSettings.name`.
+  static const routeName = '/career-center';
+
   static const _surface1 = Color(0xFF1A1D24);
   static const _surface2 = Color(0xFF22262F);
   static const _border = Color(0xFF333845);

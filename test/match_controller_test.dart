@@ -217,6 +217,55 @@ void main() {
     });
   });
 
+  group('MatchController.sendSpeed', () {
+    test('posts the wire name to /speed', () async {
+      final source = _FakeStreamSource();
+      final requests = <http.Request>[];
+      final mock = MockClient((request) async {
+        requests.add(request);
+        return http.Response('', 204);
+      });
+      final controller = _buildController(
+        source,
+        apiClient: MatchApiClient(httpClient: mock, baseUrl: 'http://test'),
+      );
+      addTearDown(controller.dispose);
+
+      await controller.sendSpeed(MatchSpeed.fast);
+
+      expect(requests, hasLength(1));
+      expect(requests.single.url.path, '/matches/m_test/speed');
+      expect(requests.single.body, '{"speed":"fast"}');
+    });
+
+    test('swallows a failed speed call so the match keeps running', () async {
+      final source = _FakeStreamSource();
+      final mock = MockClient((request) async => http.Response(
+            jsonEncode({'code': 'match_not_found', 'message': 'yok'}),
+            404,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          ));
+      final controller = _buildController(
+        source,
+        apiClient: MatchApiClient(httpClient: mock, baseUrl: 'http://test'),
+      );
+      addTearDown(controller.dispose);
+
+      await expectLater(controller.sendSpeed(MatchSpeed.medium), completes);
+      expect(controller.connectionError, isNull);
+    });
+  });
+
+  group('MatchSpeed wire names', () {
+    test('match the backend MatchSpeedLevel literal', () {
+      // api/schemas/common.py: Literal["slow", "medium", "fast"]
+      expect(
+        MatchSpeed.values.map((s) => s.wire).toList(),
+        ['slow', 'medium', 'fast'],
+      );
+    });
+  });
+
   group('MatchController.dispose', () {
     test('cancels the underlying stream subscription', () async {
       final source = _FakeStreamSource();

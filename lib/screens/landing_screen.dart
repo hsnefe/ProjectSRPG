@@ -80,6 +80,9 @@ class LandingScreen extends StatelessWidget {
                         Navigator.of(context).push(
                           MaterialPageRoute<void>(
                             builder: (_) => const CareerCenterScreen(),
+                            settings: const RouteSettings(
+                              name: CareerCenterScreen.routeName,
+                            ),
                           ),
                         );
                       },

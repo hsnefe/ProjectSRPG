@@ -2,9 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:project_srpg/net/match_api_client.dart';
 import 'package:project_srpg/net/match_models.dart';
 import 'package:project_srpg/net/match_sse_client.dart';
 import 'package:project_srpg/screens/match_screen.dart';
+import 'package:project_srpg/screens/request_screen.dart';
 import 'package:project_srpg/state/match_controller.dart';
 
 /// A stream source the test drives by hand instead of relying on real HTTP.
@@ -43,7 +47,17 @@ TickFrame _tick({
   );
 }
 
-MatchController _buildController(_FakeSseClient source) {
+MatchController _buildController(
+  _FakeSseClient source, {
+  List<http.Request>? recordedRequests,
+}) {
+  // The speed button now POSTs to /speed, so every screen test needs a stubbed
+  // HTTP client - otherwise the tap would attempt a real socket connection.
+  final mock = MockClient((request) async {
+    recordedRequests?.add(request);
+    return http.Response('', 204);
+  });
+
   return MatchController(
     matchId: 'm_test',
     streamUrl: '/matches/m_test/stream',
@@ -59,6 +73,7 @@ MatchController _buildController(_FakeSseClient source) {
       substitutionBonus: 6,
     ),
     directiveOptions: const DirectiveOptions(effort: [], aggression: [], focus: []),
+    apiClient: MatchApiClient(httpClient: mock, baseUrl: 'http://test'),
     streamSource: source,
   );
 }
@@ -201,7 +216,11 @@ void main() {
   testWidgets('cycles the feed speed through three steps on tap',
       (tester) async {
     final source = _FakeSseClient();
-    await _pumpMatchScreen(tester, _buildController(source));
+    final requests = <http.Request>[];
+    await _pumpMatchScreen(
+      tester,
+      _buildController(source, recordedRequests: requests),
+    );
 
     final arrows = find.byIcon(Icons.play_arrow_rounded);
     final minuteButton = find.ancestor(
@@ -222,6 +241,14 @@ void main() {
     await tester.tap(minuteButton);
     await tester.pump();
     expect(arrows, findsNothing); // üçüncü basışta başa döner
+
+    // Her basış sunucuya bildirilir — tempo client'ta değil backend'de uygulanır.
+    expect(requests.map((r) => r.body).toList(), [
+      '{"speed":"medium"}',
+      '{"speed":"fast"}',
+      '{"speed":"slow"}',
+    ]);
+    expect(requests.first.url.path, '/matches/m_test/speed');
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -262,5 +289,54 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Geri ekran'), findsOneWidget);
+  });
+
+  testWidgets('keeps the directive buttons while the match is running',
+      (tester) async {
+    final source = _FakeSseClient();
+    await _pumpMatchScreen(tester, _buildController(source));
+
+    await _emitTick(tester, source, _tick(minute: 40));
+
+    expect(find.text('Efor'), findsOneWidget);
+    expect(find.text('Rol'), findsOneWidget);
+    expect(find.text('Sertlik'), findsOneWidget);
+    expect(find.text('İlerle'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('replaces the directive buttons with İlerle when the match ends',
+      (tester) async {
+    final source = _FakeSseClient();
+    await _pumpMatchScreen(tester, _buildController(source));
+
+    await _emitTick(tester, source, _tick(minute: 90, finished: true));
+
+    expect(find.text('Efor'), findsNothing);
+    expect(find.text('Rol'), findsNothing);
+    expect(find.text('Sertlik'), findsNothing);
+    expect(find.text('İlerle'), findsOneWidget);
+    // Kondisyon barı maç sonunda da görünür kalır.
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('İlerle replaces the match screen with the request screen',
+      (tester) async {
+    final source = _FakeSseClient();
+    await _pumpMatchScreen(tester, _buildController(source));
+
+    await _emitTick(tester, source, _tick(minute: 90, finished: true));
+    await tester.tap(find.text('İlerle'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(RequestScreen), findsOneWidget);
+    expect(find.byType(MatchScreen), findsNothing);
+    // pushReplacement, MatchScreen.dispose'u tetikler: abonelik kapanmalı.
+    expect(source.controller.hasListener, isFalse);
+
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 }

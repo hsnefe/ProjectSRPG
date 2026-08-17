@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:project_srpg/game/match_feed.dart';
 import 'package:project_srpg/game/match_labels.dart';
 import 'package:project_srpg/net/match_models.dart';
+import 'package:project_srpg/screens/request_screen.dart';
 import 'package:project_srpg/state/match_controller.dart';
 
 class MatchScreen extends StatefulWidget {
@@ -31,8 +32,10 @@ class MatchScreen extends StatefulWidget {
 class _MatchScreenState extends State<MatchScreen> {
   final ScrollController _scroll = ScrollController();
 
-  /// Skorbordun dakika butonu tarafından döngülenen, tamamen kozmetik akış
-  /// hızı — gerçek SSE akışı sunucu temposunda gelir, client hızlandıramaz.
+  /// Skorbordun dakika butonu tarafından döngülenen akış hızı. Tempoyu sunucu
+  /// uygular: her değişiklik `POST /matches/{id}/speed` ile bildirilir (E10),
+  /// bu yüzden buradaki değer yalnızca butonun görünümünü değil gerçek SSE
+  /// temposunu da yönetir. Backend'in varsayılanı da `slow`.
   final ValueNotifier<MatchSpeed> _speed = ValueNotifier(MatchSpeed.slow);
 
   int _lastEventCount = 0;
@@ -46,7 +49,11 @@ class _MatchScreenState extends State<MatchScreen> {
   }
 
   void _cycleSpeed() {
-    setState(() => _speed.value = _speed.value.next);
+    final next = _speed.value.next;
+    setState(() => _speed.value = next);
+    // Ateşle-ve-unut: `sendSpeed` kendi hatalarını yutar, buton her koşulda
+    // duyarlı kalır.
+    widget.controller.sendSpeed(next);
   }
 
   void _onControllerChanged() {
@@ -82,6 +89,15 @@ class _MatchScreenState extends State<MatchScreen> {
     Future.delayed(const Duration(milliseconds: 900), () {
       if (mounted) Navigator.of(context).maybePop();
     });
+  }
+
+  /// Maç bitti — canlı ekranın yerini maç sonrası akışı alır. `pushReplacement`
+  /// olduğu için `MatchScreen.dispose` çalışır: controller ve SSE aboneliği
+  /// kapanır, geri tuşu bitmiş maça dönmez.
+  void _advance() {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(builder: (_) => const RequestScreen()),
+    );
   }
 
   @override
@@ -139,7 +155,10 @@ class _MatchScreenState extends State<MatchScreen> {
                             pendingOfferPrompt: controller.pendingOfferPrompt,
                           ),
                         ),
-                        _ActionBar(controller: controller),
+                        _ActionBar(
+                          controller: controller,
+                          onAdvance: _advance,
+                        ),
                       ],
                     ),
                   ),
@@ -713,9 +732,12 @@ class _EventCard extends StatelessWidget {
 }
 
 class _ActionBar extends StatelessWidget {
-  const _ActionBar({required this.controller});
+  const _ActionBar({required this.controller, required this.onAdvance});
 
   final MatchController controller;
+
+  /// Maç bittiğinde direktif butonlarının yerini alan "İlerle" eylemi.
+  final VoidCallback onAdvance;
 
   void _showNote(BuildContext context, String? note) {
     if (note == null) return;
@@ -874,33 +896,51 @@ class _ActionBar extends StatelessWidget {
             catalog: controller.staminaCatalog,
           ),
           const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: _MatchActionButton(
-                  icon: Icons.bolt_outlined,
-                  label: 'Efor',
-                  onPressed: () => _openEffortSheet(context),
+          // Maç bitince direktif göndermenin anlamı kalmaz — üç buton tek bir
+          // ileri adımla değişir, kondisyon barı son değeriyle görünür kalır.
+          if (controller.finished)
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onAdvance,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: MatchScreen._accent,
+                  side: const BorderSide(color: MatchScreen._accent),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  textStyle: const TextStyle(fontSize: 13),
                 ),
+                icon: const Icon(Icons.arrow_forward, size: 16),
+                label: const Text('İlerle'),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _MatchActionButton(
-                  icon: Icons.track_changes_outlined,
-                  label: 'Rol',
-                  onPressed: () => _openFocusSheet(context),
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: _MatchActionButton(
+                    icon: Icons.bolt_outlined,
+                    label: 'Efor',
+                    onPressed: () => _openEffortSheet(context),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _MatchActionButton(
-                  icon: Icons.shield_outlined,
-                  label: 'Sertlik',
-                  onPressed: () => _openAggressionSheet(context),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _MatchActionButton(
+                    icon: Icons.track_changes_outlined,
+                    label: 'Rol',
+                    onPressed: () => _openFocusSheet(context),
+                  ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _MatchActionButton(
+                    icon: Icons.shield_outlined,
+                    label: 'Sertlik',
+                    onPressed: () => _openAggressionSheet(context),
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );

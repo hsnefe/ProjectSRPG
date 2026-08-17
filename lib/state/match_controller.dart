@@ -194,6 +194,18 @@ class MatchController extends ChangeNotifier {
     }
   }
 
+  /// `POST /matches/{id}/speed` (E10). Yalnızca sunucunun tick temposunu
+  /// değiştirir; maç durumuna dokunmaz. Hız kozmetik bir kontrol olduğu için
+  /// başarısız bir çağrı maçı bozmamalı — bu yüzden yalnızca API hatası değil,
+  /// her hata yutulur (ör. testlerdeki gerçek soket denemeleri).
+  Future<void> sendSpeed(MatchSpeed speed) async {
+    try {
+      await _apiClient.postSpeed(matchId, speed: speed.wire);
+    } catch (_) {
+      // Sessizce yok sayılır: bir sonraki basış yeniden dener.
+    }
+  }
+
   @override
   void dispose() {
     _subscription?.cancel();

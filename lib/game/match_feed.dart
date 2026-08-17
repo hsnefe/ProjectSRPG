@@ -41,15 +41,21 @@ class MatchEvent {
 /// Skorborddaki dakika butonu bu üç kademe arasında sırayla dolaşır, yani
 /// her üç basışta başlangıçtaki [MatchSpeed.slow] kademesine geri döner.
 enum MatchSpeed {
-  slow('Yavaş', 1, 0),
-  medium('Orta', 0.5, 1),
-  fast('Hızlı', 0.25, 2);
+  slow('Yavaş', 'slow', 1, 0),
+  medium('Orta', 'medium', 0.5, 1),
+  fast('Hızlı', 'fast', 0.25, 2);
 
-  const MatchSpeed(this.label, this.tickScale, this.arrows);
+  const MatchSpeed(this.label, this.wire, this.tickScale, this.arrows);
 
   final String label;
 
-  /// Feed'in temel bekleme süresi bu katsayıyla çarpılır.
+  /// `POST /matches/{id}/speed`'in `speed` alanına yazılan ad — backend'deki
+  /// `MatchSpeedLevel` literal'ıyla (`api/schemas/common.py`) aynı olmalı.
+  final String wire;
+
+  /// Feed'in temel bekleme süresi bu katsayıyla çarpılır. Yalnızca yerel
+  /// [ScriptedMatchFeed] kullanır; gerçek maçta tempoyu sunucu belirler ve
+  /// aynı katsayılar backend'in `config.SPEED_SCALES`'inde yaşar.
   final double tickScale;
 
   /// Butonda koşu ikonunun yanında çizilen sağ ok sayısı.

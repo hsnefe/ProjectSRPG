@@ -113,4 +113,15 @@ class MatchApiClient {
     if (response.statusCode != 200) throw _errorFrom(response);
     return DirectiveResponse.fromJson(_decode(response));
   }
+
+  /// `POST /matches/{matchId}/speed` (E10). Yalnızca oynatma temposunu
+  /// değiştirir — motorun simüle ettiğini etkilemez. Gövdesiz `204` döner.
+  Future<void> postSpeed(String matchId, {required String speed}) async {
+    final response = await _client.post(
+      _uri('/matches/$matchId/speed'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'speed': speed}),
+    );
+    if (response.statusCode != 204) throw _errorFrom(response);
+  }
 }
