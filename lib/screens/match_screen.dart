@@ -136,6 +136,7 @@ class _MatchScreenState extends State<MatchScreen> {
                           child: _CommentaryFeed(
                             events: controller.events,
                             controller: _scroll,
+                            pendingOfferPrompt: controller.pendingOfferPrompt,
                           ),
                         ),
                         _ActionBar(controller: controller),
@@ -496,29 +497,132 @@ class _ScoreChip extends StatelessWidget {
 }
 
 /// Kayan maç yorumu akışı. Ekranın boş sahne yer tutucusunun yerini alır.
+///
+/// `pendingOfferPrompt` doluyken (bir `intervention_offer` yanıt/zaman aşımı
+/// bekliyor, §7.2) akış geçici olarak durur — bu, kullanıcıya bağlantının
+/// donmadığını, bir kararın beklendiğini gösterir.
 class _CommentaryFeed extends StatelessWidget {
-  const _CommentaryFeed({required this.events, required this.controller});
+  const _CommentaryFeed({
+    required this.events,
+    required this.controller,
+    required this.pendingOfferPrompt,
+  });
 
   final List<MatchEvent> events;
   final ScrollController controller;
+  final String? pendingOfferPrompt;
 
   @override
   Widget build(BuildContext context) {
     if (events.isEmpty) {
-      return const Center(
-        child: Text(
-          'Maç başlıyor…',
-          style: TextStyle(color: MatchScreen._textMuted, fontSize: 12),
-        ),
+      return Center(
+        child: pendingOfferPrompt == null
+            ? const Text(
+                'Maç başlıyor…',
+                style: TextStyle(color: MatchScreen._textMuted, fontSize: 12),
+              )
+            : _WaitingIndicator(prompt: pendingOfferPrompt!),
       );
     }
 
-    return ListView.separated(
-      controller: controller,
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-      itemCount: events.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 8),
-      itemBuilder: (context, index) => _EventCard(event: events[index]),
+    return Column(
+      children: [
+        if (pendingOfferPrompt != null) _WaitingBanner(prompt: pendingOfferPrompt!),
+        Expanded(
+          child: ListView.separated(
+            controller: controller,
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            itemCount: events.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
+            itemBuilder: (context, index) => _EventCard(event: events[index]),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Akış tamamen boşken (henüz hiçbir tick gelmemiş) ve bir teklif yanıt
+/// beklerken gösterilen tam ekran gösterge.
+class _WaitingIndicator extends StatelessWidget {
+  const _WaitingIndicator({required this.prompt});
+
+  final String prompt;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: MatchScreen._accent,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Karar bekleniyor…',
+            style: TextStyle(
+              color: MatchScreen._textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            prompt,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: MatchScreen._textMuted, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Akışta olaylar zaten varken araya bir teklif girdiğinde gösterilen ince
+/// üst şerit.
+class _WaitingBanner extends StatelessWidget {
+  const _WaitingBanner({required this.prompt});
+
+  final String prompt;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: MatchScreen._accentBg,
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: MatchScreen._accent,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              prompt,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: MatchScreen._textPrimary,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

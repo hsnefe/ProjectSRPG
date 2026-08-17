@@ -57,6 +57,7 @@ class MatchController extends ChangeNotifier {
   final List<MatchEvent> _events = [];
   String? _connectionError;
   String? _lastDirectiveNote;
+  String? _pendingOfferPrompt;
 
   int get minute => _minute;
   bool get finished => _finished;
@@ -75,6 +76,11 @@ class MatchController extends ChangeNotifier {
 
   String? get lastDirectiveNote => _lastDirectiveNote;
 
+  /// Dolu ise sunucu bir `intervention_offer` yayınladı ve karar (kullanıcı
+  /// yanıtı ya da 180s güvenlik zaman aşımı) beklenirken bir sonraki tick
+  /// gelmiyor — UI bu sırada boş/donmuş görünmesin diye kullanılır.
+  String? get pendingOfferPrompt => _pendingOfferPrompt;
+
   void connect() {
     final uri = Uri.parse('${ApiConfig.baseUrl}$streamUrl');
     _subscription = _streamSource.connect(uri).listen(
@@ -86,9 +92,16 @@ class MatchController extends ChangeNotifier {
 
   void _onMessage(MatchStreamMessage message) {
     if (message is MatchTickMessage) {
+      _pendingOfferPrompt = null;
       _applyTick(message.tick);
+    } else if (message is MatchStreamIgnored &&
+        message.eventType == 'intervention_offer') {
+      // Karar (yanıt ya da 180s güvenlik zaman aşımı) sonrası zaten bir tick
+      // gelecek — burada yalnızca bekleme göstergesi için not düşülür.
+      _pendingOfferPrompt = message.raw['prompt'] as String? ?? 'Karar bekleniyor…';
+      notifyListeners();
     }
-    // MatchStreamIgnored (intervention_offer/error/bilinmeyen) atlanır.
+    // Diğer MatchStreamIgnored türleri (error/bilinmeyen) atlanır.
   }
 
   void _applyTick(TickFrame tick) {
