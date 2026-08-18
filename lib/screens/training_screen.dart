@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/game/shot_game.dart' show ShotMode;
+import 'package:project_srpg/game/training_result.dart';
+import 'package:project_srpg/screens/ball_training_screen.dart';
+import 'package:project_srpg/screens/conditioning_training_screen.dart';
+import 'package:project_srpg/screens/strength_training_screen.dart';
 import 'package:project_srpg/screens/training_radar_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 
@@ -12,6 +17,7 @@ class _TrainingItem {
     required this.energy,
     required this.icon,
     required this.barColor,
+    this.drill,
   });
 
   final String title;
@@ -20,6 +26,10 @@ class _TrainingItem {
   final int energy;
   final IconData icon;
   final Color barColor;
+
+  /// Hangi mini-oyunu açtığı. null olan kartların henüz oyunu yok; butonları
+  /// 'Yakında' olarak pasif görünür.
+  final TrainingDrill? drill;
 }
 
 class TrainingScreen extends StatefulWidget {
@@ -40,6 +50,9 @@ class TrainingScreen extends StatefulWidget {
 }
 
 class _TrainingScreenState extends State<TrainingScreen> {
+  // NOT: buradaki progress değerleri training_radar_screen.dart içinde de
+  // sabit olarak duruyor. İkisi PlayerState bağlantısı gelince tek kaynağa
+  // katlanacak — asıl sapmaya başlayacakları an orası.
   static const _physical = [
     _TrainingItem(
       title: 'Kondisyon Koşusu',
@@ -48,6 +61,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
       energy: 15,
       icon: Icons.directions_run,
       barColor: TrainingScreen._accent,
+      drill: TrainingDrill.conditioning,
     ),
     _TrainingItem(
       title: 'Güç Antrenmanı',
@@ -56,6 +70,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
       energy: 20,
       icon: Icons.fitness_center,
       barColor: TrainingScreen._accent,
+      drill: TrainingDrill.strength,
     ),
     _TrainingItem(
       title: 'Esneklik & Toparlanma',
@@ -72,6 +87,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
       energy: 18,
       icon: Icons.sports_soccer,
       barColor: TrainingScreen._accent,
+      drill: TrainingDrill.shot,
     ),
     _TrainingItem(
       title: 'Pas',
@@ -80,6 +96,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
       energy: 12,
       icon: Icons.swap_horiz,
       barColor: TrainingScreen._success,
+      drill: TrainingDrill.pass,
     ),
     _TrainingItem(
       title: 'Dribling',
@@ -97,6 +114,41 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
   List<_TrainingItem> get _items =>
       _tab == _TrainingTab.physical ? _physical : _tactical;
+
+  /// Mini-oyunu açar ve sonucunu bekler. Geri tuşuyla çıkılırsa sonuç null
+  /// gelir; bu başarısızlık değil, hiçbir şey uygulanmaz.
+  Future<void> _start(TrainingDrill drill) async {
+    final route = switch (drill) {
+      TrainingDrill.conditioning => MaterialPageRoute<TrainingResult>(
+          builder: (_) => const ConditioningTrainingScreen(),
+        ),
+      TrainingDrill.strength => MaterialPageRoute<TrainingResult>(
+          builder: (_) => const StrengthTrainingScreen(),
+        ),
+      TrainingDrill.shot => MaterialPageRoute<TrainingResult>(
+          builder: (_) => const BallTrainingScreen(mode: ShotMode.shot),
+        ),
+      TrainingDrill.pass => MaterialPageRoute<TrainingResult>(
+          builder: (_) => const BallTrainingScreen(mode: ShotMode.pass),
+        ),
+      TrainingDrill.flexibility || TrainingDrill.dribble => null,
+    };
+    if (route == null) return;
+
+    final result = await Navigator.of(context).push(route);
+    if (!mounted || result == null) return;
+    _applyResult(result);
+  }
+
+  /// Antrenman sonucunun kalıcı etkisi burada uygulanacak: yetenek puanı,
+  /// enerji harcaması ve kartın ilerleme çubuğu. Şu an bilerek boş —
+  /// [TrainingResult] zaten hangi antrenman, başarılı mı ve ne kadar iyi
+  /// gittiğini taşıyor; buraya eklenecek tek şey PlayerScope mutasyonu.
+  ///
+  /// Örnek (henüz uygulanmıyor):
+  ///   PlayerScope.of(context).applyActivity(
+  ///     conditionDelta: result.succeeded ? 4 : -2, cost: 0);
+  void _applyResult(TrainingResult result) {}
 
   @override
   Widget build(BuildContext context) {
@@ -178,7 +230,13 @@ class _TrainingScreenState extends State<TrainingScreen> {
                                   separatorBuilder: (_, __) =>
                                       const SizedBox(height: 12),
                                   itemBuilder: (context, index) {
-                                    return _TrainingCard(item: _items[index]);
+                                    final item = _items[index];
+                                    return _TrainingCard(
+                                      item: item,
+                                      onStart: item.drill == null
+                                          ? null
+                                          : () => _start(item.drill!),
+                                    );
                                   },
                                 ),
                         ),
@@ -233,16 +291,23 @@ class _HeaderSection extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Text(
-                      'Kondisyon',
-                      style: TextStyle(
-                        color: TrainingScreen._textMuted,
-                        fontSize: 11,
+                    // Etiket sıkışırsa kısalsın: sayı okunaklı kalmalı, 120
+                    // piksele sığmadığında taşan taraf yazı olmalı.
+                    const Flexible(
+                      child: Text(
+                        'Kondisyon',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: TrainingScreen._textMuted,
+                          fontSize: 11,
+                        ),
                       ),
                     ),
-                    const Spacer(),
+                    const SizedBox(width: 4),
                     Text(
                       '$condition/100',
+                      maxLines: 1,
                       style: const TextStyle(
                         color: TrainingScreen._textSecondary,
                         fontSize: 11,
@@ -384,9 +449,12 @@ class _ToggleLabel extends StatelessWidget {
 }
 
 class _TrainingCard extends StatelessWidget {
-  const _TrainingCard({required this.item});
+  const _TrainingCard({required this.item, required this.onStart});
 
   final _TrainingItem item;
+
+  /// null ise kartın mini-oyunu yok: buton pasifleşir ve 'Yakında' yazar.
+  final VoidCallback? onStart;
 
   @override
   Widget build(BuildContext context) {
@@ -462,9 +530,10 @@ class _TrainingCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       OutlinedButton(
-                        onPressed: () {},
+                        onPressed: onStart,
                         style: OutlinedButton.styleFrom(
                           foregroundColor: TrainingScreen._textPrimary,
+                          disabledForegroundColor: TrainingScreen._textMuted,
                           side: const BorderSide(
                             color: TrainingScreen._border,
                           ),
@@ -482,7 +551,7 @@ class _TrainingCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: const Text('Başla'),
+                        child: Text(onStart == null ? 'Yakında' : 'Başla'),
                       ),
                     ],
                   ),
