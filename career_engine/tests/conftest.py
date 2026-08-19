@@ -37,6 +37,20 @@ def career_id(db_conn):
 
 
 @pytest.fixture
+def player_id(db_conn, career_id):
+    """A minimal player row. player_attribute has a real FK to this
+    (CONTRACT.md §3.2), so any test writing attributes needs it first."""
+    pid = "p_user"
+    db_conn.execute(
+        "INSERT INTO player (career_id, player_id, name, position, birth_date, team_id, is_user) "
+        "VALUES (?, ?, 'Efe Kaan', 'Orta saha', '2004-08-19', 't_ykz', 1)",
+        (career_id, pid),
+    )
+    db_conn.commit()
+    return pid
+
+
+@pytest.fixture
 def seeded_relationship(db_conn, career_id):
     """One 'coach' relationship row at score=50, no traits yet — the
     starting point most relationship-module tests build on."""

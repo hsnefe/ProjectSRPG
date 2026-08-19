@@ -23,14 +23,15 @@ CREATE TABLE player_attribute (
   FOREIGN KEY (career_id, player_id) REFERENCES player(career_id, player_id) ON DELETE CASCADE
 );
 
--- D35: şöhret. Anlamı ⟦AÇIK-9⟧'da; depolama bugünden hazır.
+-- D35: şöhret. Anlamı ⟦AÇIK-9⟧'da; depolama bugünden hazır. CONTRACT.md'nin
+-- kendi §3.2 SQL'inde bu tablo için FK yok (player_attribute'un aksine) —
+-- fame.apply() bir player satırından bağımsız çalışabilsin diye böyle kaldı.
 CREATE TABLE player_fame (
   career_id TEXT NOT NULL,
   player_id TEXT NOT NULL,
   scope     TEXT NOT NULL,                -- v1'de yalnızca 'overall'
   value     REAL NOT NULL,
-  PRIMARY KEY (career_id, player_id, scope),
-  FOREIGN KEY (career_id, player_id) REFERENCES player(career_id, player_id) ON DELETE CASCADE
+  PRIMARY KEY (career_id, player_id, scope)
 );
 
 CREATE TABLE fame_event (
