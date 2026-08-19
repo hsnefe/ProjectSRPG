@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/net/career_api_client.dart';
+import 'package:project_srpg/net/career_session.dart';
+import 'package:project_srpg/state/player_scope.dart';
 
 import 'package:project_srpg/widgets/typewriter_text.dart';
 
@@ -40,6 +43,9 @@ class DialogScreen extends StatefulWidget {
     required this.contactName,
     required this.tree,
     required this.tint,
+    required this.relationshipId,
+    required this.dialogueId,
+    this.session,
     this.backgroundAsset,
     this.characterAsset,
   });
@@ -47,6 +53,16 @@ class DialogScreen extends StatefulWidget {
   final String contactName;
   final DialogueTree tree;
   final Color tint;
+
+  /// R3 · hangi ilişki kartına yazılacağı.
+  final String relationshipId;
+
+  /// R3 · catalog/dialogue.py'nin `DIALOGUE_RELATIONSHIP` anahtarı — bu
+  /// ağacın konuşmanın hangi sonuç tablosuna karşılık geldiği.
+  final String dialogueId;
+
+  /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
+  final CareerSession? session;
 
   /// Görsel alanın arka plan katmanı; null ise renk/degrade ile doldurulur.
   final String? backgroundAsset;
@@ -65,12 +81,22 @@ class DialogScreen extends StatefulWidget {
 
 class _DialogScreenState extends State<DialogScreen> {
   final _typewriterKey = GlobalKey<TypewriterTextState>();
+  late final CareerSession _session = widget.session ?? CareerSession.instance;
 
   late DialogueNode _currentNode = widget.tree.start;
   bool _typewriterComplete = false;
   bool _advanceVisible = false;
   List<bool> _choiceVisible = const [];
   int _revealGen = 0;
+
+  /// Seçilen düğümlerin sırası — R3'ün `choice_path`'i (§5.4). v1'in tek
+  /// turlu ağaçlarında tek eleman olur ama sıra korunur: çok turlu bir
+  /// ağaç eklendiğinde kod değişmeden çalışır.
+  final List<String> _choicePath = [];
+
+  /// R3 en fazla bir kez çağrılır — terminal düğüme birden fazla yoldan
+  /// (örn. geri/yeniden tetikleme) düşülürse bakiye/skor iki kez yazılmasın.
+  bool _reported = false;
 
   void _onTypewriterComplete() {
     if (!mounted) return;
@@ -80,7 +106,39 @@ class _DialogScreenState extends State<DialogScreen> {
       _choiceVisible = List.filled(_currentNode.options.length, false);
       _advanceVisible = !hasOptions;
     });
-    if (hasOptions) _revealChoicesStaggered();
+    if (hasOptions) {
+      _revealChoicesStaggered();
+    } else {
+      _reportOutcome();
+    }
+  }
+
+  /// R3 · `POST /careers/{cid}/relationships/{rid}/interact` — konuşma
+  /// terminal düğüme ulaştığında bir kez çağrılır (D23: ağacı FE tutar, BE
+  /// yalnızca sonucu değerlendirir).
+  Future<void> _reportOutcome() async {
+    if (_reported || _choicePath.isEmpty) return;
+    _reported = true;
+    try {
+      final careerId = await _session.resolve();
+      final result = await _session.client.interact(
+        careerId,
+        widget.relationshipId,
+        dialogueId: widget.dialogueId,
+        choicePath: List.of(_choicePath),
+      );
+      if (!mounted) return;
+      PlayerScope.of(
+        context,
+      ).applyServerUpdate(attributeChanges: result.attributeChanges);
+    } on CareerApiException catch (e) {
+      // Tek deneme: kullanıcı yine de "İlerle" ile devam edebilmeli, ikinci
+      // bir otomatik tekrar denemesi yok.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Diyalog kaydedilemedi.')),
+      );
+    }
   }
 
   Future<void> _revealChoicesStaggered() async {
@@ -94,6 +152,7 @@ class _DialogScreenState extends State<DialogScreen> {
 
   void _selectOption(DialogueOption option) {
     _revealGen++;
+    _choicePath.add(option.nextId);
     setState(() {
       _currentNode = widget.tree.nodes[option.nextId]!;
       _typewriterComplete = false;
@@ -433,7 +492,8 @@ class _AdvanceSection extends StatelessWidget {
             child: SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                onPressed: visible ? () => Navigator.of(context).pop() : null,
+                onPressed:
+                    visible ? () => Navigator.of(context).pop(true) : null,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: DialogScreen._textPrimary,
                   side: const BorderSide(color: DialogScreen._border),

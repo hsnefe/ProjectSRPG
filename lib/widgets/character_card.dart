@@ -13,7 +13,7 @@ class CharacterCardData {
     required this.tint,
     required this.badgeCode,
     required this.leftTag,
-    required this.rightTag,
+    this.rightTag,
     required this.dateLabel,
     this.imageAsset,
   });
@@ -40,8 +40,10 @@ class CharacterCardData {
   /// Puan kapsülünün solundaki küçük etiket.
   final String leftTag;
 
-  /// Puan kapsülünün sağındaki küçük etiket.
-  final String rightTag;
+  /// Puan kapsülünün sağındaki küçük etiket. Null ise hiç çizilmez — R1'in
+  /// beş kartlık gövdesinde bir "son değişim" alanı yok, uydurmak yerine
+  /// boş bırakılıyor (career_engine CONTRACT.md §5.4).
+  final String? rightTag;
 
   /// Sol üstteki son temas bilgisi: '12 Ağu · 14:30'.
   final String dateLabel;
@@ -274,17 +276,27 @@ class CharacterCard extends StatelessWidget {
                 ),
               ),
               // Etiketler ve puan kapsülü; panelin üst kenarına biner.
+              // rightTag yoksa kapsül `Center`e kayar ki tek etiketle
+              // (leftTag) satır sola yaslanmış görünmesin.
               Positioned(
                 left: 12,
                 right: 12,
                 bottom: panelHeight - 13,
                 child: IgnorePointer(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: Stack(
+                    alignment: Alignment.center,
                     children: [
-                      _MiniTag(label: data.leftTag),
                       _ScoreCapsule(score: data.score, tint: tint),
-                      _MiniTag(label: data.rightTag),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _MiniTag(label: data.leftTag),
+                          if (data.rightTag != null)
+                            _MiniTag(label: data.rightTag!)
+                          else
+                            const SizedBox.shrink(),
+                        ],
+                      ),
                     ],
                   ),
                 ),

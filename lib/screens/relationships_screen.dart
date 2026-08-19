@@ -2,291 +2,303 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:project_srpg/net/career_models.dart' as api;
+import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/dialog_screen.dart';
 import 'package:project_srpg/screens/relationships_radar_screen.dart';
 import 'package:project_srpg/widgets/character_card.dart';
 import 'package:project_srpg/widgets/character_profile_modal.dart';
 import 'package:project_srpg/widgets/expand_page_route.dart';
 
-class RelationshipsScreen extends StatelessWidget {
-  const RelationshipsScreen({super.key});
+/// §5.8 — ikon, ton, rozet kodu ve üst kategori etiketi BE'den gelmez, FE'nin
+/// sunum kararı (R1 yalnızca `relationship_id/kind/category/score/...`
+/// verir). Beş ilişki sabit olduğu için (D4, §3.4) elle eşleniyor.
+class _Presentation {
+  const _Presentation({
+    required this.icon,
+    required this.tint,
+    required this.badgeCode,
+    required this.leftTag,
+    required this.dialogueId,
+  });
+
+  final IconData icon;
+  final Color tint;
+  final String badgeCode;
+  final String leftTag;
+
+  /// catalog/dialogue.py'nin `DIALOGUE_RELATIONSHIP` anahtarları.
+  final String dialogueId;
+}
+
+const _accent = Color(0xFF1E6FD9);
+const _success = Color(0xFF3DDC97);
+const _danger = Color(0xFFE85D5D);
+const _warning = Color(0xFFF5A623);
+const _purple = Color(0xFF9B5CF6);
+
+const _presentationByRelationshipId = {
+  'coach': _Presentation(
+    icon: Icons.assignment_outlined, tint: _accent, badgeCode: 'AN',
+    leftTag: 'KLÜP', dialogueId: 'coach_01',
+  ),
+  'team': _Presentation(
+    icon: Icons.groups_outlined, tint: _success, badgeCode: 'TK',
+    leftTag: 'KLÜP', dialogueId: 'team_01',
+  ),
+  'media': _Presentation(
+    icon: Icons.mic_none_outlined, tint: _danger, badgeCode: 'MD',
+    leftTag: 'BASIN', dialogueId: 'media_01',
+  ),
+  'partner': _Presentation(
+    icon: Icons.favorite_border, tint: _purple, badgeCode: 'PA',
+    leftTag: 'ÖZEL', dialogueId: 'partner_01',
+  ),
+  'family': _Presentation(
+    icon: Icons.home_outlined, tint: _warning, badgeCode: 'AS',
+    leftTag: 'ÖZEL', dialogueId: 'family_01',
+  ),
+};
+
+const _defaultPresentation = _Presentation(
+  icon: Icons.person_outline, tint: Color(0xFF6B7280), badgeCode: '??',
+  leftTag: '', dialogueId: '',
+);
+
+_Presentation _presentationFor(String relationshipId) =>
+    _presentationByRelationshipId[relationshipId] ?? _defaultPresentation;
+
+/// D23: diyalog **ağacı** (metin + dallanma) BE'de tutulmaz, FE'nin içeriği —
+/// catalog/dialogue.py bunu doğrudan yorumluyor: her düğüm id'si ve yaprağı
+/// (`r0`/`r1`/…) iki tarafta da birebir aynı olmalı, ekranda değiştirilecekse
+/// `catalog/dialogue.py`'deki `DIALOGUE_OUTCOMES` de güncellenmeli.
+const _dialogueTreeByRelationshipId = {
+  'coach': DialogueTree(
+    startId: 'start',
+    nodes: {
+      'start': DialogueNode(
+        id: 'start',
+        line:
+            'Son maçta bireysel performansın iyiydi ama takım oyununda seni daha aktif görmek istiyorum. Bu konuda ne düşünüyorsun?',
+        options: [
+          DialogueOption(
+            text: 'Haklısınız hocam, daha fazla paylaşımcı olacağım.',
+            nextId: 'r0',
+          ),
+          DialogueOption(
+            text: 'Bence bireysel oynamam takıma zarar vermiyor.',
+            nextId: 'r1',
+          ),
+          DialogueOption(
+            text: 'Bu konuyu maç sonrasında konuşalım mı?',
+            nextId: 'r2',
+          ),
+        ],
+      ),
+      'r0': DialogueNode(
+        id: 'r0',
+        line:
+            'Bunu duymak güzel. Bu hafta antrenmanlarda bunu göreceğimi umuyorum.',
+      ),
+      'r1': DialogueNode(
+        id: 'r1',
+        line:
+            'Anlıyorum ama istatistikler farklı söylüyor. Bu konuşmayı unutma.',
+      ),
+      'r2': DialogueNode(
+        id: 'r2',
+        line: 'Olur, o zaman daha sakin kafayla devam ederiz.',
+      ),
+    },
+  ),
+  'team': DialogueTree(
+    startId: 'start',
+    nodes: {
+      'start': DialogueNode(
+        id: 'start',
+        line:
+            'Bu hafta antrenmanlarda iletişim iyi gidiyor. Maç günü aynı enerjiyi sahaya taşıyalım mı?',
+        options: [
+          DialogueOption(text: 'Evet, birlikte daha güçlüyüz.', nextId: 'r0'),
+          DialogueOption(text: 'Biraz daha zaman lazım.', nextId: 'r1'),
+        ],
+      ),
+      'r0': DialogueNode(
+        id: 'r0',
+        line: 'Harika, o zaman maç günü aynı ekipteyiz!',
+      ),
+      'r1': DialogueNode(id: 'r1', line: 'Sorun değil, adım adım ilerleriz.'),
+    },
+  ),
+  'media': DialogueTree(
+    startId: 'start',
+    nodes: {
+      'start': DialogueNode(
+        id: 'start',
+        line:
+            'Maç sonrası kısa bir röportaj için müsait misiniz? Transfer söylentileri hakkında da sorularımız var.',
+        options: [
+          DialogueOption(text: 'Tabii, 10 dakika ayırabilirim.', nextId: 'r0'),
+          DialogueOption(text: 'Bugün konuşmak istemiyorum.', nextId: 'r1'),
+          DialogueOption(text: 'Sadece maç hakkında konuşalım.', nextId: 'r2'),
+        ],
+      ),
+      'r0': DialogueNode(
+        id: 'r0',
+        line: 'Harika, maç sonrası sahada bekliyoruz.',
+      ),
+      'r1': DialogueNode(
+        id: 'r1',
+        line: 'Anlıyoruz, başka zaman tekrar deneriz.',
+      ),
+      'r2': DialogueNode(
+        id: 'r2',
+        line: 'Elbette, transferle ilgili soru sormayacağız.',
+      ),
+    },
+  ),
+  'partner': DialogueTree(
+    startId: 'start',
+    nodes: {
+      'start': DialogueNode(
+        id: 'start',
+        line:
+            'Bu akşam maçın var diye biliyorum. Yine de kısa bir telefon konuşması yapabilir miyiz?',
+        options: [
+          DialogueOption(text: 'Maçtan sonra ararım.', nextId: 'r0'),
+          DialogueOption(text: 'Şimdi 5 dakika konuşabiliriz.', nextId: 'r1'),
+        ],
+      ),
+      'r0': DialogueNode(id: 'r0', line: 'Tamam, seni bekliyorum. Bol şans!'),
+      'r1': DialogueNode(id: 'r1', line: 'Ne güzel, seni duymak iyi geldi.'),
+    },
+  ),
+  'family': DialogueTree(
+    startId: 'start',
+    nodes: {
+      'start': DialogueNode(
+        id: 'start',
+        line:
+            'Seni özledik. Bu hafta sonu eve uğrayabilir misin? Maç programını da merak ediyoruz.',
+        options: [
+          DialogueOption(
+            text: 'Cumartesi antrenman sonrası gelirim.',
+            nextId: 'r0',
+          ),
+          DialogueOption(text: 'Bu hafta maç var, gelemem.', nextId: 'r1'),
+          DialogueOption(text: 'Pazar öğleden sonra konuşalım.', nextId: 'r2'),
+        ],
+      ),
+      'r0': DialogueNode(id: 'r0', line: 'Harika, seni bekliyoruz canım.'),
+      'r1': DialogueNode(
+        id: 'r1',
+        line: 'Anlıyoruz, bir dahaki sefere görüşürüz.',
+      ),
+      'r2': DialogueNode(id: 'r2', line: 'Olur, o zaman seni ararım.'),
+    },
+  ),
+};
+
+/// R1'in `score`sundan türetilmiş genel bir durum cümlesi (§1.3 — BE sayıyı
+/// verir, cümleyi FE kurar). İlişkiye özel öykü metni değil: hangi
+/// olayın skoru bu hale getirdiğini FE bilemez, yalnızca sayının kendisini
+/// yorumlayabilir.
+String _statusLabel(int score) {
+  if (score >= 80) return 'Çok güçlü bağ';
+  if (score >= 60) return 'İyi gidiyor';
+  if (score >= 40) return 'Dengeli';
+  if (score >= 20) return 'Zayıflıyor';
+  return 'Kritik seviyede';
+}
+
+const _dateMonths = [
+  'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
+  'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara',
+];
+
+/// 'YYYY-MM-DD' → '19 Ağu' — §1.3, `last_contact_at` tarih-yalnız (saat yok).
+String _lastContactLabel(String? isoDate) {
+  if (isoDate == null) return 'Henüz temas yok';
+  final date = DateTime.tryParse(isoDate);
+  if (date == null) return isoDate;
+  return '${date.day} ${_dateMonths[date.month - 1]}';
+}
+
+CharacterCardData _toCardData(api.RelationshipCard card) {
+  final presentation = _presentationFor(card.relationshipId);
+  return CharacterCardData(
+    id: card.relationshipId,
+    name: card.category,
+    subtitle: _statusLabel(card.score),
+    score: card.score,
+    icon: presentation.icon,
+    tint: presentation.tint,
+    badgeCode: presentation.badgeCode,
+    leftTag: presentation.leftTag,
+    dateLabel: _lastContactLabel(card.lastContactAt),
+  );
+}
+
+CharacterProfile _toProfile(api.RelationshipProfile profile) {
+  final card = profile.card;
+  final presentation = _presentationFor(card.relationshipId);
+  return CharacterProfile(
+    name: card.personName,
+    relationLabel: card.category,
+    age: profile.age ?? 0,
+    occupation: profile.occupation ?? '',
+    hobbies: profile.hobbies,
+    bio: profile.bio ?? '',
+    badgeCode: presentation.badgeCode,
+    icon: presentation.icon,
+    tint: presentation.tint,
+    score: card.score,
+    lastContact: _lastContactLabel(card.lastContactAt),
+  );
+}
+
+class RelationshipsScreen extends StatefulWidget {
+  const RelationshipsScreen({super.key, this.session});
+
+  /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
+  final CareerSession? session;
 
   static const _surface1 = Color(0xFF1A1D24);
   static const _surface2 = Color(0xFF22262F);
   static const _border = Color(0xFF333845);
   static const _textPrimary = Color(0xFFE8EAED);
   static const _textMuted = Color(0xFF6B7280);
-  static const _accent = Color(0xFF1E6FD9);
-  static const _success = Color(0xFF3DDC97);
-  static const _danger = Color(0xFFE85D5D);
-  static const _warning = Color(0xFFF5A623);
-  static const _purple = Color(0xFF9B5CF6);
 
   static const _cardWidth = 225.0;
   static const _cardHeight = 380.0;
 
-  static const _relationships = [
-    _RelationshipData(
-      id: 'coach',
-      name: 'Antrenör',
-      status: 'Güven seviyesi yüksek',
-      score: 74,
-      icon: Icons.assignment_outlined,
-      tint: _accent,
-      badgeCode: 'AN',
-      leftTag: 'KLÜP',
-      rightTag: '+3',
-      dateLabel: '12 Ağu · 14:30',
-      contactName: 'Antrenör Mert',
-      personName: 'Mert Çalışkan',
-      age: 48,
-      occupation: 'Baş antrenör',
-      hobbies: ['Satranç', 'Yüzme', 'Maç analizi'],
-      bio:
-          'Disiplinli ve veriye güvenen bir isim. Sahada bireysel parlamak '
-          'yerine takım oyununu görmek istiyor; kararlarını istatistiklere '
-          'dayandırıyor.',
-      dialogueTree: DialogueTree(
-        startId: 'start',
-        nodes: {
-          'start': DialogueNode(
-            id: 'start',
-            line:
-                'Son maçta bireysel performansın iyiydi ama takım oyununda seni daha aktif görmek istiyorum. Bu konuda ne düşünüyorsun?',
-            options: [
-              DialogueOption(
-                text: 'Haklısınız hocam, daha fazla paylaşımcı olacağım.',
-                nextId: 'r0',
-              ),
-              DialogueOption(
-                text: 'Bence bireysel oynamam takıma zarar vermiyor.',
-                nextId: 'r1',
-              ),
-              DialogueOption(
-                text: 'Bu konuyu maç sonrasında konuşalım mı?',
-                nextId: 'r2',
-              ),
-            ],
-          ),
-          'r0': DialogueNode(
-            id: 'r0',
-            line:
-                'Bunu duymak güzel. Bu hafta antrenmanlarda bunu göreceğimi umuyorum.',
-          ),
-          'r1': DialogueNode(
-            id: 'r1',
-            line:
-                'Anlıyorum ama istatistikler farklı söylüyor. Bu konuşmayı unutma.',
-          ),
-          'r2': DialogueNode(
-            id: 'r2',
-            line: 'Olur, o zaman daha sakin kafayla devam ederiz.',
-          ),
-        },
-      ),
-    ),
-    _RelationshipData(
-      id: 'team',
-      name: 'Takım Arkadaşları',
-      status: 'Saha içi sinerji iyi',
-      score: 58,
-      icon: Icons.groups_outlined,
-      tint: _success,
-      badgeCode: 'TK',
-      leftTag: 'KLÜP',
-      rightTag: '+1',
-      dateLabel: '13 Ağu · 09:10',
-      contactName: 'Takım grubu',
-      personName: 'Burak Şen',
-      age: 26,
-      occupation: 'Profesyonel futbolcu · Kaptan',
-      hobbies: ['PlayStation', 'Basketbol', 'Podcast'],
-      bio:
-          'Soyunma odasının sesi. Takım içi gerginlikleri büyümeden çözmesiyle '
-          'biliniyor, yeni gelenleri ilk o sahiplenir.',
-      dialogueTree: DialogueTree(
-        startId: 'start',
-        nodes: {
-          'start': DialogueNode(
-            id: 'start',
-            line:
-                'Bu hafta antrenmanlarda iletişim iyi gidiyor. Maç günü aynı enerjiyi sahaya taşıyalım mı?',
-            options: [
-              DialogueOption(
-                text: 'Evet, birlikte daha güçlüyüz.',
-                nextId: 'r0',
-              ),
-              DialogueOption(text: 'Biraz daha zaman lazım.', nextId: 'r1'),
-            ],
-          ),
-          'r0': DialogueNode(
-            id: 'r0',
-            line: 'Harika, o zaman maç günü aynı ekipteyiz!',
-          ),
-          'r1': DialogueNode(
-            id: 'r1',
-            line: 'Sorun değil, adım adım ilerleriz.',
-          ),
-        },
-      ),
-    ),
-    _RelationshipData(
-      id: 'media',
-      name: 'Medya',
-      status: 'Röportaj talebi bekliyor',
-      score: 51,
-      icon: Icons.mic_none_outlined,
-      tint: _danger,
-      badgeCode: 'MD',
-      leftTag: 'BASIN',
-      rightTag: '−2',
-      dateLabel: '09 Ağu · 18:45',
-      contactName: 'Spor Manşet',
-      personName: 'Ayça Kılıç',
-      age: 34,
-      occupation: 'Spor muhabiri · Spor Manşet',
-      hobbies: ['Koşu', 'Fotoğrafçılık', 'Vinil plak'],
-      bio:
-          'Transfer haberlerini ilk veren isimlerden. Verdiğin her demeç '
-          'ertesi sabah manşete dönüşebilir, kelimelerini tartarak seç.',
-      dialogueTree: DialogueTree(
-        startId: 'start',
-        nodes: {
-          'start': DialogueNode(
-            id: 'start',
-            line:
-                'Maç sonrası kısa bir röportaj için müsait misiniz? Transfer söylentileri hakkında da sorularımız var.',
-            options: [
-              DialogueOption(
-                text: 'Tabii, 10 dakika ayırabilirim.',
-                nextId: 'r0',
-              ),
-              DialogueOption(
-                text: 'Bugün konuşmak istemiyorum.',
-                nextId: 'r1',
-              ),
-              DialogueOption(
-                text: 'Sadece maç hakkında konuşalım.',
-                nextId: 'r2',
-              ),
-            ],
-          ),
-          'r0': DialogueNode(
-            id: 'r0',
-            line: 'Harika, maç sonrası sahada bekliyoruz.',
-          ),
-          'r1': DialogueNode(
-            id: 'r1',
-            line: 'Anlıyoruz, başka zaman tekrar deneriz.',
-          ),
-          'r2': DialogueNode(
-            id: 'r2',
-            line: 'Elbette, transferle ilgili soru sormayacağız.',
-          ),
-        },
-      ),
-    ),
-    _RelationshipData(
-      id: 'partner',
-      name: 'Partner',
-      status: 'Bugün özlemiş',
-      score: 63,
-      icon: Icons.favorite_border,
-      tint: _purple,
-      badgeCode: 'PA',
-      leftTag: 'ÖZEL',
-      rightTag: '+4',
-      dateLabel: '14 Ağu · 08:05',
-      contactName: 'Elif',
-      personName: 'Elif Demir',
-      age: 24,
-      occupation: 'Grafik tasarımcı',
-      hobbies: ['Resim', 'Kahve', 'Seyahat'],
-      bio:
-          'Maç takvimine anlayışla yaklaşıyor ama uzun sessizlikleri sevmiyor. '
-          'Kısa bir telefon bile ilişkiye iyi geliyor.',
-      dialogueTree: DialogueTree(
-        startId: 'start',
-        nodes: {
-          'start': DialogueNode(
-            id: 'start',
-            line:
-                'Bu akşam maçın var diye biliyorum. Yine de kısa bir telefon konuşması yapabilir miyiz?',
-            options: [
-              DialogueOption(text: 'Maçtan sonra ararım.', nextId: 'r0'),
-              DialogueOption(
-                text: 'Şimdi 5 dakika konuşabiliriz.',
-                nextId: 'r1',
-              ),
-            ],
-          ),
-          'r0': DialogueNode(
-            id: 'r0',
-            line: 'Tamam, seni bekliyorum. Bol şans!',
-          ),
-          'r1': DialogueNode(
-            id: 'r1',
-            line: 'Ne güzel, seni duymak iyi geldi.',
-          ),
-        },
-      ),
-    ),
-    _RelationshipData(
-      id: 'family',
-      name: 'Aile / Sosyal Çevre',
-      status: 'Uzun süredir görüşülmedi',
-      score: 29,
-      icon: Icons.home_outlined,
-      tint: _warning,
-      badgeCode: 'AS',
-      leftTag: 'ÖZEL',
-      rightTag: '−1',
-      dateLabel: '28 Tem · 20:15',
-      contactName: 'Anne',
-      personName: 'Sevgi Yılmaz',
-      age: 55,
-      occupation: 'Emekli öğretmen',
-      hobbies: ['Bahçe işleri', 'Örgü', 'Akşam dizileri'],
-      bio:
-          'Her maçını televizyondan takip ediyor. Aramaların seyrekleştiğinde '
-          'bunu dile getirmese de ilişki puanı hızla düşüyor.',
-      dialogueTree: DialogueTree(
-        startId: 'start',
-        nodes: {
-          'start': DialogueNode(
-            id: 'start',
-            line:
-                'Seni özledik. Bu hafta sonu eve uğrayabilir misin? Maç programını da merak ediyoruz.',
-            options: [
-              DialogueOption(
-                text: 'Cumartesi antrenman sonrası gelirim.',
-                nextId: 'r0',
-              ),
-              DialogueOption(text: 'Bu hafta maç var, gelemem.', nextId: 'r1'),
-              DialogueOption(
-                text: 'Pazar öğleden sonra konuşalım.',
-                nextId: 'r2',
-              ),
-            ],
-          ),
-          'r0': DialogueNode(
-            id: 'r0',
-            line: 'Harika, seni bekliyoruz canım.',
-          ),
-          'r1': DialogueNode(
-            id: 'r1',
-            line: 'Anlıyoruz, bir dahaki sefere görüşürüz.',
-          ),
-          'r2': DialogueNode(id: 'r2', line: 'Olur, o zaman seni ararım.'),
-        },
-      ),
-    ),
-  ];
+  @override
+  State<RelationshipsScreen> createState() => _RelationshipsScreenState();
+}
+
+class _RelationshipsScreenState extends State<RelationshipsScreen> {
+  late final CareerSession _session =
+      widget.session ?? CareerSession.instance;
+  late Future<List<api.RelationshipCard>> _relationshipsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _relationshipsFuture = _load();
+  }
+
+  /// R1 · `GET /careers/{cid}/relationships` — beş kart.
+  Future<List<api.RelationshipCard>> _load() async {
+    final careerId = await _session.resolve();
+    return _session.client.relationships(careerId);
+  }
+
+  void _reload() => setState(() => _relationshipsFuture = _load());
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _surface1,
+      backgroundColor: RelationshipsScreen._surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -295,9 +307,12 @@ class RelationshipsScreen extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: _surface2,
+                  color: RelationshipsScreen._surface2,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _border, width: 0.5),
+                  border: Border.all(
+                    color: RelationshipsScreen._border,
+                    width: 0.5,
+                  ),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -307,75 +322,37 @@ class RelationshipsScreen extends StatelessWidget {
                     children: [
                       const _HeaderSection(),
                       Expanded(
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            // Kart, kalan alana sığmıyorsa oranını koruyarak
-                            // küçülür; böylece dar ekranlarda taşma olmaz.
-                            final cardHeight = math.min(
-                              _cardHeight,
-                              constraints.maxHeight - 40,
-                            );
-                            final cardWidth =
-                                cardHeight * _cardWidth / _cardHeight;
-
-                            return Center(
-                              child: Stack(
-                                // Kart gölgeleri taşabilsin; dış ClipRRect
-                                // panel sınırında zaten kırpıyor.
-                                clipBehavior: Clip.none,
-                                children: [
-                                  // Kartların arkasındaki dev hayalet yazı.
-                                  Positioned(
-                                    left: 18,
-                                    top: 6,
-                                    child: Text(
-                                      'İLİŞKİLER',
-                                      style: TextStyle(
-                                        fontSize: 58,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: 2,
-                                        color: Colors.white.withValues(
-                                          alpha: 0.035,
-                                        ),
-                                      ),
-                                    ),
+                        child: FutureBuilder<List<api.RelationshipCard>>(
+                          future: _relationshipsFuture,
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState !=
+                                ConnectionState.done) {
+                              return const Center(
+                                child: SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: RelationshipsScreen._textMuted,
                                   ),
-                                  SizedBox(
-                                    height: cardHeight,
-                                    // Masaüstü ve web'de fare/trackpad ile
-                                    // sürükleyerek kaydırmak varsayılan olarak
-                                    // kapalı; şerit kayabilsin diye açıyoruz.
-                                    child: ScrollConfiguration(
-                                      behavior: ScrollConfiguration.of(context)
-                                          .copyWith(
-                                            dragDevices: const {
-                                              PointerDeviceKind.touch,
-                                              PointerDeviceKind.mouse,
-                                              PointerDeviceKind.trackpad,
-                                              PointerDeviceKind.stylus,
-                                            },
-                                          ),
-                                      child: ListView.separated(
-                                        scrollDirection: Axis.horizontal,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 20,
-                                        ),
-                                        clipBehavior: Clip.none,
-                                        itemCount: _relationships.length,
-                                        separatorBuilder: (_, _) =>
-                                            const SizedBox(width: 14),
-                                        itemBuilder: (context, index) {
-                                          return _RelationshipCharacterCard(
-                                            data: _relationships[index],
-                                            width: cardWidth,
-                                            height: cardHeight,
-                                          );
-                                        },
-                                      ),
-                                    ),
+                                ),
+                              );
+                            }
+                            if (snapshot.hasError) {
+                              return const Center(
+                                child: Text(
+                                  'İlişkiler alınamadı.',
+                                  style: TextStyle(
+                                    color: RelationshipsScreen._textMuted,
+                                    fontSize: 12,
                                   ),
-                                ],
-                              ),
+                                ),
+                              );
+                            }
+                            return _RelationshipStrip(
+                              relationships: snapshot.data!,
+                              session: _session,
+                              onChanged: _reload,
                             );
                           },
                         ),
@@ -393,79 +370,85 @@ class RelationshipsScreen extends StatelessWidget {
   }
 }
 
-class _RelationshipData {
-  const _RelationshipData({
-    required this.id,
-    required this.name,
-    required this.status,
-    required this.score,
-    required this.icon,
-    required this.tint,
-    required this.badgeCode,
-    required this.leftTag,
-    required this.rightTag,
-    required this.dateLabel,
-    required this.contactName,
-    required this.personName,
-    required this.age,
-    required this.occupation,
-    required this.hobbies,
-    required this.bio,
-    required this.dialogueTree,
+class _RelationshipStrip extends StatelessWidget {
+  const _RelationshipStrip({
+    required this.relationships,
+    required this.session,
+    required this.onChanged,
   });
 
-  final String id;
-  final String name;
-  final String status;
-  final int score;
-  final IconData icon;
-  final Color tint;
-  final String badgeCode;
-  final String leftTag;
-  final String rightTag;
-  final String dateLabel;
-  final String contactName;
+  final List<api.RelationshipCard> relationships;
+  final CareerSession session;
+  final VoidCallback onChanged;
 
-  /// Kartın arkasındaki kişinin tam adı; [contactName] rehberdeki kısa ad.
-  final String personName;
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Kart, kalan alana sığmıyorsa oranını koruyarak küçülür; böylece
+        // dar ekranlarda taşma olmaz.
+        final cardHeight = math.min(
+          RelationshipsScreen._cardHeight,
+          constraints.maxHeight - 40,
+        );
+        final cardWidth =
+            cardHeight * RelationshipsScreen._cardWidth / RelationshipsScreen._cardHeight;
 
-  final int age;
-  final String occupation;
-  final List<String> hobbies;
-  final String bio;
-
-  final DialogueTree dialogueTree;
-
-  /// Karta beslenen görsel model; diyalog metinleri widget katmanına sızmaz.
-  CharacterCardData toCardData() {
-    return CharacterCardData(
-      id: id,
-      name: name,
-      subtitle: status,
-      score: score,
-      icon: icon,
-      tint: tint,
-      badgeCode: badgeCode,
-      leftTag: leftTag,
-      rightTag: rightTag,
-      dateLabel: dateLabel,
-    );
-  }
-
-  /// Profil modalına beslenen künye.
-  CharacterProfile toProfile() {
-    return CharacterProfile(
-      name: personName,
-      relationLabel: name,
-      age: age,
-      occupation: occupation,
-      hobbies: hobbies,
-      bio: bio,
-      badgeCode: badgeCode,
-      icon: icon,
-      tint: tint,
-      score: score,
-      lastContact: dateLabel,
+        return Center(
+          child: Stack(
+            // Kart gölgeleri taşabilsin; dış ClipRRect panel sınırında
+            // zaten kırpıyor.
+            clipBehavior: Clip.none,
+            children: [
+              // Kartların arkasındaki dev hayalet yazı.
+              Positioned(
+                left: 18,
+                top: 6,
+                child: Text(
+                  'İLİŞKİLER',
+                  style: TextStyle(
+                    fontSize: 58,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2,
+                    color: Colors.white.withValues(alpha: 0.035),
+                  ),
+                ),
+              ),
+              SizedBox(
+                height: cardHeight,
+                // Masaüstü ve web'de fare/trackpad ile sürükleyerek kaydırmak
+                // varsayılan olarak kapalı; şerit kayabilsin diye açıyoruz.
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(context).copyWith(
+                    dragDevices: const {
+                      PointerDeviceKind.touch,
+                      PointerDeviceKind.mouse,
+                      PointerDeviceKind.trackpad,
+                      PointerDeviceKind.stylus,
+                    },
+                  ),
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    clipBehavior: Clip.none,
+                    itemCount: relationships.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 14),
+                    itemBuilder: (context, index) {
+                      return _RelationshipCharacterCard(
+                        card: relationships[index],
+                        session: session,
+                        onChanged: onChanged,
+                        width: cardWidth,
+                        height: cardHeight,
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -562,12 +545,16 @@ class _FooterSection extends StatelessWidget {
 
 class _RelationshipCharacterCard extends StatefulWidget {
   const _RelationshipCharacterCard({
-    required this.data,
+    required this.card,
+    required this.session,
+    required this.onChanged,
     required this.width,
     required this.height,
   });
 
-  final _RelationshipData data;
+  final api.RelationshipCard card;
+  final CareerSession session;
+  final VoidCallback onChanged;
   final double width;
   final double height;
 
@@ -588,37 +575,59 @@ class _RelationshipCharacterCardState
     return renderBox.localToGlobal(Offset.zero) & renderBox.size;
   }
 
-  void _openDialog() {
+  Future<void> _openDialog() async {
     final rect = _globalRect(_callButtonKey);
     if (rect == null) return;
+    final relationshipId = widget.card.relationshipId;
+    final presentation = _presentationFor(relationshipId);
+    final tree = _dialogueTreeByRelationshipId[relationshipId];
+    if (tree == null) return;
 
-    Navigator.of(context).push(
-      ExpandPageRoute<void>(
+    final changed = await Navigator.of(context).push<bool>(
+      ExpandPageRoute<bool>(
         rect: rect,
         page: DialogScreen(
-          contactName: widget.data.contactName,
-          tree: widget.data.dialogueTree,
-          tint: widget.data.tint,
+          contactName: widget.card.contactName,
+          tree: tree,
+          tint: presentation.tint,
+          relationshipId: relationshipId,
+          dialogueId: presentation.dialogueId,
+          session: widget.session,
         ),
       ),
     );
+    if (changed == true) widget.onChanged();
   }
 
-  /// Modal kartın kendi dikdörtgeninden büyüyor: kart öne geliyormuş gibi
-  /// görünsün diye.
-  void _openProfile() {
-    showCharacterProfile(
-      context,
-      profile: widget.data.toProfile(),
-      originRect: _globalRect(_cardKey),
-    );
+  /// R2 · `GET /careers/{cid}/relationships/{rid}` — profil künyesi ancak
+  /// açılırken çekilir; R1'in beş kartı bunu taşımaz (§5.4).
+  Future<void> _openProfile() async {
+    final origin = _globalRect(_cardKey);
+    try {
+      final careerId = await widget.session.resolve();
+      final profile = await widget.session.client.relationship(
+        careerId,
+        widget.card.relationshipId,
+      );
+      if (!mounted) return;
+      await showCharacterProfile(
+        context,
+        profile: _toProfile(profile),
+        originRect: origin,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profil alınamadı.')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return CharacterCard(
       key: _cardKey,
-      data: widget.data.toCardData(),
+      data: _toCardData(widget.card),
       width: widget.width,
       height: widget.height,
       primaryKey: _callButtonKey,
