@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/widgets/radar_chart.dart';
 
 class TrainingRadarScreen extends StatelessWidget {
@@ -11,18 +12,22 @@ class TrainingRadarScreen extends StatelessWidget {
   static const _textMuted = Color(0xFF6B7280);
   static const _accent = Color(0xFF3DDC97);
 
-  static const _labels = [
-    'Kondisyon',
-    'Güç',
-    'Esneklik',
-    'Şut',
-    'Pas',
-    'Dribling',
-  ];
-  static const _values = [64.0, 38.0, 92.0, 50.0, 80.0, 25.0];
+  /// D30 §3.2 — 'saha' ailesi, radar sırasıyla; Türkçe etiketler FE'de kalır
+  /// (§1.3). Anahtar → etiket eşlemesi.
+  static const _axes = {
+    'condition': 'Kondisyon',
+    'strength': 'Güç',
+    'flexibility': 'Esneklik',
+    'shooting': 'Şut',
+    'passing': 'Pas',
+    'dribbling': 'Dribling',
+  };
 
   @override
   Widget build(BuildContext context) {
+    final player = PlayerScope.of(context);
+    final values = [for (final key in _axes.keys) player.attribute(key)];
+
     return Scaffold(
       backgroundColor: _surface1,
       body: SafeArea(
@@ -46,8 +51,8 @@ class TrainingRadarScreen extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.fromLTRB(24, 28, 24, 8),
                         child: RadarChart(
-                          labels: _labels,
-                          values: _values,
+                          labels: _axes.values.toList(growable: false),
+                          values: values,
                           accentColor: _accent,
                           gridShape: RadarGridShape.polygon,
                           backgroundColor: _surface2,

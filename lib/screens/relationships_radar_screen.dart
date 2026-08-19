@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/widgets/radar_chart.dart';
 
 class RelationshipsRadarScreen extends StatelessWidget {
@@ -11,11 +12,22 @@ class RelationshipsRadarScreen extends StatelessWidget {
   static const _textMuted = Color(0xFF6B7280);
   static const _accent = Color(0xFFE85D5D);
 
-  static const _labels = ['Cazibe', 'Kibarlık', 'Özgüven','Zeka', 'Beceriklilik'];
-  static const _values = [74.0, 58.0, 51.0, 63.0, 29.0];
+  /// D30 §3.2 — 'kişi' ailesi, radar sırasıyla. Bu eksen kümesi ilişki
+  /// skorlarından (R1) DEĞİL, oyuncunun kendi kişi niteliklerinden gelir —
+  /// ikisi ayrı kavramlar, yalnızca eski sabit veride sayılar örtüşüyordu.
+  static const _axes = {
+    'charisma': 'Cazibe',
+    'politeness': 'Kibarlık',
+    'confidence': 'Özgüven',
+    'intelligence': 'Zeka',
+    'resourcefulness': 'Beceriklilik',
+  };
 
   @override
   Widget build(BuildContext context) {
+    final player = PlayerScope.of(context);
+    final values = [for (final key in _axes.keys) player.attribute(key)];
+
     return Scaffold(
       backgroundColor: _surface1,
       body: SafeArea(
@@ -39,8 +51,8 @@ class RelationshipsRadarScreen extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.fromLTRB(24, 28, 24, 8),
                         child: RadarChart(
-                          labels: _labels,
-                          values: _values,
+                          labels: _axes.values.toList(growable: false),
+                          values: values,
                           accentColor: _accent,
                           gridShape: RadarGridShape.circle,
                           backgroundColor: _surface2,

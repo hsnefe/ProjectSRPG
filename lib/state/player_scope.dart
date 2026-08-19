@@ -24,6 +24,15 @@ class _PlayerScopeState extends State<PlayerScope> {
   final PlayerState _state = PlayerState();
 
   @override
+  void initState() {
+    super.initState();
+    // Fire-and-forget: PlayerState.load() bittiğinde notifyListeners() çağırır,
+    // bunu dinleyen her ekran kendiliğinden yeniden çizilir — burada bir
+    // Future beklemeye gerek yok.
+    _state.load();
+  }
+
+  @override
   void dispose() {
     _state.dispose();
     super.dispose();
