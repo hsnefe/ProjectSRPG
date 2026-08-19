@@ -564,6 +564,15 @@ CREATE TABLE competition_rule (
 kademede olabilir. Bu ayrım bedavaya bir şey daha getiriyor: geçmiş sezonların
 puan durumu doğru kalır, çünkü o sezonun katılımcı listesi saklıdır.
 
+**Kapsamı tek lige özgü değildir.** Bir takım aynı sezonda birden fazla
+`competition_entry` satırına sahip olabilir — v1'de her takım hem kendi
+lig kademesine hem Ulusal Kupa'ya kayıtlıdır (32 takım × 2 = 64 satır).
+Bu tablo "takım bu sezon hangi müsabakalarda oynuyor" sorusunun **tek**
+doğruluk kaynağıdır; yalnızca lig üyeliği değil. W1'in `user_participates`'i
+ve W4'ün "bu sezon oynadığı lig" çözümlemesi ikisi de buna dayanır — W4
+`kind='league'` filtresiyle sorgular, çünkü aksi hâlde bir takımın kupa
+satırıyla lig satırı ayrışmaz.
+
 #### Sezon, tur ve fikstür
 
 ```sql

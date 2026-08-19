@@ -33,12 +33,16 @@ COMPETITION_RULES = {
     },
 }
 
+# Ulusal Kupa fields all 32 teams — exactly TIER1 + TIER2, no separate list.
+CUP_TEAM_IDS = [t["team_id"] for t in TIER1_TEAMS + TIER2_TEAMS]
+
 # competition_entry seed for a career's first season: every team starts in
-# the tier its data file places it in.
+# the tier its data file places it in, AND every team enters the cup —
+# competition_entry is the single source of truth for "who's in this
+# competition" across every kind, not just leagues (W1's user_participates,
+# W4's per-team competition lookup both rely on this being exhaustive).
 STARTING_ENTRIES = (
     [(SUPER_LIG, t["team_id"]) for t in TIER1_TEAMS]
     + [(BIRINCI_LIG, t["team_id"]) for t in TIER2_TEAMS]
+    + [(ULUSAL_KUPA, tid) for tid in CUP_TEAM_IDS]
 )
-
-# Ulusal Kupa fields all 32 teams — exactly TIER1 + TIER2, no separate list.
-CUP_TEAM_IDS = [t["team_id"] for t in TIER1_TEAMS + TIER2_TEAMS]

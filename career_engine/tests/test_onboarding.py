@@ -20,7 +20,10 @@ def test_create_career_writes_the_full_world(db_conn):
     assert _count(db_conn, career_id, "team") == 32
     assert _count(db_conn, career_id, "competition") == 3
     assert _count(db_conn, career_id, "competition_rule") == 2
-    assert _count(db_conn, career_id, "competition_entry") == 32
+    # 32 league entries (each team enters its own tier) + 32 cup entries
+    # (every team plays the cup too) — competition_entry is exhaustive
+    # across all competition kinds, not league-only.
+    assert _count(db_conn, career_id, "competition_entry") == 64
     assert _count(db_conn, career_id, "season") == 1
     # §7: 34 + 26 + 5 = 65 rounds; 306 + 182 + 16 (cup round 1) = 504 fixtures.
     assert _count(db_conn, career_id, "competition_round") == 65
