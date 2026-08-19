@@ -36,7 +36,26 @@ CONDITION_FLOOR = 35.0
 CONDITION_CEILING = 100.0
 
 # §3.4 - five fixed relationship rows per career (no roster, D4).
-RELATIONSHIP_KINDS = ("coach", "teammates", "media", "partner", "family")
+RELATIONSHIP_KINDS = ("coach", "team", "media", "partner", "family")
+
+# D4 - a career has exactly one user player; no roster, no id generation needed.
+USER_PLAYER_ID = "p_user"
+
+# C1 - new-career defaults, ported from player_state.dart's own starting
+# values (_condition = 72, _money = 48200). ⟦B-1⟧ still owns whether these
+# (and the starting contract's wage) are the right scale for tier 2.
+STARTING_CONDITION = 72
+STARTING_MONEY = 48200
+
+# ⟦B-1⟧ v1 sözleşme ölçeği - placeholder, tier 2'ye kabaca uygun küçük
+# rakamlar. FE'nin contract_screen.dart'taki sabitleri (haftalık ₺180.000)
+# üst düzey bir oyuncuya ait; bu servis kullanıcıyı tier 2'de başlattığı
+# için (D21) o değerleri doğrudan kullanmıyor.
+STARTING_WEEKLY_WAGE = 3500
+STARTING_APPEARANCE_BONUS = 500
+STARTING_GOAL_BONUS = 1000
+STARTING_RELEASE_CLAUSE = 250000
+CONTRACT_LENGTH_DAYS = 730
 
 # §6.5 D25/D26/D27 - weekly cadence for wage, upkeep, and bonuses.
 WAGE_WEEKDAY = 0  # Monday, per date.weekday()

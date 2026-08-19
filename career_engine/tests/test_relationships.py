@@ -57,7 +57,7 @@ def test_replay_matches_stored_score_inv15(db_conn, career_id, seeded_relationsh
         ("coach", {"trust": 74, "promised_minutes": 60, "tactical_fit": 0.8}),
         ("media", {"outlet": "Spor Manşet", "tone": "olumlu", "interviews_given": 7}),
         ("partner", {"together_since": "2025-11-02", "gift_count": 3, "mood": "özlemiş"}),
-        ("teammates", {"anything_goes": True}),
+        ("team", {"anything_goes": True}),
         ("family", {"whatever": 1}),
     ],
 )

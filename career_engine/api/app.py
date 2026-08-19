@@ -1,14 +1,31 @@
 """FastAPI application factory. Routers are wired on as each domain area
-(§5.1-§5.7) lands; for now this boots with no routes beyond error handling
-so the skeleton can be previewed end-to-end before any endpoint exists."""
+(§5.1-§5.7) lands."""
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from api import config
 from api.errors import install_exception_handlers
+from api.routers import careers
+from db.connection import get_connection
+from db.migrate import apply_migrations
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    # Reads config.DB_PATH at call time (not import time) so tests can
+    # monkeypatch it before the TestClient triggers this.
+    conn = get_connection(config.DB_PATH)
+    try:
+        apply_migrations(conn)
+    finally:
+        conn.close()
+    yield
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="career_engine API", version="1.0")
+    app = FastAPI(title="career_engine API", version="1.0", lifespan=_lifespan)
     install_exception_handlers(app)
 
     # Local-only, single-player dev backend — wildcard is fine, no auth/cookies
@@ -19,6 +36,8 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    app.include_router(careers.router)
 
     return app
 

@@ -4,6 +4,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
+from fastapi.testclient import TestClient
 
 from db.connection import get_connection
 from db.migrate import apply_migrations
@@ -62,3 +63,18 @@ def seeded_relationship(db_conn, career_id):
     )
     db_conn.commit()
     return "coach"
+
+
+@pytest.fixture
+def api_client(tmp_path, monkeypatch):
+    """A FastAPI TestClient wired to a fresh, migrated SQLite file per
+    test. config.DB_PATH is read dynamically (not bound at import time) by
+    both the startup migration hook and api/deps.get_db(), specifically so
+    monkeypatching it here redirects every request this client makes."""
+    db_path = tmp_path / "test_career_engine.db"
+    monkeypatch.setattr("api.config.DB_PATH", db_path)
+
+    from api.app import app
+
+    with TestClient(app) as client:
+        yield client

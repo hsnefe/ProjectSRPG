@@ -2,7 +2,7 @@
 per-kind validation of the traits JSON column (INV-16).
 
 Only three kinds have a documented trait shape in CONTRACT.md §3.4 (coach,
-media, partner); teammates and family are left open (extra fields allowed,
+media, partner); team and family are left open (extra fields allowed,
 nothing required) until their dialogue content is written. INV-16 still
 applies to them - traits must be a dict - just against a permissive model.
 """
@@ -40,7 +40,7 @@ class PartnerTraits(_BaseTraits):
 
 
 class _OpenTraits(_BaseTraits):
-    """teammates/family - no shape pinned down yet, so anything validates."""
+    """team/family - no shape pinned down yet, so anything validates."""
     model_config = ConfigDict(extra="allow")
 
 
@@ -48,7 +48,7 @@ KIND_TRAIT_MODELS: dict = {
     "coach": CoachTraits,
     "media": MediaTraits,
     "partner": PartnerTraits,
-    "teammates": _OpenTraits,
+    "team": _OpenTraits,
     "family": _OpenTraits,
 }
 

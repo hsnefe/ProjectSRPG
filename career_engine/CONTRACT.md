@@ -701,7 +701,7 @@ sınırı. Bir gün gerçekten ayrılması gerekirse ayrılacak yer zaten belli.
 ```sql
 CREATE TABLE relationship (
   career_id       TEXT NOT NULL,
-  relationship_id TEXT NOT NULL,           -- 'coach','teammates','media','partner','family'
+  relationship_id TEXT NOT NULL,           -- 'coach','team','media','partner','family'
   kind            TEXT NOT NULL,           -- traits'i hangi modelin doğrulayacağı
   category        TEXT NOT NULL,           -- FE'nin kart başlığı: 'Antrenör' vb.
   score           INTEGER NOT NULL,        -- 0-100, SAKLANIR (D24)
