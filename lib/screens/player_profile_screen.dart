@@ -1,28 +1,47 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/net/career_models.dart' as api;
+import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/contract_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/widgets/pill_dropdown.dart';
 import 'package:project_srpg/widgets/value_scatter_chart.dart';
 
-/// İçinde bulunulan sezon. 'Bu sezon' filtresi buna çözülür.
-const _currentSeasonId = '25/26';
-
+/// P2'nin `competition_kind` üç değeri (API katmanı `league→lig`,
+/// `cup→kupa`, `continental→uluslararasi` eşlemesini zaten yapar, §5.2).
 enum _Competition { lig, kupa, uluslararasi }
 
-/// Sezon filtresinin seçenekleri. [seasonId] null ise bütün sezonlar eşleşir;
-/// 'Tümü' ayrı bir durum değil, sadece bu eksende filtrelememek demek.
-enum _SeasonFilter {
-  all('Tümü', null),
-  current('Bu sezon', _currentSeasonId),
-  s2425('24/25 Sezonu', '24/25'),
-  s2324('23/24 Sezonu', '23/24');
+_Competition? _competitionOf(String kind) => switch (kind) {
+      'lig' => _Competition.lig,
+      'kupa' => _Competition.kupa,
+      'uluslararasi' => _Competition.uluslararasi,
+      _ => null,
+    };
 
+/// Sezon filtresinin seçenekleri — P2 yanıtındaki satırlardan **türetilir**
+/// (§1.3): hangi sezonların var olduğunu FE uydurmaz. [seasonId] null ise
+/// bütün sezonlar eşleşir; 'Tümü' ayrı bir durum değil, sadece bu eksende
+/// filtrelememek demek.
+class _SeasonFilter {
   const _SeasonFilter(this.label, this.seasonId);
 
   final String label;
   final String? seasonId;
 
   bool matches(_SeasonStats row) => seasonId == null || row.seasonId == seasonId;
+
+  /// Satırlardaki sezonları en yeniden eskiye sıralar; en yenisi "Bu sezon"
+  /// etiketini alır (P2 zaten güncel sezonu ilk sırada döndürmez, sıralama
+  /// burada yapılır — id'ler 'YY/YY' biçiminde olduğu için string sıralaması
+  /// yeterli).
+  static List<_SeasonFilter> optionsFrom(Iterable<_SeasonStats> rows) {
+    final seasons = rows.map((r) => r.seasonId).toSet().toList()
+      ..sort((a, b) => b.compareTo(a));
+    return [
+      const _SeasonFilter('Tümü', null),
+      for (var i = 0; i < seasons.length; i++)
+        _SeasonFilter(i == 0 ? 'Bu sezon' : '${seasons[i]} Sezonu', seasons[i]),
+    ];
+  }
 }
 
 /// Müsabaka filtresinin seçenekleri. [competition] null ise hepsi eşleşir.
@@ -41,8 +60,8 @@ enum _CompetitionFilter {
       competition == null || row.competition == competition;
 }
 
-/// Tek bir (sezon, müsabaka) kesiti. Tablo satırları bunlardan toplanarak
-/// üretilir; her filtre kombinasyonu için ayrı kayıt tutulmaz.
+/// Tek bir (sezon, müsabaka) kesiti — P2'nin `rows[]` satırı, ekranın
+/// kullandığı şekle çevrilmiş.
 class _SeasonStats {
   const _SeasonStats({
     required this.seasonId,
@@ -55,6 +74,18 @@ class _SeasonStats {
     required this.passesCompleted,
     required this.passesAttempted,
   });
+
+  factory _SeasonStats.from(api.SeasonStatRow row) => _SeasonStats(
+        seasonId: row.seasonId,
+        competition: _competitionOf(row.competitionKind) ?? _Competition.lig,
+        appearances: row.appearances,
+        starts: row.starts,
+        goals: row.goals,
+        assists: row.assists,
+        minutes: row.minutes,
+        passesCompleted: row.passesCompleted,
+        passesAttempted: row.passesAttempted,
+      );
 
   final String seasonId;
   final _Competition competition;
@@ -125,7 +156,10 @@ class _StatTotals {
 }
 
 class PlayerProfileScreen extends StatefulWidget {
-  const PlayerProfileScreen({super.key});
+  const PlayerProfileScreen({super.key, this.session});
+
+  /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
+  final CareerSession? session;
 
   static const _surface1 = Color(0xFF1A1D24);
   static const _surface2 = Color(0xFF22262F);
@@ -140,93 +174,27 @@ class PlayerProfileScreen extends StatefulWidget {
 }
 
 class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
-  static const _stats = [
-    _SeasonStats(
-      seasonId: '25/26',
-      competition: _Competition.lig,
-      appearances: 18,
-      starts: 15,
-      goals: 4,
-      assists: 6,
-      minutes: 1342,
-      passesCompleted: 389,
-      passesAttempted: 442,
-    ),
-    _SeasonStats(
-      seasonId: '25/26',
-      competition: _Competition.kupa,
-      appearances: 4,
-      starts: 3,
-      goals: 1,
-      assists: 1,
-      minutes: 310,
-      passesCompleted: 88,
-      passesAttempted: 101,
-    ),
-    _SeasonStats(
-      seasonId: '25/26',
-      competition: _Competition.uluslararasi,
-      appearances: 6,
-      starts: 4,
-      goals: 2,
-      assists: 2,
-      minutes: 421,
-      passesCompleted: 132,
-      passesAttempted: 155,
-    ),
-    _SeasonStats(
-      seasonId: '24/25',
-      competition: _Competition.lig,
-      appearances: 31,
-      starts: 24,
-      goals: 5,
-      assists: 8,
-      minutes: 2310,
-      passesCompleted: 640,
-      passesAttempted: 742,
-    ),
-    _SeasonStats(
-      seasonId: '24/25',
-      competition: _Competition.kupa,
-      appearances: 5,
-      starts: 4,
-      goals: 2,
-      assists: 1,
-      minutes: 402,
-      passesCompleted: 110,
-      passesAttempted: 128,
-    ),
-    _SeasonStats(
-      seasonId: '23/24',
-      competition: _Competition.lig,
-      appearances: 12,
-      starts: 5,
-      goals: 1,
-      assists: 2,
-      minutes: 640,
-      passesCompleted: 168,
-      passesAttempted: 210,
-    ),
-  ];
+  late final CareerSession _session = widget.session ?? CareerSession.instance;
+  late Future<api.PlayerStats> _statsFuture;
 
-  /// Kariyer boyu piyasa değeri. Filtrelerden bağımsız: 'kupa maçlarındaki
-  /// piyasa değeri' anlamlı bir büyüklük değil.
-  static const _valueHistory = [
-    ValuePoint(label: 'Oca 24', value: 450000),
-    ValuePoint(label: 'Tem 24', value: 900000),
-    ValuePoint(label: 'Oca 25', value: 1600000),
-    ValuePoint(label: 'Tem 25', value: 1400000),
-    ValuePoint(label: 'Oca 26', value: 2900000),
-    ValuePoint(label: 'Tem 26', value: 4200000),
-  ];
-
-  _SeasonFilter _season = _SeasonFilter.current;
+  _SeasonFilter? _season;
   _CompetitionFilter _competition = _CompetitionFilter.all;
+
+  @override
+  void initState() {
+    super.initState();
+    _statsFuture = _load();
+  }
+
+  /// P2 · `GET /careers/{cid}/player/stats`.
+  Future<api.PlayerStats> _load() async {
+    final careerId = await _session.resolve();
+    return _session.client.playerStats(careerId);
+  }
 
   @override
   Widget build(BuildContext context) {
     final player = PlayerScope.of(context);
-    final totals = _StatTotals.of(_stats, _season, _competition);
 
     return Scaffold(
       backgroundColor: PlayerProfileScreen._surface1,
@@ -256,22 +224,85 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                         teamName: player.teamName,
                       ),
                       Expanded(
-                        child: ListView(
-                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
-                          children: [
-                            _FilterRow(
-                              season: _season,
-                              competition: _competition,
-                              onSeasonChanged: (value) =>
-                                  setState(() => _season = value),
-                              onCompetitionChanged: (value) =>
-                                  setState(() => _competition = value),
-                            ),
-                            const SizedBox(height: 10),
-                            _StatsPanel(totals: totals),
-                            const SizedBox(height: 16),
-                            const _ValuePanel(points: _valueHistory),
-                          ],
+                        child: FutureBuilder<api.PlayerStats>(
+                          future: _statsFuture,
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData && !snapshot.hasError) {
+                              return const Center(
+                                child: SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: PlayerProfileScreen._textMuted,
+                                  ),
+                                ),
+                              );
+                            }
+                            if (snapshot.hasError) {
+                              return Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24),
+                                  child: Text(
+                                    'İstatistikler alınamadı.',
+                                    style: const TextStyle(
+                                      color: PlayerProfileScreen._textMuted,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
+
+                            final stats = snapshot.data!;
+                            final rows = stats.rows
+                                .map(_SeasonStats.from)
+                                .toList(growable: false);
+                            final seasonOptions =
+                                _SeasonFilter.optionsFrom(rows);
+                            // Kullanıcı henüz bir sezon seçmediyse varsayılan
+                            // "Bu sezon" (varsa) — 'Tümü' ile karıştırılmasın
+                            // diye null burada ayrı ele alınıyor.
+                            final chosen = _season;
+                            final season = chosen == null
+                                ? (seasonOptions.length > 1
+                                    ? seasonOptions[1]
+                                    : seasonOptions.first)
+                                : seasonOptions.firstWhere(
+                                    (o) => o.seasonId == chosen.seasonId,
+                                    orElse: () => seasonOptions.first,
+                                  );
+                            final totals =
+                                _StatTotals.of(rows, season, _competition);
+                            final points = stats.valueHistory
+                                .map((p) => ValuePoint(
+                                      label: _monthLabel(p.measuredOn),
+                                      value: p.value.toDouble(),
+                                    ))
+                                .toList(growable: false);
+
+                            return ListView(
+                              padding:
+                                  const EdgeInsets.fromLTRB(16, 14, 16, 20),
+                              children: [
+                                _FilterRow(
+                                  season: season,
+                                  seasonOptions: seasonOptions,
+                                  competition: _competition,
+                                  onSeasonChanged: (value) =>
+                                      setState(() => _season = value),
+                                  onCompetitionChanged: (value) =>
+                                      setState(() => _competition = value),
+                                ),
+                                const SizedBox(height: 10),
+                                _StatsPanel(totals: totals),
+                                if (points.isNotEmpty) ...[
+                                  const SizedBox(height: 16),
+                                  _ValuePanel(points: points),
+                                ],
+                              ],
+                            );
+                          },
                         ),
                       ),
                     ],
@@ -284,6 +315,20 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
       ),
     );
   }
+}
+
+const _monthAbbrevs = [
+  'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
+  'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara',
+];
+
+/// '2024-01-15' → 'Oca 24' — §1.3: BE `measured_on` tarihini verir, kısa
+/// etiketi ekran türetir.
+String _monthLabel(String isoDate) {
+  final date = DateTime.tryParse(isoDate);
+  if (date == null) return isoDate;
+  final year2 = (date.year % 100).toString().padLeft(2, '0');
+  return '${_monthAbbrevs[date.month - 1]} $year2';
 }
 
 class _HeaderSection extends StatelessWidget {
@@ -406,12 +451,14 @@ class _IdentityRow extends StatelessWidget {
 class _FilterRow extends StatelessWidget {
   const _FilterRow({
     required this.season,
+    required this.seasonOptions,
     required this.competition,
     required this.onSeasonChanged,
     required this.onCompetitionChanged,
   });
 
   final _SeasonFilter season;
+  final List<_SeasonFilter> seasonOptions;
   final _CompetitionFilter competition;
   final ValueChanged<_SeasonFilter> onSeasonChanged;
   final ValueChanged<_CompetitionFilter> onCompetitionChanged;
@@ -424,7 +471,7 @@ class _FilterRow extends StatelessWidget {
         PillDropdown<_SeasonFilter>(
           key: const ValueKey('seasonFilter'),
           value: season,
-          items: _SeasonFilter.values,
+          items: seasonOptions,
           labelOf: (value) => value.label,
           onChanged: onSeasonChanged,
         ),

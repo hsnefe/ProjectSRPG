@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/net/career_models.dart' as api;
+import 'package:project_srpg/net/career_session.dart';
 
 /// Sözleşmedeki tek bir kalem.
 class _ContractTerm {
@@ -11,8 +13,11 @@ class _ContractTerm {
   final Color? tint;
 }
 
-class ContractScreen extends StatelessWidget {
-  const ContractScreen({super.key});
+class ContractScreen extends StatefulWidget {
+  const ContractScreen({super.key, this.session});
+
+  /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
+  final CareerSession? session;
 
   static const _surface1 = Color(0xFF1A1D24);
   static const _surface2 = Color(0xFF22262F);
@@ -22,26 +27,25 @@ class ContractScreen extends StatelessWidget {
   static const _accent = Color(0xFF1E6FD9);
   static const _warning = Color(0xFFF5A623);
 
-  // Tutarlar önceden biçimlenmiş literal: statik mock veride çalışma anında
-  // biçimlendirecek bir şey yok, böylece binlik ayracı yardımcısının üçüncü
-  // kopyası da açılmıyor.
-  static const _terms = [
-    _ContractTerm(label: 'Kulüp', value: 'FK Yıldız'),
-    _ContractTerm(label: 'İmza tarihi', value: '01.07.2024'),
-    _ContractTerm(label: 'Sözleşme bitişi', value: '30.06.2027'),
-  ];
+  @override
+  State<ContractScreen> createState() => _ContractScreenState();
+}
 
-  static const _earnings = [
-    _ContractTerm(label: 'Haftalık maaş', value: '₺180.000'),
-    _ContractTerm(label: 'Aylık maaş', value: '₺720.000'),
-    _ContractTerm(label: 'Maç başı primi', value: '₺25.000'),
-    _ContractTerm(label: 'Gol primi', value: '₺40.000'),
-    _ContractTerm(
-      label: 'Serbest kalma bedeli',
-      value: '₺12.000.000',
-      tint: _warning,
-    ),
-  ];
+class _ContractScreenState extends State<ContractScreen> {
+  late final CareerSession _session = widget.session ?? CareerSession.instance;
+  late Future<api.PlayerContract?> _contractFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _contractFuture = _load();
+  }
+
+  /// P3 · `GET /careers/{cid}/player/contract`.
+  Future<api.PlayerContract?> _load() async {
+    final careerId = await _session.resolve();
+    return _session.client.playerContract(careerId);
+  }
 
   void _showStubMessage(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -56,7 +60,7 @@ class ContractScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _surface1,
+      backgroundColor: ContractScreen._surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -65,9 +69,9 @@ class ContractScreen extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: _surface2,
+                  color: ContractScreen._surface2,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _border, width: 0.5),
+                  border: Border.all(color: ContractScreen._border, width: 0.5),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -77,14 +81,108 @@ class ContractScreen extends StatelessWidget {
                     children: [
                       const _HeaderSection(),
                       Expanded(
-                        child: ListView(
-                          padding: EdgeInsets.zero,
-                          children: [
-                            const _SectionTitle(label: 'SÖZLEŞME'),
-                            for (final term in _terms) _TermRow(term: term),
-                            const _SectionTitle(label: 'KAZANÇ'),
-                            for (final term in _earnings) _TermRow(term: term),
-                          ],
+                        child: FutureBuilder<api.PlayerContract?>(
+                          future: _contractFuture,
+                          builder: (context, snapshot) {
+                            // `AsyncSnapshot.hasData` yalnızca `data != null`
+                            // demektir — P3 gerçekten `null` dönebildiği için
+                            // (§5.2, hiç sözleşme yoksa) yüklenme durumu
+                            // `connectionState`den anlaşılmalı, `hasData`'dan
+                            // değil; yoksa null sonuç sonsuz döngüde takılır.
+                            if (snapshot.connectionState !=
+                                ConnectionState.done) {
+                              return const Center(
+                                child: SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: ContractScreen._textMuted,
+                                  ),
+                                ),
+                              );
+                            }
+                            if (snapshot.hasError) {
+                              return const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(24),
+                                  child: Text(
+                                    'Sözleşme bilgisi alınamadı.',
+                                    style: TextStyle(
+                                      color: ContractScreen._textMuted,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
+                            final contract = snapshot.data;
+                            if (contract == null) {
+                              return const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(24),
+                                  child: Text(
+                                    'Henüz bir sözleşmen yok.',
+                                    style: TextStyle(
+                                      color: ContractScreen._textMuted,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
+
+                            final terms = [
+                              _ContractTerm(
+                                label: 'Kulüp',
+                                value: contract.team.name,
+                              ),
+                              _ContractTerm(
+                                label: 'İmza tarihi',
+                                value: _ddmmyyyy(contract.signedAt),
+                              ),
+                              _ContractTerm(
+                                label: 'Sözleşme bitişi',
+                                value: _ddmmyyyy(contract.expiresAt),
+                              ),
+                            ];
+                            final earnings = [
+                              _ContractTerm(
+                                label: 'Haftalık maaş',
+                                value: _money(contract.weeklyWage),
+                              ),
+                              // Türetilmiş — weekly_wage × 4, ayrı bir ödeme
+                              // değil (§3.2).
+                              _ContractTerm(
+                                label: 'Aylık maaş',
+                                value: _money(contract.monthlyWage),
+                              ),
+                              _ContractTerm(
+                                label: 'Maç başı primi',
+                                value: _money(contract.appearanceBonus),
+                              ),
+                              _ContractTerm(
+                                label: 'Gol primi',
+                                value: _money(contract.goalBonus),
+                              ),
+                              _ContractTerm(
+                                label: 'Serbest kalma bedeli',
+                                value: _money(contract.releaseClause),
+                                tint: ContractScreen._warning,
+                              ),
+                            ];
+
+                            return ListView(
+                              padding: EdgeInsets.zero,
+                              children: [
+                                const _SectionTitle(label: 'SÖZLEŞME'),
+                                for (final term in terms) _TermRow(term: term),
+                                const _SectionTitle(label: 'KAZANÇ'),
+                                for (final term in earnings)
+                                  _TermRow(term: term),
+                              ],
+                            );
+                          },
                         ),
                       ),
                       Padding(
@@ -97,8 +195,8 @@ class ContractScreen extends StatelessWidget {
                               'Sözleşme uzatma yakında',
                             ),
                             style: FilledButton.styleFrom(
-                              backgroundColor: _accent,
-                              foregroundColor: _textPrimary,
+                              backgroundColor: ContractScreen._accent,
+                              foregroundColor: ContractScreen._textPrimary,
                               padding: const EdgeInsets.symmetric(vertical: 13),
                               textStyle: const TextStyle(
                                 fontSize: 14,
@@ -122,6 +220,26 @@ class ContractScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 'YYYY-MM-DD' → 'DD.MM.YYYY'. BE ISO-8601 verir, biçimlendirme FE'nin işi
+/// (§1.3).
+String _ddmmyyyy(String isoDate) {
+  final date = DateTime.tryParse(isoDate);
+  if (date == null) return isoDate;
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${two(date.day)}.${two(date.month)}.${date.year}';
+}
+
+/// '₺180.000' — binlik ayracı nokta, BE tam sayı verir (§1.3).
+String _money(int value) {
+  final digits = value.abs().toString();
+  final buffer = StringBuffer(value < 0 ? '-' : '');
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write('.');
+    buffer.write(digits[i]);
+  }
+  return '₺${buffer.toString()}';
 }
 
 class _HeaderSection extends StatelessWidget {
