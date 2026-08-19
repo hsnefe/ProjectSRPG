@@ -10,9 +10,9 @@ import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/career_center_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 
-http.Response _json(Object body) => http.Response(
+http.Response _json(Object body, {int status = 200}) => http.Response(
       jsonEncode(body),
-      200,
+      status,
       headers: {'content-type': 'application/json; charset=utf-8'},
     );
 
@@ -74,10 +74,38 @@ const _newsPreview = [
   },
 ];
 
-CareerSession _hubSession(Map<String, dynamic> hubBody) {
+Map<String, dynamic> _dayBody({bool isMatchDay = false, String? currentDate}) {
+  return {
+    'career_state': {
+      'current_date': currentDate ?? '2026-08-19', 'season_id': '25/26',
+      'money': 48200, 'condition': 72, 'day_budget': {'time': 720.0},
+    },
+    'is_match_day': isMatchDay,
+    'events': const [],
+  };
+}
+
+CareerSession _hubSession(
+  Map<String, dynamic> hubBody, {
+  Map<String, dynamic>? dayBody,
+  http.Response Function(http.Request)? onAdvance,
+}) {
   final mock = MockClient((request) async {
     if (request.url.path == '/careers') return _json(_careersListBody);
     if (request.url.path == '/careers/car_test') return _json(hubBody);
+    if (request.url.path == '/careers/car_test/day') {
+      return _json(dayBody ?? _dayBody());
+    }
+    if (request.url.path == '/careers/car_test/advance') {
+      return onAdvance?.call(request) ??
+          _json({
+            'career_state': (dayBody ?? _dayBody())['career_state'],
+            'days_advanced': 1, 'stopped_on': '2026-08-20',
+            'stop_reason': 'none', 'simulated': {'fixtures': 0, 'competitions': 0},
+            'ledger_entries': const [], 'news_created': const [],
+            'repossessed': const [],
+          });
+    }
     return http.Response('unexpected ${request.url}', 404);
   });
   return CareerSession(client: CareerApiClient(httpClient: mock, baseUrl: 'http://test'));
@@ -150,5 +178,69 @@ void main() {
     // Eylem düğmeleri (İlişkiler/Antrenman/Yaşam tarzı) hub'a bağlı değil,
     // hata durumunda bile görünür kalmalı.
     expect(find.text('İlişkiler'), findsOneWidget);
+  });
+
+  testWidgets('gün satırı T1\'in tarihini ve maç günü rozetini gösterir',
+      (tester) async {
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      dayBody: _dayBody(isMatchDay: true),
+    );
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('19 Ağustos 2026'), findsOneWidget);
+    expect(find.text('Maç günü'), findsOneWidget);
+    expect(find.text('İlerle'), findsOneWidget);
+  });
+
+  testWidgets('İlerle T3\'ü çağırır, kondisyonu ve hub\'ı tazeler',
+      (tester) async {
+    var advanceCalls = 0;
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      onAdvance: (request) {
+        advanceCalls++;
+        return _json({
+          'career_state': {
+            'current_date': '2026-08-22', 'season_id': '25/26',
+            'money': 48200, 'condition': 80, 'day_budget': {'time': 720.0},
+          },
+          'days_advanced': 3, 'stopped_on': '2026-08-22',
+          'stop_reason': 'match', 'simulated': {'fixtures': 8, 'competitions': 2},
+          'ledger_entries': const [], 'news_created': const [],
+          'repossessed': const [],
+        });
+      },
+    );
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('İlerle'));
+    await tester.pumpAndSettle();
+
+    expect(advanceCalls, 1);
+    expect(find.textContaining('3 gün ilerledi — maç günü.'), findsOneWidget);
+    // career_state.condition (80) PlayerState'e yansımış olmalı.
+    await tester.scrollUntilVisible(find.text('%80'), 200);
+    expect(find.text('%80'), findsOneWidget);
+  });
+
+  testWidgets('İlerle 409 dönerse SnackBar gösterir, condition değişmez',
+      (tester) async {
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      onAdvance: (request) => _json(
+        {'code': 'season_finished', 'message': 'the season has ended'},
+        status: 409,
+      ),
+    );
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('İlerle'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('the season has ended'), findsOneWidget);
   });
 }

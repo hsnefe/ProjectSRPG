@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/league_table_screen.dart';
@@ -42,18 +43,62 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
   late final CareerSession _session =
       widget.session ?? CareerSession.instance;
   late Future<api.CareerHub> _hubFuture;
+  late Future<api.DayInfo> _dayFuture;
+  bool _advancing = false;
 
   @override
   void initState() {
     super.initState();
-    _hubFuture = _load();
+    _hubFuture = _loadHub();
+    _dayFuture = _loadDay();
   }
 
   /// C3 · `GET /careers/{cid}` — tek çağrıda hub verisi (sonraki maç + puan
   /// durumu özeti + haber önizlemesi).
-  Future<api.CareerHub> _load() async {
+  Future<api.CareerHub> _loadHub() async {
     final careerId = await _session.resolve();
     return _session.client.hub(careerId);
+  }
+
+  /// T1 · `GET /careers/{cid}/day` — bugün: tarih, maç günü mü, bugünkü
+  /// olaylar.
+  Future<api.DayInfo> _loadDay() async {
+    final careerId = await _session.resolve();
+    return _session.client.day(careerId);
+  }
+
+  /// T3 · `POST /careers/{cid}/advance` — bir sonraki olaylı güne kadar
+  /// ilerler (§6.3). Gün ve hub verisi bu yüzden birlikte tazelenir: yeni
+  /// fikstürler koşmuş, haberler oluşmuş olabilir.
+  Future<void> _advance() async {
+    setState(() => _advancing = true);
+    final player = PlayerScope.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final careerId = await _session.resolve();
+      final result =
+          await _session.client.advance(careerId, to: 'next_event');
+      player.applyServerUpdate(careerState: result.careerState);
+      if (!mounted) return;
+      setState(() {
+        _hubFuture = _loadHub();
+        _dayFuture = _loadDay();
+        _advancing = false;
+      });
+      messenger.showSnackBar(SnackBar(content: Text(_advanceSummary(result))));
+    } on CareerApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _advancing = false);
+      messenger.showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Gün ilerletilemedi.')),
+      );
+    }
+  }
+
+  String _advanceSummary(api.AdvanceResult result) {
+    final base = '${result.daysAdvanced} gün ilerledi';
+    final reason = _dayEventLabels[result.stopReason];
+    return reason == null ? '$base.' : '$base — $reason.';
   }
 
   @override
@@ -77,18 +122,26 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: FutureBuilder<api.CareerHub>(
-                    future: _hubFuture,
-                    builder: (context, snapshot) {
-                      return ListView(
-                        children: [
-                          const _HeaderSection(),
-                          const _ProgressSection(),
-                          ..._hubDependentSections(snapshot),
-                          const _ActionsSection(),
-                        ],
-                      );
-                    },
+                  child: ListView(
+                    children: [
+                      const _HeaderSection(),
+                      const _ProgressSection(),
+                      FutureBuilder<api.DayInfo>(
+                        future: _dayFuture,
+                        builder: (context, snapshot) => _DaySection(
+                          snapshot: snapshot,
+                          busy: _advancing,
+                          onAdvance: _advance,
+                        ),
+                      ),
+                      FutureBuilder<api.CareerHub>(
+                        future: _hubFuture,
+                        builder: (context, snapshot) => Column(
+                          children: _hubDependentSections(snapshot),
+                        ),
+                      ),
+                      const _ActionsSection(),
+                    ],
                   ),
                 ),
               ),
@@ -323,6 +376,121 @@ class _ProgressSection extends StatelessWidget {
                   backgroundColor: CareerCenterScreen._surface1,
                   color: CareerCenterScreen._success,
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// T1 `events[].kind` / T3 `stop_reason` — cümle gönderilmez, ekran kendi
+/// metnini kurar (§1.3, §5.5). `'none'` (T3'ün "hiçbir olay yok" durumu)
+/// bilinçli olarak haritada yok — çağıran taraf onu null'a eşler.
+const _dayEventLabels = {
+  'match': 'maç günü',
+  'cup_draw': 'kupa kurası',
+  'contract_expiring': 'sözleşme bitiyor',
+  'upkeep_warning': 'gider uyarısı',
+  'relationship_low': 'ilişki düşük',
+  'season_end': 'sezon sonu',
+};
+
+const _dayMonths = [
+  'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+  'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
+];
+
+/// 'YYYY-MM-DD' → '19 Ağustos 2026' — tarih bileşeni yalnız (saat yok), bu
+/// yüzden `career_center_screen.dart`'ın kickoff yardımcısındaki UTC
+/// dönüşümü sorunu burada yok (§1.3).
+String _fullDateLabel(String isoDate) {
+  final date = DateTime.tryParse(isoDate);
+  if (date == null) return isoDate;
+  return '${date.day} ${_dayMonths[date.month - 1]} ${date.year}';
+}
+
+/// T1 (bugünün durumu, salt gösterim) + T3 (`İlerle` butonu) — kariyerin
+/// tek zaman kaynağı burada ilerler (§6.1). Uçlar arasındaki fark: T1 hiçbir
+/// şeyi değiştirmez, yalnızca okur; ilerlemeyi tek başına T3 yapar.
+class _DaySection extends StatelessWidget {
+  const _DaySection({
+    required this.snapshot,
+    required this.busy,
+    required this.onAdvance,
+  });
+
+  final AsyncSnapshot<api.DayInfo> snapshot;
+  final bool busy;
+  final VoidCallback onAdvance;
+
+  @override
+  Widget build(BuildContext context) {
+    final day = snapshot.data;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: _LitCard(
+        borderRadius: 12,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      day == null
+                          ? 'Bugün'
+                          : _fullDateLabel(day.careerState.currentDate),
+                      style: const TextStyle(
+                        color: CareerCenterScreen._textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (day != null && day.isMatchDay) ...[
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Maç günü',
+                        style: TextStyle(
+                          color: CareerCenterScreen._success,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              OutlinedButton(
+                onPressed: busy ? null : onAdvance,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: CareerCenterScreen._textPrimary,
+                  disabledForegroundColor: CareerCenterScreen._textMuted,
+                  side: const BorderSide(color: CareerCenterScreen._border),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  textStyle: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  shape:
+                      RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: busy
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: CareerCenterScreen._textMuted,
+                        ),
+                      )
+                    : const Text('İlerle'),
               ),
             ],
           ),
