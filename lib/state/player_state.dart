@@ -3,7 +3,8 @@ import 'package:project_srpg/net/career_models.dart';
 import 'package:project_srpg/net/career_session.dart';
 
 /// Tek kaynaklı oyuncu durumu. Kondisyon ve para bütün ekranlarda buradan
-/// okunur; aktiviteler [applyActivity] ile bu değerleri değiştirir.
+/// okunur; aktiviteler backend'e yazıldıktan sonra [applyServerUpdate] ile
+/// buraya yansıtılır.
 ///
 /// P1 (`GET /careers/{cid}/player`, CONTRACT.md §5.2) tarafından beslenir.
 /// [load] çağrılana kadar alanlar boş/sıfır kalır — [PlayerScope] bunu bir
@@ -84,20 +85,33 @@ class PlayerState extends ChangeNotifier {
     }
   }
 
-  /// Bir aktivitenin etkisini uygular. [conditionDelta] artı ya da eksi
-  /// olabilir, sonuç 0-100 aralığına sıkıştırılır. [cost] paradan düşülür.
-  ///
-  /// ⚠️ Şimdilik yalnızca yerel durumu değiştirir — T2'ye (`POST
-  /// /careers/{cid}/actions`) henüz bağlı değil; o bağlantı training/
-  /// lifestyle ekranlarının kendi commit'inde gelecek.
-  void applyActivity({int conditionDelta = 0, int cost = 0}) {
-    final nextCondition = (_condition + conditionDelta).clamp(0, 100);
-    final nextMoney = _money - cost;
-    if (nextCondition == _condition && nextMoney == _money) {
-      return;
+  /// T2/T4/R3 gibi durum değiştiren her uç tam bir `career_state` bloğu
+  /// döner (D28, INV-18); bu, o yanıtı yerel duruma yazan **tek** yol —
+  /// ekranlar kendi başına `_condition`/`_money` mutasyonu yapmaz.
+  /// [attributeChanges] verilirse (T2/R3) ilgili niteliklerin `value`'sunu
+  /// da günceller, radar ekranları ikinci bir P1 çağrısı yapmadan tazelenir.
+  void applyServerUpdate({
+    CareerState? careerState,
+    List<AttributeChange> attributeChanges = const [],
+  }) {
+    if (careerState != null) {
+      _condition = careerState.condition;
+      _money = careerState.money;
     }
-    _condition = nextCondition;
-    _money = nextMoney;
+    if (attributeChanges.isNotEmpty) {
+      final updated = [..._attributes];
+      for (final change in attributeChanges) {
+        final index = updated.indexWhere((a) => a.key == change.key);
+        if (index != -1) {
+          updated[index] = PlayerAttribute(
+            key: change.key,
+            family: updated[index].family,
+            value: change.after,
+          );
+        }
+      }
+      _attributes = updated;
+    }
     notifyListeners();
   }
 

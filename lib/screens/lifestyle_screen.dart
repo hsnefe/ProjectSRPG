@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/net/career_api_client.dart';
+import 'package:project_srpg/net/career_models.dart' as api;
+import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/shop_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/widgets/activity_card.dart';
@@ -18,8 +21,81 @@ class _ActivitySectionData {
   final List<LifestyleActivity> activities;
 }
 
+/// §5.8 — ikon ve renk tonu BE'den gelmez, FE'nin sunum kararı (N3 yalnızca
+/// `catalog_id`/`title`/`description`/`duration_label`/`costs`/`effects`
+/// verir). `catalog_id` sabit olduğu için burada elle eşleniyor.
+const _iconByCatalogId = {
+  'ev-uyku': Icons.bedtime_outlined,
+  'ev-yemek': Icons.restaurant_outlined,
+  'ev-meditasyon': Icons.self_improvement,
+  'ev-oyun': Icons.sports_esports_outlined,
+  'ev-film': Icons.movie_outlined,
+  'fiz-kosu': Icons.directions_run,
+  'fiz-yuzme': Icons.pool_outlined,
+  'fiz-bisiklet': Icons.pedal_bike_outlined,
+  'fiz-yoga': Icons.accessibility_new,
+  'fiz-sauna': Icons.spa_outlined,
+  'sos-arkadas': Icons.groups_outlined,
+  'sos-kafe': Icons.local_cafe_outlined,
+  'sos-aile': Icons.home_outlined,
+  'sos-konser': Icons.music_note_outlined,
+  'sos-taraftar': Icons.emoji_events_outlined,
+};
+
+const _tintByCatalogId = {
+  'ev-uyku': Color(0xFF4C5BD4),
+  'ev-yemek': Color(0xFF2E9E6B),
+  'ev-meditasyon': Color(0xFF7C5CD6),
+  'ev-oyun': Color(0xFFC2544D),
+  'ev-film': Color(0xFF3F6BA8),
+  'fiz-kosu': Color(0xFF1E6FD9),
+  'fiz-yuzme': Color(0xFF2AA6C4),
+  'fiz-bisiklet': Color(0xFF3D9A57),
+  'fiz-yoga': Color(0xFF8E5CC7),
+  'fiz-sauna': Color(0xFFD4783C),
+  'sos-arkadas': Color(0xFFD9694F),
+  'sos-kafe': Color(0xFF9C7A4E),
+  'sos-aile': Color(0xFF2E9E6B),
+  'sos-konser': Color(0xFF8B4FCF),
+  'sos-taraftar': Color(0xFFF5A623),
+};
+
+const _defaultTint = Color(0xFF6B7280);
+
+LifestyleActivity _toActivity(api.CatalogItem item) {
+  return LifestyleActivity(
+    id: item.catalogId,
+    title: item.title,
+    description: item.description ?? '',
+    icon: _iconByCatalogId[item.catalogId] ?? Icons.circle_outlined,
+    tint: _tintByCatalogId[item.catalogId] ?? _defaultTint,
+    duration: item.durationLabel ?? '',
+    conditionDelta: (item.effects['condition'] as num?)?.toInt() ?? 0,
+    // Para bir `cost` değil, negatif bir `effect`'tir (§6.2) — kart burada
+    // pozitif bir ₺ etiketi gösterdiği için işareti çeviriyoruz.
+    cost: -((item.effects['money'] as num?)?.toInt() ?? 0),
+  );
+}
+
+/// N3'ün `group` alanı §5.7'de FE'nin bugünkü üç bölüm başlığıyla birebir
+/// aynı ('EV AKTİVİTELERİ' vb.) — sabit üç bölüm yerine kataloğun kendi
+/// gruplamasından türetilir.
+List<_ActivitySectionData> _sectionsFrom(List<api.CatalogItem> items) {
+  final byGroup = <String, List<LifestyleActivity>>{};
+  for (final item in items) {
+    (byGroup[item.group ?? ''] ??= []).add(_toActivity(item));
+  }
+  return [
+    for (final entry in byGroup.entries)
+      _ActivitySectionData(title: entry.key, activities: entry.value),
+  ];
+}
+
 class LifestyleScreen extends StatefulWidget {
-  const LifestyleScreen({super.key});
+  const LifestyleScreen({super.key, this.session});
+
+  /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
+  final CareerSession? session;
 
   static const _surface1 = Color(0xFF1A1D24);
   static const _surface2 = Color(0xFF22262F);
@@ -37,200 +113,21 @@ class LifestyleScreen extends StatefulWidget {
 }
 
 class _LifestyleScreenState extends State<LifestyleScreen> {
-  static const _sections = [
-    _ActivitySectionData(
-      title: 'EV AKTİVİTELERİ',
-      activities: [
-        LifestyleActivity(
-          id: 'ev-uyku',
-          title: 'Uyku',
-          description:
-              'Erken yatıp dokuz saat kesintisiz uyu. Kaslar toparlanır, '
-              'ertesi güne kondisyonun tazelenmiş başlarsın.',
-          icon: Icons.bedtime_outlined,
-          tint: Color(0xFF4C5BD4),
-          duration: 'Tüm gece',
-          conditionDelta: 14,
-        ),
-        LifestyleActivity(
-          id: 'ev-yemek',
-          title: 'Sağlıklı Yemek',
-          description:
-              'Kendi mutfağında dengeli bir öğün hazırla. Doğru beslenme, '
-              'antrenmandan aldığın verimi doğrudan artırır.',
-          icon: Icons.restaurant_outlined,
-          tint: Color(0xFF2E9E6B),
-          duration: '1 saat',
-          conditionDelta: 6,
-          cost: 250,
-        ),
-        LifestyleActivity(
-          id: 'ev-meditasyon',
-          title: 'Meditasyon',
-          description:
-              'Sessiz bir odada nefes çalışması yap. Maç öncesi baskıyı '
-              'yönetmeni kolaylaştırır.',
-          icon: Icons.self_improvement,
-          tint: Color(0xFF7C5CD6),
-          duration: '30 dakika',
-          conditionDelta: 5,
-        ),
-        LifestyleActivity(
-          id: 'ev-oyun',
-          title: 'Video Oyunu',
-          description:
-              'Birkaç saat oyun oyna, kafanı dağıt. Keyifli ama geç saate '
-              'kalırsan kondisyonundan yersin.',
-          icon: Icons.sports_esports_outlined,
-          tint: Color(0xFFC2544D),
-          duration: '3 saat',
-          conditionDelta: -6,
-        ),
-        LifestyleActivity(
-          id: 'ev-film',
-          title: 'Film Gecesi',
-          description:
-              'Kanepeye kurul ve uzun bir film izle. Zihnini boşaltır, '
-              'bedenini pek dinlendirmez.',
-          icon: Icons.movie_outlined,
-          tint: Color(0xFF3F6BA8),
-          duration: '2 saat',
-          conditionDelta: 2,
-        ),
-      ],
-    ),
-    _ActivitySectionData(
-      title: 'FİZİKSEL AKTİVİTELER',
-      activities: [
-        LifestyleActivity(
-          id: 'fiz-kosu',
-          title: 'Sabah Koşusu',
-          description:
-              'Güneş doğarken parkta tempolu koş. Dayanıklılığını besler ama '
-              'gün içinde biraz yorgun hissedersin.',
-          icon: Icons.directions_run,
-          tint: Color(0xFF1E6FD9),
-          duration: '45 dakika',
-          conditionDelta: -8,
-        ),
-        LifestyleActivity(
-          id: 'fiz-yuzme',
-          title: 'Yüzme',
-          description:
-              'Havuzda düşük tempolu kulaç at. Eklemleri zorlamadan '
-              'toparlanmayı hızlandıran ideal aktif dinlenme.',
-          icon: Icons.pool_outlined,
-          tint: Color(0xFF2AA6C4),
-          duration: '1 saat',
-          conditionDelta: 8,
-          cost: 180,
-        ),
-        LifestyleActivity(
-          id: 'fiz-bisiklet',
-          title: 'Bisiklet',
-          description:
-              'Sahil boyunca uzun bir tur at. Bacak kaslarını çalıştırır, '
-              'kafanı da açar.',
-          icon: Icons.pedal_bike_outlined,
-          tint: Color(0xFF3D9A57),
-          duration: '1,5 saat',
-          conditionDelta: -4,
-        ),
-        LifestyleActivity(
-          id: 'fiz-yoga',
-          title: 'Yoga',
-          description:
-              'Esneme ve denge çalışması yap. Sakatlanma riskini düşürür, '
-              'kaslarındaki gerginliği alır.',
-          icon: Icons.accessibility_new,
-          tint: Color(0xFF8E5CC7),
-          duration: '50 dakika',
-          conditionDelta: 7,
-          cost: 200,
-        ),
-        LifestyleActivity(
-          id: 'fiz-sauna',
-          title: 'Sauna & Masaj',
-          description:
-              'Profesyonel bir merkezde tam toparlanma seansı. Pahalı ama '
-              'kondisyonu en hızlı geri getiren yöntem.',
-          icon: Icons.spa_outlined,
-          tint: Color(0xFFD4783C),
-          duration: '2 saat',
-          conditionDelta: 16,
-          cost: 950,
-        ),
-      ],
-    ),
-    _ActivitySectionData(
-      title: 'SOSYAL AKTİVİTELER',
-      activities: [
-        LifestyleActivity(
-          id: 'sos-arkadas',
-          title: 'Arkadaş Buluşması',
-          description:
-              'Eski dostlarınla bir araya gel. Moralini yükseltir, '
-              'sosyal çevrenle bağını canlı tutar.',
-          icon: Icons.groups_outlined,
-          tint: Color(0xFFD9694F),
-          duration: '3 saat',
-          conditionDelta: -3,
-          cost: 400,
-        ),
-        LifestyleActivity(
-          id: 'sos-kafe',
-          title: 'Kafe',
-          description:
-              'Sakin bir kafede kahve iç. Kısa ve zararsız bir mola, '
-              'kafan dinlenir.',
-          icon: Icons.local_cafe_outlined,
-          tint: Color(0xFF9C7A4E),
-          duration: '1 saat',
-          conditionDelta: 1,
-          cost: 150,
-        ),
-        LifestyleActivity(
-          id: 'sos-aile',
-          title: 'Aile Ziyareti',
-          description:
-              'Ailenle vakit geçir. Kariyerin baskısını hafifletir, '
-              'aile ilişkini güçlendirir.',
-          icon: Icons.home_outlined,
-          tint: Color(0xFF2E9E6B),
-          duration: 'Yarım gün',
-          conditionDelta: 4,
-        ),
-        LifestyleActivity(
-          id: 'sos-konser',
-          title: 'Konser',
-          description:
-              'Gece boyu sahne önünde ol. Eğlencesi bol, ertesi günkü '
-              'antrenmana bedeli ağır.',
-          icon: Icons.music_note_outlined,
-          tint: Color(0xFF8B4FCF),
-          duration: 'Tüm gece',
-          conditionDelta: -12,
-          cost: 1200,
-        ),
-        LifestyleActivity(
-          id: 'sos-taraftar',
-          title: 'Taraftar Etkinliği',
-          description:
-              'Kulübün taraftar buluşmasına katıl. Tribünün gözünde '
-              'değerin artar.',
-          icon: Icons.emoji_events_outlined,
-          tint: Color(0xFFF5A623),
-          duration: '2 saat',
-          conditionDelta: -2,
-        ),
-      ],
-    ),
-  ];
+  late final CareerSession _session = widget.session ?? CareerSession.instance;
+  late Future<api.Catalog> _catalogFuture;
 
   _LifestyleTab _tab = _LifestyleTab.individual;
 
+  @override
+  void initState() {
+    super.initState();
+    _catalogFuture = _session.client.catalog('lifestyle');
+  }
+
   void _openActivity(LifestyleActivity activity) {
-    Navigator.of(context).push(_ActivityDetailRoute(activity: activity));
+    Navigator.of(context).push(
+      _ActivityDetailRoute(activity: activity, session: _session),
+    );
   }
 
   @override
@@ -298,17 +195,49 @@ class _LifestyleScreenState extends State<LifestyleScreen> {
                                     ),
                                   ),
                                 )
-                              : ListView.separated(
+                              : FutureBuilder<api.Catalog>(
                                   key: const ValueKey('individual'),
-                                  padding:
-                                      const EdgeInsets.fromLTRB(0, 16, 0, 20),
-                                  itemCount: _sections.length,
-                                  separatorBuilder: (_, _) =>
-                                      const SizedBox(height: 18),
-                                  itemBuilder: (context, index) {
-                                    return _ActivitySection(
-                                      section: _sections[index],
-                                      onActivityTap: _openActivity,
+                                  future: _catalogFuture,
+                                  builder: (context, snapshot) {
+                                    if (snapshot.connectionState !=
+                                        ConnectionState.done) {
+                                      return const Center(
+                                        child: SizedBox(
+                                          width: 22,
+                                          height: 22,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: LifestyleScreen._textMuted,
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                    if (snapshot.hasError) {
+                                      return const Center(
+                                        child: Text(
+                                          'Yaşam tarzı kataloğu alınamadı.',
+                                          style: TextStyle(
+                                            color: LifestyleScreen._textMuted,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      );
+                                    }
+
+                                    final sections =
+                                        _sectionsFrom(snapshot.data!.items);
+                                    return ListView.separated(
+                                      padding: const EdgeInsets.fromLTRB(
+                                          0, 16, 0, 20),
+                                      itemCount: sections.length,
+                                      separatorBuilder: (_, _) =>
+                                          const SizedBox(height: 18),
+                                      itemBuilder: (context, index) {
+                                        return _ActivitySection(
+                                          section: sections[index],
+                                          onActivityTap: _openActivity,
+                                        );
+                                      },
                                     );
                                   },
                                 ),
@@ -618,7 +547,7 @@ class _HeroActivityCard extends StatelessWidget {
 /// Karta basılınca kartın öne gelip büyüdüğü, altında açıklama ve "Yap"
 /// butonunun belirdiği yarı saydam katman.
 class _ActivityDetailRoute extends PageRouteBuilder<void> {
-  _ActivityDetailRoute({required this.activity})
+  _ActivityDetailRoute({required this.activity, required this.session})
       : super(
           opaque: false,
           barrierColor: Colors.transparent,
@@ -628,32 +557,63 @@ class _ActivityDetailRoute extends PageRouteBuilder<void> {
             return _ActivityDetailPage(
               activity: activity,
               animation: animation,
+              session: session,
             );
           },
         );
 
   final LifestyleActivity activity;
+  final CareerSession session;
 }
 
-class _ActivityDetailPage extends StatelessWidget {
+class _ActivityDetailPage extends StatefulWidget {
   const _ActivityDetailPage({
     required this.activity,
     required this.animation,
+    required this.session,
   });
 
   final LifestyleActivity activity;
   final Animation<double> animation;
+  final CareerSession session;
 
-  void _perform(BuildContext context) {
-    PlayerScope.of(context).applyActivity(
-      conditionDelta: activity.conditionDelta,
-      cost: activity.cost,
-    );
-    Navigator.of(context).pop();
+  @override
+  State<_ActivityDetailPage> createState() => _ActivityDetailPageState();
+}
+
+class _ActivityDetailPageState extends State<_ActivityDetailPage> {
+  bool _busy = false;
+
+  /// T2 · `POST /careers/{cid}/actions`. Bütçe/para yetmezse (`409`) BE
+  /// hiçbir şey yazmaz (INV-3/4) — burada da yalnızca bir uyarı gösterip
+  /// sayfada kalınır; başarıdaysa detay kapanır.
+  Future<void> _perform(BuildContext context) async {
+    setState(() => _busy = true);
+    final player = PlayerScope.of(context);
+    try {
+      final careerId = await widget.session.resolve();
+      final result = await widget.session.client.postAction(
+        careerId,
+        catalogId: widget.activity.id,
+      );
+      player.applyServerUpdate(
+        careerState: result.careerState,
+        attributeChanges: result.attributeChanges,
+      );
+      if (context.mounted) Navigator.of(context).pop();
+    } on CareerApiException catch (e) {
+      if (!context.mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Aktivite uygulanamadı.')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final animation = widget.animation;
+    final activity = widget.activity;
     final scrim = CurvedAnimation(parent: animation, curve: Curves.easeOut);
     final details = CurvedAnimation(
       parent: animation,
@@ -693,7 +653,8 @@ class _ActivityDetailPage extends StatelessWidget {
                         opacity: details,
                         child: _ActivityDetails(
                           activity: activity,
-                          onPerform: () => _perform(context),
+                          onPerform: _busy ? null : () => _perform(context),
+                          busy: _busy,
                         ),
                       ),
                     ],
@@ -712,10 +673,12 @@ class _ActivityDetails extends StatelessWidget {
   const _ActivityDetails({
     required this.activity,
     required this.onPerform,
+    this.busy = false,
   });
 
   final LifestyleActivity activity;
-  final VoidCallback onPerform;
+  final VoidCallback? onPerform;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -779,7 +742,16 @@ class _ActivityDetails extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              child: const Text('Yap'),
+              child: busy
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: LifestyleScreen._textPrimary,
+                      ),
+                    )
+                  : const Text('Yap'),
             ),
           ),
         ],

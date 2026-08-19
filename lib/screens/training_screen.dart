@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:project_srpg/game/shot_game.dart' show ShotMode;
 import 'package:project_srpg/game/training_result.dart';
+import 'package:project_srpg/net/career_api_client.dart';
+import 'package:project_srpg/net/career_models.dart' as api;
+import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/ball_training_screen.dart';
 import 'package:project_srpg/screens/conditioning_training_screen.dart';
 import 'package:project_srpg/screens/strength_training_screen.dart';
 import 'package:project_srpg/screens/training_radar_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
+import 'package:project_srpg/state/player_state.dart';
 
-enum _TrainingTab { physical, tactical }
+enum _TrainingTab { physical, personal }
 
 class _TrainingItem {
   const _TrainingItem({
+    required this.catalogId,
     required this.title,
-    required this.lastDone,
     required this.progress,
     required this.energy,
     required this.icon,
@@ -20,8 +24,13 @@ class _TrainingItem {
     this.drill,
   });
 
+  final String catalogId;
   final String title;
-  final String lastDone;
+
+  /// Oyuncunun bu antrenmanın hedeflediği niteliği ne kadar geliştirdiği,
+  /// 0-1 arası — P1'deki ilgili `attribute` değerinden türetilir (N3 kartın
+  /// kendi "ilerleme" sayısını vermez, yalnızca hangi niteliği hedeflediğini
+  /// `effects`'te taşır).
   final double progress;
   final int energy;
   final IconData icon;
@@ -32,8 +41,66 @@ class _TrainingItem {
   final TrainingDrill? drill;
 }
 
+/// N3 `drill` string'i → [TrainingDrill]. Yalnızca gerçek bir mini-oyunu
+/// olan dört değer eşlenir; kalanı (esneklik, dribling, bütün kişi kalemleri)
+/// backend zaten `null` gönderiyor.
+const _drillByKey = {
+  'conditioning': TrainingDrill.conditioning,
+  'strength': TrainingDrill.strength,
+  'shot': TrainingDrill.shot,
+  'pass': TrainingDrill.pass,
+};
+
+/// §5.8 — ikon ve renk BE'den gelmez, FE'nin sunum kararı. `catalog_id`
+/// sabit olduğu için burada elle eşleniyor.
+const _iconByCatalogId = {
+  'kondisyon-kosusu': Icons.directions_run,
+  'guc-antrenmani': Icons.fitness_center,
+  'esneklik-toparlanma': Icons.self_improvement,
+  'sut': Icons.sports_soccer,
+  'pas': Icons.swap_horiz,
+  'dribling': Icons.directions_walk,
+  'medya-egitimi': Icons.mic_outlined,
+  'gorgu-dersleri': Icons.handshake_outlined,
+  'ozguven-koclugu': Icons.psychology_outlined,
+  'satranc-kulubu': Icons.extension_outlined,
+  'kriz-simulasyonu': Icons.bolt_outlined,
+};
+
+/// `effects` haritasındaki `attribute:<key>` anahtarını bulur — kartın hangi
+/// niteliği hedeflediği budur.
+String? _targetAttributeOf(api.CatalogItem item) {
+  for (final key in item.effects.keys) {
+    if (key.startsWith('attribute:')) return key.substring('attribute:'.length);
+  }
+  return null;
+}
+
+Color _barColorFor(double progress) {
+  if (progress >= 0.75) return TrainingScreen._success;
+  if (progress >= 0.4) return TrainingScreen._accent;
+  return TrainingScreen._warning;
+}
+
+_TrainingItem _toTrainingItem(api.CatalogItem item, PlayerState player) {
+  final targetKey = _targetAttributeOf(item);
+  final progress = targetKey == null ? 0.0 : player.attribute(targetKey) / 100;
+  return _TrainingItem(
+    catalogId: item.catalogId,
+    title: item.title,
+    progress: progress.clamp(0, 1),
+    energy: (item.costs['energy'] ?? 0).toInt(),
+    icon: _iconByCatalogId[item.catalogId] ?? Icons.fitness_center,
+    barColor: _barColorFor(progress),
+    drill: _drillByKey[item.drill],
+  );
+}
+
 class TrainingScreen extends StatefulWidget {
-  const TrainingScreen({super.key});
+  const TrainingScreen({super.key, this.session});
+
+  /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
+  final CareerSession? session;
 
   static const _surface1 = Color(0xFF1A1D24);
   static const _surface2 = Color(0xFF22262F);
@@ -50,74 +117,22 @@ class TrainingScreen extends StatefulWidget {
 }
 
 class _TrainingScreenState extends State<TrainingScreen> {
-  // NOT: buradaki progress değerleri training_radar_screen.dart içinde de
-  // sabit olarak duruyor. İkisi PlayerState bağlantısı gelince tek kaynağa
-  // katlanacak — asıl sapmaya başlayacakları an orası.
-  static const _physical = [
-    _TrainingItem(
-      title: 'Kondisyon Koşusu',
-      lastDone: '2 gün önce yapıldı',
-      progress: 0.64,
-      energy: 15,
-      icon: Icons.directions_run,
-      barColor: TrainingScreen._accent,
-      drill: TrainingDrill.conditioning,
-    ),
-    _TrainingItem(
-      title: 'Güç Antrenmanı',
-      lastDone: '5 gün önce yapıldı',
-      progress: 0.38,
-      energy: 20,
-      icon: Icons.fitness_center,
-      barColor: TrainingScreen._accent,
-      drill: TrainingDrill.strength,
-    ),
-    _TrainingItem(
-      title: 'Esneklik & Toparlanma',
-      lastDone: 'Bugün yapıldı',
-      progress: 0.92,
-      energy: 8,
-      icon: Icons.self_improvement,
-      barColor: TrainingScreen._success,
-    ),
-    _TrainingItem(
-      title: 'Şut',
-      lastDone: '3 gün önce yapıldı',
-      progress: 0.50,
-      energy: 18,
-      icon: Icons.sports_soccer,
-      barColor: TrainingScreen._accent,
-      drill: TrainingDrill.shot,
-    ),
-    _TrainingItem(
-      title: 'Pas',
-      lastDone: '1 gün önce yapıldı',
-      progress: 0.80,
-      energy: 12,
-      icon: Icons.swap_horiz,
-      barColor: TrainingScreen._success,
-      drill: TrainingDrill.pass,
-    ),
-    _TrainingItem(
-      title: 'Dribling',
-      lastDone: '6 gün önce yapıldı',
-      progress: 0.25,
-      energy: 18,
-      icon: Icons.directions_walk,
-      barColor: TrainingScreen._warning,
-    ),
-  ];
-
-  static const _tactical = <_TrainingItem>[];
+  late final CareerSession _session = widget.session ?? CareerSession.instance;
+  late Future<api.Catalog> _catalogFuture;
 
   _TrainingTab _tab = _TrainingTab.physical;
 
-  List<_TrainingItem> get _items =>
-      _tab == _TrainingTab.physical ? _physical : _tactical;
+  @override
+  void initState() {
+    super.initState();
+    _catalogFuture = _session.client.catalog('training');
+  }
 
   /// Mini-oyunu açar ve sonucunu bekler. Geri tuşuyla çıkılırsa sonuç null
   /// gelir; bu başarısızlık değil, hiçbir şey uygulanmaz.
-  Future<void> _start(TrainingDrill drill) async {
+  Future<void> _start(_TrainingItem item) async {
+    final drill = item.drill;
+    if (drill == null) return;
     final route = switch (drill) {
       TrainingDrill.conditioning => MaterialPageRoute<TrainingResult>(
           builder: (_) => const ConditioningTrainingScreen(),
@@ -137,18 +152,32 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
     final result = await Navigator.of(context).push(route);
     if (!mounted || result == null) return;
-    _applyResult(result);
+    await _applyResult(item.catalogId, result);
   }
 
-  /// Antrenman sonucunun kalıcı etkisi burada uygulanacak: yetenek puanı,
-  /// enerji harcaması ve kartın ilerleme çubuğu. Şu an bilerek boş —
-  /// [TrainingResult] zaten hangi antrenman, başarılı mı ve ne kadar iyi
-  /// gittiğini taşıyor; buraya eklenecek tek şey PlayerScope mutasyonu.
-  ///
-  /// Örnek (henüz uygulanmıyor):
-  ///   PlayerScope.of(context).applyActivity(
-  ///     conditionDelta: result.succeeded ? 4 : -2, cost: 0);
-  void _applyResult(TrainingResult result) {}
+  /// T2 · `POST /careers/{cid}/actions` — mini-oyunun sonucunu uygular.
+  /// Bütçe/para yetmezse (`409`) BE hiçbir şey yazmaz (INV-3/4); burada da
+  /// yalnızca bir uyarı gösterip vazgeçilir.
+  Future<void> _applyResult(String catalogId, TrainingResult result) async {
+    final player = PlayerScope.of(context);
+    try {
+      final careerId = await _session.resolve();
+      final actionResult = await _session.client.postAction(
+        careerId,
+        catalogId: catalogId,
+        result: {'minigame_score': result.score},
+      );
+      player.applyServerUpdate(
+        careerState: actionResult.careerState,
+        attributeChanges: actionResult.attributeChanges,
+      );
+    } on CareerApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Antrenman uygulanamadı.')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -191,54 +220,95 @@ class _TrainingScreenState extends State<TrainingScreen> {
                         onChanged: (tab) => setState(() => _tab = tab),
                       ),
                       Expanded(
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 280),
-                          switchInCurve: Curves.easeOutCubic,
-                          switchOutCurve: Curves.easeInCubic,
-                          transitionBuilder: (child, animation) {
-                            final offset = Tween<Offset>(
-                              begin: Offset(
-                                _tab == _TrainingTab.physical ? -0.06 : 0.06,
-                                0,
-                              ),
-                              end: Offset.zero,
-                            ).animate(animation);
-                            return FadeTransition(
-                              opacity: animation,
-                              child: SlideTransition(
-                                position: offset,
-                                child: child,
-                              ),
+                        child: FutureBuilder<api.Catalog>(
+                          future: _catalogFuture,
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState !=
+                                ConnectionState.done) {
+                              return const Center(
+                                child: SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: TrainingScreen._textMuted,
+                                  ),
+                                ),
+                              );
+                            }
+                            if (snapshot.hasError) {
+                              return const Center(
+                                child: Text(
+                                  'Antrenman kataloğu alınamadı.',
+                                  style: TextStyle(
+                                    color: TrainingScreen._textMuted,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              );
+                            }
+
+                            final player = PlayerScope.of(context);
+                            final items = snapshot.data!.items
+                                .where((i) => i.family ==
+                                    (_tab == _TrainingTab.physical
+                                        ? 'saha'
+                                        : 'kişi'))
+                                .map((i) => _toTrainingItem(i, player))
+                                .toList(growable: false);
+
+                            return AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 280),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              transitionBuilder: (child, animation) {
+                                final offset = Tween<Offset>(
+                                  begin: Offset(
+                                    _tab == _TrainingTab.physical
+                                        ? -0.06
+                                        : 0.06,
+                                    0,
+                                  ),
+                                  end: Offset.zero,
+                                ).animate(animation);
+                                return FadeTransition(
+                                  opacity: animation,
+                                  child: SlideTransition(
+                                    position: offset,
+                                    child: child,
+                                  ),
+                                );
+                              },
+                              child: items.isEmpty
+                                  ? const Center(
+                                      key: ValueKey('empty'),
+                                      child: Text(
+                                        'Bu kategoride henüz antrenman yok.',
+                                        style: TextStyle(
+                                          color: TrainingScreen._textMuted,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    )
+                                  : ListView.separated(
+                                      key: ValueKey<_TrainingTab>(_tab),
+                                      padding: const EdgeInsets.fromLTRB(
+                                          20, 16, 20, 20),
+                                      itemCount: items.length,
+                                      separatorBuilder: (_, _) =>
+                                          const SizedBox(height: 12),
+                                      itemBuilder: (context, index) {
+                                        final item = items[index];
+                                        return _TrainingCard(
+                                          item: item,
+                                          onStart: item.drill == null
+                                              ? null
+                                              : () => _start(item),
+                                        );
+                                      },
+                                    ),
                             );
                           },
-                          child: _items.isEmpty
-                              ? const Center(
-                                  key: ValueKey('empty'),
-                                  child: Text(
-                                    'Taktiksel antrenmanlar yakında.',
-                                    style: TextStyle(
-                                      color: TrainingScreen._textMuted,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                )
-                              : ListView.separated(
-                                  key: ValueKey<_TrainingTab>(_tab),
-                                  padding:
-                                      const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                                  itemCount: _items.length,
-                                  separatorBuilder: (_, __) =>
-                                      const SizedBox(height: 12),
-                                  itemBuilder: (context, index) {
-                                    final item = _items[index];
-                                    return _TrainingCard(
-                                      item: item,
-                                      onStart: item.drill == null
-                                          ? null
-                                          : () => _start(item.drill!),
-                                    );
-                                  },
-                                ),
                         ),
                       ),
                     ],
@@ -397,9 +467,9 @@ class _TabToggle extends StatelessWidget {
                 ),
                 _ToggleLabel(
                   width: segmentWidth,
-                  label: 'Taktiksel',
-                  selected: tab == _TrainingTab.tactical,
-                  onTap: () => onChanged(_TrainingTab.tactical),
+                  label: 'Kişisel',
+                  selected: tab == _TrainingTab.personal,
+                  onTap: () => onChanged(_TrainingTab.personal),
                 ),
               ],
             ),
@@ -459,7 +529,7 @@ class _TrainingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 108,
+      height: 96,
       decoration: BoxDecoration(
         color: TrainingScreen._surface1,
         borderRadius: BorderRadius.circular(10),
@@ -491,14 +561,6 @@ class _TrainingCard extends StatelessWidget {
                       color: TrainingScreen._textPrimary,
                       fontWeight: FontWeight.w700,
                       fontSize: 15,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    item.lastDone,
-                    style: const TextStyle(
-                      color: TrainingScreen._textMuted,
-                      fontSize: 11,
                     ),
                   ),
                   const Spacer(),

@@ -1,19 +1,149 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
+import 'package:project_srpg/net/career_api_client.dart';
+import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/career_center_screen.dart';
 import 'package:project_srpg/screens/lifestyle_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/widgets/activity_card.dart';
 
-/// Kartın kendisine dokunur; metin, cam şeridin içinde olduğu için doğrudan
-/// hedeflenmeye uygun değil.
-Finder _card(String title) {
-  return find.ancestor(
-    of: find.text(title),
-    matching: find.byType(ActivityCard),
-  );
+/// N3 `lifestyle` kataloğu — career_engine/catalog/lifestyle.py'nin 15
+/// kaleminin (üç grup) aynısı.
+const _lifestyleItems = [
+  {
+    'catalog_id': 'ev-uyku', 'title': 'Uyku', 'group': 'EV AKTİVİTELERİ',
+    'description': 'Erken yatıp dokuz saat kesintisiz uyu. Kaslar toparlanır, '
+        'ertesi güne kondisyonun tazelenmiş başlarsın.',
+    'duration_label': 'Tüm gece',
+    'costs': {'time': 540}, 'effects': {'condition': 14},
+  },
+  {
+    'catalog_id': 'ev-yemek', 'title': 'Sağlıklı Yemek', 'group': 'EV AKTİVİTELERİ',
+    'description': '…', 'duration_label': '1 saat',
+    'costs': {'time': 60}, 'effects': {'condition': 6, 'money': -250},
+  },
+  {
+    'catalog_id': 'ev-meditasyon', 'title': 'Meditasyon', 'group': 'EV AKTİVİTELERİ',
+    'description': '…', 'duration_label': '30 dakika',
+    'costs': {'time': 30}, 'effects': {'condition': 5},
+  },
+  {
+    'catalog_id': 'ev-oyun', 'title': 'Video Oyunu', 'group': 'EV AKTİVİTELERİ',
+    'description': '…', 'duration_label': '3 saat',
+    'costs': {'time': 180}, 'effects': {'condition': -6},
+  },
+  {
+    'catalog_id': 'ev-film', 'title': 'Film Gecesi', 'group': 'EV AKTİVİTELERİ',
+    'description': '…', 'duration_label': '2 saat',
+    'costs': {'time': 120}, 'effects': {'condition': 2},
+  },
+  {
+    'catalog_id': 'fiz-kosu', 'title': 'Sabah Koşusu', 'group': 'FİZİKSEL AKTİVİTELER',
+    'description': '…', 'duration_label': '45 dakika',
+    'costs': {'time': 45}, 'effects': {'condition': -8},
+  },
+  {
+    'catalog_id': 'fiz-yuzme', 'title': 'Yüzme', 'group': 'FİZİKSEL AKTİVİTELER',
+    'description': '…', 'duration_label': '1 saat',
+    'costs': {'time': 60}, 'effects': {'condition': 8, 'money': -180},
+  },
+  {
+    'catalog_id': 'fiz-bisiklet', 'title': 'Bisiklet', 'group': 'FİZİKSEL AKTİVİTELER',
+    'description': '…', 'duration_label': '1,5 saat',
+    'costs': {'time': 90}, 'effects': {'condition': -4},
+  },
+  {
+    'catalog_id': 'fiz-yoga', 'title': 'Yoga', 'group': 'FİZİKSEL AKTİVİTELER',
+    'description': '…', 'duration_label': '50 dakika',
+    'costs': {'time': 50}, 'effects': {'condition': 7, 'money': -200},
+  },
+  {
+    'catalog_id': 'fiz-sauna', 'title': 'Sauna & Masaj', 'group': 'FİZİKSEL AKTİVİTELER',
+    'description': '…', 'duration_label': '2 saat',
+    'costs': {'time': 120}, 'effects': {'condition': 16, 'money': -950},
+  },
+  {
+    'catalog_id': 'sos-arkadas', 'title': 'Arkadaş Buluşması', 'group': 'SOSYAL AKTİVİTELER',
+    'description': '…', 'duration_label': '3 saat',
+    'costs': {'time': 180}, 'effects': {'condition': -3, 'money': -400},
+  },
+  {
+    'catalog_id': 'sos-kafe', 'title': 'Kafe', 'group': 'SOSYAL AKTİVİTELER',
+    'description': '…', 'duration_label': '1 saat',
+    'costs': {'time': 60}, 'effects': {'condition': 1, 'money': -150},
+  },
+  {
+    'catalog_id': 'sos-aile', 'title': 'Aile Ziyareti', 'group': 'SOSYAL AKTİVİTELER',
+    'description': '…', 'duration_label': 'Yarım gün',
+    'costs': {'time': 360}, 'effects': {'condition': 4, 'relationship:family': 3},
+  },
+  {
+    'catalog_id': 'sos-konser', 'title': 'Konser', 'group': 'SOSYAL AKTİVİTELER',
+    'description': '…', 'duration_label': 'Tüm gece',
+    'costs': {'time': 540}, 'effects': {'condition': -12, 'money': -1200},
+  },
+  {
+    'catalog_id': 'sos-taraftar', 'title': 'Taraftar Etkinliği', 'group': 'SOSYAL AKTİVİTELER',
+    'description': '…', 'duration_label': '2 saat',
+    'costs': {'time': 120}, 'effects': {'condition': -2, 'fame:overall': null},
+  },
+];
+
+http.Response _json(Object body) => http.Response(
+      jsonEncode(body),
+      200,
+      headers: {'content-type': 'application/json; charset=utf-8'},
+    );
+
+/// [actionResponses] `catalog_id` → o eylem için T2'nin döneceği yeni
+/// `career_state`. Yalnızca testin gerçekten tıkladığı kalemler için gerekir.
+CareerSession _lifestyleSession({
+  Map<String, Map<String, dynamic>> actionResponses = const {},
+}) {
+  final mock = MockClient((request) async {
+    if (request.url.path == '/catalog/lifestyle') {
+      return _json({'items': _lifestyleItems});
+    }
+    if (request.url.path == '/careers') {
+      return _json({
+        'careers': [
+          {
+            'career_id': 'car_test', 'player_name': 'Efe Kaan',
+            'season_id': '25/26', 'current_date': '2026-08-05',
+          }
+        ],
+      });
+    }
+    if (request.url.path == '/careers/car_test/actions') {
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      final careerState = actionResponses[body['catalog_id']];
+      if (careerState == null) {
+        return http.Response('unexpected catalog_id ${body['catalog_id']}', 404);
+      }
+      return _json({
+        'career_state': careerState,
+        'applied_costs': const {},
+        'applied_effects': const {},
+        'attribute_changes': const [],
+        'relationship_changes': const [],
+        'ledger_entries': const [],
+      });
+    }
+    return http.Response('unexpected ${request.url}', 404);
+  });
+  return CareerSession(client: CareerApiClient(httpClient: mock, baseUrl: 'http://test'));
 }
+
+Map<String, dynamic> _careerState({required int condition, required int money}) => {
+      'current_date': '2026-08-05', 'season_id': '25/26',
+      'money': money, 'condition': condition,
+      'day_budget': {'time': 720.0},
+    };
 
 Widget _wrap(Widget home) {
   return PlayerScope(
@@ -24,9 +154,21 @@ Widget _wrap(Widget home) {
   );
 }
 
+/// Kartın kendisine dokunur; metin, cam şeridin içinde olduğu için doğrudan
+/// hedeflenmeye uygun değil.
+Finder _card(String title) {
+  return find.ancestor(
+    of: find.text(title),
+    matching: find.byType(ActivityCard),
+  );
+}
+
 void main() {
   testWidgets('üç aktivite sırası ve kondisyon barı görünür', (tester) async {
-    await tester.pumpWidget(_wrap(const LifestyleScreen()));
+    await tester.pumpWidget(
+      _wrap(LifestyleScreen(session: _lifestyleSession())),
+    );
+    await tester.pumpAndSettle();
 
     expect(find.text('Kondisyon'), findsOneWidget);
     expect(find.text('72/100'), findsOneWidget);
@@ -56,7 +198,10 @@ void main() {
   });
 
   testWidgets('Grupsal sekmesi placeholder gösterir', (tester) async {
-    await tester.pumpWidget(_wrap(const LifestyleScreen()));
+    await tester.pumpWidget(
+      _wrap(LifestyleScreen(session: _lifestyleSession())),
+    );
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Grupsal'));
     await tester.pumpAndSettle();
@@ -72,7 +217,12 @@ void main() {
 
   testWidgets('karta basınca detay açılır, Yap kondisyonu değiştirir',
       (tester) async {
-    await tester.pumpWidget(_wrap(const LifestyleScreen()));
+    await tester.pumpWidget(_wrap(LifestyleScreen(
+      session: _lifestyleSession(actionResponses: {
+        'ev-uyku': _careerState(condition: 86, money: 48200),
+      }),
+    )));
+    await tester.pumpAndSettle();
 
     await tester.tap(_card('Uyku'));
     await tester.pumpAndSettle();
@@ -92,7 +242,10 @@ void main() {
 
   testWidgets('boşluğa basınca detay kapanır, kondisyon değişmez',
       (tester) async {
-    await tester.pumpWidget(_wrap(const LifestyleScreen()));
+    await tester.pumpWidget(
+      _wrap(LifestyleScreen(session: _lifestyleSession())),
+    );
+    await tester.pumpAndSettle();
 
     await tester.tap(_card('Uyku'));
     await tester.pumpAndSettle();
@@ -106,7 +259,17 @@ void main() {
   });
 
   testWidgets('kondisyon ve para diğer ekranlarla paylaşılır', (tester) async {
+    // career_center_screen.dart iç navigasyonda LifestyleScreen()'i
+    // parametresiz kurar — bu zincire sahte backend'i ancak paylaşılan
+    // singleton üzerinden ulaştırabiliriz. Test sonunda geri alınır.
+    final original = CareerSession.instance;
+    CareerSession.instance = _lifestyleSession(actionResponses: {
+      'fiz-yuzme': _careerState(condition: 80, money: 48020),
+    });
+    addTearDown(() => CareerSession.instance = original);
+
     await tester.pumpWidget(_wrap(const CareerCenterScreen()));
+    await tester.pumpAndSettle();
 
     expect(find.text('%72'), findsOneWidget);
     expect(find.text('₺48.200'), findsOneWidget);

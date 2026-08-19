@@ -16,7 +16,12 @@ class CareerSession {
   /// Uygulama genelinde paylaşılan örnek. Ekranların ayrı ayrı kariyer
   /// açmasını engeller — iki ekran aynı anda isterse ikisi de aynı
   /// [Future]'ı bekler.
-  static final CareerSession instance = CareerSession();
+  ///
+  /// `final` değil: testler, ekranların kendi başına inşa ettiği (dolayısıyla
+  /// bir `session:` parametresiyle geçilemeyen) iç içe navigasyon zincirlerini
+  /// sahte bir backend'e bağlamak için bunu geçici olarak değiştirebilir —
+  /// üretim kodu asla atama yapmaz.
+  static CareerSession instance = CareerSession();
 
   /// FE'nin bugünkü sabit oyuncu künyesi (`player_state.dart`). Kariyer kurma
   /// ekranı geldiğinde bunun yerini kullanıcının girdisi alacak.
