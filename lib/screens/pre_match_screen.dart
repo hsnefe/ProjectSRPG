@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/net/career_api_client.dart';
+import 'package:project_srpg/net/career_models.dart';
+import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/net/match_api_client.dart';
 import 'package:project_srpg/net/match_models.dart';
 import 'package:project_srpg/screens/match_screen.dart';
@@ -15,8 +18,17 @@ const _weekdayLabels = [
   'Pazar',
 ];
 
+/// `DateTime.parse` bir ofset gördüğünde UTC'ye çevirir (`isUtc = true`);
+/// `.hour`/`.weekday` o zaman dizedeki saat değil UTC saatini okur. Kariyer
+/// dünyası tek saat dilimi kullandığı için (+03:00, career_engine CONTRACT.md
+/// §5.0) `.toLocal()` cihazın kendi dilimine göre yanlış saat üretebilirdi —
+/// bunun yerine UTC'den +3 saat geri eklemek dizedeki gerçek duvar saatini
+/// verir, career_center_screen.dart'ın aynı sorunla aynı çözümü (bkz.
+/// `_matchDayLabel`).
 String _kickoffLabel(DateTime kickoffAt) {
-  final local = kickoffAt.toLocal();
+  final local = kickoffAt.isUtc
+      ? kickoffAt.add(const Duration(hours: 3))
+      : kickoffAt;
   final weekday = _weekdayLabels[local.weekday - 1];
   final hh = local.hour.toString().padLeft(2, '0');
   final mm = local.minute.toString().padLeft(2, '0');
@@ -24,7 +36,12 @@ String _kickoffLabel(DateTime kickoffAt) {
 }
 
 class PreMatchScreen extends StatefulWidget {
-  const PreMatchScreen({super.key});
+  PreMatchScreen({super.key, this.session, MatchApiClient? matchApiClient})
+      : _matchApiClient = matchApiClient ?? MatchApiClient();
+
+  /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
+  final CareerSession? session;
+  final MatchApiClient _matchApiClient;
 
   static const _surface1 = Color(0xFF1A1D24);
   static const _surface2 = Color(0xFF22262F);
@@ -40,9 +57,13 @@ class PreMatchScreen extends StatefulWidget {
 }
 
 class _PreMatchScreenState extends State<PreMatchScreen> {
-  final _apiClient = MatchApiClient();
+  MatchApiClient get _apiClient => widget._matchApiClient;
+  late final CareerSession _careerSession =
+      widget.session ?? CareerSession.instance;
 
   NextMatchResponse? _next;
+  String? _fixtureId;
+  int? _preMatchCondition;
   String? _loadError;
   bool _starting = false;
 
@@ -52,15 +73,39 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
     _loadNext();
   }
 
+  /// M1 (career_engine) → E11 (match_engine) köprüsü (D7, D33). Kariyerin
+  /// gerçek fikstürü career_engine'den alınır, `engine_payload` olduğu gibi
+  /// motora POST'lanır — FE ikisini birbirine bağlayan tek taraf (D3/D33).
   Future<void> _loadNext() async {
     setState(() {
       _loadError = null;
       _next = null;
     });
     try {
-      final next = await _apiClient.fetchNextMatch();
+      final careerId = await _careerSession.resolve();
+      final careerMatch = await _fetchNextWithRecovery(careerId);
+      final created = await _apiClient.createMatch(careerMatch.enginePayload);
       if (!mounted) return;
-      setState(() => _next = next);
+      setState(() {
+        _fixtureId = careerMatch.fixtureId;
+        _preMatchCondition =
+            careerMatch.enginePayload['user_condition'] as int?;
+        // E11'in kendi kickoff_at'i motorun dolgu değeri (§8.1a) — gösterimde
+        // career_engine'in gerçek fikstür saatini kullanıyoruz.
+        _next = NextMatchResponse(
+          matchId: created.matchId,
+          kickoffAt: DateTime.parse(careerMatch.kickoffAt),
+          userSide: created.userSide,
+          teams: created.teams,
+          teamTactic: created.teamTactic,
+          stamina: created.stamina,
+          directiveOptions: created.directiveOptions,
+          defaults: created.defaults,
+        );
+      });
+    } on CareerApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _loadError = e.message ?? 'Maç bilgisi alınamadı.');
     } on MatchApiException catch (e) {
       if (!mounted) return;
       setState(() => _loadError = e.message ?? 'Maç bilgisi alınamadı.');
@@ -70,9 +115,30 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
     }
   }
 
+  /// §6.4 — M1 `409 match_in_progress` dönerse motor oturumu muhtemelen
+  /// kaybolmuştur (uygulama maç bitmeden kapanmış olabilir). FE'nin bilmediği
+  /// bir sonucu var-mış gibi davranamayacağı için tek güvenli yol M3 ile
+  /// fikstürü `scheduled`'a döndürüp yeniden istemek.
+  Future<NextCareerMatch> _fetchNextWithRecovery(String careerId) async {
+    try {
+      return await _careerSession.client.nextMatch(careerId);
+    } on CareerApiException catch (e) {
+      if (e.code != 'match_in_progress') rethrow;
+      // errors.match_in_progress() (career_engine/api/errors.py) yalnızca
+      // insan-okur bir cümle döner, ayrı bir `fixture_id` alanı yok — id'yi
+      // "fixture '<id>' has an unfinished match" kalıbından çıkarıyoruz.
+      final match = RegExp(r"fixture '([^']+)'").firstMatch(e.message ?? '');
+      final staleFixtureId = match?.group(1);
+      if (staleFixtureId == null) rethrow;
+      await _careerSession.client.abandonMatch(careerId, staleFixtureId);
+      return _careerSession.client.nextMatch(careerId);
+    }
+  }
+
   Future<void> _startMatch() async {
     final next = _next;
-    if (next == null || _starting) return;
+    final fixtureId = _fixtureId;
+    if (next == null || fixtureId == null || _starting) return;
     setState(() => _starting = true);
     try {
       final start = await _apiClient.startMatch(
@@ -92,10 +158,17 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
         directiveOptions: next.directiveOptions,
       );
       await Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (_) => MatchScreen(controller: controller)),
+        MaterialPageRoute<void>(
+          builder: (_) => MatchScreen(
+            controller: controller,
+            careerSession: _careerSession,
+            fixtureId: fixtureId,
+            preMatchCondition: _preMatchCondition ?? next.stamina.current,
+          ),
+        ),
       );
-      // /matches/next rezerve ettiği match_id /start ile tüketildi — geri
-      // dönüldüğünde bir sonraki maç için tazesini iste.
+      // career_engine M1 fikstürü 'in_progress' işaretledi, M2 onu 'played'
+      // yapar — geri dönüldüğünde bir sonraki maç için tazesini iste.
       if (mounted) _loadNext();
     } on MatchApiException catch (e) {
       if (mounted) {

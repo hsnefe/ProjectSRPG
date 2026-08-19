@@ -1,15 +1,19 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:project_srpg/net/career_api_client.dart';
+import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/net/match_api_client.dart';
 import 'package:project_srpg/net/match_models.dart';
 import 'package:project_srpg/net/match_sse_client.dart';
 import 'package:project_srpg/screens/match_screen.dart';
 import 'package:project_srpg/screens/request_screen.dart';
 import 'package:project_srpg/state/match_controller.dart';
+import 'package:project_srpg/state/player_scope.dart';
 
 /// A stream source the test drives by hand instead of relying on real HTTP.
 class _FakeSseClient implements MatchStreamSource {
@@ -339,4 +343,122 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets(
+    'İlerle bir kariyer fikstürüne bağlıyken E9 özetini M2\'ye taşır',
+    (tester) async {
+      final source = _FakeSseClient();
+      final matchRequests = <http.Request>[];
+      final matchMock = MockClient((request) async {
+        matchRequests.add(request);
+        if (request.url.path == '/matches/m_test/summary') {
+          return http.Response(
+            jsonEncode({
+              'score': {'home': 2, 'away': 1},
+              'stats': {
+                'home': {
+                  'goals': 2, 'shots': 10, 'shots_on_target': 5, 'corners': 3,
+                  'dangerous_attacks': 20, 'total_attacks': 40,
+                  'yellow_cards': 1, 'red_cards': 0, 'penalties': 0,
+                  'penalty_goals': 0, 'fouls': 8, 'substitutions': 2,
+                  'possession_ticks': 55,
+                },
+                'away': {
+                  'goals': 1, 'shots': 7, 'shots_on_target': 3, 'corners': 2,
+                  'dangerous_attacks': 15, 'total_attacks': 35,
+                  'yellow_cards': 2, 'red_cards': 0, 'penalties': 0,
+                  'penalty_goals': 0, 'fouls': 10, 'substitutions': 3,
+                  'possession_ticks': 45,
+                },
+              },
+              'final_possession_home': 55.0,
+            }),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        return http.Response('', 204);
+      });
+
+      final careerRequests = <http.Request>[];
+      final careerMock = MockClient((request) async {
+        careerRequests.add(request);
+        if (request.url.path == '/careers') {
+          return http.Response(
+            jsonEncode({
+              'careers': [
+                {
+                  'career_id': 'car_test', 'player_name': 'Efe Kaan',
+                  'season_id': '25/26', 'current_date': '2026-08-19',
+                }
+              ],
+            }),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        if (request.url.path == '/careers/car_test/matches/f_1/result') {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          // İnterventions boş gönderilir (bilinen sınır, match_screen.dart'ta
+          // belgelendi) ve final_condition maç öncesi değerden büyük olamaz.
+          expect(body['interventions'], isEmpty);
+          expect(body['final_condition'], 70);
+          return http.Response(
+            jsonEncode({
+              'career_state': {
+                'current_date': '2026-08-19', 'season_id': '25/26',
+                'money': 48200, 'condition': 70, 'day_budget': {'time': 720.0},
+              },
+              'fixture': {
+                'fixture_id': 'f_1', 'status': 'played',
+                'score': {'home': 2, 'away': 1},
+              },
+              'other_results': const [],
+              'standing_delta': {'rank_before': 3, 'rank_after': 2},
+              'player_stat_delta': {'appearances': 1, 'goals': 0, 'minutes': 95},
+              'ledger_entries': const [],
+              'news_created': ['n_1'],
+            }),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        return http.Response('unexpected ${request.url}', 404);
+      });
+
+      final controller = _buildController(source);
+      final careerSession = CareerSession(
+        client: CareerApiClient(httpClient: careerMock, baseUrl: 'http://test'),
+      );
+
+      await tester.pumpWidget(PlayerScope(
+        child: MaterialApp(
+          home: MatchScreen(
+            controller: controller,
+            careerSession: careerSession,
+            fixtureId: 'f_1',
+            preMatchCondition: 70,
+            matchApiClient:
+                MatchApiClient(httpClient: matchMock, baseUrl: 'http://test'),
+          ),
+        ),
+      ));
+      await tester.pump();
+
+      await _emitTick(tester, source, _tick(minute: 90, finished: true));
+      await tester.tap(find.text('İlerle'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RequestScreen), findsOneWidget);
+      // Gerçek skor ve puan durumu değişimi M2'den geldi.
+      expect(find.textContaining('2 - 1'), findsOneWidget);
+      expect(find.textContaining('3. → 2.'), findsOneWidget);
+      expect(
+        careerRequests.any((r) => r.url.path.endsWith('/matches/f_1/result')),
+        isTrue,
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 }

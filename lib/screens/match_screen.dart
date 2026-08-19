@@ -1,16 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:project_srpg/game/match_feed.dart';
 import 'package:project_srpg/game/match_labels.dart';
+import 'package:project_srpg/net/career_models.dart';
+import 'package:project_srpg/net/career_session.dart';
+import 'package:project_srpg/net/match_api_client.dart';
 import 'package:project_srpg/net/match_models.dart';
 import 'package:project_srpg/screens/request_screen.dart';
 import 'package:project_srpg/state/match_controller.dart';
+import 'package:project_srpg/state/player_scope.dart';
 
 class MatchScreen extends StatefulWidget {
-  const MatchScreen({super.key, required this.controller});
+  MatchScreen({
+    super.key,
+    required this.controller,
+    this.careerSession,
+    this.fixtureId,
+    this.preMatchCondition,
+    MatchApiClient? matchApiClient,
+  }) : _matchApiClient = matchApiClient ?? MatchApiClient();
 
   /// Ekran, taze oluşturulmuş bir controller alır; bağlanma ve `dispose`
   /// yaşam döngüsünün tamamına burada sahip çıkılır.
   final MatchController controller;
+
+  /// M2 (career_engine) çağrısı için — maç bittiğinde `_advance()` bunu
+  /// kullanır. Üçü birlikte gelir; herhangi biri eksikse (örn. testler, ya da
+  /// ileride bir kariyer fikstürüne bağlı olmayan bir dostluk maçı) M2 hiç
+  /// çağrılmaz, ekran doğrudan ilerler — eski davranışın aynısı.
+  final CareerSession? careerSession;
+  final String? fixtureId;
+
+  /// M1'in `engine_payload.user_condition`'ı (D38/D39) — M2'nin
+  /// `final_condition`'ı için, motor gerçek bir aşınma sinyali vermediğinden
+  /// (bkz. `_advance` içindeki not) değişmeden geri gönderilir.
+  final int? preMatchCondition;
+
+  /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
+  final MatchApiClient _matchApiClient;
 
   static const _surface1 = Color(0xFF1A1D24);
   static const _surface2 = Color(0xFF22262F);
@@ -40,6 +66,7 @@ class _MatchScreenState extends State<MatchScreen> {
 
   int _lastEventCount = 0;
   bool _handledConnectionError = false;
+  bool _reporting = false;
 
   @override
   void initState() {
@@ -91,12 +118,79 @@ class _MatchScreenState extends State<MatchScreen> {
     });
   }
 
-  /// Maç bitti — canlı ekranın yerini maç sonrası akışı alır. `pushReplacement`
-  /// olduğu için `MatchScreen.dispose` çalışır: controller ve SSE aboneliği
-  /// kapanır, geri tuşu bitmiş maça dönmez.
-  void _advance() {
+  /// Maç bitti — M2'ye (career_engine) sonucu yazar, sonra canlı ekranın
+  /// yerini maç sonrası akışı alır. `pushReplacement` olduğu için
+  /// `MatchScreen.dispose` çalışır: controller ve SSE aboneliği kapanır, geri
+  /// tuşu bitmiş maça dönmez.
+  ///
+  /// ⚠️ **Bilinen sınır — `interventions` her zaman boş.** FE şu an
+  /// `intervention_offer` tekliflerine yanıt toplamıyor (match_controller.dart
+  /// bunu kapsam dışı bırakıyor, §7.2 notu); D13 gereği career_engine bireysel
+  /// gol sayısını yalnızca `interventions[]`'dan türetir, o yüzden
+  /// `player_season_stat.goals` bu maçlar için her zaman 0 kalır — uydurulmuş
+  /// bir sayı yazmak yerine dürüstçe boş bırakılıyor.
+  ///
+  /// ⚠️ **`final_condition` bir yaklaşıklamadır.** M2'nin beklediği "maç
+  /// boyunca erimiş kondisyon" motorun kendi `Team.stamina`'sından ayrı bir
+  /// kavramdır (D38/D39) ve motor bunun için ayrı bir sinyal vermiyor; maçtan
+  /// önceki değer değişmeden geri gönderiliyor (INV: `final_condition ≤
+  /// pre_match_condition` bu şekilde her zaman sağlanır).
+  Future<void> _advance() async {
+    final careerSession = widget.careerSession;
+    final fixtureId = widget.fixtureId;
+    final preMatchCondition = widget.preMatchCondition;
+    if (careerSession == null || fixtureId == null || preMatchCondition == null) {
+      _goToRequestScreen(null);
+      return;
+    }
+
+    setState(() => _reporting = true);
+    MatchResultResponse? result;
+    try {
+      final summary = await widget._matchApiClient
+          .fetchSummary(widget.controller.matchId);
+      final body = {
+        'match_id': widget.controller.matchId,
+        'score': {'home': summary.score.home, 'away': summary.score.away},
+        'stats': summary.stats,
+        'final_possession_home': summary.finalPossessionHome,
+        'final_condition': preMatchCondition.clamp(35, 100),
+        'interventions': <Map<String, dynamic>>[],
+      };
+      final careerId = await careerSession.resolve();
+      result = await careerSession.client.reportMatchResult(
+        careerId,
+        fixtureId,
+        body,
+      );
+      if (!mounted) return;
+      PlayerScope.of(context).applyServerUpdate(careerState: result.careerState);
+    } catch (_) {
+      // §6.4'ün bilinen riski: sonuç yazılamazsa fikstür 'in_progress' kalır,
+      // bir sonraki M1 çağrısı bunu M3 ile kurtarır (pre_match_screen.dart).
+      // Kullanıcıyı burada tıkanık bırakmıyoruz — maç zaten bitti, ilerlemek
+      // tek makul seçenek.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Maç sonucu kaydedilemedi.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _reporting = false);
+    }
+    if (!mounted) return;
+    _goToRequestScreen(result);
+  }
+
+  void _goToRequestScreen(MatchResultResponse? result) {
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(builder: (_) => const RequestScreen()),
+      MaterialPageRoute<void>(
+        builder: (_) => RequestScreen(
+          result: result,
+          homeTeamName: widget.controller.teams.home.name,
+          awayTeamName: widget.controller.teams.away.name,
+        ),
+      ),
     );
   }
 
@@ -158,6 +252,7 @@ class _MatchScreenState extends State<MatchScreen> {
                         _ActionBar(
                           controller: controller,
                           onAdvance: _advance,
+                          advancing: _reporting,
                         ),
                       ],
                     ),
@@ -732,12 +827,21 @@ class _EventCard extends StatelessWidget {
 }
 
 class _ActionBar extends StatelessWidget {
-  const _ActionBar({required this.controller, required this.onAdvance});
+  const _ActionBar({
+    required this.controller,
+    required this.onAdvance,
+    this.advancing = false,
+  });
 
   final MatchController controller;
 
-  /// Maç bittiğinde direktif butonlarının yerini alan "İlerle" eylemi.
-  final VoidCallback onAdvance;
+  /// Maç bittiğinde direktif butonlarının yerini alan "İlerle" eylemi —
+  /// M2'ye sonucu yazar, bu yüzden `VoidCallback` değil async.
+  final Future<void> Function() onAdvance;
+
+  /// M2 çağrısı sürerken "İlerle" butonu pasifleşir ve dönen bir gösterge
+  /// gösterir — çift tıkla iki kez rapor edilmesin.
+  final bool advancing;
 
   void _showNote(BuildContext context, String? note) {
     if (note == null) return;
@@ -902,14 +1006,21 @@ class _ActionBar extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: onAdvance,
+                onPressed: advancing ? null : () => onAdvance(),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: MatchScreen._accent,
+                  disabledForegroundColor: MatchScreen._textMuted,
                   side: const BorderSide(color: MatchScreen._accent),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   textStyle: const TextStyle(fontSize: 13),
                 ),
-                icon: const Icon(Icons.arrow_forward, size: 16),
+                icon: advancing
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.arrow_forward, size: 16),
                 label: const Text('İlerle'),
               ),
             )

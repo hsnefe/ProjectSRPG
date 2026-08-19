@@ -689,7 +689,7 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
     Navigator.of(context).push(
       ExpandPageRoute<void>(
         rect: rect,
-        page: const PreMatchScreen(),
+        page: PreMatchScreen(),
       ),
     );
   }

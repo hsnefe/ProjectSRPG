@@ -431,3 +431,28 @@ class TickFrame {
     );
   }
 }
+
+/// `GET /matches/{id}/summary` (E9) yanıtı — bkz. `API_CONTRACT.md` §8.3.
+///
+/// `stats` career_engine'in M2'sine **olduğu gibi** iletilecek şekilde ham
+/// `Map` olarak tutulur (13 anahtarlık taraf başına istatistik, §7.3) — FE
+/// içeriğini yorumlamaz, sadece taşır.
+class MatchSummaryResponse {
+  const MatchSummaryResponse({
+    required this.score,
+    required this.stats,
+    required this.finalPossessionHome,
+  });
+
+  final ScoreInfo score;
+  final Map<String, dynamic> stats;
+  final double finalPossessionHome;
+
+  factory MatchSummaryResponse.fromJson(Map<String, dynamic> json) {
+    return MatchSummaryResponse(
+      score: ScoreInfo.fromJson(json['score'] as Map<String, dynamic>),
+      stats: json['stats'] as Map<String, dynamic>,
+      finalPossessionHome: (json['final_possession_home'] as num).toDouble(),
+    );
+  }
+}

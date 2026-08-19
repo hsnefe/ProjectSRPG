@@ -22,7 +22,7 @@ class MatchApiException implements Exception {
       'MatchApiException($statusCode, code: $code, message: $message)';
 }
 
-/// `match_engine`'in REST uçlarını (E1, E2, E4) saran ince istemci.
+/// `match_engine`'in REST uçlarını (E1, E2, E4, E9, E11) saran ince istemci.
 /// SSE akışı (E3) ayrı bir sınıfta (`match_sse_client.dart`) ele alınır.
 class MatchApiClient {
   MatchApiClient({http.Client? httpClient, String? baseUrl})
@@ -123,5 +123,29 @@ class MatchApiClient {
       body: jsonEncode({'speed': speed}),
     );
     if (response.statusCode != 204) throw _errorFrom(response);
+  }
+
+  /// `POST /matches` (E11, v1.2) — career_engine köprüsü (D7). `enginePayload`
+  /// career_engine'in M1 yanıtındaki `engine_payload`'ı olduğu gibi taşır; FE
+  /// içeriğini yorumlamaz (career_engine CONTRACT.md §5.6). Yanıt zarfı E1
+  /// ile birebir aynı, `NextMatchResponse` burada da geçerli.
+  Future<NextMatchResponse> createMatch(
+    Map<String, dynamic> enginePayload,
+  ) async {
+    final response = await _client.post(
+      _uri('/matches'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(enginePayload),
+    );
+    if (response.statusCode != 201) throw _errorFrom(response);
+    return NextMatchResponse.fromJson(_decode(response));
+  }
+
+  /// `GET /matches/{matchId}/summary` (E9) — maç bittikten sonra career_engine
+  /// M2'ye taşınacak skor/istatistik/hakimiyet.
+  Future<MatchSummaryResponse> fetchSummary(String matchId) async {
+    final response = await _client.get(_uri('/matches/$matchId/summary'));
+    if (response.statusCode != 200) throw _errorFrom(response);
+    return MatchSummaryResponse.fromJson(_decode(response));
   }
 }
