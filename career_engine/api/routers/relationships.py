@@ -89,8 +89,9 @@ def interact(
     outcome = resolve_outcome(body.dialogue_id, body.choice_path)
 
     current_date = conn.execute(
-        "SELECT current_date FROM career_state WHERE career_id = ?", (career_id,)
-    ).fetchone()["current_date"]
+        # game_date, not current_date — SQLite's CURRENT_DATE keyword.
+        "SELECT game_date FROM career_state WHERE career_id = ?", (career_id,)
+    ).fetchone()["game_date"]
     happened_at = f"{current_date}T12:00:00+03:00"
     reason = f"dialogue:{body.dialogue_id}:{body.choice_path[-1]}"
 

@@ -82,13 +82,14 @@ def fetch_career_state(conn: sqlite3.Connection, career_id: str) -> dict:
     in full (D28, INV-18). Raises career_not_found if the career doesn't
     exist, so routers don't each need their own existence check."""
     row = conn.execute(
-        "SELECT current_date, season_id, money, condition FROM career_state WHERE career_id = ?",
+        # game_date, not current_date — SQLite's CURRENT_DATE keyword.
+        "SELECT game_date, season_id, money, condition FROM career_state WHERE career_id = ?",
         (career_id,),
     ).fetchone()
     if row is None:
         raise errors.career_not_found(career_id)
     return {
-        "current_date": row["current_date"],
+        "current_date": row["game_date"],
         "season_id": row["season_id"],
         "money": row["money"],
         "condition": row["condition"],
@@ -169,8 +170,8 @@ def fetch_next_fixture(conn: sqlite3.Connection, career_id: str, user_team_id: s
     away = fetch_team_ref(conn, career_id, row["away_team_id"])
     competition = fetch_competition_ref(conn, career_id, row["competition_id"])
     current_date = conn.execute(
-        "SELECT current_date FROM career_state WHERE career_id = ?", (career_id,)
-    ).fetchone()["current_date"]
+        "SELECT game_date FROM career_state WHERE career_id = ?", (career_id,)
+    ).fetchone()["game_date"]
 
     import datetime as _dt
     kickoff_date = row["kickoff_at"][:10]

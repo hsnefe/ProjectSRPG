@@ -60,6 +60,29 @@ CONTRACT_LENGTH_DAYS = 730
 # §6.5 D25/D26/D27 - weekly cadence for wage, upkeep, and bonuses.
 WAGE_WEEKDAY = 0  # Monday, per date.weekday()
 
+# §7 - where match_engine listens, for T3's background-sim calls (E12).
+MATCH_ENGINE_BASE_URL = os.environ.get("MATCH_ENGINE_BASE_URL", "http://127.0.0.1:8000")
+MATCH_ENGINE_TIMEOUT_S = 30.0
+
+# §6.2 D41 - day_budget's resource keys and their daily refill. ⟦AÇIK-5⟧
+# owns the real scale; these reuse CONTRACT.md's own illustrative numbers
+# (§6.2's worked example) so the day loop is runnable today. Change only
+# this constant when AÇIK-5 closes — no schema or endpoint change needed.
+DAY_BUDGET_DEFAULTS = {"time": 720.0, "energy": 100.0}
+
+# §5.5 T1/§6.3 - event-day thresholds. Not pinned by CONTRACT.md beyond
+# naming the event kinds; picked as reasonable defaults.
+CONTRACT_EXPIRING_DAYS = 30
+RELATIONSHIP_LOW_THRESHOLD = 20
+
+# §6.3 - "atlanan her gün için doğal kondisyon toparlanması uygulanır".
+# Placeholder magnitude, same status as DAY_BUDGET_DEFAULTS.
+NATURAL_CONDITION_RECOVERY_PER_DAY = 3
+
+# §5.5 T3 - safety cap so `to: "next_event"` can't loop forever if no
+# event condition is ever met (not a documented behavior, defensive only).
+MAX_ADVANCE_DAYS = 400
+
 # §9 - money_ledger.kind values used by wallet.apply() callers. INV-19 (the
 # ledger's total always equals career_state.money) only holds from t=0 if a
 # career's starting balance itself arrives as a ledger entry rather than a

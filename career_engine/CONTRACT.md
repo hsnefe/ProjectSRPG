@@ -252,9 +252,16 @@ CREATE TABLE career (
   schema_version INTEGER NOT NULL
 );
 
+-- Kolon adı bilerek 'current_date' DEĞİL: SQLite bu ismi CURRENT_DATE
+-- yerleşik anahtar sözcüğüyle karıştırır — SELECT/WHERE'de niteliksiz
+-- kullanılırsa saklanan değil, gerçek bugünün tarihini döner (yalnızca
+-- INSERT kolon listesi ve UPDATE...SET hedefi güvenli kalır; bu, gerçek
+-- bir implementasyon hatasıyla yakalandı). Dış sözleşimdeki JSON alanı
+-- yine `"current_date"` (aşağıdaki CareerState örneği) — eşleme yalnızca
+-- API katmanındadır.
 CREATE TABLE career_state (
   career_id     TEXT PRIMARY KEY REFERENCES career(career_id) ON DELETE CASCADE,
-  current_date  TEXT NOT NULL,             -- D5: dünyanın "bugün"ü
+  game_date     TEXT NOT NULL,             -- D5: dünyanın "bugün"ü
   season_id     TEXT NOT NULL,
   money         INTEGER NOT NULL,          -- player_state.dart:7  (₺, tam sayı)
   condition     INTEGER NOT NULL           -- player_state.dart:6  (0-100)
@@ -806,15 +813,19 @@ CREATE TABLE news (
   PRIMARY KEY (career_id, news_id)
 );
 
+-- Sürrogat anahtar: aynı gün aynı catalog_id ikinci kez yapılırsa (bunu
+-- engelleyen bir kural yok — day_budget yalnızca kalan havuzu izler)
+-- bileşik anahtar çakışırdı; relationship_event/fame_event/money_ledger'la
+-- aynı gerekçe.
 CREATE TABLE activity_log (
+  activity_id   INTEGER PRIMARY KEY AUTOINCREMENT,
   career_id     TEXT NOT NULL,
   happened_at   TEXT NOT NULL,
   kind          TEXT NOT NULL,             -- 'training' | 'lifestyle' | 'relationship' | 'purchase'
   catalog_id    TEXT NOT NULL,             -- 'ev-uyku', 'sut' ...
   applied_costs   TEXT NOT NULL,           -- JSON: gerçekte harcanan bütçe (D41)
   applied_effects TEXT NOT NULL,           -- JSON: gerçekte uygulanan etkiler (D41)
-  payload       TEXT,                      -- JSON: minigame skoru gibi girdi verisi
-  PRIMARY KEY (career_id, happened_at, catalog_id)
+  payload       TEXT                       -- JSON: minigame skoru gibi girdi verisi
 );
 
 CREATE TABLE inventory (

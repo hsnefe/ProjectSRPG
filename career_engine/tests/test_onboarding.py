@@ -32,6 +32,7 @@ def test_create_career_writes_the_full_world(db_conn):
     assert _count(db_conn, career_id, "player_attribute") == 11
     assert _count(db_conn, career_id, "player_contract") == 1
     assert _count(db_conn, career_id, "relationship") == 5
+    assert _count(db_conn, career_id, "day_budget") == 2  # time, energy
 
 
 def test_create_career_starting_balance_matches_ledger_inv19(db_conn):

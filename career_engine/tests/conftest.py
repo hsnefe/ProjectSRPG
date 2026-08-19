@@ -29,7 +29,7 @@ def career_id(db_conn):
         (cid, "2026-01-01T00:00:00+03:00", 1, 1),
     )
     db_conn.execute(
-        "INSERT INTO career_state (career_id, current_date, season_id, money, condition) "
+        "INSERT INTO career_state (career_id, game_date, season_id, money, condition) "
         "VALUES (?, ?, ?, ?, ?)",
         (cid, "2026-01-01", "25/26", 0, 72),
     )
@@ -63,6 +63,32 @@ def seeded_relationship(db_conn, career_id):
     )
     db_conn.commit()
     return "coach"
+
+
+_FAKE_STATS = {
+    "goals": 1, "shots": 10, "shots_on_target": 4, "corners": 5,
+    "dangerous_attacks": 8, "total_attacks": 20, "yellow_cards": 1,
+    "red_cards": 0, "penalties": 0, "penalty_goals": 0, "fouls": 6,
+    "substitutions": 2, "possession_ticks": 50,
+}
+
+
+@pytest.fixture
+def mock_engine(monkeypatch):
+    """match_engine doesn't expose E12 (§7) yet — this stands in for
+    domain.engine_client.simulate_batch() so T3's background-sim tests
+    don't need a live match_engine server. Every match comes back 1-1."""
+    def _fake_simulate_batch(matches):
+        return [
+            {
+                "ref": m["ref"], "score": {"home": 1, "away": 1},
+                "stats": {"home": dict(_FAKE_STATS), "away": dict(_FAKE_STATS)},
+                "final_possession_home": 50.0,
+            }
+            for m in matches
+        ]
+
+    monkeypatch.setattr("domain.engine_client.simulate_batch", _fake_simulate_batch)
 
 
 @pytest.fixture

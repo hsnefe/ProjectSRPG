@@ -14,7 +14,7 @@ from typing import Optional
 
 from api import config, errors
 from api.ids import new_career_id
-from domain import scheduling, wallet
+from domain import day_budget, scheduling, wallet
 from worlddata.attributes import STARTING_ATTRIBUTES
 from worlddata.competitions import (
     BIRINCI_LIG, COMPETITION_RULES, COMPETITIONS, CUP_TEAM_IDS,
@@ -58,13 +58,14 @@ def create_career(
         (career_id, created_at, seed_value, 1),
     )
     conn.execute(
-        "INSERT INTO career_state (career_id, current_date, season_id, money, condition) "
+        "INSERT INTO career_state (career_id, game_date, season_id, money, condition) "
         "VALUES (?, ?, ?, ?, ?)",
         (career_id, SEASON_STARTS_ON, SEASON_ID, 0, config.STARTING_CONDITION),
     )
     wallet.apply(
         conn, career_id, config.STARTING_MONEY, "starting_balance", "career:init", SEASON_STARTS_ON
     )
+    day_budget.refill(conn, career_id)
 
     _seed_world(conn, career_id, rng)
     _seed_player(conn, career_id, player_name, position, team_id)

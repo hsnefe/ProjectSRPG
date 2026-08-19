@@ -41,7 +41,7 @@ def create_career(body: CreateCareerRequest, conn: sqlite3.Connection = Depends(
 @router.get("")
 def list_careers(conn: sqlite3.Connection = Depends(get_db)):
     rows = conn.execute(
-        "SELECT c.career_id, c.created_at, cs.season_id, cs.current_date, p.name AS player_name, "
+        "SELECT c.career_id, c.created_at, cs.season_id, cs.game_date, p.name AS player_name, "
         "p.team_id FROM career c "
         "JOIN career_state cs ON cs.career_id = c.career_id "
         "JOIN player p ON p.career_id = c.career_id AND p.is_user = 1 "
@@ -67,7 +67,7 @@ def list_careers(conn: sqlite3.Connection = Depends(get_db)):
             "team": team,
             "competition": competition,
             "season_id": row["season_id"],
-            "current_date": row["current_date"],
+            "current_date": row["game_date"],
             "created_at": row["created_at"],
             "standing_rank": standing_rank,
         })
