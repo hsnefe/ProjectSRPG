@@ -65,7 +65,7 @@ CREATE TABLE competition_round (
   season_id      TEXT NOT NULL,
   competition_id TEXT NOT NULL,
   round_no       INTEGER NOT NULL,
-  stage          TEXT NOT NULL,            -- 'regular'|'group'|'r16'|'qf'|'sf'|'final'
+  stage          TEXT NOT NULL,            -- 'regular'|'group'|'r32'|'r16'|'qf'|'sf'|'final'
   scheduled_on   TEXT NOT NULL,
   drawn          INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (career_id, season_id, competition_id, round_no)
