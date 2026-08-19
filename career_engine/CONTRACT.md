@@ -1,7 +1,7 @@
 # CAREER ENGINE — API CONTRACT (v1.0)
 
 **Taraflar:** Kariyer Back-end (`career_engine`, FastAPI) ↔ Front-end (`ProjectSRPG`, Flutter)
-**Komşu servis:** Maç Motoru (`match_engine`, FastAPI) — bkz. [`API_CONTRACT.md`](../API_CONTRACT.md) v1.1
+**Komşu servis:** Maç Motoru (`match_engine`, FastAPI) — bkz. [`API_CONTRACT.md`](../../API_CONTRACT.md) v1.1
 
 ---
 
@@ -169,8 +169,8 @@ dosyasına satır eklemekten ibarettir — kod ve şema değişmez.
 `API_CONTRACT.md` §4.1'de motor için tersi karar alınmıştı (motor hazır satır taşır),
 çünkü maç anlatımı akış hâlinde ve zamana bağlıydı. Burada durum farklı: kariyer
 verisi durağan ve FE onu zaten kendi biçimlendiriyor
-([`player_state.dart:29`](../ProjectSRPG/lib/state/player_state.dart) `moneyLabel`,
-[`player_profile_screen.dart:118`](../ProjectSRPG/lib/screens/player_profile_screen.dart) `passAccuracyLabel`).
+([`player_state.dart:29`](../lib/state/player_state.dart) `moneyLabel`,
+[`player_profile_screen.dart:118`](../lib/screens/player_profile_screen.dart) `passAccuracyLabel`).
 **Sayıyı BE verir, etiketi FE yazar.** Tek istisna §5.7'deki katalog metinleri ve
 haber gövdeleri — onlar zaten içeriktir.
 
@@ -271,18 +271,18 @@ CREATE TABLE day_budget (
 
 | Alan | FE kaynağı |
 |---|---|
-| `money` | [`player_state.dart:7`](../ProjectSRPG/lib/state/player_state.dart) `_money = 48200` |
-| `condition` | [`player_state.dart:6`](../ProjectSRPG/lib/state/player_state.dart) `_condition = 72` |
+| `money` | [`player_state.dart:7`](../lib/state/player_state.dart) `_money = 48200` |
+| `condition` | [`player_state.dart:6`](../lib/state/player_state.dart) `_condition = 72` |
 | `day_budget.*` | türetilmiş — D41, §6.2. Her gün başında yeniden doldurulur |
 
 > **Kondisyon tek kavramdır (D15).** İki sayıyla temsil edilir ama FE'de tek
 > etiket taşır:
 > - `career_state.condition` — **bugünkü değer**. Uyku, yemek, maç, antrenman
 >   yorgunluğu bunu oynatır. Kariyer merkezindeki çubuk budur
->   ([`career_center_screen.dart:213`](../ProjectSRPG/lib/screens/career_center_screen.dart)).
+>   ([`career_center_screen.dart:213`](../lib/screens/career_center_screen.dart)).
 > - `player_attribute['condition']` — **tavan**. Yalnızca "Kondisyon Koşusu"
 >   antrenmanı yükseltir, gündelik aktiviteyle değişmez. Radar grafiğindeki
->   eksen budur ([`training_radar_screen.dart:16`](../ProjectSRPG/lib/screens/training_radar_screen.dart)).
+>   eksen budur ([`training_radar_screen.dart:16`](../lib/screens/training_radar_screen.dart)).
 >
 > Bağ: `condition ≤ attribute['condition']` (INV-10). Böylece "bir ay koştum,
 > 3 arttı" ile "uyudum, 14 arttı" aynı çubukta boğuşmaz — biri tavanı, diğeri
@@ -323,13 +323,13 @@ FE'de kalır** (§1.3).
 
 | Aile | `attribute_key` | Eksen | Kaynak |
 |---|---|---|---|
-| **saha** | `condition` | Kondisyon | [`training_radar_screen.dart:16`](../ProjectSRPG/lib/screens/training_radar_screen.dart) |
+| **saha** | `condition` | Kondisyon | [`training_radar_screen.dart:16`](../lib/screens/training_radar_screen.dart) |
 | saha | `strength` | Güç | " |
 | saha | `flexibility` | Esneklik | " |
 | saha | `shooting` | Şut | " |
 | saha | `passing` | Pas | " |
 | saha | `dribbling` | Dribling | " |
-| **kişi** | `charisma` | Cazibe | [`relationships_radar_screen.dart:14`](../ProjectSRPG/lib/screens/relationships_radar_screen.dart) |
+| **kişi** | `charisma` | Cazibe | [`relationships_radar_screen.dart:14`](../lib/screens/relationships_radar_screen.dart) |
 | kişi | `politeness` | Kibarlık | " |
 | kişi | `confidence` | Özgüven | " |
 | kişi | `intelligence` | Zeka | " |
@@ -388,7 +388,7 @@ ikisi tek fonksiyondan — `fame.apply(scope, delta, reason)` — aynı transact
 yazılır (INV-24). Aşınma, eşik, tavan gibi kurallar AÇIK-9 ile gelecek; şema
 hepsini karşılar.
 
-> **Bekleyen kanca:** [`lifestyle_screen.dart:216`](../ProjectSRPG/lib/screens/lifestyle_screen.dart)
+> **Bekleyen kanca:** [`lifestyle_screen.dart:216`](../lib/screens/lifestyle_screen.dart)
 > "Taraftar Etkinliği" kaleminin açıklaması *"Tribünün gözünde değerin artar"*
 > diyor ama tek etkisi `conditionDelta: -2`. Şöhret tanımlandığında bu kalemin
 > ilk müşterisi odur. Katalog şeması (§5.7) bu yüzden `effects` haritasında bir
@@ -406,7 +406,7 @@ CREATE TABLE player_value_history (
 );
 ```
 
-[`player_profile_screen.dart:214`](../ProjectSRPG/lib/screens/player_profile_screen.dart)
+[`player_profile_screen.dart:214`](../lib/screens/player_profile_screen.dart)
 `_valueHistory` bunu bekliyor (`ValuePoint(label, value)`); etiket
 (`'Oca 24'`) `measured_on`'dan **türetilir** (§1.3). Geçmiş eğri saklanmadan
 çizilemeyeceği için bu tablo anlık görüntü tutar — sezon başı ve sezon ortası,
@@ -438,12 +438,12 @@ CREATE TABLE player_season_stat (
 );
 ```
 
-Kolonlar [`player_profile_screen.dart:46-67`](../ProjectSRPG/lib/screens/player_profile_screen.dart)
+Kolonlar [`player_profile_screen.dart:46-67`](../lib/screens/player_profile_screen.dart)
 `_SeasonStats`'tan birebir. Anahtar `(sezon, müsabaka)` kesiti — FE toplama işini
 kendi yapıyor (`_StatTotals.of`), BE kesitleri verir.
 
 > **D18 sonrası kırılım:** FE'nin müsabaka filtresi üç değer üzerinden çalışıyor
-> ([`player_profile_screen.dart:10`](../ProjectSRPG/lib/screens/player_profile_screen.dart)
+> ([`player_profile_screen.dart:10`](../lib/screens/player_profile_screen.dart)
 > `enum _Competition { lig, kupa, uluslararasi }`). Şema artık `competition_id`
 > saklıyor — çünkü "Süper Lig'deki sezonum" ile "1. Lig'deki sezonum" ayrılabilmeli.
 > P2 yanıtı **her iki alanı da** taşır: `competition_id` (kesin) ve
@@ -456,7 +456,7 @@ kendi yapıyor (`_StatTotals.of`), BE kesitleri verir.
 |---|---|
 | `appearances` | Oynanan her maç için +1 |
 | `starts` | `appearances` ile aynı — v1'de kullanıcı daima ilk 11'de |
-| `minutes` | +95 (motorun sabit maç uzunluğu, [`API_CONTRACT.md` §8.2](../API_CONTRACT.md)) |
+| `minutes` | +95 (motorun sabit maç uzunluğu, [`API_CONTRACT.md` §8.2](../../API_CONTRACT.md)) |
 | `goals` | Golle sonuçlanan şut minigame'i sayısı (§5.6 `interventions`) |
 | `assists` | **v1'de daima 0** — motorda karşılığı yok |
 | `passes_completed` / `passes_attempted` | **v1'de daima 0** — motorda karşılığı yok |
@@ -466,7 +466,7 @@ kendi yapıyor (`_StatTotals.of`), BE kesitleri verir.
 > üretmez**: dayanağı olmayan kolon 0 kalır.
 >
 > ✅ **FE bu duruma bugünden hazır.** `passes_attempted == 0` iken
-> [`player_profile_screen.dart:118`](../ProjectSRPG/lib/screens/player_profile_screen.dart)
+> [`player_profile_screen.dart:118`](../lib/screens/player_profile_screen.dart)
 > zaten `'Başarılı pas: —'` yazıyor. Kolonlar şemada duruyor: motora bir gün
 > `Player` katmanı gelirse (`API_CONTRACT.md` §12) migrasyon gerekmez, yalnızca
 > yazan kod eklenir.
@@ -486,9 +486,9 @@ CREATE TABLE player_contract (
 );
 ```
 
-Beş kalem [`contract_screen.dart:28-40`](../ProjectSRPG/lib/screens/contract_screen.dart)'tan.
+Beş kalem [`contract_screen.dart:28-40`](../lib/screens/contract_screen.dart)'tan.
 `aylık maaş` **türetilmiş** (`weekly_wage × 4`), saklanmaz. FE bugün "₺180.000" gibi
-biçimlenmiş literal tutuyor ([`contract_screen.dart:16` yorumu](../ProjectSRPG/lib/screens/contract_screen.dart));
+biçimlenmiş literal tutuyor ([`contract_screen.dart:16` yorumu](../lib/screens/contract_screen.dart));
 §1.3 gereği BE tam sayı gönderir, biçimlendirme FE'ye geçer.
 
 ### 3.3 Dünya
@@ -516,7 +516,7 @@ CREATE TABLE team (
 **Renkler (D17):** `#RRGGBB` biçiminde, sabit veri dosyasından, **ham hâliyle**.
 FE `Color(0xFF + hex)` ile okur. Koyu zeminde okunabilirlik düzeltmesi FE'nin
 işidir — neyin üstüne çizildiğini o bilir (§1.3).
-[`_TeamBadge`](../ProjectSRPG/lib/screens/career_center_screen.dart) bugün zaten
+[`_TeamBadge`](../lib/screens/career_center_screen.dart) bugün zaten
 `background` + `iconColor` diye iki renk alıyor; bu ikisi onları besler.
 
 > ⚠️ `team`'de **lig kolonu yoktur.** Takımın hangi müsabakada oynadığı sezona
@@ -623,8 +623,8 @@ sezon başında görür, rakibini kura çekilince öğrenir. `drawn = 1` olduğu
 turun `fixture` satırları oluşmuştur.
 
 `fixture_team_stat`'ın 13 kolonu motorun `_blank_stats()`
-([`models.py:82-88`](../match_engine/models.py)) anahtarlarıyla **birebir aynıdır** —
-`/summary` yanıtı ([`API_CONTRACT.md` §8.3](../API_CONTRACT.md)) doğrudan buraya yazılır.
+([`models.py:82-88`](../../match_engine/models.py)) anahtarlarıyla **birebir aynıdır** —
+`/summary` yanıtı ([`API_CONTRACT.md` §8.3](../../API_CONTRACT.md)) doğrudan buraya yazılır.
 
 #### Puan durumu
 
@@ -640,7 +640,7 @@ FROM ( /* fixture'ın iki tarafını da satıra açan alt sorgu, status='played'
 GROUP BY career_id, season_id, competition_id, team_id;
 ```
 
-Kolonlar [`league_table_screen.dart:3-22`](../ProjectSRPG/lib/screens/league_table_screen.dart)
+Kolonlar [`league_table_screen.dart:3-22`](../lib/screens/league_table_screen.dart)
 `_StandingRow`'dan (`rank`, `played`, `won`, `drawn`, `lost`, `points`).
 `rank` ve `isPlayerTeam` **türetilmiş**, saklanmaz.
 `competition_id` boyutu D18 ile eklendi: her müsabakanın kendi tablosu var.
@@ -665,7 +665,7 @@ ibarettir.
 
 > ✅ FE tarafı ölçeğe hazır: lig tablosu bugün 8 sabit satır gösteriyor ama
 > `ListView.builder` + `itemCount` ile yazılmış
-> ([`league_table_screen.dart:136`](../ProjectSRPG/lib/screens/league_table_screen.dart)).
+> ([`league_table_screen.dart:136`](../lib/screens/league_table_screen.dart)).
 >
 > ⚠️ FE'nin bugünkü sabit lig verisi (Deniz SK · Anadolu FC · FK Yıldız …) tek
 > bir ligi anlatıyor ve kullanıcının kulübü FK Yıldız. D21 gereği bu tablo **1.
@@ -708,8 +708,8 @@ CREATE TABLE relationship_event (
 );
 ```
 
-Alanlar [`relationships_screen.dart:396-435`](../ProjectSRPG/lib/screens/relationships_screen.dart)
-`_RelationshipData`'dan. **Beş kategori** [`relationships_screen.dart:31,90,135,191,236`](../ProjectSRPG/lib/screens/relationships_screen.dart):
+Alanlar [`relationships_screen.dart:396-435`](../lib/screens/relationships_screen.dart)
+`_RelationshipData`'dan. **Beş kategori** [`relationships_screen.dart:31,90,135,191,236`](../lib/screens/relationships_screen.dart):
 Antrenör · Takım Arkadaşları · Medya · Partner · Aile/Sosyal Çevre.
 `status` ("Güven seviyesi yüksek") ve `dateLabel` ("2 gün önce") **türetilmiştir** —
 BE `score` ve `last_contact_at` verir, cümleyi FE kurar (§1.3).
@@ -827,12 +827,12 @@ transaction'da yazar, `balance_after`'ı doldurur, INV-5'i (negatife düşmez)
 orada uygular. Başka hiçbir yer `career_state.money`'ye dokunmaz (INV-17).
 Defteri baştan toplayıp bakiyeyle karşılaştıran bir test sapmayı yakalar.
 
-`news` alanları [`career_center_screen.dart:593-640`](../ProjectSRPG/lib/screens/career_center_screen.dart)
+`news` alanları [`career_center_screen.dart:593-640`](../lib/screens/career_center_screen.dart)
 `NewsItem`'dan; `timeAgo` **türetilmiş** (`published_at` − `current_date`).
-`inventory`, [`player_state.dart:46`](../ProjectSRPG/lib/state/player_state.dart)'daki
+`inventory`, [`player_state.dart:46`](../lib/state/player_state.dart)'daki
 `_owned` kümesinin kalıcı hâli.
 `activity_log`, antrenman kartlarındaki `lastDone` ("2 gün önce yapıldı",
-[`training_screen.dart:59`](../ProjectSRPG/lib/screens/training_screen.dart)) satırının kaynağıdır.
+[`training_screen.dart:59`](../lib/screens/training_screen.dart)) satırının kaynağıdır.
 
 **Katalog tabloları yoktur.** Antrenman/yaşam/dükkân katalogları kod içinde veri
 dosyasıdır, kariyere kopyalanmaz — yalnızca *yapılanlar* ve *alınanlar* loglanır.
@@ -884,7 +884,7 @@ Taban: `http://127.0.0.1:8001`
 zarf kuralları §5.0'da bir kez tanımlanır.
 
 **Zarf ve hata biçimi** `match_engine` ile aynıdır
-([`envelope.py`](../match_engine/api/envelope.py), [`errors.py`](../match_engine/api/errors.py)):
+([`envelope.py`](../../match_engine/api/envelope.py), [`errors.py`](../../match_engine/api/errors.py)):
 `{ "error": { "code": "...", "message": "..." } }`.
 
 **Durumu değiştiren her uç** (T2, T3, T4, R3, M2, M3) yanıtında tam
@@ -917,7 +917,7 @@ için ortak nesneler §5.0'da bir kez tanımlanır ve aşağıda adlarıyla anı
 }
 ```
 
-FE'nin paylaşılan state'i ([`PlayerState`](../ProjectSRPG/lib/state/player_state.dart))
+FE'nin paylaşılan state'i ([`PlayerState`](../lib/state/player_state.dart))
 bu bloktan tazelenir. Alanların hangi ekranda göründüğü BE'yi ilgilendirmez.
 
 #### `TeamRef` — takım gösterilen her yerde
@@ -961,7 +961,7 @@ bu bloktan tazelenir. Alanların hangi ekranda göründüğü BE'yi ilgilendirme
 | **Para** | Tam sayı, ₺, kuruş yok. Biçimlendirme FE'de (§1.3) |
 | **Sayfalama** | `?limit=` (varsayılan 20, en fazla 100) + `?before=` imleci. Yanıt `next_before` döner; `null` ise liste bitti |
 | **Bilinmeyen alan** | FE tanımadığı alanı **yok sayar**. Yanıta alan eklemek kırıcı değildir; alan kaldırmak kırıcıdır |
-| **Hata gövdesi** | `{ "error": { "code": "...", "message": "..." } }` — `match_engine` ile aynı ([`errors.py`](../match_engine/api/errors.py)) |
+| **Hata gövdesi** | `{ "error": { "code": "...", "message": "..." } }` — `match_engine` ile aynı ([`errors.py`](../../match_engine/api/errors.py)) |
 | **Kimlik doğrulama** | Yok (motorla aynı karar) |
 
 ---
@@ -1117,7 +1117,7 @@ Sorgu: `?season=25/26|all&competition=<competition_id>|all`
 ```
 
 BE **kesitleri** verir, toplamayı FE yapar
-([`player_profile_screen.dart:86`](../ProjectSRPG/lib/screens/player_profile_screen.dart)
+([`player_profile_screen.dart:86`](../lib/screens/player_profile_screen.dart)
 `_StatTotals.of`). `competition_kind` eşlemesi API katmanındadır:
 `league → lig`, `cup → kupa`, `continental → uluslararasi`.
 
@@ -1435,7 +1435,7 @@ gibi kabul edilmez (INV-23):
 
 | Alan | Kural |
 |---|---|
-| `stats.{home,away}` | **Tam olarak 13 anahtar** ([`models.py:82-88`](../match_engine/models.py)); eksik veya fazla kabul edilmez |
+| `stats.{home,away}` | **Tam olarak 13 anahtar** ([`models.py:82-88`](../../match_engine/models.py)); eksik veya fazla kabul edilmez |
 | `score.*` | `stats.*.goals` ile tutarlı olmalı |
 | `interventions[].action_key` | Motorun 11 aksiyonluk kataloğundan (`API_CONTRACT.md` Ek B) |
 | `interventions[].outcome_key` | O aksiyon için geçerli dallardan (`API_CONTRACT.md` §7.3) |
@@ -1538,12 +1538,12 @@ değil, negatif bir `effect`'tir.
 **yüklenmez** (INV-28) — serbest haritanın bedeli yazım hatasının sessizce
 geçmesidir, bu doğrulama onu kapatır.
 
-`drill` alanı [`training_screen.dart:22`](../ProjectSRPG/lib/screens/training_screen.dart)'deki
+`drill` alanı [`training_screen.dart:22`](../lib/screens/training_screen.dart)'deki
 `TrainingDrill?` enum'ının string karşılığıdır; `null` olan kart FE'de "Yakında"
 görünür.
 
 > ℹ️ Kişi antrenmanları için FE'de hazır bir yer var: antrenman ekranının ikinci
-> sekmesi ([`training_screen.dart:111`](../ProjectSRPG/lib/screens/training_screen.dart)
+> sekmesi ([`training_screen.dart:111`](../lib/screens/training_screen.dart)
 > `_tactical`) tanımlı ama boş. Adı "Taktik" olduğu için bir isimlendirme kararı
 > gerekecek — ⟦B-3⟧, FE tarafı.
 
@@ -1559,7 +1559,7 @@ görünür.
 | `badgeCode` | FE | Kart görselinin parçası |
 | `status` ("Güven seviyesi yüksek") | FE | `score`'dan türer |
 | `dateLabel` / `timeAgo` / `lastDone` | FE | Tarihten türer, dile bağlı |
-| `moneyLabel` ("₺48.200") | FE | [`player_state.dart:29`](../ProjectSRPG/lib/state/player_state.dart) zaten biçimliyor |
+| `moneyLabel` ("₺48.200") | FE | [`player_state.dart:29`](../lib/state/player_state.dart) zaten biçimliyor |
 | `imageAsset` | FE | Dosya yolu, FE paketinin içinde |
 | Aylık maaş | FE | `weekly_wage × 4`, türetilmiş |
 | `rank`, `goal_difference` | **BE gönderir** | Sıralama tabloya bağlı; FE tek satırdan hesaplayamaz |
@@ -1602,9 +1602,9 @@ olduğu için tek boyutlu ("sadece zaman") da, iki boyutlu ("zaman + enerji") da
 daha fazlası da migrasyon gerektirmeden karşılanır.
 
 > **FE'de iki boyutun izi zaten var:** yaşam aktiviteleri `duration` taşıyor
-> ("Tüm gece", "2 saat" — [`activity_card.dart:27`](../ProjectSRPG/lib/widgets/activity_card.dart)),
+> ("Tüm gece", "2 saat" — [`activity_card.dart:27`](../lib/widgets/activity_card.dart)),
 > antrenman kartları `energy` taşıyor (15, 20, 8… —
-> [`training_screen.dart:19`](../ProjectSRPG/lib/screens/training_screen.dart)).
+> [`training_screen.dart:19`](../lib/screens/training_screen.dart)).
 > Bunlar farklı şeyler: uyku **zaman** harcar ama **enerji** kazandırır.
 > AÇIK-5'in cevaplaması gereken asıl soru budur.
 
@@ -1628,7 +1628,7 @@ birini çağırır:
 
 ### 6.5 Para akışı — sözleşmeden ödemeye (D25, D26, D27)
 
-Sözleşme kalemleri ([`contract_screen.dart:28-40`](../ProjectSRPG/lib/screens/contract_screen.dart))
+Sözleşme kalemleri ([`contract_screen.dart:28-40`](../lib/screens/contract_screen.dart))
 artık gerçekten ödenir. Her biri `wallet.apply()` üzerinden defterle birlikte yazılır.
 
 | Kalem | Ne zaman | `kind` | Kaynak |
@@ -1769,16 +1769,16 @@ gelindiğinde sezonun bütün maçları çoktan oynanmıştır.
 ```
 
 `stamina` alanı D38 ile geldi ve **motorda zaten mevcut** — `Team.stamina`
-([`models.py:22`](../match_engine/models.py)), varsayılanı 100.0. Bugün
-[`teams.py:29`](../match_engine/api/teams.py) her maçta 100.0 yazıyor; E11 bunu
+([`models.py:22`](../../match_engine/models.py)), varsayılanı 100.0. Bugün
+[`teams.py:29`](../../match_engine/api/teams.py) her maçta 100.0 yazıyor; E11 bunu
 gövdeden alacak.
 
-Motorun `Team` doğrulaması ([`teams.py:47`](../match_engine/api/teams.py) `validate_team`)
+Motorun `Team` doğrulaması ([`teams.py:47`](../../match_engine/api/teams.py) `validate_team`)
 aynen uygulanır. Dönen `match_id` mevcut `/start`, `/stream`, `/summary` akışına
 girer. `/matches/next` demo yolu olarak yerinde kalır.
 
 > ⚠️ `DevProbabilityEngine._side_of` kimlik karşılaştırması yapıyor
-> ([`API_CONTRACT.md` §8.2](../API_CONTRACT.md) uyarısı) — bu uç da **her çağrıda taze
+> ([`API_CONTRACT.md` §8.2](../../API_CONTRACT.md) uyarısı) — bu uç da **her çağrıda taze
 > `Team` nesneleri** üretmelidir.
 
 ### E12 — `POST /simulate/batch`
@@ -1985,7 +1985,7 @@ uygulanabilir bir v1 için kapanmaları gerekir.
 |---|---|---|---|
 | B-1 | **v1 sözleşme ölçeği** | FE'nin sabit değerleri üst düzey oyuncuya ait (haftalık ₺180.000, serbest kalma ₺12.000.000) ama kullanıcı tier 2'de ve ₺48.200 ile başlıyor. Başlangıç sözleşmesi bu kademeye ölçeklenmeli | §6.5 · veri dosyası |
 | B-2 | **Ligin FE verisiyle eşlemesi** | FE'nin mevcut sabit ligi (Deniz SK · Anadolu FC · FK Yıldız) **1. Lig / tier 2** olarak yerleştirildi; Süper Lig'in 18 takımı yeni isim. **Bu bir varsayımdır, teyit bekliyor** | §3.3 · veri dosyası |
-| B-3 | **Kişi antrenmanlarının sekmesi** | D31 kalemleri için FE'de boş bir sekme hazır (`_tactical`, [`training_screen.dart:111`](../ProjectSRPG/lib/screens/training_screen.dart)) ama adı "Taktik". İsimlendirme kararı | §5.7 · FE |
+| B-3 | **Kişi antrenmanlarının sekmesi** | D31 kalemleri için FE'de boş bir sekme hazır (`_tactical`, [`training_screen.dart:111`](../lib/screens/training_screen.dart)) ama adı "Taktik". İsimlendirme kararı | §5.7 · FE |
 | B-4 | **Lig tablosu başlığı** | Artık hangi müsabakanın tablosuna bakıldığı değişken; başlık veriden gelmeli | §3.3 · FE |
 | B-5 | **Takım renkleri** | 18 + 14 takım için `color_primary` / `color_secondary` seçilecek (D17) | §3.3 · veri dosyası |
 | B-6 | **SQLite JSON1 sürüm kontrolü** | `json_extract()` 3.38+ gerektiriyor; kurulumda tek satırlık kontrol | §3.4 |
