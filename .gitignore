@@ -44,3 +44,11 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# career_engine (Python)
+career_engine/__pycache__/
+career_engine/**/__pycache__/
+career_engine/.venv/
+career_engine/.pytest_cache/
+career_engine/*.db
+career_engine/*.db-journal

@@ -1,0 +1,100 @@
+"""§5.6 N3 'lifestyle' - ports lifestyle_screen.dart's fifteen activities
+(three groups) into D41's costs/effects shape. `duration` (a free-text
+label like 'Tüm gece') becomes costs.time in minutes — a reasonable literal
+reading of each label, e.g. '1 saat' → 60, 'Yarım gün' → 360. `cost` (₺)
+becomes effects.money as a negative; `conditionDelta` becomes
+effects.condition unchanged. Every number here is ⟦AÇIK-5⟧ — placeholder
+until the budget's actual scale is decided.
+"""
+
+LIFESTYLE_ITEMS = [
+    # --- EV AKTİVİTELERİ ---
+    {"catalog_id": "ev-uyku", "title": "Uyku", "group": "EV AKTİVİTELERİ",
+     "description": "Erken yatıp dokuz saat kesintisiz uyu. Kaslar toparlanır, "
+                     "ertesi güne kondisyonun tazelenmiş başlarsın.",
+     "duration_label": "Tüm gece",
+     "costs": {"time": 540}, "effects": {"condition": 14}},
+    {"catalog_id": "ev-yemek", "title": "Sağlıklı Yemek", "group": "EV AKTİVİTELERİ",
+     "description": "Kendi mutfağında dengeli bir öğün hazırla. Doğru beslenme, "
+                     "antrenmandan aldığın verimi doğrudan artırır.",
+     "duration_label": "1 saat",
+     "costs": {"time": 60}, "effects": {"condition": 6, "money": -250}},
+    {"catalog_id": "ev-meditasyon", "title": "Meditasyon", "group": "EV AKTİVİTELERİ",
+     "description": "Sessiz bir odada nefes çalışması yap. Maç öncesi baskıyı "
+                     "yönetmeni kolaylaştırır.",
+     "duration_label": "30 dakika",
+     "costs": {"time": 30}, "effects": {"condition": 5}},
+    {"catalog_id": "ev-oyun", "title": "Video Oyunu", "group": "EV AKTİVİTELERİ",
+     "description": "Birkaç saat oyun oyna, kafanı dağıt. Keyifli ama geç saate "
+                     "kalırsan kondisyonundan yersin.",
+     "duration_label": "3 saat",
+     "costs": {"time": 180}, "effects": {"condition": -6}},
+    {"catalog_id": "ev-film", "title": "Film Gecesi", "group": "EV AKTİVİTELERİ",
+     "description": "Kanepeye kurul ve uzun bir film izle. Zihnini boşaltır, "
+                     "bedenini pek dinlendirmez.",
+     "duration_label": "2 saat",
+     "costs": {"time": 120}, "effects": {"condition": 2}},
+
+    # --- FİZİKSEL AKTİVİTELER ---
+    {"catalog_id": "fiz-kosu", "title": "Sabah Koşusu", "group": "FİZİKSEL AKTİVİTELER",
+     "description": "Güneş doğarken parkta tempolu koş. Dayanıklılığını besler ama "
+                     "gün içinde biraz yorgun hissedersin.",
+     "duration_label": "45 dakika",
+     "costs": {"time": 45}, "effects": {"condition": -8}},
+    {"catalog_id": "fiz-yuzme", "title": "Yüzme", "group": "FİZİKSEL AKTİVİTELER",
+     "description": "Havuzda düşük tempolu kulaç at. Eklemleri zorlamadan "
+                     "toparlanmayı hızlandıran ideal aktif dinlenme.",
+     "duration_label": "1 saat",
+     "costs": {"time": 60}, "effects": {"condition": 8, "money": -180}},
+    {"catalog_id": "fiz-bisiklet", "title": "Bisiklet", "group": "FİZİKSEL AKTİVİTELER",
+     "description": "Sahil boyunca uzun bir tur at. Bacak kaslarını çalıştırır, "
+                     "kafanı da açar.",
+     "duration_label": "1,5 saat",
+     "costs": {"time": 90}, "effects": {"condition": -4}},
+    {"catalog_id": "fiz-yoga", "title": "Yoga", "group": "FİZİKSEL AKTİVİTELER",
+     "description": "Esneme ve denge çalışması yap. Sakatlanma riskini düşürür, "
+                     "kaslarındaki gerginliği alır.",
+     "duration_label": "50 dakika",
+     "costs": {"time": 50}, "effects": {"condition": 7, "money": -200}},
+    {"catalog_id": "fiz-sauna", "title": "Sauna & Masaj", "group": "FİZİKSEL AKTİVİTELER",
+     "description": "Profesyonel bir merkezde tam toparlanma seansı. Pahalı ama "
+                     "kondisyonu en hızlı geri getiren yöntem.",
+     "duration_label": "2 saat",
+     "costs": {"time": 120}, "effects": {"condition": 16, "money": -950}},
+
+    # --- SOSYAL AKTİVİTELER ---
+    {"catalog_id": "sos-arkadas", "title": "Arkadaş Buluşması", "group": "SOSYAL AKTİVİTELER",
+     "description": "Eski dostlarınla bir araya gel. Moralini yükseltir, "
+                     "sosyal çevrenle bağını canlı tutar.",
+     "duration_label": "3 saat",
+     "costs": {"time": 180}, "effects": {"condition": -3, "money": -400}},
+    {"catalog_id": "sos-kafe", "title": "Kafe", "group": "SOSYAL AKTİVİTELER",
+     "description": "Sakin bir kafede kahve iç. Kısa ve zararsız bir mola, "
+                     "kafan dinlenir.",
+     "duration_label": "1 saat",
+     "costs": {"time": 60}, "effects": {"condition": 1, "money": -150}},
+    {"catalog_id": "sos-aile", "title": "Aile Ziyareti", "group": "SOSYAL AKTİVİTELER",
+     "description": "Ailenle vakit geçir. Kariyerin baskısını hafifletir, "
+                     "aile ilişkini güçlendirir.",
+     "duration_label": "Yarım gün",
+     "costs": {"time": 360}, "effects": {"condition": 4, "relationship:family": 3}},
+    {"catalog_id": "sos-konser", "title": "Konser", "group": "SOSYAL AKTİVİTELER",
+     "description": "Gece boyu sahne önünde ol. Eğlencesi bol, ertesi günkü "
+                     "antrenmana bedeli ağır.",
+     "duration_label": "Tüm gece",
+     "costs": {"time": 540}, "effects": {"condition": -12, "money": -1200}},
+    # D35 - "Tribünün gözünde değerin artar" vaadi burada ilk kez karşılığını
+    # buluyor: fame:overall AÇIK-9 kapanana kadar null (§3.2 notu).
+    {"catalog_id": "sos-taraftar", "title": "Taraftar Etkinliği", "group": "SOSYAL AKTİVİTELER",
+     "description": "Kulübün taraftar buluşmasına katıl. Tribünün gözünde "
+                     "değerin artar.",
+     "duration_label": "2 saat",
+     "costs": {"time": 120}, "effects": {"condition": -2, "fame:overall": None}},
+]
+
+assert len(LIFESTYLE_ITEMS) == 15
+assert len({i["catalog_id"] for i in LIFESTYLE_ITEMS}) == len(LIFESTYLE_ITEMS)
+
+from catalog import validate_catalog  # noqa: E402 (after data, INV-28)
+
+validate_catalog(LIFESTYLE_ITEMS, "lifestyle")
