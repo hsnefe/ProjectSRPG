@@ -21,11 +21,7 @@ class CareerApiException implements Exception {
       'CareerApiException($statusCode, code: $code, message: $message)';
 }
 
-/// `career_engine`'in uçlarını saran ince istemci.
-///
-/// Şimdilik yalnızca **lig tablosunun ihtiyaç duyduğu** uçlar var:
-/// C0/C1/C2 (kariyeri çözümlemek için) ve W1/W2 (müsabakalar ve puan durumu).
-/// Kalan 18 uç sözleşmede tanımlı, burada henüz karşılıkları yok.
+/// `career_engine`'in 25 ucunun tamamını saran ince istemci (CONTRACT.md §4).
 class CareerApiClient {
   CareerApiClient({http.Client? httpClient, String? baseUrl})
       : _client = httpClient ?? http.Client(),
@@ -66,6 +62,25 @@ class CareerApiClient {
     return _decode(response);
   }
 
+  Future<Map<String, dynamic>> _post(
+    String path, {
+    Object? body,
+    int expect = 200,
+  }) async {
+    final response = await _client.post(
+      _uri(path),
+      headers: const {'Content-Type': 'application/json'},
+      body: body == null ? null : jsonEncode(body),
+    );
+    if (response.statusCode != expect) throw _errorFrom(response);
+    return _decode(response);
+  }
+
+  Future<void> _delete(String path, {int expect = 204}) async {
+    final response = await _client.delete(_uri(path));
+    if (response.statusCode != expect) throw _errorFrom(response);
+  }
+
   /// C2 · `GET /careers` — kayıtlı kariyerler, yeniden eskiye.
   Future<List<CareerSummary>> listCareers() async {
     final body = await _get('/careers');
@@ -91,19 +106,17 @@ class CareerApiClient {
     required String teamId,
     int? seed,
   }) async {
-    final response = await _client.post(
-      _uri('/careers'),
-      headers: const {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'player_name': playerName,
-        'position': position,
-        'team_id': teamId,
-        'seed': ?seed,
-      }),
-    );
-    if (response.statusCode != 201) throw _errorFrom(response);
-    return _decode(response)['career_id'] as String;
+    final body = await _post('/careers', expect: 201, body: {
+      'player_name': playerName,
+      'position': position,
+      'team_id': teamId,
+      'seed': ?seed,
+    });
+    return body['career_id'] as String;
   }
+
+  /// C4 · `DELETE /careers/{cid}` — kariyeri sil. INV-9: hiçbir satır kalmaz.
+  Future<void> deleteCareer(String careerId) => _delete('/careers/$careerId');
 
   /// W1 · `GET /careers/{cid}/competitions` — piramit, paralel ligler, kupalar.
   Future<List<CompetitionRef>> competitions(String careerId) async {
@@ -126,6 +139,217 @@ class CareerApiClient {
       'season': ?seasonId,
     });
     return Standings.fromJson(body);
+  }
+
+  // ---------------------------------------------------------------------
+  // §5.2 Oyuncu — P1-P3
+  // ---------------------------------------------------------------------
+
+  /// P1 · `GET /careers/{cid}/player` — künye + on bir nitelik + kondisyon +
+  /// para.
+  Future<PlayerProfile> player(String careerId) async {
+    final body = await _get('/careers/$careerId/player');
+    return PlayerProfile.fromJson(body);
+  }
+
+  /// P2 · `GET /careers/{cid}/player/stats` — `season`/`competition`
+  /// verilmezse BE ikisi için de `'all'` kullanır.
+  Future<PlayerStats> playerStats(
+    String careerId, {
+    String? season,
+    String? competition,
+  }) async {
+    final body = await _get('/careers/$careerId/player/stats', {
+      'season': ?season,
+      'competition': ?competition,
+    });
+    return PlayerStats.fromJson(body);
+  }
+
+  /// P3 · `GET /careers/{cid}/player/contract`. Hiç sözleşme yoksa BE `null`
+  /// gövde döner.
+  Future<PlayerContract?> playerContract(String careerId) async {
+    final response = await _client.get(_uri('/careers/$careerId/player/contract'));
+    if (response.statusCode != 200) throw _errorFrom(response);
+    final text = utf8.decode(response.bodyBytes);
+    if (text == 'null') return null;
+    return PlayerContract.fromJson(jsonDecode(text) as Map<String, dynamic>);
+  }
+
+  // ---------------------------------------------------------------------
+  // §5.3 Dünya — W3-W4
+  // ---------------------------------------------------------------------
+
+  /// W3 · `GET /careers/{cid}/fixtures` — hepsi opsiyonel filtre + sayfalama.
+  Future<FixturesPage> fixtures(
+    String careerId, {
+    String? competitionId,
+    int? round,
+    String? teamId,
+    String? status,
+    String? seasonId,
+    int? limit,
+    String? before,
+  }) async {
+    final body = await _get('/careers/$careerId/fixtures', {
+      'competition': ?competitionId,
+      'round': ?round?.toString(),
+      'team_id': ?teamId,
+      'status': ?status,
+      'season': ?seasonId,
+      'limit': ?limit?.toString(),
+      'before': ?before,
+    });
+    return FixturesPage.fromJson(body);
+  }
+
+  /// W4 · `GET /careers/{cid}/teams/{tid}` — takım künyesi + renkler.
+  Future<TeamDetail> team(String careerId, String teamId) async {
+    final body = await _get('/careers/$careerId/teams/$teamId');
+    return TeamDetail.fromJson(body);
+  }
+
+  // ---------------------------------------------------------------------
+  // §5.4 İlişki — R1-R3
+  // ---------------------------------------------------------------------
+
+  /// R1 · `GET /careers/{cid}/relationships` — beş kart.
+  Future<List<RelationshipCard>> relationships(String careerId) async {
+    final body = await _get('/careers/$careerId/relationships');
+    return (body['relationships'] as List<dynamic>)
+        .map((e) => RelationshipCard.fromJson(e as Map<String, dynamic>))
+        .toList(growable: false);
+  }
+
+  /// R2 · `GET /careers/{cid}/relationships/{rid}` — profil künyesi + son
+  /// etkileşimler.
+  Future<RelationshipProfile> relationship(
+    String careerId,
+    String relationshipId,
+  ) async {
+    final body =
+        await _get('/careers/$careerId/relationships/$relationshipId');
+    return RelationshipProfile.fromJson(body);
+  }
+
+  /// R3 · `POST /careers/{cid}/relationships/{rid}/interact` — diyalog
+  /// sonucunu uygular. `choicePath`: geçilen düğüm ve seçenek kimlikleri.
+  Future<InteractResult> interact(
+    String careerId,
+    String relationshipId, {
+    required String dialogueId,
+    required List<String> choicePath,
+  }) async {
+    final body = await _post(
+      '/careers/$careerId/relationships/$relationshipId/interact',
+      body: {'dialogue_id': dialogueId, 'choice_path': choicePath},
+    );
+    return InteractResult.fromJson(body);
+  }
+
+  // ---------------------------------------------------------------------
+  // §5.5 Zaman — T1-T4
+  // ---------------------------------------------------------------------
+
+  /// T1 · `GET /careers/{cid}/day` — bugün: tarih, kalan aksiyon, bugünkü
+  /// olaylar.
+  Future<DayInfo> day(String careerId) async {
+    final body = await _get('/careers/$careerId/day');
+    return DayInfo.fromJson(body);
+  }
+
+  /// T2 · `POST /careers/{cid}/actions` — antrenman / yaşam aktivitesi
+  /// uygular. `result`: yalnızca drill'i olan kalemlerde (minigame skoru).
+  Future<ActionResult> postAction(
+    String careerId, {
+    required String catalogId,
+    Map<String, dynamic>? result,
+  }) async {
+    final body = await _post('/careers/$careerId/actions', body: {
+      'catalog_id': catalogId,
+      'result': ?result,
+    });
+    return ActionResult.fromJson(body);
+  }
+
+  /// T3 · `POST /careers/{cid}/advance` — `to`: 'next_day' | 'next_event'.
+  Future<AdvanceResult> advance(String careerId, {required String to}) async {
+    final body = await _post('/careers/$careerId/advance', body: {'to': to});
+    return AdvanceResult.fromJson(body);
+  }
+
+  /// T4 · `POST /careers/{cid}/purchases` — dükkândan satın alır.
+  Future<PurchaseResult> purchase(String careerId, String catalogId) async {
+    final body = await _post('/careers/$careerId/purchases', body: {
+      'catalog_id': catalogId,
+    });
+    return PurchaseResult.fromJson(body);
+  }
+
+  // ---------------------------------------------------------------------
+  // §5.6 Maç — M1-M3
+  // ---------------------------------------------------------------------
+
+  /// M1 · `GET /careers/{cid}/matches/next` — maç kurulumu, motora
+  /// verilecek `engine_payload` dahil. Yarım kalan maç varsa BE
+  /// `409 match_in_progress` döner (`code`'dan okunur, §6.4).
+  Future<NextCareerMatch> nextMatch(String careerId) async {
+    final body = await _get('/careers/$careerId/matches/next');
+    return NextCareerMatch.fromJson(body);
+  }
+
+  /// M2 · `POST /careers/{cid}/matches/{fid}/result` — sonucu yazar + haftayı
+  /// simüle eder. `body` motorun `/summary` yanıtı + kullanıcının müdahale
+  /// kaydını taşır (§5.6) — katı doğrulanır, ihlalde `422 invalid_match_result`.
+  Future<MatchResultResponse> reportMatchResult(
+    String careerId,
+    String fixtureId,
+    Map<String, dynamic> body,
+  ) async {
+    final response = await _post(
+      '/careers/$careerId/matches/$fixtureId/result',
+      body: body,
+    );
+    return MatchResultResponse.fromJson(response);
+  }
+
+  /// M3 · `POST /careers/{cid}/matches/{fid}/abandon` — yarım kalan maçı
+  /// kurtarır: fikstür `scheduled`'a döner (§6.4).
+  Future<AbandonResult> abandonMatch(String careerId, String fixtureId) async {
+    final body = await _post('/careers/$careerId/matches/$fixtureId/abandon');
+    return AbandonResult.fromJson(body);
+  }
+
+  // ---------------------------------------------------------------------
+  // §5.7 İçerik — N1-N3
+  // ---------------------------------------------------------------------
+
+  /// N1 · `GET /careers/{cid}/news`.
+  Future<NewsFeed> news(
+    String careerId, {
+    int? limit,
+    String? before,
+    String? category,
+  }) async {
+    final body = await _get('/careers/$careerId/news', {
+      'limit': ?limit?.toString(),
+      'before': ?before,
+      'category': ?category,
+    });
+    return NewsFeed.fromJson(body);
+  }
+
+  /// N2 · `GET /careers/{cid}/news/{nid}` — tam gövde.
+  Future<NewsDetail> newsItem(String careerId, String newsId) async {
+    final body = await _get('/careers/$careerId/news/$newsId');
+    return NewsDetail.fromJson(body);
+  }
+
+  /// N3 · `GET /catalog/{kind}` — `training` | `lifestyle` | `shop`.
+  /// Kariyerden bağımsız, salt okunur.
+  Future<Catalog> catalog(String kind) async {
+    final body = await _get('/catalog/$kind');
+    return Catalog.fromJson(body);
   }
 
   void close() => _client.close();
