@@ -364,14 +364,18 @@ CREATE TABLE player_fame (
   PRIMARY KEY (career_id, player_id, scope)
 );
 
+-- Sürrogat anahtar: (career_id, player_id, scope, happened_at, reason)
+-- bileşiği aynı gün aynı sebeple ikinci bir olay geldiğinde çakışır
+-- (ör. aynı diyalog gün içinde tekrar tetiklenirse). money_ledger zaten
+-- aynı gerekçeyle sürrogat anahtar kullanıyordu.
 CREATE TABLE fame_event (
+  event_id    INTEGER PRIMARY KEY AUTOINCREMENT,
   career_id   TEXT NOT NULL,
   player_id   TEXT NOT NULL,
   scope       TEXT NOT NULL,
   happened_at TEXT NOT NULL,
   delta       REAL NOT NULL,
-  reason      TEXT NOT NULL,              -- 'match:goal', 'lifestyle:sos-taraftar' ...
-  PRIMARY KEY (career_id, player_id, scope, happened_at, reason)
+  reason      TEXT NOT NULL              -- 'match:goal', 'lifestyle:sos-taraftar' ...
 );
 ```
 
@@ -724,12 +728,15 @@ CREATE TABLE relationship (
   PRIMARY KEY (career_id, relationship_id)
 );
 
+-- Sürrogat anahtar: aynı gerekçeyle fame_event'te de kullanılan çözüm —
+-- aynı gün aynı sebeple ikinci bir etkileşim (diyalog tekrarı, bir decay
+-- tick'i) bileşik anahtarda çakışırdı.
 CREATE TABLE relationship_event (
+  event_id INTEGER PRIMARY KEY AUTOINCREMENT,
   career_id TEXT NOT NULL, relationship_id TEXT NOT NULL,
   happened_at TEXT NOT NULL,
   delta INTEGER NOT NULL,                  -- skora etki
-  reason TEXT NOT NULL,                    -- 'dialogue:coach_01:choice_2', 'match:win' ...
-  PRIMARY KEY (career_id, relationship_id, happened_at, reason)
+  reason TEXT NOT NULL                     -- 'dialogue:coach_01:choice_2', 'match:win' ...
 );
 ```
 

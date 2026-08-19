@@ -34,15 +34,20 @@ CREATE TABLE player_fame (
   PRIMARY KEY (career_id, player_id, scope)
 );
 
+-- Surrogate key, not a (career_id, player_id, scope, happened_at, reason)
+-- composite — same reasoning as relationship_event: two same-day fame
+-- events with the same reason would otherwise collide.
 CREATE TABLE fame_event (
+  event_id    INTEGER PRIMARY KEY AUTOINCREMENT,
   career_id   TEXT NOT NULL,
   player_id   TEXT NOT NULL,
   scope       TEXT NOT NULL,
   happened_at TEXT NOT NULL,
   delta       REAL NOT NULL,
-  reason      TEXT NOT NULL,
-  PRIMARY KEY (career_id, player_id, scope, happened_at, reason)
+  reason      TEXT NOT NULL
 );
+
+CREATE INDEX idx_fame_event_lookup ON fame_event (career_id, player_id, scope, happened_at);
 
 -- ⟦AÇIK-8⟧: güncel piyasa değeri türetilecek (compute_market_value()); bu
 -- tablo yalnızca geçmiş eğrinin anlık görüntülerini tutar.
