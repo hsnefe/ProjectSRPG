@@ -257,7 +257,7 @@ CREATE TABLE career_state (
   current_date  TEXT NOT NULL,             -- D5: dünyanın "bugün"ü
   season_id     TEXT NOT NULL,
   money         INTEGER NOT NULL,          -- player_state.dart:7  (₺, tam sayı)
-  condition     INTEGER NOT NULL,          -- player_state.dart:6  (0-100)
+  condition     INTEGER NOT NULL           -- player_state.dart:6  (0-100)
 );
 
 -- D41: günün bütçesi. Kaynaklar AÇIK-5'te belirlenecek ('time', 'energy', …)
