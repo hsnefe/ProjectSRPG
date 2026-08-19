@@ -7,7 +7,13 @@ from typing import Union
 
 
 def get_connection(db_path: Union[str, Path]) -> sqlite3.Connection:
-    conn = sqlite3.connect(str(db_path))
+    # check_same_thread=False: FastAPI dispatches a sync yield-dependency's
+    # __enter__ (api/deps.get_db) and the endpoint body to separate
+    # threadpool calls, which anyio may hand different worker threads even
+    # for a single request - see api/routers/matches.py's module docstring
+    # for the sibling async/sync case. Safe here because each connection is
+    # single-request, never touched concurrently (api/deps.py).
+    conn = sqlite3.connect(str(db_path), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     _check_json1_support(conn)

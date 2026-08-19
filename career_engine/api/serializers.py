@@ -144,11 +144,11 @@ def fetch_full_standings(conn: sqlite3.Connection, career_id: str, season_id: st
         )
         SELECT team_id, played, won, drawn, lost, goals_for, goals_against,
                (goals_for - goals_against) AS goal_difference, points,
-               RANK() OVER (
-                 ORDER BY points DESC, (goals_for - goals_against) DESC, goals_for DESC
+               ROW_NUMBER() OVER (
+                 ORDER BY points DESC, (goals_for - goals_against) DESC, goals_for DESC, team_id
                ) AS rank
         FROM agg
-        ORDER BY rank, team_id
+        ORDER BY rank
         """,
         (career_id, season_id, competition_id, career_id, season_id, competition_id),
     ).fetchall()
