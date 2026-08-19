@@ -414,6 +414,18 @@ String _fullDateLabel(String isoDate) {
 /// T1 (bugünün durumu, salt gösterim) + T3 (`İlerle` butonu) — kariyerin
 /// tek zaman kaynağı burada ilerler (§6.1). Uçlar arasındaki fark: T1 hiçbir
 /// şeyi değiştirmez, yalnızca okur; ilerlemeyi tek başına T3 yapar.
+/// Bugünün maç dışı olayları, tekrarsız ve ekranın kendi diliyle.
+List<String> _otherEventLabels(api.DayInfo? day) {
+  if (day == null) return const [];
+  final labels = <String>{};
+  for (final event in day.events) {
+    if (event.kind == 'match') continue;  // üstteki "Maç günü" satırı
+    final label = _dayEventLabels[event.kind];
+    if (label != null) labels.add(label);
+  }
+  return labels.toList(growable: false);
+}
+
 class _DaySection extends StatelessWidget {
   const _DaySection({
     required this.snapshot,
@@ -457,6 +469,18 @@ class _DaySection extends StatelessWidget {
                         'Maç günü',
                         style: TextStyle(
                           color: CareerCenterScreen._success,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                    // T1 `events[]` — BE `kind` gönderir, cümleyi ekran
+                    // kurar (§5.5). Maç zaten üstteki satırda.
+                    for (final label in _otherEventLabels(day)) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        label,
+                        style: const TextStyle(
+                          color: CareerCenterScreen._textMuted,
                           fontSize: 11,
                         ),
                       ),
@@ -668,6 +692,13 @@ String _matchDayLabel(String isoDateTime) {
   return '$weekday, $hh:$mm';
 }
 
+/// C3 `next_fixture.days_until` — sayı BE'den, cümle FE'den (§1.3).
+String _countdownLabel(int daysUntil) {
+  if (daysUntil <= 0) return 'bugün';
+  if (daysUntil == 1) return 'yarın';
+  return '$daysUntil gün sonra';
+}
+
 class _MatchPreviewSection extends StatefulWidget {
   const _MatchPreviewSection({required this.nextFixture});
 
@@ -679,6 +710,20 @@ class _MatchPreviewSection extends StatefulWidget {
 
 class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
   final _cardKey = GlobalKey();
+
+  /// §6.1 — maç yalnızca kendi gününde oynanır. Maç günü değilse kart maç
+  /// ekranını açmaz: kullanıcıyı "İlerle"nin durduğu yerde, kariyer
+  /// merkezinde tutar.
+  void _onCardTap() {
+    final daysUntil = widget.nextFixture?.daysUntil ?? 0;
+    if (daysUntil > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Maça $daysUntil gün var — günleri ilerlet.')),
+      );
+      return;
+    }
+    _openMatchDetail();
+  }
 
   void _openMatchDetail() {
     final renderBox = _cardKey.currentContext?.findRenderObject() as RenderBox?;
@@ -720,7 +765,7 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
       child: _LitCard(
         key: _cardKey,
-        onTap: _openMatchDetail,
+        onTap: _onCardTap,
         minHeight: 210,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
@@ -750,7 +795,7 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    fixture.competition.name,
+                    '${fixture.competition.name} · ${_countdownLabel(fixture.daysUntil)}',
                     style: const TextStyle(
                       color: CareerCenterScreen._textSecondary,
                       fontSize: 12,

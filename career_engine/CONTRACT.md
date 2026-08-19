@@ -1387,7 +1387,8 @@ hiçbir etki uygulanmaz** (INV-3, INV-4).
   "simulated":     { "fixtures": 51, "competitions": 3 },
   "ledger_entries": [ /* geçilen Pazartesilerin maaş ve gider satırları */ ],
   "news_created":  ["n_0143", "n_0144"],
-  "repossessed":   [] }                    // D29 · elden çıkan eşyalar
+  "repossessed":   [],                     // D29 · elden çıkan eşyalar
+  "missed_matches": [] }                   // §6.1 · oynanmadan geçilen kendi maçları
 ```
 
 Atlanan **her** Pazartesi için ayrı maaş ve gider satırı yazılır — tek toplu
@@ -1447,6 +1448,8 @@ değil**, gövdenin tepesindedir — motorun `Team.stamina`'sına yazılmadığ�
 (D39).
 
 Yarım kalan maç varsa `409 match_in_progress` ve `fixture_id` bildirilir (§6.4).
+Bugün kullanıcının maçı yoksa `409 not_match_day` döner ve sonraki kickoff
+tarihiyle kaç gün kaldığını bildirir (§6.1) — maç kendi gününde oynanır.
 
 #### M2 · `POST /careers/{cid}/matches/{fid}/result`
 
@@ -1617,6 +1620,25 @@ Dünyanın tek saati `career_state.current_date`. Bir gün:
 kullanıcı günün bütçesi elverdiğince aksiyon harcar (§6.2) → `POST /advance`
 günü kapatır ve bütçeyi yeniden doldurur.
 
+**Maç yalnızca kendi gününde oynanır.** M1 (`GET /matches/next`) tarihi
+`current_date` olan fikstürü verir; başka bir gün `409 not_match_day` döner ve
+sonraki kickoff tarihini bildirir. Bu kapı olmadan tasarımda `POST /advance`'i
+çağırmaya zorlayan hiçbir şey yoktu: kullanıcı bütün sezonu tek bir oyun günü
+içinde oynayabiliyor, maçlar arasındaki hafta — bu servisin var oluş sebebi
+olan gün döngüsü — hiç yaşanmıyordu.
+
+Takvim bunu taşıyacak şekilde kurulur: lig turları 7 gün arayla ve daima
+cumartesi, kupa turları 14 gün arayla ve daima çarşamba (§3.3 v1 dünyası), bir
+takım aynı güne iki fikstürle düşmez. Kariyer sezon açılışından **bir hafta
+önce** başlar, yani ilk maçtan önce oynanacak tam bir hazırlık haftası vardır.
+
+**Kaçırılan maç.** Kullanıcı kendi maç gününü oynamadan ilerletirse fikstür
+diğerleri gibi arka planda koşar (sonuç puan durumuna işlenir, INV-12 korunur)
+ama **maça çıkmadığı için** ne müsabaka sayısı, ne prim, ne gol yazılır; bir
+haber düşer ve `POST /advance` yanıtı `missed_matches` alanında fikstürü
+bildirir. Alternatif — ilerlemeyi reddetmek — motor erişilemezken kariyeri
+kilitlerdi.
+
 ### 6.2 Günün bütçesi (D41)
 
 **Sabit sayıda aksiyon yoktur.** Her aksiyonun kendine özel bir götürüsü vardır;
@@ -1659,6 +1681,15 @@ drawn` 0→1 olduğu gün), sözleşme bitişine 30 gün kala, ilişki skoru eş
 düştüğünde, **düzenli gider karşılanamayacak görünüyorsa** (§6.5, D29), sezon
 sonu (terfi/düşme). Atlanan her gün için doğal kondisyon
 toparlanması ve maaş yatışı uygulanır; yanıt atlanan günlerin özetini döner.
+
+**Durma ölçütü kenar-tetiklidir.** T1 bugün doğru olan **her** koşulu
+`events[]`'te bildirir; T3 yalnızca gerçekten *olay* olanlarda durur. Ayrım
+şurada yatıyor: "ilişki skoru eşiğin altında" bir **durum**dur, kullanıcı bir
+şey yapana kadar sürer — durma sebebi sayılırsa her gün olaylı olur ve takvim
+bir daha asla sonraki maça ulaşamaz. Bu yüzden `relationship_low` durdurmaz
+(T1 göstermeye devam eder) ve `contract_expiring` yalnızca pencerenin açıldığı
+gün durdurur. Yukarıdaki cümlenin kendi ifadesi de zaten böyleydi: "eşiğin
+altına **düştüğünde**", "30 gün **kala**".
 
 ### 6.4 Yarım kalan maç (D3 riskinin telafisi)
 
@@ -1947,6 +1978,7 @@ kullanır ama kullanıcının maçı müdahalelerle sapar.
 | 409 | `insufficient_funds` | Bakiye yetersiz |
 | 409 | `already_owned` | Ürün zaten alınmış |
 | 409 | `match_in_progress` | Yarım kalan maç var (§6.4) |
+| 409 | `not_match_day` | M1 çağrıldı ama bugün kullanıcının maçı yok (§6.1); mesaj sonraki kickoff tarihini ve kaç gün kaldığını taşır |
 | 409 | `fixture_already_played` | Sonuç ikinci kez yazılmak isteniyor |
 | 409 | `season_finished` | Sezon bitti, ilerletilemez |
 | 409 | `fixture_not_in_progress` | M3 çağrıldı ama fikstür yarım kalmış değil |

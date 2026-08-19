@@ -30,9 +30,10 @@ class MatchScreen extends StatefulWidget {
   final CareerSession? careerSession;
   final String? fixtureId;
 
-  /// M1'in `engine_payload.user_condition`'ı (D38/D39) — M2'nin
-  /// `final_condition`'ı için, motor gerçek bir aşınma sinyali vermediğinden
-  /// (bkz. `_advance` içindeki not) değişmeden geri gönderilir.
+  /// M1'in `engine_payload.user_condition`'ı (D38/D39) — maçın başladığı
+  /// kondisyon. Ekrandaki çubuk buradan başlar ve controller'ın
+  /// [MatchController.playerCondition] sayacıyla erir; M2'ye yazılan
+  /// `final_condition` o sayacın son değeridir.
   final int? preMatchCondition;
 
   /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
@@ -130,11 +131,11 @@ class _MatchScreenState extends State<MatchScreen> {
   /// `player_season_stat.goals` bu maçlar için her zaman 0 kalır — uydurulmuş
   /// bir sayı yazmak yerine dürüstçe boş bırakılıyor.
   ///
-  /// ⚠️ **`final_condition` bir yaklaşıklamadır.** M2'nin beklediği "maç
-  /// boyunca erimiş kondisyon" motorun kendi `Team.stamina`'sından ayrı bir
-  /// kavramdır (D38/D39) ve motor bunun için ayrı bir sinyal vermiyor; maçtan
-  /// önceki değer değişmeden geri gönderiliyor (INV: `final_condition ≤
-  /// pre_match_condition` bu şekilde her zaman sağlanır).
+  /// `final_condition`, controller'ın maç boyunca eritilmiş
+  /// [MatchController.playerCondition] sayacıdır (D38, CONTRACT §6.6):
+  /// maç öncesi kondisyondan başlar, motorun bildirdiği erime kadar düşer.
+  /// `final_condition ≤ pre_match_condition` bu yüzden yapısal olarak
+  /// sağlanır — sayaç yalnızca düşer.
   Future<void> _advance() async {
     final careerSession = widget.careerSession;
     final fixtureId = widget.fixtureId;
@@ -154,7 +155,8 @@ class _MatchScreenState extends State<MatchScreen> {
         'score': {'home': summary.score.home, 'away': summary.score.away},
         'stats': summary.stats,
         'final_possession_home': summary.finalPossessionHome,
-        'final_condition': preMatchCondition.clamp(35, 100),
+        'final_condition':
+            widget.controller.playerCondition.clamp(35, preMatchCondition),
         'interventions': <Map<String, dynamic>>[],
       };
       final careerId = await careerSession.resolve();
@@ -868,6 +870,16 @@ class _ActionBar extends StatelessWidget {
     return bestIndex;
   }
 
+  /// `projected_end_stamina` motorun tablosunda daima 100'den başlayan bir
+  /// maç varsayar (§8.1); oyuncu kendi kondisyonundan başladığı için aynı
+  /// erime miktarı onun başlangıcına uygulanır — formül aynı, girdi farklı
+  /// (CONTRACT §6.6).
+  int _projectedEndCondition(EffortOption option) {
+    final drain = controller.staminaCatalog.ceiling - option.projectedEndStamina;
+    return (controller.startCondition - drain)
+        .clamp(controller.staminaCatalog.floor, controller.startCondition);
+  }
+
   Future<void> _openEffortSheet(BuildContext context) async {
     final options = controller.directiveOptions.effort;
     if (options.isEmpty) return;
@@ -891,7 +903,7 @@ class _ActionBar extends StatelessWidget {
               valueLabel: selected.label,
               detailLabel: 'Maç başına ~${selected.offersPerMatch} teklif · '
                   'Kondisyon çarpanı ×${selected.staminaMultiplier.toStringAsFixed(2)} · '
-                  'Tahmini bitiş kondisyonu ${selected.projectedEndStamina}',
+                  'Tahmini bitiş kondisyonu ${_projectedEndCondition(selected)}',
               sliderIndex: index,
               sliderMax: options.length - 1,
               onSliderChanged: (v) => setSheetState(() => index = v),
@@ -995,8 +1007,8 @@ class _ActionBar extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _StaminaBar(
-            stamina: controller.team?.stamina,
+          _ConditionBar(
+            condition: controller.playerCondition,
             catalog: controller.staminaCatalog,
           ),
           const SizedBox(height: 14),
@@ -1058,23 +1070,20 @@ class _ActionBar extends StatelessWidget {
   }
 }
 
-/// Kullanıcının takımının kondisyon barı — taban/tavan `StaminaCatalog`'dan
-/// gelir, hardcode edilmez (§6.4, §8.1). İlk tick gelene kadar yer tutucu.
-class _StaminaBar extends StatelessWidget {
-  const _StaminaBar({required this.stamina, required this.catalog});
+/// Oyuncunun kondisyon barı (D38) — maç ekranındaki kondisyon oyuncunun
+/// kendi kondisyonudur, "takım kondisyonu" diye ayrı bir kavram yoktur.
+/// Taban/tavan `StaminaCatalog`'dan gelir, hardcode edilmez (§6.4, §8.1).
+class _ConditionBar extends StatelessWidget {
+  const _ConditionBar({required this.condition, required this.catalog});
 
-  final int? stamina;
+  final int condition;
   final StaminaCatalog catalog;
 
   @override
   Widget build(BuildContext context) {
     final range = (catalog.ceiling - catalog.floor).clamp(1, 1 << 30);
-    final frac = stamina == null
-        ? null
-        : ((stamina! - catalog.floor) / range).clamp(0.0, 1.0);
-    final color = frac == null
-        ? MatchScreen._textMuted
-        : frac >= 0.6
+    final frac = ((condition - catalog.floor) / range).clamp(0.0, 1.0);
+    final color = frac >= 0.6
             ? MatchScreen._success
             : frac >= 0.3
                 ? MatchScreen._warning
@@ -1090,7 +1099,7 @@ class _StaminaBar extends StatelessWidget {
               style: TextStyle(color: MatchScreen._textMuted, fontSize: 12),
             ),
             Text(
-              stamina == null ? '—/${catalog.ceiling}' : '$stamina/${catalog.ceiling}',
+              '$condition/${catalog.ceiling}',
               style: const TextStyle(
                 color: MatchScreen._textSecondary,
                 fontSize: 12,
@@ -1102,7 +1111,7 @@ class _StaminaBar extends StatelessWidget {
         ClipRRect(
           borderRadius: const BorderRadius.all(Radius.circular(3)),
           child: LinearProgressIndicator(
-            value: frac ?? 0,
+            value: frac,
             minHeight: 6,
             backgroundColor: MatchScreen._surface1,
             color: color,

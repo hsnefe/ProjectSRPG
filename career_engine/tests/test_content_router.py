@@ -3,6 +3,7 @@ import sqlite3
 import pytest
 
 from api import config
+from tests.conftest import advance_to_match_day
 
 
 @pytest.fixture
@@ -93,6 +94,7 @@ def test_get_news_item_unknown_id_errors(api_client, created_career):
 
 def test_match_result_news_is_readable_via_n1_n2(api_client, created_career, mock_engine):
     career_id = created_career["career_id"]
+    advance_to_match_day(api_client, career_id)  # §6.1 - M1 only serves today's fixture
     fixture_id = api_client.get(f"/careers/{career_id}/matches/next").json()["fixture_id"]
     result = api_client.post(
         f"/careers/{career_id}/matches/{fixture_id}/result",

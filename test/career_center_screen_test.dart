@@ -131,7 +131,8 @@ void main() {
     expect(find.text('FK Yıldız'), findsWidgets);
     expect(find.text('Deniz SK'), findsOneWidget);
     expect(find.text('Cumartesi, 20:00'), findsOneWidget);
-    expect(find.text('1. Lig'), findsOneWidget);
+    // Müsabaka adı + C3'ün days_until'inden kurulan geri sayım (§6.1).
+    expect(find.text('1. Lig · 3 gün sonra'), findsOneWidget);
     // Eski sabit hava durumu satırı artık yok — hiçbir uçta karşılığı yok.
     expect(find.textContaining('parçalı bulutlu'), findsNothing);
   });
@@ -242,5 +243,30 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('the season has ended'), findsOneWidget);
+  });
+  testWidgets('maç günü olmayan kartta dokunuş maç ekranını açmaz',
+      (tester) async {
+    final session =
+        _hubSession(_hubBody(nextFixture: _fixture, newsPreview: _newsPreview));
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('SONRAKİ MAÇ'));
+    await tester.pumpAndSettle();
+
+    // §6.1 — maç kendi gününde oynanır; kart kullanıcıyı hub'da tutar.
+    expect(find.text('Maça 3 gün var — günleri ilerlet.'), findsOneWidget);
+    expect(find.text('Maça Çıkış'), findsNothing);
+  });
+
+  testWidgets('maç günü kartı geri sayım yerine "bugün" gösterir',
+      (tester) async {
+    final today = Map<String, dynamic>.from(_fixture)..['days_until'] = 0;
+    final session =
+        _hubSession(_hubBody(nextFixture: today, newsPreview: _newsPreview));
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1. Lig · bugün'), findsOneWidget);
   });
 }

@@ -1,4 +1,9 @@
+import sqlite3
+
 import pytest
+
+from api import config
+from tests.conftest import advance_to_match_day
 
 
 @pytest.fixture
@@ -11,14 +16,16 @@ def created_career(api_client):
 
 # --- T1 -----------------------------------------------------------------
 
-def test_get_day_fresh_career_is_a_match_day(api_client, created_career):
-    # Round 1 kicks off on SEASON_STARTS_ON itself (scheduling.py's day-0
-    # offset) — a brand-new career's very first day already has a fixture.
+def test_get_day_fresh_career_opens_on_a_preparation_week(api_client, created_career):
+    # League round 1 is a week after the season opens
+    # (onboarding.LEAGUE_STARTS_ON), so day 1 is a quiet day the user spends
+    # training and resting — not a match day.
     resp = api_client.get(f"/careers/{created_career['career_id']}/day")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["is_match_day"] is True
-    assert any(e["kind"] == "match" for e in body["events"])
+    assert body["career_state"]["current_date"] == "2026-08-01"
+    assert body["is_match_day"] is False
+    assert not any(e["kind"] == "match" for e in body["events"])
 
 
 # --- T2 -------------------------------------------------------------------
@@ -96,7 +103,7 @@ def test_post_purchase_insufficient_funds(api_client, created_career):
 
 # --- T3 -------------------------------------------------------------------
 
-def test_advance_next_day_moves_date_and_simulates_other_fixtures(api_client, created_career, mock_engine):
+def test_advance_next_day_moves_the_date_one_day(api_client, created_career, mock_engine):
     career_id = created_career["career_id"]
     resp = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"})
     assert resp.status_code == 200
@@ -104,6 +111,17 @@ def test_advance_next_day_moves_date_and_simulates_other_fixtures(api_client, cr
 
     assert body["days_advanced"] == 1
     assert body["career_state"]["current_date"] == "2026-08-02"
+
+
+def test_advance_stops_on_match_day_when_seeking_next_event(api_client, created_career, mock_engine):
+    career_id = created_career["career_id"]
+    resp = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_event"})
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["days_advanced"] == 7  # the preparation week, day by day
+    assert body["stop_reason"] == "match"
+    assert body["career_state"]["current_date"] == "2026-08-08"  # league round 1
     assert body["simulated"]["fixtures"] > 0  # every non-user fixture that day
 
     # The user's own fixture is untouched — still scheduled, no score.
@@ -111,19 +129,69 @@ def test_advance_next_day_moves_date_and_simulates_other_fixtures(api_client, cr
     assert fixtures["fixtures"][0]["status"] == "scheduled"
 
 
-def test_advance_stops_on_match_day_when_seeking_next_event(api_client, created_career, mock_engine):
+def test_advance_recovers_condition_every_day(api_client, created_career, mock_engine):
+    """§6.3 - every advanced day pays NATURAL_CONDITION_RECOVERY_PER_DAY,
+    bounded above by the attribute ceiling (INV-10)."""
     career_id = created_career["career_id"]
-    # Day 1 (today) is already a match day; advancing to "next_event" from
-    # here should immediately stop on the day after, once no longer a match
-    # day — actually today already IS one, so the very first step forward
-    # lands on a non-match day unless another fixture is scheduled there too.
-    resp = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_event"})
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["days_advanced"] >= 1
-    assert body["stop_reason"] in (
-        "match", "cup_draw", "contract_expiring", "upkeep_warning", "relationship_low", "season_end", "none",
+    conn = sqlite3.connect(config.DB_PATH)
+    conn.execute("UPDATE career_state SET condition = 20 WHERE career_id = ?", (career_id,))
+    conn.commit()
+    conn.close()
+
+    body = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"}).json()
+    assert body["career_state"]["condition"] == 20 + config.NATURAL_CONDITION_RECOVERY_PER_DAY
+
+
+def test_advance_walks_a_full_week_between_matches(api_client, created_career, mock_engine):
+    """The whole point of the day loop: a match, then a week of days the
+    user actually plays, then the next match."""
+    career_id = created_career["career_id"]
+    first = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_event"}).json()
+    assert first["stop_reason"] == "match"
+
+    second = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_event"}).json()
+    assert second["days_advanced"] == 7
+    assert second["stop_reason"] == "match"
+    assert second["career_state"]["current_date"] == "2026-08-15"
+
+
+def test_advance_past_an_unplayed_match_plays_it_without_the_user(api_client, created_career, mock_engine):
+    """§6.1 - advancing off your own match day is allowed and is not a soft
+    lock: the fixture is simulated like any other so the table stays
+    complete, but no appearance is credited (the user wasn't there)."""
+    career_id = created_career["career_id"]
+    advance_to_match_day(api_client, career_id)
+    fixture_id = api_client.get(f"/careers/{career_id}/fixtures", params={
+        "team_id": "t_ykz", "limit": 1,
+    }).json()["fixtures"][0]["fixture_id"]
+
+    body = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"}).json()
+    assert body["missed_matches"] == [fixture_id]
+
+    played = api_client.get(f"/careers/{career_id}/fixtures", params={"team_id": "t_ykz", "limit": 1}).json()
+    assert played["fixtures"][0]["status"] == "played"
+    assert api_client.get(f"/careers/{career_id}/player/stats").json()["rows"] == []
+
+
+def test_advance_does_not_stop_on_a_persistently_low_relationship(api_client, created_career, mock_engine):
+    """A low relationship is a state, not an event (§6.3). If it stopped the
+    loop, every day would be 'eventful' and the calendar could never reach
+    the next match."""
+    career_id = created_career["career_id"]
+    conn = sqlite3.connect(config.DB_PATH)
+    conn.execute(
+        "UPDATE relationship SET score = ? WHERE career_id = ?",
+        (config.RELATIONSHIP_LOW_THRESHOLD - 1, career_id),
     )
+    conn.commit()
+    conn.close()
+
+    day = api_client.get(f"/careers/{career_id}/day").json()
+    assert any(e["kind"] == "relationship_low" for e in day["events"])  # T1 still reports it
+
+    body = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_event"}).json()
+    assert body["stop_reason"] == "match"
+    assert body["days_advanced"] == 7
 
 
 def test_advance_monday_pays_wage(api_client, created_career, mock_engine):
@@ -144,8 +212,6 @@ def test_advance_season_finished_errors(api_client, created_career):
     career_id = created_career["career_id"]
     # Fast-forward past the season boundary directly (running the real
     # ~300-day loop would be impractically slow for a unit test).
-    import sqlite3
-    from api import config
     conn = sqlite3.connect(config.DB_PATH)
     conn.execute("UPDATE career_state SET game_date = '2027-06-01' WHERE career_id = ?", (career_id,))
     conn.commit()
@@ -158,8 +224,6 @@ def test_advance_season_finished_errors(api_client, created_career):
 
 def test_advance_upkeep_shortfall_warns_then_repossesses(api_client, created_career, mock_engine):
     career_id = created_career["career_id"]
-    import sqlite3
-    from api import config
     conn = sqlite3.connect(config.DB_PATH)
     conn.row_factory = sqlite3.Row
     # Force a shortfall: drain the balance and saddle the career with an

@@ -5,6 +5,7 @@ Unlike T3's background fixtures, this match is played interactively via
 FE + match_engine directly (D33) — career_engine never calls match_engine
 for it, only hands out the payload (M1) and records what FE reports back
 (M2)."""
+import datetime as _dt
 import random
 import sqlite3
 from typing import Optional
@@ -30,11 +31,36 @@ def _team_engine_fields(row: sqlite3.Row) -> dict:
     return {"name": row["name"], "mentality": row["mentality"], **formulas.compute_team_rating(dict(row))}
 
 
+def _not_match_day(conn: sqlite3.Connection, career_id: str, user_team_id: str, game_date: str):
+    """The 409 M1 raises when today isn't a match day, carrying the next
+    kickoff date and how far off it is (FE writes the countdown sentence,
+    §1.3). A fixture still 'scheduled' with a kickoff already in the past
+    is skipped: the user advanced past it, so it was played without them
+    (§6.1's missed-match rule) or is about to be."""
+    upcoming = conn.execute(
+        "SELECT kickoff_at FROM fixture WHERE career_id = ? AND status = 'scheduled' "
+        "AND (home_team_id = ? OR away_team_id = ?) AND kickoff_at > ? "
+        "ORDER BY kickoff_at ASC LIMIT 1",
+        (career_id, user_team_id, user_team_id, game_date),
+    ).fetchone()
+    if upcoming is None:
+        return errors.not_match_day()
+    kickoff_on = upcoming["kickoff_at"][:10]
+    days_until = (_dt.date.fromisoformat(kickoff_on) - _dt.date.fromisoformat(game_date)).days
+    return errors.not_match_day(kickoff_on, days_until)
+
+
 def build_next_match_payload(conn: sqlite3.Connection, career_id: str) -> dict:
     """§5.6 M1. Marks the fixture 'in_progress' as a side effect of handing
     out its payload — the one exception to this being a GET — so a second
     call for the same fixture hits match_in_progress instead of minting a
-    second, inconsistent engine_payload (§6.4)."""
+    second, inconsistent engine_payload (§6.4).
+
+    §6.1: only *today's* fixture is handed out. Without that gate the user
+    can play the whole season inside a single game day — nothing else in
+    the design forces `POST /advance` to ever be called, and the week
+    between matches (the day loop this service exists to run) never
+    happens."""
     user_team_id = serializers.fetch_user_team_id(conn, career_id)
 
     in_progress = conn.execute(
@@ -45,13 +71,18 @@ def build_next_match_payload(conn: sqlite3.Connection, career_id: str) -> dict:
     if in_progress:
         raise errors.match_in_progress(in_progress["fixture_id"])
 
+    game_date = conn.execute(
+        "SELECT game_date FROM career_state WHERE career_id = ?", (career_id,)
+    ).fetchone()["game_date"]
+
     fixture = conn.execute(
         "SELECT * FROM fixture WHERE career_id = ? AND status = 'scheduled' "
-        "AND (home_team_id = ? OR away_team_id = ?) ORDER BY kickoff_at ASC LIMIT 1",
-        (career_id, user_team_id, user_team_id),
+        "AND (home_team_id = ? OR away_team_id = ?) AND kickoff_at LIKE ? "
+        "ORDER BY kickoff_at ASC LIMIT 1",
+        (career_id, user_team_id, user_team_id, f"{game_date}%"),
     ).fetchone()
     if fixture is None:
-        raise errors.invalid_request("no upcoming fixture for the user's team")
+        raise _not_match_day(conn, career_id, user_team_id, game_date)
 
     home_row = _team_row(conn, career_id, fixture["home_team_id"])
     away_row = _team_row(conn, career_id, fixture["away_team_id"])

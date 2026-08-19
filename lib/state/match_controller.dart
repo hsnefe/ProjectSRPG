@@ -27,9 +27,12 @@ class MatchController extends ChangeNotifier {
     required this.teams,
     required this.staminaCatalog,
     required this.directiveOptions,
+    int? startCondition,
     MatchApiClient? apiClient,
     MatchStreamSource? streamSource,
-  })  : _apiClient = apiClient ?? MatchApiClient(),
+  })  : startCondition = startCondition ?? staminaCatalog.ceiling,
+        _playerCondition = (startCondition ?? staminaCatalog.ceiling).toDouble(),
+        _apiClient = apiClient ?? MatchApiClient(),
         _streamSource = streamSource ?? HttpMatchSseClient();
 
   final String matchId;
@@ -40,6 +43,11 @@ class MatchController extends ChangeNotifier {
   final MatchTeams teams;
   final StaminaCatalog staminaCatalog;
   final DirectiveOptions directiveOptions;
+
+  /// Oyuncunun maça girdiği kondisyon — career_engine M1'in
+  /// `engine_payload.user_condition`'ı (D38). Maç boyunca yalnızca bu sayı
+  /// erir; kariyer merkezindeki çubukla aynı kavramdır.
+  final int startCondition;
 
   final MatchApiClient _apiClient;
   final MatchStreamSource _streamSource;
@@ -59,13 +67,26 @@ class MatchController extends ChangeNotifier {
   String? _lastDirectiveNote;
   String? _pendingOfferPrompt;
 
+  double _playerCondition;
+  int? _lastTickStamina;
+
   int get minute => _minute;
   bool get finished => _finished;
   ScoreInfo get score => _score;
   PossessionInfo? get possession => _possession;
 
-  /// İlk tick gelene kadar `null` — kullanıcının takımının anlık durumu.
+  /// İlk tick gelene kadar `null` — zarfın kondisyon/kart sayaçları.
   TeamTickInfo? get team => _team;
+
+  /// Oyuncunun o anki kondisyonu (D38): [startCondition]'dan başlar, her
+  /// tick'te motorun bildirdiği erime kadar düşer, tabanda durur.
+  ///
+  /// Erimeyi motor hesaplıyor — hız `effort` direktifine bağlıdır (D39) —
+  /// ama motorun sayacı daima 100'den başlar; oyuncununki kendi
+  /// kondisyonundan. Bu yüzden mutlak değer değil, tick'ler arasındaki
+  /// **fark** taşınır: aynı eğri, farklı başlangıç (CONTRACT §6.6). Maç
+  /// sonunda bu değer M2'ye `final_condition` olarak yazılır.
+  int get playerCondition => _playerCondition.round();
   String? get situation => _situation;
   DirectivesInfo? get directives => _directives;
   List<MatchEvent> get events => List.unmodifiable(_events);
@@ -105,6 +126,7 @@ class MatchController extends ChangeNotifier {
   }
 
   void _applyTick(TickFrame tick) {
+    _meltCondition(tick.team);
     _minute = tick.minute;
     _finished = tick.finished;
     _score = tick.score;
@@ -141,6 +163,17 @@ class MatchController extends ChangeNotifier {
     }
 
     notifyListeners();
+  }
+
+  void _meltCondition(TeamTickInfo? tickTeam) {
+    if (tickTeam == null) return;
+    final previous = _lastTickStamina;
+    _lastTickStamina = tickTeam.stamina;
+    if (previous == null) return;
+    final drop = previous - tickTeam.stamina;
+    if (drop <= 0) return;  // yedek değişikliği gibi artışlar taşınmaz
+    _playerCondition = (_playerCondition - drop)
+        .clamp(staminaCatalog.floor.toDouble(), startCondition.toDouble());
   }
 
   MatchSide _sideFrom(String side) {

@@ -24,17 +24,21 @@ from worlddata.relationships import RELATIONSHIP_SEED, STARTING_SCORE
 from worlddata.teams import ALL_TEAMS, TIER1_TEAMS, TIER2_TEAMS
 
 SEASON_ID = "25/26"
-SEASON_STARTS_ON = "2026-08-01"
+SEASON_STARTS_ON = "2026-08-01"      # a Saturday; the career's own day 1
 SEASON_ENDS_ON = "2027-05-31"
 
-# The cup's own calendar starts later than the league season — a real
-# domestic cup is interspersed between league rounds, not kicked off the
-# same day. Without this offset, cup round 1 and league round 1 land on
-# the literal same kickoff_at (both computed from day 0 of their own
-# schedule), which is unrealistic and made the user's "next match" pick
-# between two same-instant fixtures depending on row order. Two weeks in
-# gives the league its first two rounds before the cup begins.
-CUP_STARTS_ON = "2026-08-15"
+# League round 1 is a week after the season opens, so a new career starts
+# with a full preparation week rather than a match on its very first day
+# (§6.1: the day loop is what the user actually plays). Rounds are 7 days
+# apart from here, so every league fixture falls on a Saturday.
+LEAGUE_STARTS_ON = "2026-08-08"
+
+# The cup runs midweek, between league rounds — 14 days apart from a
+# Wednesday, so a cup round can never land on a league Saturday. Before
+# this, both calendars ran on Saturdays and a team could be drawn into two
+# fixtures on the same date, which M1's "today's match" query has no way to
+# choose between.
+CUP_STARTS_ON = "2026-08-19"
 
 _VALID_POSITIONS = ("Kaleci", "Defans", "Orta saha", "Forvet")
 
@@ -135,7 +139,7 @@ def _seed_world(conn: sqlite3.Connection, career_id: str, rng: random.Random) ->
         ids = [t["team_id"] for t in teams]
         rng.shuffle(ids)
         rounds, fixtures = scheduling.generate_league_season(
-            career_id, SEASON_ID, competition_id, ids, SEASON_STARTS_ON
+            career_id, SEASON_ID, competition_id, ids, LEAGUE_STARTS_ON
         )
         _insert_rounds(conn, rounds)
         _insert_fixtures(conn, fixtures)

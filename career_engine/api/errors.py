@@ -43,6 +43,19 @@ def match_in_progress(fixture_id: str) -> ApiError:
     return ApiError(409, "match_in_progress", f"fixture {fixture_id!r} has an unfinished match")
 
 
+def not_match_day(next_kickoff_on: str = None, days_until: int = None) -> ApiError:
+    """§6.1 - a match is playable only on its own day, so the day loop is
+    what carries the career forward between matches. The next kickoff date
+    and the gap travel in the message because FE writes the sentence
+    itself (§1.3); both are None once the season has no fixtures left."""
+    if next_kickoff_on is None:
+        return ApiError(409, "not_match_day", "no upcoming fixture for the user's team")
+    return ApiError(
+        409, "not_match_day",
+        f"next match is on {next_kickoff_on}, {days_until} day(s) away",
+    )
+
+
 def fixture_already_played(fixture_id: str) -> ApiError:
     return ApiError(409, "fixture_already_played", f"fixture {fixture_id!r} result was already recorded")
 

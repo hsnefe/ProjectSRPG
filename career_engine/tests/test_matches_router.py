@@ -1,12 +1,20 @@
 import pytest
 
+from api import config
+from tests.conftest import advance_to_match_day
+
 
 @pytest.fixture
-def created_career(api_client):
-    return api_client.post(
+def created_career(api_client, mock_engine):
+    """A career sitting ON its first match day — M1 only hands out today's
+    fixture (§6.1), so every test here has to walk the preparation week
+    first, exactly like the player does."""
+    body = api_client.post(
         "/careers",
         json={"player_name": "Efe Kaan", "position": "Orta saha", "team_id": "t_ykz", "seed": 42},
     ).json()
+    advance_to_match_day(api_client, body["career_id"])
+    return body
 
 
 def _stats(goals=0):
@@ -43,9 +51,36 @@ def test_get_next_match_returns_engine_payload(api_client, created_career):
     assert body["fixture_id"]
     payload = body["engine_payload"]
     assert set(payload["teams"]["home"].keys()) == {"name", "mentality", "attack", "midfield", "defense", "goalkeeper"}
-    assert payload["user_condition"] == 72
+    assert payload["user_condition"] == config.STARTING_CONDITION
     assert "client_seed" in payload
     assert "stamina" not in str(payload)  # D39 — never in the team blocks
+
+
+def test_get_next_match_is_refused_before_the_match_day(api_client, mock_engine):
+    """§6.1 - a fresh career opens on a preparation week, so M1 has nothing
+    to hand out yet and says how far off the match is."""
+    career_id = api_client.post(
+        "/careers",
+        json={"player_name": "Efe Kaan", "position": "Orta saha", "team_id": "t_ykz", "seed": 42},
+    ).json()["career_id"]
+
+    resp = api_client.get(f"/careers/{career_id}/matches/next")
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "not_match_day"
+    assert "2026-08-08" in resp.json()["message"]
+    assert "7 day(s)" in resp.json()["message"]
+
+
+def test_get_next_match_is_refused_again_the_day_after_a_match(api_client, created_career, mock_engine):
+    """The gate is what makes the week a week: having played today's match,
+    the user can't immediately queue up the next one."""
+    career_id = created_career["career_id"]
+    fixture_id = api_client.get(f"/careers/{career_id}/matches/next").json()["fixture_id"]
+    api_client.post(f"/careers/{career_id}/matches/{fixture_id}/result", json=_valid_result_body(fixture_id))
+
+    resp = api_client.get(f"/careers/{career_id}/matches/next")
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "not_match_day"
 
 
 def test_get_next_match_marks_in_progress_and_blocks_second_call(api_client, created_career):
@@ -79,7 +114,11 @@ def test_post_result_applies_everything(api_client, created_career, mock_engine)
     assert "goal_bonus" in kinds
     assert len(body["news_created"]) == 1
     assert body["standing_delta"]["rank_before"] is not None
-    assert len(body["other_results"]) > 0  # rest of that day's fixtures
+    # `other_results` is empty here because the day loop already ran that
+    # day's other fixtures on arrival (§6.7 INV-12: everything up to the
+    # world's today has been played). It only fills when a fixture of that
+    # date is still scheduled — e.g. a cup tie drawn the same morning.
+    assert body["other_results"] == []
 
 
 def test_post_result_already_played_errors(api_client, created_career, mock_engine):
@@ -147,7 +186,7 @@ def test_post_result_rejects_condition_above_pre_match(api_client, created_caree
     career_id = created_career["career_id"]
     fixture_id = api_client.get(f"/careers/{career_id}/matches/next").json()["fixture_id"]
 
-    body = _valid_result_body(fixture_id, condition=90)  # pre-match was 72
+    body = _valid_result_body(fixture_id, condition=90)  # pre-match was 64
     resp = api_client.post(f"/careers/{career_id}/matches/{fixture_id}/result", json=body)
     assert resp.status_code == 422
 

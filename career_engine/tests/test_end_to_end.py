@@ -74,7 +74,16 @@ def test_full_career_session(api_client, mock_engine):
     assert interact.status_code == 200
     assert interact.json()["relationship_changes"][0]["after"] == 53
 
-    # 7. Play the opening match.
+    # 7. Walk the preparation week to the opening match (§6.1 — a match is
+    #    only playable on its own day, so the day loop is what gets us there).
+    blocked = api_client.get(f"/careers/{career_id}/matches/next")
+    assert blocked.status_code == 409
+    assert blocked.json()["code"] == "not_match_day"
+
+    advanced = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_event"}).json()
+    assert advanced["stop_reason"] == "match"
+    assert advanced["days_advanced"] == 7
+
     next_match = api_client.get(f"/careers/{career_id}/matches/next").json()
     fixture_id = next_match["fixture_id"]
     assert next_match["engine_payload"]["user_condition"] == config.STARTING_CONDITION
@@ -98,19 +107,20 @@ def test_full_career_session(api_client, mock_engine):
     )
     assert result.status_code == 200
     assert result.json()["player_stat_delta"]["goals"] == 1
-    assert len(result.json()["other_results"]) > 0
 
-    # 8. Standings now reflect the played match.
+    # 8. Standings now reflect the played match — the user's and, from the
+    #    day loop's own background sim, every other team's round 1 too.
     standings = api_client.get(f"/careers/{career_id}/standings", params={"competition": "c_lig2"}).json()
     user_row = next(r for r in standings["rows"] if r["is_user_team"])
     assert user_row["played"] == 1
+    assert all(r["played"] == 1 for r in standings["rows"])  # INV-12
 
     # 9. Player stats picked it up too.
     stats = api_client.get(f"/careers/{career_id}/player/stats").json()
     assert stats["rows"][0]["goals"] == 1
     assert stats["rows"][0]["competition_kind"] == "lig"
 
-    # 10. Advance the world — days pass, other fixtures resolve, news appears.
+    # 10. Advance the world again — the next match is a week out.
     advance = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_event"})
     assert advance.status_code == 200
     assert advance.json()["days_advanced"] >= 1

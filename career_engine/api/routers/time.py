@@ -177,6 +177,8 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
     today_catchup = daytime.resolve_pending_today(conn, career_id, current_date, seed)
     fixtures_total += today_catchup["fixtures_simulated"]
     competitions_total |= today_catchup["competitions_touched"]
+    news_created += today_catchup["news_created"]
+    missed_matches = today_catchup["missed_matches"]
 
     for _ in range(config.MAX_ADVANCE_DAYS):
         next_date = (_dt.date.fromisoformat(current_date) + _dt.timedelta(days=1)).isoformat()
@@ -193,8 +195,9 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
         fixtures_total += day_result["fixtures_simulated"]
         competitions_total |= day_result["competitions_touched"]
 
-        if day_result["events"]:
-            stop_reason = day_result["events"][0]["kind"]
+        stoppers = daytime.stop_worthy(day_result["events"])
+        if stoppers:
+            stop_reason = stoppers[0]["kind"]
             break
         if body.to == "next_day":
             break
@@ -212,4 +215,8 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
         "ledger_entries": ledger_entries,
         "news_created": news_created,
         "repossessed": repossessed,
+        # §6.1 - the user's own fixtures that were played without them
+        # because they advanced off their match day (§5.0: adding a field
+        # is not a breaking change).
+        "missed_matches": missed_matches,
     }

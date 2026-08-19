@@ -42,9 +42,17 @@ RELATIONSHIP_KINDS = ("coach", "team", "media", "partner", "family")
 USER_PLAYER_ID = "p_user"
 
 # C1 - new-career defaults, ported from player_state.dart's own starting
-# values (_condition = 72, _money = 48200). ⟦B-1⟧ still owns whether these
-# (and the starting contract's wage) are the right scale for tier 2.
-STARTING_CONDITION = 72
+# values (_money = 48200). ⟦B-1⟧ still owns whether these (and the starting
+# contract's wage) are the right scale for tier 2.
+#
+# Condition starts AT its ceiling, not at player_state.dart's own literal
+# 72: the ceiling is worlddata/attributes.py's condition attribute (64,
+# ported from the training radar's mock data) and INV-10 binds the daily
+# value to it. Starting above the ceiling meant the first day advanced —
+# the first time condition.apply_delta() ran at all — silently snapped the
+# bar from 72 down to 64, which reads as a bug once the day loop actually
+# runs. A fresh career is simply fully fit.
+STARTING_CONDITION = 64
 STARTING_MONEY = 48200
 
 # ⟦B-1⟧ v1 sözleşme ölçeği - placeholder, tier 2'ye kabaca uygun küçük
@@ -76,8 +84,12 @@ CONTRACT_EXPIRING_DAYS = 30
 RELATIONSHIP_LOW_THRESHOLD = 20
 
 # §6.3 - "atlanan her gün için doğal kondisyon toparlanması uygulanır".
-# Placeholder magnitude, same status as DAY_BUDGET_DEFAULTS.
-NATURAL_CONDITION_RECOVERY_PER_DAY = 3
+# Scaled against the match cost: a match at normal effort burns roughly 30
+# points (§6.6), and league rounds are 7 days apart, so 7 x 5 = 35 lets a
+# quiet week roughly pay a match back. Anything the user does on top —
+# sleep (+14), sauna (+16), a late night (-12) — is the margin they
+# actually manage.
+NATURAL_CONDITION_RECOVERY_PER_DAY = 5
 
 # §5.5 T3 - safety cap so `to: "next_event"` can't loop forever if no
 # event condition is ever met (not a documented behavior, defensive only).

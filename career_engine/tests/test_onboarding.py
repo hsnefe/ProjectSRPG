@@ -1,3 +1,5 @@
+from datetime import date
+
 import pytest
 
 from api.errors import ApiError
@@ -85,3 +87,59 @@ def test_create_career_is_deterministic_for_same_seed(db_conn):
         return [(r["home_team_id"], r["away_team_id"]) for r in rows]
 
     assert first_round_pairs(id_a) == first_round_pairs(id_b)
+
+
+def test_career_opens_a_week_before_the_first_league_round(db_conn):
+    """§6.1 - the career starts on a preparation week, so a new player gets
+    a full day loop before their first match instead of kicking off on day
+    one."""
+    career_id = onboarding.create_career(db_conn, "Efe Kaan", "Orta saha", "t_ykz", seed=7)
+    db_conn.commit()
+
+    game_date = db_conn.execute(
+        "SELECT game_date FROM career_state WHERE career_id = ?", (career_id,)
+    ).fetchone()["game_date"]
+    first_kickoff = db_conn.execute(
+        "SELECT MIN(kickoff_at) AS k FROM fixture WHERE career_id = ?", (career_id,)
+    ).fetchone()["k"]
+
+    assert game_date == onboarding.SEASON_STARTS_ON
+    assert first_kickoff[:10] == onboarding.LEAGUE_STARTS_ON
+    gap = date.fromisoformat(first_kickoff[:10]) - date.fromisoformat(game_date)
+    assert gap.days == 7
+
+
+def test_no_team_is_ever_drawn_into_two_fixtures_on_one_day(db_conn):
+    """The league runs on Saturdays and the cup midweek, so M1's "today's
+    fixture" query can never face two candidates. Cup rounds past the first
+    aren't drawn yet, so this covers round 1 plus every league round."""
+    career_id = onboarding.create_career(db_conn, "Efe Kaan", "Orta saha", "t_ykz", seed=7)
+    db_conn.commit()
+
+    rows = db_conn.execute(
+        "SELECT kickoff_at, home_team_id, away_team_id FROM fixture WHERE career_id = ?",
+        (career_id,),
+    ).fetchall()
+    seen = set()
+    for row in rows:
+        for team_id in (row["home_team_id"], row["away_team_id"]):
+            key = (row["kickoff_at"][:10], team_id)
+            assert key not in seen, f"{team_id} has two fixtures on {key[0]}"
+            seen.add(key)
+
+    # And the two calendars never share a day in the first place.
+    league_days = {
+        r["kickoff_at"][:10] for r in db_conn.execute(
+            "SELECT kickoff_at FROM fixture WHERE career_id = ? AND competition_id != 'c_kupa'",
+            (career_id,),
+        ).fetchall()
+    }
+    assert {date.fromisoformat(d).weekday() for d in league_days} == {5}  # Saturday
+    cup_days = {
+        r["scheduled_on"] for r in db_conn.execute(
+            "SELECT scheduled_on FROM competition_round WHERE career_id = ? AND competition_id = 'c_kupa'",
+            (career_id,),
+        ).fetchall()
+    }
+    assert {date.fromisoformat(d).weekday() for d in cup_days} == {2}   # Wednesday
+    assert cup_days.isdisjoint(league_days)

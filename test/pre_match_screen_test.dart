@@ -60,6 +60,41 @@ const _e11Body = {
   'defaults': {'effort': 50, 'aggression': 50, 'focus': null},
 };
 
+Map<String, dynamic> _hubBodyWithDaysUntil(int daysUntil) => {
+      'career_id': 'car_test',
+      'career_state': {
+        'current_date': '2026-08-19', 'season_id': '25/26',
+        'money': 48200, 'condition': 64, 'day_budget': {'time': 720.0},
+      },
+      'player': {
+        'name': 'Efe Kaan', 'position': 'Orta saha', 'age': 21,
+        'team': {
+          'team_id': 't_ykz', 'name': 'FK Yıldız', 'short_name': 'YKZ',
+          'color_primary': '#1E6FD9', 'color_secondary': '#FFFFFF',
+        },
+      },
+      'next_fixture': {
+        'fixture_id': 'f_1',
+        'competition': {
+          'competition_id': 'c_lig2', 'kind': 'league', 'name': '1. Lig',
+        },
+        'round_no': 3,
+        'kickoff_at': '2026-08-22T20:00:00+03:00',
+        'home': {
+          'team_id': 't_ykz', 'name': 'FK Yıldız', 'short_name': 'YKZ',
+          'color_primary': '#1E6FD9', 'color_secondary': '#FFFFFF',
+        },
+        'away': {
+          'team_id': 't_dnz', 'name': 'Deniz SK', 'short_name': 'DNZ',
+          'color_primary': '#0B2C6F', 'color_secondary': '#FFFFFF',
+        },
+        'user_side': 'home',
+        'days_until': daysUntil,
+      },
+      'standing_summary': null,
+      'news_preview': const [],
+    };
+
 Widget _wrap(Widget home) {
   return PlayerScope(
     child: MaterialApp(
@@ -207,5 +242,44 @@ void main() {
     expect(find.byType(MatchScreen), findsOneWidget);
 
     await tester.pump(const Duration(milliseconds: 1000));
+  });
+  testWidgets('409 not_match_day geri sayım gösterir, hata göstermez',
+      (tester) async {
+    _useTallView(tester);
+    var e11Called = false;
+    final careerMock = MockClient((request) async {
+      if (request.url.path == '/careers') return _json(_careersListBody);
+      if (request.url.path == '/careers/car_test/matches/next') {
+        return _json(
+          {
+            'code': 'not_match_day',
+            'message': 'next match is on 2026-08-22, 3 day(s) away',
+          },
+          status: 409,
+        );
+      }
+      if (request.url.path == '/careers/car_test') {
+        return _json(_hubBodyWithDaysUntil(3));
+      }
+      return http.Response('unexpected ${request.url}', 404);
+    });
+    final matchMock = MockClient((request) async {
+      e11Called = true;
+      return http.Response('unexpected ${request.url}', 404);
+    });
+
+    await tester.pumpWidget(_wrap(PreMatchScreen(
+      session: CareerSession(
+        client: CareerApiClient(httpClient: careerMock, baseUrl: 'http://test'),
+      ),
+      matchApiClient:
+          MatchApiClient(httpClient: matchMock, baseUrl: 'http://test'),
+    )));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Maça 3 gün var.'), findsOneWidget);
+    expect(find.text('Tekrar dene'), findsNothing);
+    // Maç günü olmadan motora hiç maç kurulmaz.
+    expect(e11Called, isFalse);
   });
 }

@@ -1,3 +1,6 @@
+from api import config
+
+
 def test_get_options_returns_tier2_clubs_only(api_client):
     resp = api_client.get("/careers/options")
     assert resp.status_code == 200
@@ -18,7 +21,7 @@ def test_create_career_returns_201_and_hub_shape(api_client):
 
     assert body["career_id"].startswith("car_")
     assert body["career_state"]["money"] == 48200
-    assert body["career_state"]["condition"] == 72
+    assert body["career_state"]["condition"] == config.STARTING_CONDITION
     assert body["player"]["name"] == "Efe Kaan"
     assert body["player"]["team"]["team_id"] == "t_ykz"
     assert body["next_fixture"] is not None

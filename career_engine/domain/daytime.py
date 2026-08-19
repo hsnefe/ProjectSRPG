@@ -84,6 +84,31 @@ def _next_drawable_cup_round(conn: sqlite3.Connection, career_id: str, on_date: 
     return row
 
 
+# §6.3 - which event kinds actually stop `advance {to: "next_event"}`.
+#
+# T1 reports every condition true today; T3 stops only on the ones that are
+# genuinely *events*. 'relationship_low' and 'contract_expiring' are ongoing
+# STATES: once a relationship drops under the threshold it stays there until
+# the user does something about it, so treating it as a stop reason freezes
+# time — every single day becomes eventful and the calendar can never reach
+# the next match. CONTRACT.md §6.3's own wording is already edge-triggered
+# ("eşiğin altına düştüğünde", "30 gün kala"), which is what this restores:
+# contract_expiring stops exactly on the day the window opens, and a low
+# relationship is surfaced by T1 without ever blocking the day loop.
+STOP_EVENT_KINDS = {"match", "cup_draw", "upkeep_warning", "season_end"}
+
+
+def stop_worthy(events: List[dict]) -> List[dict]:
+    """The subset of list_events() output that T3 may stop on."""
+    out = []
+    for event in events:
+        if event["kind"] in STOP_EVENT_KINDS:
+            out.append(event)
+        elif event["kind"] == "contract_expiring" and event["days_left"] == config.CONTRACT_EXPIRING_DAYS:
+            out.append(event)
+    return out
+
+
 def list_events(conn: sqlite3.Connection, career_id: str, on_date: str) -> List[dict]:
     """Every event condition true for on_date, read-only."""
     events = []
@@ -197,16 +222,26 @@ def _fixture_rng(seed: int, *parts) -> random.Random:
     return random.Random(f"{seed}:" + ":".join(str(p) for p in parts))
 
 
-def _simulate_day_fixtures(conn: sqlite3.Connection, career_id: str, on_date: str, seed: int) -> dict:
+def _simulate_day_fixtures(
+    conn: sqlite3.Connection, career_id: str, on_date: str, seed: int, include_user: bool = False,
+) -> dict:
     """§6.7 D40: every scheduled fixture kicking off on_date, in every
-    competition, EXCEPT the user's own (that one stays 'scheduled' and is
-    played interactively via M1-M3)."""
+    competition. The user's own is normally excluded (it stays 'scheduled'
+    and is played interactively via M1-M3); `include_user` is for the one
+    case where it isn't — the user advancing off their own match day
+    without playing it (§6.1's missed match, see resolve_pending_today)."""
     user_team_id = _user_team_id(conn, career_id)
-    rows = conn.execute(
-        "SELECT * FROM fixture WHERE career_id = ? AND status = 'scheduled' AND kickoff_at LIKE ? "
-        "AND home_team_id != ? AND away_team_id != ?",
-        (career_id, f"{on_date}%", user_team_id, user_team_id),
-    ).fetchall()
+    if include_user:
+        rows = conn.execute(
+            "SELECT * FROM fixture WHERE career_id = ? AND status = 'scheduled' AND kickoff_at LIKE ?",
+            (career_id, f"{on_date}%"),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM fixture WHERE career_id = ? AND status = 'scheduled' AND kickoff_at LIKE ? "
+            "AND home_team_id != ? AND away_team_id != ?",
+            (career_id, f"{on_date}%", user_team_id, user_team_id),
+        ).fetchall()
     if not rows:
         return {"count": 0, "competitions": set(), "results": []}
 
@@ -325,21 +360,47 @@ def resolve_pending_monday(conn: sqlite3.Connection, career_id: str, on_date: st
 
 
 def resolve_pending_today(conn: sqlite3.Connection, career_id: str, on_date: str, seed: int) -> dict:
-    """A freshly-created career already sits ON its season-opening date
-    without ever having 'advanced into' it (onboarding doesn't call
-    match_engine — career creation shouldn't depend on a live engine
-    connection), so that date's non-user fixtures never got background-
-    simulated. Called once at the start of T3, mirroring
-    resolve_pending_monday, so day 1's other results appear the first time
-    advance() is called rather than staying 'scheduled' forever.
+    """Closes out the day the career is currently sitting on, which T3 is
+    about to leave. Two things land here:
+
+    1. A freshly-created career already sits ON its season-opening date
+       without ever having 'advanced into' it (onboarding doesn't call
+       match_engine — career creation shouldn't depend on a live engine
+       connection), so that date's fixtures never got background-simulated.
+    2. §6.1's missed match: if the user's own fixture is still 'scheduled'
+       today, they chose to advance instead of playing it. The match is
+       played in the background like any other — the result counts for the
+       table, but no appearance, bonus or goal is credited (they weren't
+       there). The alternative, refusing to advance, would soft-lock the
+       career whenever match_engine can't be reached.
 
     Idempotent: _simulate_day_fixtures only touches still-'scheduled' rows,
     so calling this again for an already-resolved date is a no-op."""
-    sim = _simulate_day_fixtures(conn, career_id, on_date, seed)
+    user_team_id = _user_team_id(conn, career_id)
+    missed = conn.execute(
+        "SELECT fixture_id FROM fixture WHERE career_id = ? AND status = 'scheduled' "
+        "AND kickoff_at LIKE ? AND (home_team_id = ? OR away_team_id = ?)",
+        (career_id, f"{on_date}%", user_team_id, user_team_id),
+    ).fetchall()
+
+    sim = _simulate_day_fixtures(conn, career_id, on_date, seed, include_user=bool(missed))
+
+    news_created = []
+    for row in missed:
+        news_created.append(_create_news(
+            conn, career_id, "Maç", "Kadroda yoktun",
+            "Maç sen sahada olmadan oynandı; sonuç puan durumuna işlendi.", on_date,
+        ))
+
     cup_round = _next_drawable_cup_round(conn, career_id, on_date)
     if cup_round:
         _draw_cup_round(conn, career_id, cup_round["round_no"], on_date, seed)
-    return {"fixtures_simulated": sim["count"], "competitions_touched": sim["competitions"]}
+    return {
+        "fixtures_simulated": sim["count"],
+        "competitions_touched": sim["competitions"],
+        "missed_matches": [row["fixture_id"] for row in missed],
+        "news_created": news_created,
+    }
 
 
 def process_day(conn: sqlite3.Connection, career_id: str, on_date: str, seed: int) -> dict:

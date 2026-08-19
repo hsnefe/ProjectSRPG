@@ -75,9 +75,11 @@ _FAKE_STATS = {
 
 @pytest.fixture
 def mock_engine(monkeypatch):
-    """match_engine doesn't expose E12 (§7) yet — this stands in for
-    domain.engine_client.simulate_batch() so T3's background-sim tests
-    don't need a live match_engine server. Every match comes back 1-1."""
+    """Stands in for domain.engine_client.simulate_batch() so T3's
+    background-sim tests don't need a live match_engine server on :8000
+    (the real E12 endpoint exists — see match_engine's
+    api/routers/simulate_batch.py — this just keeps the suite offline).
+    Every match comes back 1-1."""
     def _fake_simulate_batch(matches):
         return [
             {
@@ -104,3 +106,21 @@ def api_client(tmp_path, monkeypatch):
 
     with TestClient(app) as client:
         yield client
+
+
+def advance_to_match_day(api_client, career_id, max_calls=10) -> dict:
+    """Walks the day loop until the user's own fixture is today, the way a
+    player does. A new career opens on a preparation week
+    (onboarding.LEAGUE_STARTS_ON is a week after the season starts) and M1
+    only hands out today's fixture (§6.1), so any test that wants to play a
+    match has to get there first. Needs the `mock_engine` fixture, since
+    advancing simulates the day's other fixtures.
+
+    Returns the T1 body for the match day it stopped on."""
+    for _ in range(max_calls):
+        day = api_client.get(f"/careers/{career_id}/day").json()
+        if day["is_match_day"]:
+            return day
+        resp = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_event"})
+        assert resp.status_code == 200, resp.json()
+    raise AssertionError(f"no match day reached for {career_id} in {max_calls} advances")

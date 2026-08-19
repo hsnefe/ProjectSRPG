@@ -65,6 +65,10 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
   String? _fixtureId;
   int? _preMatchCondition;
   String? _loadError;
+
+  /// §6.1 — M1 `409 not_match_day`: bugün maç yok. Hata değil, takvimin
+  /// normal hâli; ekran maça kaç gün kaldığını gösterir.
+  int? _daysUntilMatch;
   bool _starting = false;
 
   @override
@@ -79,6 +83,7 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
   Future<void> _loadNext() async {
     setState(() {
       _loadError = null;
+      _daysUntilMatch = null;
       _next = null;
     });
     try {
@@ -105,6 +110,14 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
       });
     } on CareerApiException catch (e) {
       if (!mounted) return;
+      if (e.code == 'not_match_day') {
+        // Gün sayısını mesajdan ayıklamak yerine C3'ün kendi `days_until`
+        // alanından okuyoruz (§1.3: sayı BE'den, cümle FE'den).
+        final days = await _daysUntilNextFixture();
+        if (!mounted) return;
+        setState(() => _daysUntilMatch = days ?? 0);
+        return;
+      }
       setState(() => _loadError = e.message ?? 'Maç bilgisi alınamadı.');
     } on MatchApiException catch (e) {
       if (!mounted) return;
@@ -112,6 +125,16 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _loadError = 'Maç bilgisi alınamadı.');
+    }
+  }
+
+  Future<int?> _daysUntilNextFixture() async {
+    try {
+      final careerId = await _careerSession.resolve();
+      final hub = await _careerSession.client.hub(careerId);
+      return hub.nextFixture?.daysUntil;
+    } catch (_) {
+      return null;
     }
   }
 
@@ -156,6 +179,8 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
         teams: next.teams,
         staminaCatalog: next.stamina,
         directiveOptions: next.directiveOptions,
+        // D38 — maç oyuncunun kendi kondisyonundan başlar, 100'den değil.
+        startCondition: _preMatchCondition,
       );
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -214,6 +239,9 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
     if (_loadError != null) {
       return _ErrorSection(message: _loadError!, onRetry: _loadNext);
     }
+    if (_daysUntilMatch != null) {
+      return _NotMatchDaySection(daysUntil: _daysUntilMatch!);
+    }
     if (next == null) {
       return const _LoadingSection();
     }
@@ -244,6 +272,65 @@ class _LoadingSection extends StatelessWidget {
       height: 320,
       child: Center(
         child: CircularProgressIndicator(color: PreMatchScreen._success),
+      ),
+    );
+  }
+}
+
+/// §6.1 — bugün maç günü değil. Maç yalnızca kendi gününde oynanır; araya
+/// giren günler kariyer merkezindeki "İlerle" ile geçilir.
+class _NotMatchDaySection extends StatelessWidget {
+  const _NotMatchDaySection({required this.daysUntil});
+
+  final int daysUntil;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 320,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.event_outlined,
+                size: 28,
+                color: PreMatchScreen._textSecondary,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                daysUntil <= 0
+                    ? 'Bugün maçın yok.'
+                    : 'Maça $daysUntil gün var.',
+                style: const TextStyle(
+                  color: PreMatchScreen._textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Kalan günleri kariyer merkezinden ilerlet.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: PreMatchScreen._textSecondary,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: PreMatchScreen._textPrimary,
+                  side: const BorderSide(color: PreMatchScreen._border),
+                ),
+                child: const Text('Kariyer merkezine dön'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

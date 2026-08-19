@@ -54,6 +54,7 @@ TickFrame _tick({
 MatchController _buildController(
   _FakeSseClient source, {
   List<http.Request>? recordedRequests,
+  int? startCondition,
 }) {
   // The speed button now POSTs to /speed, so every screen test needs a stubbed
   // HTTP client - otherwise the tap would attempt a real socket connection.
@@ -77,6 +78,7 @@ MatchController _buildController(
       substitutionBonus: 6,
     ),
     directiveOptions: const DirectiveOptions(effort: [], aggression: [], focus: []),
+    startCondition: startCondition,
     apiClient: MatchApiClient(httpClient: mock, baseUrl: 'http://test'),
     streamSource: source,
   );
@@ -106,6 +108,39 @@ Future<void> _emitTick(
 }
 
 void main() {
+  testWidgets(
+    'kondisyon barı oyuncunun kendi kondisyonundan başlar ve onunla erir',
+    (tester) async {
+      final source = _FakeSseClient();
+      final controller = _buildController(source, startCondition: 64);
+      await _pumpMatchScreen(tester, controller);
+
+      // İlk tick yalnızca sayacı kurar — motorun 100'ü oyuncunun 64'ünü
+      // ezmez (D38: aynı eğri, farklı başlangıç).
+      await _emitTick(tester, source, _tick(minute: 1, stamina: 100));
+      expect(find.text('64/100'), findsOneWidget);
+
+      // 100 -> 82: 18 puanlık erime oyuncunun sayacına birebir yansır.
+      await _emitTick(tester, source, _tick(minute: 45, stamina: 82));
+      expect(find.text('46/100'), findsOneWidget);
+      expect(controller.playerCondition, 46);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets('kondisyon barı tabanın altına inmez', (tester) async {
+    final source = _FakeSseClient();
+    final controller = _buildController(source, startCondition: 40);
+    await _pumpMatchScreen(tester, controller);
+
+    await _emitTick(tester, source, _tick(minute: 1, stamina: 100));
+    await _emitTick(tester, source, _tick(minute: 90, stamina: 36));
+    expect(controller.playerCondition, 35);  // StaminaCatalog.floor
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('shows an empty state before any tick arrives', (tester) async {
     final source = _FakeSseClient();
     await _pumpMatchScreen(tester, _buildController(source));
@@ -402,12 +437,13 @@ void main() {
           // İnterventions boş gönderilir (bilinen sınır, match_screen.dart'ta
           // belgelendi) ve final_condition maç öncesi değerden büyük olamaz.
           expect(body['interventions'], isEmpty);
-          expect(body['final_condition'], 70);
+          // D38: 70'ten başladı, maç boyunca 22 puan eridi (100 -> 78).
+          expect(body['final_condition'], 48);
           return http.Response(
             jsonEncode({
               'career_state': {
                 'current_date': '2026-08-19', 'season_id': '25/26',
-                'money': 48200, 'condition': 70, 'day_budget': {'time': 720.0},
+                'money': 48200, 'condition': 48, 'day_budget': {'time': 720.0},
               },
               'fixture': {
                 'fixture_id': 'f_1', 'status': 'played',
@@ -426,7 +462,7 @@ void main() {
         return http.Response('unexpected ${request.url}', 404);
       });
 
-      final controller = _buildController(source);
+      final controller = _buildController(source, startCondition: 70);
       final careerSession = CareerSession(
         client: CareerApiClient(httpClient: careerMock, baseUrl: 'http://test'),
       );
@@ -445,7 +481,8 @@ void main() {
       ));
       await tester.pump();
 
-      await _emitTick(tester, source, _tick(minute: 90, finished: true));
+      await _emitTick(tester, source, _tick(minute: 1, stamina: 100));
+      await _emitTick(tester, source, _tick(minute: 90, stamina: 78, finished: true));
       await tester.tap(find.text('İlerle'));
       await tester.pumpAndSettle();
 
