@@ -34,3 +34,17 @@ def career_id(db_conn):
     )
     db_conn.commit()
     return cid
+
+
+@pytest.fixture
+def seeded_relationship(db_conn, career_id):
+    """One 'coach' relationship row at score=50, no traits yet — the
+    starting point most relationship-module tests build on."""
+    db_conn.execute(
+        "INSERT INTO relationship "
+        "(career_id, relationship_id, kind, category, score, person_name, contact_name) "
+        "VALUES (?, 'coach', 'coach', 'Antrenör', 50, 'Mert Aydın', 'Mert Hoca')",
+        (career_id,),
+    )
+    db_conn.commit()
+    return "coach"
