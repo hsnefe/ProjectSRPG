@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/net/career_models.dart' as api;
+import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/league_table_screen.dart';
 import 'package:project_srpg/screens/lifestyle_screen.dart';
 import 'package:project_srpg/screens/news_detail_screen.dart';
@@ -9,13 +11,17 @@ import 'package:project_srpg/screens/settings_screen.dart';
 import 'package:project_srpg/screens/training_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/widgets/expand_page_route.dart';
+import 'package:project_srpg/widgets/news_style.dart';
 
-class CareerCenterScreen extends StatelessWidget {
-  const CareerCenterScreen({super.key});
+class CareerCenterScreen extends StatefulWidget {
+  const CareerCenterScreen({super.key, this.session});
 
   /// Maç sonu akışı (RequestScreen) yığında geri dönerken bu adı arar —
   /// uygulamada isimli route tablosu yok, tek tanımlayıcı `RouteSettings.name`.
   static const routeName = '/career-center';
+
+  /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
+  final CareerSession? session;
 
   static const _surface1 = Color(0xFF1A1D24);
   static const _surface2 = Color(0xFF22262F);
@@ -27,14 +33,33 @@ class CareerCenterScreen extends StatelessWidget {
   static const _accentBg = Color(0x33228BFF);
   static const _success = Color(0xFF3DDC97);
   static const _successBg = Color(0x333DDC97);
-  static const _warning = Color(0xFFF5A623);
-  static const _danger = Color(0xFFE85D5D);
-  static const _dangerBg = Color(0x33E85D5D);
+
+  @override
+  State<CareerCenterScreen> createState() => _CareerCenterScreenState();
+}
+
+class _CareerCenterScreenState extends State<CareerCenterScreen> {
+  late final CareerSession _session =
+      widget.session ?? CareerSession.instance;
+  late Future<api.CareerHub> _hubFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _hubFuture = _load();
+  }
+
+  /// C3 · `GET /careers/{cid}` — tek çağrıda hub verisi (sonraki maç + puan
+  /// durumu özeti + haber önizlemesi).
+  Future<api.CareerHub> _load() async {
+    final careerId = await _session.resolve();
+    return _session.client.hub(careerId);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _surface1,
+      backgroundColor: CareerCenterScreen._surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -43,20 +68,27 @@ class CareerCenterScreen extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: _surface2,
+                  color: CareerCenterScreen._surface2,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _border, width: 0.5),
+                  border: Border.all(
+                    color: CareerCenterScreen._border,
+                    width: 0.5,
+                  ),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: ListView(
-                    children: const [
-                      _HeaderSection(),
-                      _ProgressSection(),
-                      _MatchPreviewSection(),
-                      _NewsSection(),
-                      _ActionsSection(),
-                    ],
+                  child: FutureBuilder<api.CareerHub>(
+                    future: _hubFuture,
+                    builder: (context, snapshot) {
+                      return ListView(
+                        children: [
+                          const _HeaderSection(),
+                          const _ProgressSection(),
+                          ..._hubDependentSections(snapshot),
+                          const _ActionsSection(),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ),
@@ -65,6 +97,47 @@ class CareerCenterScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  List<Widget> _hubDependentSections(AsyncSnapshot<api.CareerHub> snapshot) {
+    if (snapshot.connectionState != ConnectionState.done) {
+      return const [
+        Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(
+            child: SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: CareerCenterScreen._textMuted,
+              ),
+            ),
+          ),
+        ),
+      ];
+    }
+    if (snapshot.hasError) {
+      return const [
+        Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(
+            child: Text(
+              'Kariyer verisi alınamadı.',
+              style: TextStyle(
+                color: CareerCenterScreen._textMuted,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ),
+      ];
+    }
+    final hub = snapshot.data!;
+    return [
+      _MatchPreviewSection(nextFixture: hub.nextFixture),
+      _NewsSection(newsPreview: hub.newsPreview, session: _session),
+    ];
   }
 }
 
@@ -405,8 +478,32 @@ class _LitCard extends StatelessWidget {
   }
 }
 
+const _matchWeekdays = [
+  'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar',
+];
+
+/// '2026-03-16T20:00:00+03:00' → 'Pazartesi, 20:00' — §1.3: BE `kickoff_at`
+/// verir, gösterime hazır cümleyi ekran kurar.
+///
+/// `DateTime.parse` bir ofset gördüğünde UTC'ye çevirir ve `isUtc = true`
+/// işaretler (§9.2 `.hour`/`.weekday` artık UTC alanlarıdır, dizedeki saat
+/// değil). Sözleşme tek saat dilimi kullandığı için (+03:00, §5.0) UTC'den
+/// geri +3 saat eklemek dizedeki gerçek duvar saatini verir — cihazın kendi
+/// yerel dilimi hiç devreye girmez.
+String _matchDayLabel(String isoDateTime) {
+  final parsed = DateTime.tryParse(isoDateTime);
+  if (parsed == null) return isoDateTime;
+  final kickoff = parsed.isUtc ? parsed.add(const Duration(hours: 3)) : parsed;
+  final weekday = _matchWeekdays[kickoff.weekday - 1];
+  final hh = kickoff.hour.toString().padLeft(2, '0');
+  final mm = kickoff.minute.toString().padLeft(2, '0');
+  return '$weekday, $hh:$mm';
+}
+
 class _MatchPreviewSection extends StatefulWidget {
-  const _MatchPreviewSection();
+  const _MatchPreviewSection({required this.nextFixture});
+
+  final api.NextFixtureSummary? nextFixture;
 
   @override
   State<_MatchPreviewSection> createState() => _MatchPreviewSectionState();
@@ -431,6 +528,26 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
 
   @override
   Widget build(BuildContext context) {
+    final fixture = widget.nextFixture;
+    // C3'te sezon bittiyse `next_fixture` null döner (§5.1).
+    if (fixture == null) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+        child: _LitCard(
+          minHeight: 96,
+          child: Center(
+            child: Text(
+              'Sıradaki maç bilgisi yok.',
+              style: TextStyle(
+                color: CareerCenterScreen._textMuted,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
       child: _LitCard(
@@ -455,32 +572,21 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  const Text(
-                    'Cumartesi, 20:00',
-                    style: TextStyle(
+                  Text(
+                    _matchDayLabel(fixture.kickoffAt),
+                    style: const TextStyle(
                       color: CareerCenterScreen._textPrimary,
                       fontWeight: FontWeight.w600,
                       fontSize: 15,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.cloud_outlined,
-                        size: 14,
-                        color: CareerCenterScreen._textSecondary,
-                      ),
-                      SizedBox(width: 4),
-                      Text(
-                        '16°C, parçalı bulutlu',
-                        style: TextStyle(
-                          color: CareerCenterScreen._textSecondary,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    fixture.competition.name,
+                    style: const TextStyle(
+                      color: CareerCenterScreen._textSecondary,
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
@@ -488,11 +594,7 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const _TeamBadge(
-                    name: 'FK Yıldız',
-                    background: CareerCenterScreen._accentBg,
-                    iconColor: CareerCenterScreen._accent,
-                  ),
+                  _TeamBadge(team: fixture.home),
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 28),
                     child: Text(
@@ -504,11 +606,7 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
                       ),
                     ),
                   ),
-                  const _TeamBadge(
-                    name: 'Deniz SK',
-                    background: CareerCenterScreen._dangerBg,
-                    iconColor: CareerCenterScreen._danger,
-                  ),
+                  _TeamBadge(team: fixture.away),
                 ],
               ),
               const SizedBox(height: 20),
@@ -549,16 +647,13 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
   }
 }
 
+/// D17: takımın kimlik renkleri BE'den ham gelir — rozet ikisini de gösterir
+/// (dolgu birincil, kenarlık ikincil), league_table_screen'deki `_TeamDot`
+/// ile aynı kural.
 class _TeamBadge extends StatelessWidget {
-  const _TeamBadge({
-    required this.name,
-    required this.background,
-    required this.iconColor,
-  });
+  const _TeamBadge({required this.team});
 
-  final String name;
-  final Color background;
-  final Color iconColor;
+  final api.TeamRef team;
 
   @override
   Widget build(BuildContext context) {
@@ -569,14 +664,19 @@ class _TeamBadge extends StatelessWidget {
           height: 48,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: background,
+            color: team.colorPrimary,
             shape: BoxShape.circle,
+            border: Border.all(color: team.colorSecondary, width: 2),
           ),
-          child: Icon(Icons.shield_outlined, size: 22, color: iconColor),
+          child: const Icon(
+            Icons.shield_outlined,
+            size: 22,
+            color: Colors.white,
+          ),
         ),
         const SizedBox(height: 6),
         Text(
-          name,
+          team.name,
           style: const TextStyle(
             color: CareerCenterScreen._textPrimary,
             fontSize: 13,
@@ -588,62 +688,16 @@ class _TeamBadge extends StatelessWidget {
 }
 
 class _NewsSection extends StatelessWidget {
-  const _NewsSection();
+  const _NewsSection({required this.newsPreview, required this.session});
 
-  static const _news = [
-    NewsItem(
-      category: 'Transfer',
-      icon: Icons.swap_horiz,
-      tint: CareerCenterScreen._accent,
-      title: "Deniz SK, orta saha transferi için FK Yıldız'ı ziyaret etti",
-      source: 'Spor Manşet',
-      timeAgo: '2 saat önce',
-      body:
-          'Deniz SK yönetimi, sezon ortası transfer penceresinde orta saha rotasyonunu güçlendirmek amacıyla FK Yıldız tesislerinde görüşmeler gerçekleştirdi.\n\n'
-          'Kaynaklara göre hedef listesinde genç orta saha oyuncuları öne çıkıyor. Kulüp yetkilileri, görüşmelerin olumlu geçtiğini ancak henüz resmi bir teklif yapılmadığını belirtti.\n\n'
-          'FK Yıldız tarafı ise kadro planlamasını korumak istediğini ve kritik oyuncular için aceleci davranmayacaklarını açıkladı. Gelişmeler takip ediliyor.',
-    ),
-    NewsItem(
-      category: 'Maç',
-      icon: Icons.sports_soccer,
-      tint: CareerCenterScreen._success,
-      title: 'FK Yıldız, deplasmanda 2-1 galip geldi',
-      source: 'Lig Ajansı',
-      timeAgo: '1 gün önce',
-      body:
-          'FK Yıldız, zorlu deplasmanda sahadan 2-1 galip ayrılarak ligde üçüncülüğünü pekiştirdi.\n\n'
-          'İlk yarıda dengeyi koruyan misafir ekip, ikinci yarının başında öne geçti. Rakibin geç eşitliği ardından gelen gol, üç puanı getirdi.\n\n'
-          'Teknik direktör, oyuncuların disiplinli savunma ve hızlı geçiş oyununu övdü. Bir sonraki hafta ev sahibi avantajıyla kritik bir karşılaşma oynanacak.',
-    ),
-    NewsItem(
-      category: 'Röportaj',
-      icon: Icons.record_voice_over_outlined,
-      tint: CareerCenterScreen._warning,
-      title: 'Antrenör Mert: "Gençlerimiz doğru yolda"',
-      source: 'Saha Sohbeti',
-      timeAgo: '3 gün önce',
-      body:
-          'FK Yıldız antrenörü Mert, sezon değerlendirmesinde genç oyuncuların gelişimine vurgu yaptı.\n\n'
-          '"Antrenman temposu yüksek ve rekabet sağlıklı. Bireysel performans kadar takım oyunu da yükseliyor," dedi.\n\n'
-          'Özellikle orta saha hattında iletişim ve topa sahip olma oranının arttığını belirten antrenör, ligin ikinci yarısında daha istikrarlı sonuçlar beklediklerini ifade etti.',
-    ),
-    NewsItem(
-      category: 'Analiz',
-      icon: Icons.insights,
-      tint: CareerCenterScreen._danger,
-      title: 'Lig tablosu sıkışık: Üst sıralar tek puanlık farklarda',
-      source: 'Taktik Defter',
-      timeAgo: '5 gün önce',
-      body:
-          'Sezonun ilk yarısında lig üst sıraları beklenenden daha rekabetçi bir tablo çiziyor.\n\n'
-          'Deniz SK liderliğini korurken Anadolu FC ve FK Yıldız yakın takipte. Uzmanlara göre kalan maçlarda deplasman performansı şampiyonluk yarışını belirleyebilir.\n\n'
-          'Orta sıralardaki takımlar da puan farkını kapatma peşinde; her hafta sürpriz sonuçlar mümkün görünüyor.',
-    ),
-  ];
+  final List<api.NewsPreviewItem> newsPreview;
+  final CareerSession session;
 
   @override
   Widget build(BuildContext context) {
-    final item = _news.first;
+    if (newsPreview.isEmpty) return const SizedBox.shrink();
+    final item = newsPreview.first;
+    final tint = tintForNewsCategory(item.category);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -652,8 +706,9 @@ class _NewsSection extends StatelessWidget {
           Navigator.of(context).push(
             MaterialPageRoute<void>(
               builder: (_) => NewsDetailScreen(
-                news: _news,
+                newsIds: [for (final n in newsPreview) n.newsId],
                 initialIndex: 0,
+                session: session,
               ),
             ),
           );
@@ -681,8 +736,8 @@ class _NewsSection extends StatelessWidget {
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                               colors: [
-                                item.tint.withValues(alpha: 0.55),
-                                item.tint.withValues(alpha: 0.22),
+                                tint.withValues(alpha: 0.55),
+                                tint.withValues(alpha: 0.22),
                                 const Color(0xFF12151B).withValues(alpha: 0.92),
                               ],
                               stops: const [0.0, 0.45, 1.0],
@@ -693,7 +748,7 @@ class _NewsSection extends StatelessWidget {
                           right: -12,
                           top: -12,
                           child: Icon(
-                            item.icon,
+                            iconForNewsCategory(item.category),
                             size: 96,
                             color: Colors.white.withValues(alpha: 0.14),
                           ),
@@ -710,17 +765,17 @@ class _NewsSection extends StatelessWidget {
                         vertical: 5,
                       ),
                       decoration: BoxDecoration(
-                        color: item.tint.withValues(alpha: 0.14),
+                        color: tint.withValues(alpha: 0.14),
                         borderRadius: BorderRadius.circular(999),
                         border: Border.all(
-                          color: item.tint.withValues(alpha: 0.35),
+                          color: tint.withValues(alpha: 0.35),
                           width: 0.5,
                         ),
                       ),
                       child: Text(
                         item.category,
                         style: TextStyle(
-                          color: item.tint,
+                          color: tint,
                           fontSize: 11,
                           fontWeight: FontWeight.w500,
                         ),
@@ -746,7 +801,7 @@ class _NewsSection extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${item.source} · ${item.timeAgo}',
+                    '${item.source} · ${newsTimeAgo(item.publishedAt)}',
                     style: const TextStyle(
                       color: CareerCenterScreen._textMuted,
                       fontSize: 12,

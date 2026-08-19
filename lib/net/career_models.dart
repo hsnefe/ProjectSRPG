@@ -295,6 +295,154 @@ List<LedgerEntry> _parseLedgerEntries(dynamic json) {
       .toList(growable: false);
 }
 
+/// §5.1 C3 `next_fixture`.
+class NextFixtureSummary {
+  const NextFixtureSummary({
+    required this.fixtureId,
+    required this.competition,
+    required this.roundNo,
+    required this.kickoffAt,
+    required this.home,
+    required this.away,
+    required this.userSide,
+    required this.daysUntil,
+  });
+
+  factory NextFixtureSummary.fromJson(Map<String, dynamic> json) {
+    return NextFixtureSummary(
+      fixtureId: json['fixture_id'] as String,
+      competition:
+          CompetitionRef.fromJson(json['competition'] as Map<String, dynamic>),
+      roundNo: json['round_no'] as int,
+      kickoffAt: json['kickoff_at'] as String,
+      home: TeamRef.fromJson(json['home'] as Map<String, dynamic>),
+      away: TeamRef.fromJson(json['away'] as Map<String, dynamic>),
+      userSide: json['user_side'] as String,
+      daysUntil: json['days_until'] as int,
+    );
+  }
+
+  final String fixtureId;
+  final CompetitionRef competition;
+  final int roundNo;
+  final String kickoffAt;
+  final TeamRef home;
+  final TeamRef away;
+  final String userSide;
+  final int daysUntil;
+
+  TeamRef get userTeam => userSide == 'home' ? home : away;
+  TeamRef get opponent => userSide == 'home' ? away : home;
+}
+
+/// §5.1 C3 `standing_summary`.
+class StandingSummary {
+  const StandingSummary({
+    required this.competitionId,
+    this.rank,
+    required this.played,
+    required this.points,
+    required this.promotionSlots,
+    required this.relegationSlots,
+  });
+
+  factory StandingSummary.fromJson(Map<String, dynamic> json) {
+    return StandingSummary(
+      competitionId: json['competition_id'] as String,
+      rank: json['rank'] as int?,
+      played: json['played'] as int,
+      points: json['points'] as int,
+      promotionSlots: json['promotion_slots'] as int? ?? 0,
+      relegationSlots: json['relegation_slots'] as int? ?? 0,
+    );
+  }
+
+  final String competitionId;
+  final int? rank;
+  final int played;
+  final int points;
+  final int promotionSlots;
+  final int relegationSlots;
+}
+
+/// C3 `news_preview[]` satırı — N1'in bir alt kümesi (`excerpt` yok).
+class NewsPreviewItem {
+  const NewsPreviewItem({
+    required this.newsId,
+    required this.category,
+    required this.title,
+    required this.source,
+    required this.publishedAt,
+  });
+
+  factory NewsPreviewItem.fromJson(Map<String, dynamic> json) {
+    return NewsPreviewItem(
+      newsId: json['news_id'] as String,
+      category: json['category'] as String,
+      title: json['title'] as String,
+      source: json['source'] as String,
+      publishedAt: json['published_at'] as String,
+    );
+  }
+
+  final String newsId;
+  final String category;
+  final String title;
+  final String source;
+  final String publishedAt;
+}
+
+/// C3 · `GET /careers/{cid}` — kariyer merkezi. Tek çağrıda hub verisi.
+class CareerHub {
+  const CareerHub({
+    required this.careerId,
+    required this.careerState,
+    required this.playerName,
+    required this.playerPosition,
+    required this.playerAge,
+    required this.playerTeam,
+    this.nextFixture,
+    this.standingSummary,
+    required this.newsPreview,
+  });
+
+  factory CareerHub.fromJson(Map<String, dynamic> json) {
+    final player = json['player'] as Map<String, dynamic>;
+    final nextFixture = json['next_fixture'] as Map<String, dynamic>?;
+    final standingSummary = json['standing_summary'] as Map<String, dynamic>?;
+    return CareerHub(
+      careerId: json['career_id'] as String,
+      careerState:
+          CareerState.fromJson(json['career_state'] as Map<String, dynamic>),
+      playerName: player['name'] as String,
+      playerPosition: player['position'] as String,
+      playerAge: player['age'] as int,
+      playerTeam: TeamRef.fromJson(player['team'] as Map<String, dynamic>),
+      nextFixture: nextFixture == null
+          ? null
+          : NextFixtureSummary.fromJson(nextFixture),
+      standingSummary: standingSummary == null
+          ? null
+          : StandingSummary.fromJson(standingSummary),
+      newsPreview: (json['news_preview'] as List<dynamic>)
+          .map((e) => NewsPreviewItem.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+    );
+  }
+
+  final String careerId;
+  final CareerState careerState;
+  final String playerName;
+  final String playerPosition;
+  final int playerAge;
+  final TeamRef playerTeam;
+
+  /// Sezon bittiyse null.
+  final NextFixtureSummary? nextFixture;
+  final StandingSummary? standingSummary;
+  final List<NewsPreviewItem> newsPreview;
+}
+
 // ---------------------------------------------------------------------------
 // §5.2 Oyuncu — P1-P3
 // ---------------------------------------------------------------------------

@@ -118,6 +118,13 @@ class CareerApiClient {
   /// C4 · `DELETE /careers/{cid}` — kariyeri sil. INV-9: hiçbir satır kalmaz.
   Future<void> deleteCareer(String careerId) => _delete('/careers/$careerId');
 
+  /// C3 · `GET /careers/{cid}` — kariyer merkezi. Tek çağrıda hub verisi;
+  /// FE'nin ana ekranı bununla dolar.
+  Future<CareerHub> hub(String careerId) async {
+    final body = await _get('/careers/$careerId');
+    return CareerHub.fromJson(body);
+  }
+
   /// W1 · `GET /careers/{cid}/competitions` — piramit, paralel ligler, kupalar.
   Future<List<CompetitionRef>> competitions(String careerId) async {
     final body = await _get('/careers/$careerId/competitions');

@@ -1,42 +1,24 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-
-class NewsItem {
-  const NewsItem({
-    required this.category,
-    required this.title,
-    required this.source,
-    required this.timeAgo,
-    required this.body,
-    required this.icon,
-    required this.tint,
-    this.imageAsset,
-  });
-
-  final String category;
-  final String title;
-  final String source;
-  final String timeAgo;
-  final String body;
-
-  /// Görsel yerine geçen filigran ikon ve kartın renk tonu.
-  final IconData icon;
-  final Color tint;
-
-  /// Haber fotoğrafı. Null ise ton ve ikondan prosedürel bir görsel çizilir.
-  final String? imageAsset;
-}
+import 'package:project_srpg/net/career_models.dart' as api;
+import 'package:project_srpg/net/career_session.dart';
+import 'package:project_srpg/widgets/news_style.dart';
 
 class NewsDetailScreen extends StatefulWidget {
   const NewsDetailScreen({
     super.key,
-    required this.news,
+    required this.newsIds,
     required this.initialIndex,
+    this.session,
   });
 
-  final List<NewsItem> news;
+  /// N2'den tek tek, sayfa geçişinde tembelce çekilecek haber kimlikleri.
+  final List<String> newsIds;
   final int initialIndex;
+
+  /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
+  final CareerSession? session;
 
   @override
   State<NewsDetailScreen> createState() => _NewsDetailScreenState();
@@ -50,10 +32,15 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
   static const _textSecondary = Color(0xFFA0A6B0);
   static const _textMuted = Color(0xFF6B7280);
 
+  late final CareerSession _session = widget.session ?? CareerSession.instance;
   late int _index;
 
   /// Geçiş animasyonunun yönü: sonraki habere giderken içerik soldan gelir.
   bool _forward = true;
+
+  /// N2 · her habere yalnızca bir kez gidilir; sayfalar arasında geri
+  /// dönüldüğünde tekrar ağa çıkılmaz.
+  final Map<String, Future<api.NewsDetail>> _cache = {};
 
   @override
   void initState() {
@@ -61,10 +48,15 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
     _index = widget.initialIndex;
   }
 
-  NewsItem get _current => widget.news[_index];
+  Future<api.NewsDetail> _detailFor(String newsId) {
+    return _cache.putIfAbsent(newsId, () async {
+      final careerId = await _session.resolve();
+      return _session.client.newsItem(careerId, newsId);
+    });
+  }
 
   bool get _canGoPrev => _index > 0;
-  bool get _canGoNext => _index < widget.news.length - 1;
+  bool get _canGoNext => _index < widget.newsIds.length - 1;
 
   void _goPrev() {
     if (!_canGoPrev) return;
@@ -84,8 +76,6 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final item = _current;
-
     return Scaffold(
       backgroundColor: _surface1,
       body: SafeArea(
@@ -106,7 +96,7 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
                     children: [
                       _HeaderSection(
                         index: _index,
-                        total: widget.news.length,
+                        total: widget.newsIds.length,
                         onBack: () => Navigator.of(context).pop(),
                         onPrev: _goPrev,
                         onNext: _goNext,
@@ -137,34 +127,66 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
                           // ortalanıp header'ın altında boşluk bırakıyordu.
                           child: SizedBox.expand(
                             key: ValueKey<int>(_index),
-                            child: SingleChildScrollView(
-                              padding:
-                                  const EdgeInsets.fromLTRB(20, 16, 20, 24),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _NewsHero(item: item),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    item.title,
-                                    style: const TextStyle(
-                                      color: _textPrimary,
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: 18,
-                                      height: 1.35,
+                            child: FutureBuilder<api.NewsDetail>(
+                              future: _detailFor(widget.newsIds[_index]),
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState !=
+                                    ConnectionState.done) {
+                                  return const Center(
+                                    child: SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: _textMuted,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    item.body,
-                                    style: const TextStyle(
-                                      color: _textPrimary,
-                                      fontSize: 14,
-                                      height: 1.55,
+                                  );
+                                }
+                                if (snapshot.hasError) {
+                                  return const Center(
+                                    child: Text(
+                                      'Haber alınamadı.',
+                                      style: TextStyle(
+                                        color: _textMuted,
+                                        fontSize: 12,
+                                      ),
                                     ),
+                                  );
+                                }
+
+                                final item = snapshot.data!;
+                                return SingleChildScrollView(
+                                  padding: const EdgeInsets.fromLTRB(
+                                      20, 16, 20, 24),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _NewsHero(item: item),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        item.summary.title,
+                                        style: const TextStyle(
+                                          color: _textPrimary,
+                                          fontWeight: FontWeight.w500,
+                                          fontSize: 18,
+                                          height: 1.35,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        item.body,
+                                        style: const TextStyle(
+                                          color: _textPrimary,
+                                          fontSize: 14,
+                                          height: 1.55,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
+                                );
+                              },
                             ),
                           ),
                         ),
@@ -190,12 +212,12 @@ class _NewsHero extends StatelessWidget {
   static const _height = 200.0;
   static const _radius = 18.0;
 
-  final NewsItem item;
+  final api.NewsDetail item;
 
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(_radius);
-    final asset = item.imageAsset;
+    final tint = tintForNewsCategory(item.summary.category);
 
     return SizedBox(
       height: _height,
@@ -210,7 +232,7 @@ class _NewsHero extends StatelessWidget {
               offset: const Offset(0, 6),
             ),
             BoxShadow(
-              color: item.tint.withValues(alpha: 0.18),
+              color: tint.withValues(alpha: 0.18),
               blurRadius: 18,
               spreadRadius: -4,
             ),
@@ -221,14 +243,8 @@ class _NewsHero extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              if (asset != null)
-                Image.asset(
-                  asset,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => _ProceduralArt(item: item),
-                )
-              else
-                _ProceduralArt(item: item),
+              // Haber fotoğrafı BE'de yok — ton ve ikondan prosedürel görsel.
+              _ProceduralArt(item: item),
               // Üst kenardaki ışık çizgisi.
               Positioned(
                 top: 0,
@@ -262,13 +278,14 @@ class _NewsHero extends StatelessWidget {
                       child: Row(
                         children: [
                           _CategoryPill(
-                            label: item.category,
-                            color: item.tint,
+                            label: item.summary.category,
+                            color: tint,
                           ),
                           const Spacer(),
                           Flexible(
                             child: Text(
-                              '${item.source} · ${item.timeAgo}',
+                              '${item.summary.source} · '
+                              '${newsTimeAgo(item.summary.publishedAt)}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               textAlign: TextAlign.right,
@@ -306,10 +323,11 @@ class _NewsHero extends StatelessWidget {
 class _ProceduralArt extends StatelessWidget {
   const _ProceduralArt({required this.item});
 
-  final NewsItem item;
+  final api.NewsDetail item;
 
   @override
   Widget build(BuildContext context) {
+    final tint = tintForNewsCategory(item.summary.category);
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -319,8 +337,8 @@ class _ProceduralArt extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                item.tint.withValues(alpha: 0.55),
-                item.tint.withValues(alpha: 0.22),
+                tint.withValues(alpha: 0.55),
+                tint.withValues(alpha: 0.22),
                 const Color(0xFF12151B).withValues(alpha: 0.92),
               ],
               stops: const [0.0, 0.45, 1.0],
@@ -331,7 +349,7 @@ class _ProceduralArt extends StatelessWidget {
           right: -_NewsHero._height * 0.10,
           top: -_NewsHero._height * 0.10,
           child: Icon(
-            item.icon,
+            iconForNewsCategory(item.summary.category),
             size: _NewsHero._height * 0.62,
             color: Colors.white.withValues(alpha: 0.14),
           ),
