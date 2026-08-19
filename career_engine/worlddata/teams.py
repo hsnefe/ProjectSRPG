@@ -1,8 +1,12 @@
 """§3.3 v1 dünyası (D20) - fixed team roster, D9: names and base ratings are
 constant across every career; only fixture order and each match's own
 morale/confidence (an engine-side, unpersisted concept - not here) vary by
-seed. Fictional club names throughout, matching match_engine's own approach
-(api/teams.py's HOME_NAME_POOL/AWAY_NAME_POOL) — no real clubs.
+seed.
+
+TIER1 (Süper Lig) is transcribed from the project's `takimlar.txt` — 18 real
+clubs with two identity colours and a single **Güç** (power) figure each.
+That file is the source of truth for tier 1; see `_POWER` below for how its
+one column maps onto the schema's four ratings.
 
 TIER2 keeps ProjectSRPG's existing eight names from league_table_screen.dart
 verbatim (B-2): FK Yıldız is the user's club there, per D21's "user always
@@ -55,62 +59,67 @@ TIER2_TEAMS = [
      "mentality": "defensive", "color_primary": "#4361EE", "color_secondary": "#FFFFFF"},
 ]
 
-# tier=1, "Süper Lig" — 18 takım.
+# takimlar.txt renk adlarını D17'nin ham kimlik hex'ine çevirir. Tek yer:
+# aynı ad iki takımda geçtiğinde ikisi de aynı tonu alır.
+_COLORS = {
+    "Kırmızı":  "#E30613",
+    "Sarı":     "#FDB913",
+    "Lacivert": "#0A2240",
+    "Siyah":    "#1A1A1A",
+    "Beyaz":    "#FFFFFF",
+    "Bordo":    "#6E1E2C",
+    "Mavi":     "#0F62B4",
+    "Turuncu":  "#F26522",
+    "Yeşil":    "#1E8449",
+    "Mor":      "#6B2E8F",
+}
+
+# takimlar.txt, dosyadaki sırayla (güce göre azalan):
+# (team_id, short_name, ad, renk 1, renk 2, güç)
+_TIER1_SOURCE = [
+    ("t_gal", "GAL", "Galatasaray",              "Kırmızı",  "Sarı",     95),
+    ("t_fen", "FEN", "Fenerbahçe",               "Sarı",     "Lacivert", 94),
+    ("t_bjk", "BJK", "Beşiktaş",                 "Siyah",    "Beyaz",    87),
+    ("t_tra", "TRA", "Trabzonspor",              "Bordo",    "Mavi",     83),
+    ("t_bas", "BAS", "Başakşehir",               "Turuncu",  "Lacivert", 78),
+    ("t_sam", "SAM", "Samsunspor",               "Kırmızı",  "Beyaz",    76),
+    ("t_goz", "GOZ", "Göztepe",                  "Kırmızı",  "Sarı",     74),
+    ("t_kon", "KON", "Konyaspor",                "Yeşil",    "Beyaz",    70),
+    ("t_gaz", "GAZ", "Gaziantep FK",             "Kırmızı",  "Siyah",    69),
+    ("t_koc", "KOC", "Kocaelispor",              "Yeşil",    "Siyah",    68),
+    ("t_riz", "RIZ", "Çaykur Rizespor",          "Yeşil",    "Mavi",     67),
+    ("t_ala", "ALA", "Alanyaspor",               "Turuncu",  "Yeşil",    66),
+    ("t_kas", "KAS", "Kasımpaşa",                "Lacivert", "Beyaz",    65),
+    ("t_gnc", "GNC", "Gençlerbirliği",           "Kırmızı",  "Siyah",    64),
+    ("t_eyp", "EYP", "Eyüpspor",                 "Mor",      "Sarı",     63),
+    ("t_erz", "ERZ", "Erzurumspor",              "Mavi",     "Beyaz",    61),
+    ("t_cor", "COR", "Çorum FK",                 "Kırmızı",  "Siyah",    59),
+    ("t_amd", "AMD", "Amed Sportif Faaliyetler", "Yeşil",    "Sarı",     58),
+]
+
+
+def _mentality(index: int) -> str:
+    """Sıradaki yerinden türetilir; takimlar.txt'de mentalite kolonu yok ve
+    uydurmak yerine dosyanın kendi sıralamasına bağlanıyor: güçlü altı hücum,
+    zayıf altı savunma, ortadaki altı dengeli oynar."""
+    if index < 6:
+        return "attacking"
+    if index >= len(_TIER1_SOURCE) - 6:
+        return "defensive"
+    return "balanced"
+
+
+# Şema dört rating tutar (attack/midfield/defense/goalkeeper), takimlar.txt tek
+# **Güç** kolonu verir. Dördü de o değeri alır: tek sayıyı dört sayıya bölmenin
+# dosyada bir dayanağı yok, dayanaksız sayı üretilmez (§3.2'nin aynı ilkesi).
+# Hat farkları istendiği gün kolonu takimlar.txt kazanır, burası değil.
 TIER1_TEAMS = [
-    {"team_id": "t_bkt", "name": "Başkent FK",     "short_name": "BKT",
-     "attack": 82.0, "midfield": 80.0, "defense": 78.0, "goalkeeper": 81.0,
-     "mentality": "attacking", "color_primary": "#7A0C2E", "color_secondary": "#F5A623"},
-    {"team_id": "t_lmn", "name": "Liman SK",       "short_name": "LMN",
-     "attack": 79.0, "midfield": 77.0, "defense": 80.0, "goalkeeper": 78.0,
-     "mentality": "balanced", "color_primary": "#003566", "color_secondary": "#FFFFFF"},
-    {"team_id": "t_zfr", "name": "Zafer AS",       "short_name": "ZFR",
-     "attack": 76.0, "midfield": 78.0, "defense": 75.0, "goalkeeper": 77.0,
-     "mentality": "balanced", "color_primary": "#2B2B2B", "color_secondary": "#E8EAED"},
-    {"team_id": "t_kzt", "name": "Kızıltepe SK",   "short_name": "KZT",
-     "attack": 75.0, "midfield": 74.0, "defense": 76.0, "goalkeeper": 74.0,
-     "mentality": "defensive", "color_primary": "#9E2A2B", "color_secondary": "#FFFFFF"},
-    {"team_id": "t_mar", "name": "Marmara United", "short_name": "MAR",
-     "attack": 74.0, "midfield": 75.0, "defense": 73.0, "goalkeeper": 75.0,
-     "mentality": "balanced", "color_primary": "#1E6FD9", "color_secondary": "#0B2E5B"},
-    {"team_id": "t_tor", "name": "Toros SK",       "short_name": "TOR",
-     "attack": 73.0, "midfield": 72.0, "defense": 74.0, "goalkeeper": 73.0,
-     "mentality": "balanced", "color_primary": "#606C38", "color_secondary": "#FEFAE0"},
-    {"team_id": "t_krd", "name": "Karadeniz FK",   "short_name": "KRD",
-     "attack": 71.0, "midfield": 73.0, "defense": 70.0, "goalkeeper": 72.0,
-     "mentality": "attacking", "color_primary": "#1B4332", "color_secondary": "#F5A623"},
-    {"team_id": "t_trk", "name": "Trakya Birlik",  "short_name": "TRK",
-     "attack": 70.0, "midfield": 69.0, "defense": 71.0, "goalkeeper": 70.0,
-     "mentality": "balanced", "color_primary": "#4B2E83", "color_secondary": "#FFFFFF"},
-    {"team_id": "t_akd", "name": "Akdeniz SK",     "short_name": "AKD",
-     "attack": 69.0, "midfield": 70.0, "defense": 68.0, "goalkeeper": 69.0,
-     "mentality": "balanced", "color_primary": "#0E7C86", "color_secondary": "#E8EAED"},
-    {"team_id": "t_ova", "name": "Ovaspor",        "short_name": "OVA",
-     "attack": 68.0, "midfield": 67.0, "defense": 69.0, "goalkeeper": 68.0,
-     "mentality": "defensive", "color_primary": "#606C38", "color_secondary": "#FFFFFF"},
-    {"team_id": "t_frt", "name": "Fırtına FK",     "short_name": "FRT",
-     "attack": 72.0, "midfield": 68.0, "defense": 65.0, "goalkeeper": 67.0,
-     "mentality": "attacking", "color_primary": "#4361EE", "color_secondary": "#FFFFFF"},
-    {"team_id": "t_yes2", "name": "Yeşilırmak SK", "short_name": "YSM",
-     "attack": 67.0, "midfield": 66.0, "defense": 67.0, "goalkeeper": 66.0,
-     "mentality": "balanced", "color_primary": "#2E9E6B", "color_secondary": "#2B2B2B"},
-    {"team_id": "t_kzd", "name": "Kuzeydoğu AS",   "short_name": "KZD",
-     "attack": 66.0, "midfield": 67.0, "defense": 65.0, "goalkeeper": 65.0,
-     "mentality": "balanced", "color_primary": "#003049", "color_secondary": "#F5A623"},
-    {"team_id": "t_shr", "name": "Sahra United",   "short_name": "SHR",
-     "attack": 65.0, "midfield": 64.0, "defense": 66.0, "goalkeeper": 64.0,
-     "mentality": "defensive", "color_primary": "#7A1F1F", "color_secondary": "#E8EAED"},
-    {"team_id": "t_dms", "name": "Demirspor",      "short_name": "DMS",
-     "attack": 64.0, "midfield": 65.0, "defense": 63.0, "goalkeeper": 63.0,
-     "mentality": "balanced", "color_primary": "#2B2B2B", "color_secondary": "#FFFFFF"},
-    {"team_id": "t_cnr", "name": "Çınar FK",       "short_name": "CNR",
-     "attack": 63.0, "midfield": 62.0, "defense": 64.0, "goalkeeper": 62.0,
-     "mentality": "balanced", "color_primary": "#1B4332", "color_secondary": "#FEFAE0"},
-    {"team_id": "t_bzt", "name": "Boztepe SK",     "short_name": "BZT",
-     "attack": 62.0, "midfield": 63.0, "defense": 61.0, "goalkeeper": 61.0,
-     "mentality": "defensive", "color_primary": "#4B2E83", "color_secondary": "#F5A623"},
-    {"team_id": "t_gnd", "name": "Gündoğdu AS",    "short_name": "GND",
-     "attack": 61.0, "midfield": 60.0, "defense": 62.0, "goalkeeper": 60.0,
-     "mentality": "balanced", "color_primary": "#9E2A2B", "color_secondary": "#FFFFFF"},
+    {"team_id": team_id, "name": name, "short_name": short_name,
+     "attack": float(power), "midfield": float(power),
+     "defense": float(power), "goalkeeper": float(power),
+     "mentality": _mentality(i),
+     "color_primary": _COLORS[color1], "color_secondary": _COLORS[color2]}
+    for i, (team_id, short_name, name, color1, color2, power) in enumerate(_TIER1_SOURCE)
 ]
 
 ALL_TEAMS = TIER1_TEAMS + TIER2_TEAMS
@@ -121,3 +130,6 @@ assert len(TIER1_TEAMS) == 18
 assert len(TIER2_TEAMS) == 14
 assert len({t["team_id"] for t in ALL_TEAMS}) == len(ALL_TEAMS), "duplicate team_id"
 assert len({t["short_name"] for t in ALL_TEAMS}) == len(ALL_TEAMS), "duplicate short_name"
+# Motorun Team.name sınırı (API_CONTRACT §8.1); "Amed Sportif Faaliyetler" tam 24.
+assert all(len(t["name"]) <= 24 for t in ALL_TEAMS), "team name over 24 chars"
+assert all(len(t["short_name"]) == 3 for t in ALL_TEAMS), "short_name must be 3 chars"
