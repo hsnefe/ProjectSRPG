@@ -885,7 +885,7 @@ zarf kuralları §5.0'da bir kez tanımlanır.
 
 **Zarf ve hata biçimi** `match_engine` ile aynıdır
 ([`envelope.py`](../../match_engine/api/envelope.py), [`errors.py`](../../match_engine/api/errors.py)):
-`{ "error": { "code": "...", "message": "..." } }`.
+`{"code": "...", "message": "..."}` — düz, `"error"` sarmalayıcısı yok.
 
 **Durumu değiştiren her uç** (T2, T3, T4, R3, M2, M3) yanıtında tam
 `CareerState` bloğunu taşır (D28, INV-18).
@@ -961,7 +961,7 @@ bu bloktan tazelenir. Alanların hangi ekranda göründüğü BE'yi ilgilendirme
 | **Para** | Tam sayı, ₺, kuruş yok. Biçimlendirme FE'de (§1.3) |
 | **Sayfalama** | `?limit=` (varsayılan 20, en fazla 100) + `?before=` imleci. Yanıt `next_before` döner; `null` ise liste bitti |
 | **Bilinmeyen alan** | FE tanımadığı alanı **yok sayar**. Yanıta alan eklemek kırıcı değildir; alan kaldırmak kırıcıdır |
-| **Hata gövdesi** | `{ "error": { "code": "...", "message": "..." } }` — `match_engine` ile aynı ([`errors.py`](../../match_engine/api/errors.py)) |
+| **Hata gövdesi** | `{"code": "...", "message": "..."}` — `match_engine` ile aynı, düz gövde ([`errors.py`](../../match_engine/api/errors.py)) |
 | **Kimlik doğrulama** | Yok (motorla aynı karar) |
 
 ---
