@@ -41,8 +41,12 @@ RELATIONSHIP_KINDS = ("coach", "teammates", "media", "partner", "family")
 # §6.5 D25/D26/D27 - weekly cadence for wage, upkeep, and bonuses.
 WAGE_WEEKDAY = 0  # Monday, per date.weekday()
 
-# §9 - money_ledger.kind values used by wallet.apply() callers.
+# §9 - money_ledger.kind values used by wallet.apply() callers. INV-19 (the
+# ledger's total always equals career_state.money) only holds from t=0 if a
+# career's starting balance itself arrives as a ledger entry rather than a
+# bare INSERT — hence 'starting_balance' alongside the in-play kinds.
 LEDGER_KINDS = (
+    "starting_balance",
     "wage", "appearance_bonus", "goal_bonus",
     "purchase", "upkeep", "lifestyle", "training", "sale",
 )
