@@ -632,11 +632,27 @@ turun `fixture` satırları oluşmuştur.
 
 ```sql
 CREATE VIEW standing AS
+WITH sides AS (
+  SELECT career_id, season_id, competition_id, home_team_id AS team_id,
+         home_score AS gf, away_score AS ga,
+         CASE WHEN home_score > away_score THEN 1 ELSE 0 END AS won,
+         CASE WHEN home_score = away_score THEN 1 ELSE 0 END AS drawn,
+         CASE WHEN home_score < away_score THEN 1 ELSE 0 END AS lost
+  FROM fixture WHERE status = 'played'
+  UNION ALL
+  SELECT career_id, season_id, competition_id, away_team_id AS team_id,
+         away_score AS gf, home_score AS ga,
+         CASE WHEN away_score > home_score THEN 1 ELSE 0 END AS won,
+         CASE WHEN away_score = home_score THEN 1 ELSE 0 END AS drawn,
+         CASE WHEN away_score < home_score THEN 1 ELSE 0 END AS lost
+  FROM fixture WHERE status = 'played'
+)
 SELECT career_id, season_id, competition_id, team_id,
-       COUNT(*) AS played, SUM(won) AS won, SUM(drawn) AS drawn, SUM(lost) AS lost,
+       COUNT(*) AS played,
+       SUM(won) AS won, SUM(drawn) AS drawn, SUM(lost) AS lost,
        SUM(gf) AS goals_for, SUM(ga) AS goals_against,
-       SUM(won)*3 + SUM(drawn) AS points
-FROM ( /* fixture'ın iki tarafını da satıra açan alt sorgu, status='played' */ )
+       SUM(won) * 3 + SUM(drawn) AS points
+FROM sides
 GROUP BY career_id, season_id, competition_id, team_id;
 ```
 
