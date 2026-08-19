@@ -11,8 +11,8 @@
 |---|---|
 | **Sürüm** | **v1.0** — uygulanabilir. Karar kaydı §0, açık maddeler §10 |
 | **Tarih** | 2026-08-19 |
-| **Back-end** | ⏳ imza bekliyor — `career_engine` henüz yazılmadı |
-| **Front-end** | ⏳ okunmadı |
+| **Back-end** | ✅ imzalandı — `career_engine` §4'teki 25 ucun tamamını uyguluyor, test paketi geçiyor |
+| **Front-end** | ✅ imzalandı — `ProjectSRPG` okundu, kabul edildi; W1/W2 bağlı, kalan uçların bağlanması sürüyor |
 
 **Dayandığı bağlayıcı kararlar:** §0'da **41 karar** (D1-D41), üç ayrı tur.
 **Garantiler:** §8'de **29 invariant** (INV-1 … INV-29).
