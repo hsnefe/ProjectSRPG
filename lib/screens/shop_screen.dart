@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'package:project_srpg/net/career_api_client.dart';
+import 'package:project_srpg/net/career_models.dart' as api;
+import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/widgets/shop_item_card.dart';
 
@@ -12,12 +15,86 @@ enum ShopCategory {
   const ShopCategory(this.label);
 
   final String label;
+
+  static ShopCategory? byName(String name) {
+    for (final value in values) {
+      if (value.name == name) return value;
+    }
+    return null;
+  }
+}
+
+/// §5.8 — ikon ve renk tonu BE'den gelmez, FE'nin sunum kararı. `catalog_id`
+/// sabit olduğu için burada elle eşleniyor.
+const _iconByCatalogId = {
+  'home-tv': Icons.tv,
+  'home-espresso': Icons.coffee,
+  'home-console': Icons.sports_esports,
+  'home-treadmill': Icons.directions_run,
+  'personal-watch': Icons.watch,
+  'personal-boots': Icons.sports_soccer,
+  'personal-suit': Icons.checkroom,
+  'personal-headphones': Icons.headphones,
+  'estate-studio': Icons.apartment,
+  'estate-flat': Icons.location_city,
+  'estate-villa': Icons.villa,
+  'invest-bond': Icons.account_balance,
+  'invest-gold': Icons.savings,
+  'invest-fund': Icons.trending_up,
+};
+
+const _tintByCatalogId = {
+  'home-tv': Color(0xFF1E6FD9),
+  'home-espresso': Color(0xFFB07A4B),
+  'home-console': Color(0xFF7A5CD0),
+  'home-treadmill': Color(0xFF3DDC97),
+  'personal-watch': Color(0xFFF5A623),
+  'personal-boots': Color(0xFF3DDC97),
+  'personal-suit': Color(0xFF4A5568),
+  'personal-headphones': Color(0xFF1E6FD9),
+  'estate-studio': Color(0xFF5A7D9A),
+  'estate-flat': Color(0xFF1E6FD9),
+  'estate-villa': Color(0xFF3DDC97),
+  'invest-bond': Color(0xFF4A5568),
+  'invest-gold': Color(0xFFF5A623),
+  'invest-fund': Color(0xFF3DDC97),
+};
+
+const _defaultTint = Color(0xFF6B7280);
+
+ShopItem _toShopItem(api.CatalogItem item) {
+  return ShopItem(
+    id: item.catalogId,
+    title: item.title,
+    description: item.description ?? '',
+    icon: _iconByCatalogId[item.catalogId] ?? Icons.shopping_bag_outlined,
+    tint: _tintByCatalogId[item.catalogId] ?? _defaultTint,
+    price: item.price ?? 0,
+    note: item.note,
+  );
+}
+
+/// N3'ün `category` alanı `ShopCategory`'nin kendi isimleriyle birebir aynı
+/// (§5.7, career_engine/catalog/shop.py) — çeviri katmanı gerekmez.
+Map<ShopCategory, List<ShopItem>> _catalogueFrom(List<api.CatalogItem> items) {
+  final byCategory = <ShopCategory, List<ShopItem>>{
+    for (final category in ShopCategory.values) category: [],
+  };
+  for (final item in items) {
+    final category = ShopCategory.byName(item.group ?? '');
+    if (category != null) byCategory[category]!.add(_toShopItem(item));
+  }
+  return byCategory;
 }
 
 /// Dört kategoriye ayrılmış vitrin. Kartlar Yaşam Tarzı ekranıyla aynı cam
-/// dilini konuşuyor; satın alma parayı [PlayerState] üzerinden düşürüyor.
+/// dilini konuşuyor; satın alma T4 (`POST /careers/{cid}/purchases`) ile
+/// backend'e yazılır.
 class ShopScreen extends StatefulWidget {
-  const ShopScreen({super.key});
+  const ShopScreen({super.key, this.session});
+
+  /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
+  final CareerSession? session;
 
   static const _surface1 = Color(0xFF1A1D24);
   static const _surface2 = Color(0xFF22262F);
@@ -40,167 +117,26 @@ const _detailCardWidth = 240.0;
 const _detailCardHeight = 293.0;
 
 class _ShopScreenState extends State<ShopScreen> {
-  static const _catalogue = <ShopCategory, List<ShopItem>>{
-    ShopCategory.home: [
-      ShopItem(
-        id: 'home-tv',
-        title: 'Akıllı TV',
-        description:
-            'Oturma odasına 65 inç. Maç akşamları arkadaşları çağırmak için '
-            'yeterince büyük.',
-        icon: Icons.tv,
-        tint: Color(0xFF1E6FD9),
-        price: 32000,
-        note: '65 inç, 4K',
-      ),
-      ShopItem(
-        id: 'home-espresso',
-        title: 'Espresso makinesi',
-        description:
-            'Sabah antrenmanından önce kahve kuyruğunda beklemeye son.',
-        icon: Icons.coffee,
-        tint: Color(0xFFB07A4B),
-        price: 12500,
-        note: 'Otomatik öğütücülü',
-      ),
-      ShopItem(
-        id: 'home-console',
-        title: 'Oyun konsolu',
-        description:
-            'Boş günlerin standart eğlencesi. Takım arkadaşlarıyla online '
-            'turnuvalar için de iyi bahane.',
-        icon: Icons.sports_esports,
-        tint: Color(0xFF7A5CD0),
-        price: 18900,
-        note: 'İki kollu',
-      ),
-      ShopItem(
-        id: 'home-treadmill',
-        title: 'Koşu bandı',
-        description:
-            'Kamp dışı günlerde kondisyonu evde korumanın en kolay yolu.',
-        icon: Icons.directions_run,
-        tint: Color(0xFF3DDC97),
-        price: 41000,
-        note: 'Eğimli, 20 km/s',
-      ),
-    ],
-    ShopCategory.personal: [
-      ShopItem(
-        id: 'personal-watch',
-        title: 'Kol saati',
-        description: 'Röportajlarda ve sponsor çekimlerinde görünen tek takı.',
-        icon: Icons.watch,
-        tint: Color(0xFFF5A623),
-        price: 27500,
-        note: 'Çelik kasa',
-      ),
-      ShopItem(
-        id: 'personal-boots',
-        title: 'Krampon',
-        description:
-            'Kendi ayağına göre kalıplanmış çift. Islak zeminde fark ediyor.',
-        icon: Icons.sports_soccer,
-        tint: Color(0xFF3DDC97),
-        price: 8900,
-        note: 'Kişiye özel kalıp',
-      ),
-      ShopItem(
-        id: 'personal-suit',
-        title: 'Takım elbise',
-        description: 'Deplasman yolculukları ve kulüp galaları için.',
-        icon: Icons.checkroom,
-        tint: Color(0xFF4A5568),
-        price: 15400,
-        note: 'Ismarlama',
-      ),
-      ShopItem(
-        id: 'personal-headphones',
-        title: 'Kulaklık',
-        description:
-            'Otobüs yolculuklarında dış sesi kesiyor; maç öncesi rutinin '
-            'parçası.',
-        icon: Icons.headphones,
-        tint: Color(0xFF1E6FD9),
-        price: 6200,
-        note: 'Gürültü engelleyici',
-      ),
-    ],
-    ShopCategory.realEstate: [
-      ShopItem(
-        id: 'estate-studio',
-        title: 'Stüdyo daire',
-        description:
-            'Tesise on beş dakika. Küçük ama kendi başına yaşamak için yeterli.',
-        icon: Icons.apartment,
-        tint: Color(0xFF5A7D9A),
-        price: 1850000,
-        note: '1+0, 55 m²',
-      ),
-      ShopItem(
-        id: 'estate-flat',
-        title: 'Şehir merkezi daire',
-        description: 'Merkezde geniş bir kat. Aile ziyaretleri için yer var.',
-        icon: Icons.location_city,
-        tint: Color(0xFF1E6FD9),
-        price: 4600000,
-        note: '3+1, 120 m²',
-      ),
-      ShopItem(
-        id: 'estate-villa',
-        title: 'Deniz manzaralı villa',
-        description:
-            'Sezon arasında kaçılacak yer. Bahçesinde kendi antrenman alanı '
-            'kurulabilir.',
-        icon: Icons.villa,
-        tint: Color(0xFF3DDC97),
-        price: 12750000,
-        note: 'Havuzlu, 380 m²',
-      ),
-    ],
-    ShopCategory.investment: [
-      ShopItem(
-        id: 'invest-bond',
-        title: 'Devlet tahvili',
-        description:
-            'Sıkıcı ama öngörülebilir. Kariyerin geri kalanı için güvenli zemin.',
-        icon: Icons.account_balance,
-        tint: Color(0xFF4A5568),
-        price: 25000,
-        note: 'Yıllık %28 getiri',
-      ),
-      ShopItem(
-        id: 'invest-gold',
-        title: 'Altın',
-        description: 'Kasaya girer, unutulur. Enflasyona karşı klasik siper.',
-        icon: Icons.savings,
-        tint: Color(0xFFF5A623),
-        price: 40000,
-        note: '100 gram',
-      ),
-      ShopItem(
-        id: 'invest-fund',
-        title: 'Hisse portföyü',
-        description:
-            'Menajerin önerdiği karma fon. Dalgalı ama uzun vadede iddialı.',
-        icon: Icons.trending_up,
-        tint: Color(0xFF3DDC97),
-        price: 120000,
-        note: 'Orta risk',
-      ),
-    ],
-  };
+  late final CareerSession _session = widget.session ?? CareerSession.instance;
+  late Future<api.Catalog> _catalogFuture;
 
   ShopCategory _category = ShopCategory.home;
 
+  @override
+  void initState() {
+    super.initState();
+    _catalogFuture = _session.client.catalog('shop');
+  }
+
   void _openItem(ShopItem item) {
-    Navigator.of(context).push(_ShopItemDetailRoute(item: item));
+    Navigator.of(context).push(
+      _ShopItemDetailRoute(item: item, session: _session),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final player = PlayerScope.of(context);
-    final items = _catalogue[_category]!;
 
     return Scaffold(
       backgroundColor: ShopScreen._surface1,
@@ -231,49 +167,85 @@ class _ShopScreenState extends State<ShopScreen> {
                         ),
                       ),
                       Expanded(
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 280),
-                          switchInCurve: Curves.easeOutCubic,
-                          switchOutCurve: Curves.easeInCubic,
-                          transitionBuilder: (child, animation) {
-                            final offset = Tween<Offset>(
-                              begin: const Offset(0.06, 0),
-                              end: Offset.zero,
-                            ).animate(animation);
-                            return FadeTransition(
-                              opacity: animation,
-                              child: SlideTransition(
-                                position: offset,
-                                child: child,
+                        child: FutureBuilder<api.Catalog>(
+                          future: _catalogFuture,
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState !=
+                                ConnectionState.done) {
+                              return const Center(
+                                child: SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: ShopScreen._textMuted,
+                                  ),
+                                ),
+                              );
+                            }
+                            if (snapshot.hasError) {
+                              return const Center(
+                                child: Text(
+                                  'Dükkân kataloğu alınamadı.',
+                                  style: TextStyle(
+                                    color: ShopScreen._textMuted,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              );
+                            }
+
+                            final catalogue =
+                                _catalogueFrom(snapshot.data!.items);
+                            final items = catalogue[_category]!;
+
+                            return AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 280),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              transitionBuilder: (child, animation) {
+                                final offset = Tween<Offset>(
+                                  begin: const Offset(0.06, 0),
+                                  end: Offset.zero,
+                                ).animate(animation);
+                                return FadeTransition(
+                                  opacity: animation,
+                                  child: SlideTransition(
+                                    position: offset,
+                                    child: child,
+                                  ),
+                                );
+                              },
+                              child: GridView.builder(
+                                key: ValueKey<ShopCategory>(_category),
+                                padding:
+                                    const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                                // Kart gölgeleri kırpılmasın.
+                                clipBehavior: Clip.none,
+                                gridDelegate:
+                                    const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  mainAxisSpacing: 14,
+                                  crossAxisSpacing: 12,
+                                  childAspectRatio: _cardWidth / _cardHeight,
+                                ),
+                                itemCount: items.length,
+                                itemBuilder: (context, index) {
+                                  final item = items[index];
+                                  final owned = player.owns(item.id);
+                                  final affordable =
+                                      player.canAfford(item.price);
+                                  return _HeroShopCard(
+                                    item: item,
+                                    owned: owned,
+                                    affordable: affordable,
+                                    faded: !owned && !affordable,
+                                    onTap: () => _openItem(item),
+                                  );
+                                },
                               ),
                             );
                           },
-                          child: GridView.builder(
-                            key: ValueKey<ShopCategory>(_category),
-                            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                            // Kart gölgeleri kırpılmasın.
-                            clipBehavior: Clip.none,
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              mainAxisSpacing: 14,
-                              crossAxisSpacing: 12,
-                              childAspectRatio: _cardWidth / _cardHeight,
-                            ),
-                            itemCount: items.length,
-                            itemBuilder: (context, index) {
-                              final item = items[index];
-                              final owned = player.owns(item.id);
-                              final affordable = player.canAfford(item.price);
-                              return _HeroShopCard(
-                                item: item,
-                                owned: owned,
-                                affordable: affordable,
-                                faded: !owned && !affordable,
-                                onTap: () => _openItem(item),
-                              );
-                            },
-                          ),
                         ),
                       ),
                     ],
@@ -490,45 +462,78 @@ class _HeroShopCard extends StatelessWidget {
 /// Karta basılınca kartın öne gelip büyüdüğü, altında açıklama ve satın alma
 /// butonunun belirdiği yarı saydam katman.
 class _ShopItemDetailRoute extends PageRouteBuilder<void> {
-  _ShopItemDetailRoute({required this.item})
+  _ShopItemDetailRoute({required this.item, required this.session})
       : super(
           opaque: false,
           barrierColor: Colors.transparent,
           transitionDuration: const Duration(milliseconds: 360),
           reverseTransitionDuration: const Duration(milliseconds: 320),
           pageBuilder: (context, animation, secondaryAnimation) {
-            return _ShopItemDetailPage(item: item, animation: animation);
+            return _ShopItemDetailPage(
+              item: item,
+              animation: animation,
+              session: session,
+            );
           },
         );
 
   final ShopItem item;
+  final CareerSession session;
 }
 
-class _ShopItemDetailPage extends StatelessWidget {
-  const _ShopItemDetailPage({required this.item, required this.animation});
+class _ShopItemDetailPage extends StatefulWidget {
+  const _ShopItemDetailPage({
+    required this.item,
+    required this.animation,
+    required this.session,
+  });
 
   final ShopItem item;
   final Animation<double> animation;
+  final CareerSession session;
 
-  void _buy(BuildContext context) {
-    final bought = PlayerScope.of(context).purchase(
-      id: item.id,
-      price: item.price,
-    );
+  @override
+  State<_ShopItemDetailPage> createState() => _ShopItemDetailPageState();
+}
+
+class _ShopItemDetailPageState extends State<_ShopItemDetailPage> {
+  bool _busy = false;
+
+  /// T4 · `POST /careers/{cid}/purchases`. Zaten sahipse BE `409
+  /// already_owned`, bakiye yetmezse `409 insufficient_funds` döner (INV-5) —
+  /// ikisinde de hiçbir şey yazılmaz; burada yalnızca bir uyarı gösterilir.
+  Future<void> _buy(BuildContext context) async {
+    final item = widget.item;
+    setState(() => _busy = true);
+    final player = PlayerScope.of(context);
     final messenger = ScaffoldMessenger.of(context);
-    Navigator.of(context).pop();
-    if (!bought) return;
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text('${item.title} satın alındı.'),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    try {
+      final careerId = await widget.session.resolve();
+      final result = await widget.session.client.purchase(careerId, item.id);
+      player.applyServerUpdate(careerState: result.careerState);
+      player.markOwned(item.id);
+      if (!context.mounted) return;
+      Navigator.of(context).pop();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('${item.title} satın alındı.'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } on CareerApiException catch (e) {
+      if (!context.mounted) return;
+      setState(() => _busy = false);
+      messenger.showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Satın alma başarısız.')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final item = widget.item;
+    final animation = widget.animation;
     final player = PlayerScope.of(context);
     final owned = player.owns(item.id);
     final affordable = player.canAfford(item.price);
@@ -576,7 +581,8 @@ class _ShopItemDetailPage extends StatelessWidget {
                           item: item,
                           owned: owned,
                           affordable: affordable,
-                          onBuy: () => _buy(context),
+                          onBuy: _busy ? null : () => _buy(context),
+                          busy: _busy,
                         ),
                       ),
                     ],
@@ -597,12 +603,14 @@ class _ItemDetails extends StatelessWidget {
     required this.owned,
     required this.affordable,
     required this.onBuy,
+    this.busy = false,
   });
 
   final ShopItem item;
   final bool owned;
   final bool affordable;
-  final VoidCallback onBuy;
+  final VoidCallback? onBuy;
+  final bool busy;
 
   String get _buttonLabel {
     if (owned) return 'Sahipsin';
@@ -675,7 +683,16 @@ class _ItemDetails extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              child: Text(_buttonLabel),
+              child: busy
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: ShopScreen._textPrimary,
+                      ),
+                    )
+                  : Text(_buttonLabel),
             ),
           ),
         ],

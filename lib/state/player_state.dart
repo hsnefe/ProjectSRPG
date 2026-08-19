@@ -115,25 +115,20 @@ class PlayerState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Satın alınmış ürünlerin kimlikleri.
+  /// Satın alınmış ürünlerin kimlikleri. ⚠️ Yalnızca bu oturumda yapılan
+  /// alışverişleri tutar: contract'ta `inventory`'yi listeleyen bir GET ucu
+  /// yok (T4 yalnızca az önce alınan tek kalemi döner), o yüzden P1 gibi
+  /// baştan yüklenemez — bilinen bir sınır, uydurma bir veri değil.
   final Set<String> _owned = <String>{};
 
   bool owns(String id) => _owned.contains(id);
 
   bool canAfford(int price) => _money >= price;
 
-  /// Bir ürünü satın alır. [applyActivity]'den farklı olarak bakiyeyi eksiye
-  /// düşürmez ve aynı ürünün ikinci kez alınmasına izin vermez; alınamadıysa
-  /// false döner ve hiçbir şey değişmez.
-  ///
-  /// ⚠️ Şimdilik yalnızca yerel durumu değiştirir — T4'e henüz bağlı değil;
-  /// bkz. [applyActivity]'deki aynı not.
-  bool purchase({required String id, required int price}) {
-    if (_owned.contains(id) || !canAfford(price)) return false;
-    _money -= price;
-    _owned.add(id);
+  /// T4 başarıyla satın aldıktan sonra ekranın çağırdığı işaretleyici.
+  void markOwned(String id) {
+    if (!_owned.add(id)) return;
     notifyListeners();
-    return true;
   }
 
   static String _initialsOf(String name) {
