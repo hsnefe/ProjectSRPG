@@ -27,6 +27,15 @@ SEASON_ID = "25/26"
 SEASON_STARTS_ON = "2026-08-01"
 SEASON_ENDS_ON = "2027-05-31"
 
+# The cup's own calendar starts later than the league season — a real
+# domestic cup is interspersed between league rounds, not kicked off the
+# same day. Without this offset, cup round 1 and league round 1 land on
+# the literal same kickoff_at (both computed from day 0 of their own
+# schedule), which is unrealistic and made the user's "next match" pick
+# between two same-instant fixtures depending on row order. Two weeks in
+# gives the league its first two rounds before the cup begins.
+CUP_STARTS_ON = "2026-08-15"
+
 _VALID_POSITIONS = ("Kaleci", "Defans", "Orta saha", "Forvet")
 
 
@@ -132,7 +141,7 @@ def _seed_world(conn: sqlite3.Connection, career_id: str, rng: random.Random) ->
         _insert_fixtures(conn, fixtures)
 
     cup_rounds = scheduling.generate_cup_calendar(
-        career_id, SEASON_ID, ULUSAL_KUPA, len(CUP_TEAM_IDS), SEASON_STARTS_ON
+        career_id, SEASON_ID, ULUSAL_KUPA, len(CUP_TEAM_IDS), CUP_STARTS_ON
     )
     _insert_rounds(conn, cup_rounds)
 

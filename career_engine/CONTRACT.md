@@ -468,7 +468,7 @@ kendi yapıyor (`_StatTotals.of`), BE kesitleri verir.
 | `appearances` | Oynanan her maç için +1 |
 | `starts` | `appearances` ile aynı — v1'de kullanıcı daima ilk 11'de |
 | `minutes` | +95 (motorun sabit maç uzunluğu, [`API_CONTRACT.md` §8.2](../../API_CONTRACT.md)) |
-| `goals` | Golle sonuçlanan şut minigame'i sayısı (§5.6 `interventions`) |
+| `goals` | `interventions[]`'da 4 minigame aksiyonundan (`finish_power`/`finish_finesse`/`long_shot`/`set_piece`) biri **en iyi dalla** sonuçlanmış sayısı: graded üçlüde `outcome_key == "great"`, binary `set_piece`'te `outcome_key == "success"` (`API_CONTRACT.md` §7.3 eşleme tablosu) |
 | `assists` | **v1'de daima 0** — motorda karşılığı yok |
 | `passes_completed` / `passes_attempted` | **v1'de daima 0** — motorda karşılığı yok |
 
@@ -1458,8 +1458,8 @@ Yarım kalan maç varsa `409 match_in_progress` ve `fixture_id` bildirilir (§6.
   "final_possession_home": 53.1,
   "final_condition": 54,               // D38 · son tick'in player.condition'ı
   "interventions": [                   // D13/D34 · bireysel istatistik kaynağı
-    { "minute": 63, "action_key": "finish_power", "outcome_key": "goal" },
-    { "minute": 78, "action_key": "long_shot",    "outcome_key": "save" }
+    { "minute": 63, "action_key": "finish_power", "outcome_key": "great" },
+    { "minute": 78, "action_key": "long_shot",    "outcome_key": "bad" }
   ] }
 
 // Yanıt 200
@@ -1481,7 +1481,7 @@ gibi kabul edilmez (INV-23):
 | `stats.{home,away}` | **Tam olarak 13 anahtar** ([`models.py:82-88`](../../match_engine/models.py)); eksik veya fazla kabul edilmez |
 | `score.*` | `stats.*.goals` ile tutarlı olmalı |
 | `interventions[].action_key` | Motorun 11 aksiyonluk kataloğundan (`API_CONTRACT.md` Ek B) |
-| `interventions[].outcome_key` | O aksiyon için geçerli dallardan (`API_CONTRACT.md` §7.3) |
+| `interventions[].outcome_key` | O aksiyonun şemasına uygun (`API_CONTRACT.md` §7.3 Ek B): graded aksiyonlarda `{great,good,bad}`, binary aksiyonlarda `{success,failure}` — **`"goal"`/`"save"` gibi serbest metin değil** |
 | `interventions[].minute` | 1-95, artan sırada |
 | `final_condition` | 35-100 ve maç öncesi kondisyondan büyük olamaz |
 

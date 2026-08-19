@@ -25,3 +25,13 @@ def apply_delta(conn: sqlite3.Connection, career_id: str, delta: float) -> int:
     new_value = max(0, min(round(current + delta), round(ceiling)))
     conn.execute("UPDATE career_state SET condition = ? WHERE career_id = ?", (new_value, career_id))
     return new_value
+
+
+def set_from_match(conn: sqlite3.Connection, career_id: str, final_condition: int) -> int:
+    """§6.6 M2 - final_condition already passed validation (35-100, not
+    above pre-match condition); this still re-clamps to the attribute
+    ceiling (INV-10) as a defensive floor, same bound apply_delta uses."""
+    ceiling = get_ceiling(conn, career_id)
+    new_value = max(35, min(round(final_condition), round(ceiling)))
+    conn.execute("UPDATE career_state SET condition = ? WHERE career_id = ?", (new_value, career_id))
+    return new_value

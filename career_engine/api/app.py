@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api import config
 from api.errors import install_exception_handlers
-from api.routers import careers, player, relationships, time, world
+from api.routers import careers, matches, player, relationships, time, world
 from db.connection import get_connection
 from db.migrate import apply_migrations
 
@@ -42,6 +42,7 @@ def create_app() -> FastAPI:
     app.include_router(world.router)
     app.include_router(relationships.router)
     app.include_router(time.router)
+    app.include_router(matches.router)
 
     return app
 

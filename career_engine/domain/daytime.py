@@ -208,7 +208,7 @@ def _simulate_day_fixtures(conn: sqlite3.Connection, career_id: str, on_date: st
         (career_id, f"{on_date}%", user_team_id, user_team_id),
     ).fetchall()
     if not rows:
-        return {"count": 0, "competitions": set()}
+        return {"count": 0, "competitions": set(), "results": []}
 
     teams_cache = {}
 
@@ -234,6 +234,7 @@ def _simulate_day_fixtures(conn: sqlite3.Connection, career_id: str, on_date: st
 
     results = engine_client.simulate_batch(matches_payload)
     competitions: Set[str] = set()
+    played = []  # {"fixture_id", "score"} per result — M2's "other_results" needs this
     for result in results:
         fixture_row = fixture_by_ref[result["ref"]]
         conn.execute(
@@ -254,8 +255,9 @@ def _simulate_day_fixtures(conn: sqlite3.Connection, career_id: str, on_date: st
                  s["substitutions"], s["possession_ticks"]),
             )
         competitions.add(fixture_row["competition_id"])
+        played.append({"fixture_id": result["ref"], "score": result["score"]})
 
-    return {"count": len(results), "competitions": competitions}
+    return {"count": len(results), "competitions": competitions, "results": played}
 
 
 def _decide_winner(seed: int, fixture_row: sqlite3.Row) -> str:
