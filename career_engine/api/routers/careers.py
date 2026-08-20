@@ -1,41 +1,137 @@
-"""§5.1 - C0-C4."""
+"""§5.1 - C0-C4, plus the skill-exam submission (§2) that follows creation."""
 import sqlite3
 
 from fastapi import APIRouter, Depends
 
-from api import errors, serializers
+from api import config, errors, serializers
 from api.deps import get_db
-from api.schemas.career import CreateCareerRequest
-from domain import onboarding
-from worlddata.competitions import BIRINCI_LIG, COMPETITIONS
-from worlddata.teams import TIER2_TEAMS
+from api.schemas.career import CreateCareerRequest, SubmitSkillExamsRequest
+from catalog.skill_exams import MAX_LEVEL, MIN_LEVEL, SKILL_EXAMS
+from domain import onboarding, skill_exams
+from worlddata import positions as positions_data
+from worlddata.attributes import BASE_SKILL_VALUE, ROLE_BONUS_PER_SLOT
+from worlddata.competitions import COMPETITIONS, STARTING_ENTRIES
+from worlddata.countries import COUNTRIES
+from worlddata.relationships import STARTING_SCORES
+from worlddata.teams import ALL_TEAMS
 
 router = APIRouter(prefix="/careers", tags=["careers"])
 
 
 @router.get("/options")
 def get_options():
-    birinci_lig = next(c for c in COMPETITIONS if c["competition_id"] == BIRINCI_LIG)
+    """Everything the "Yeni Kariyer" form needs, in one call: which
+    nationalities exist, which positions and — per position — which roles,
+    every club that may be named as a target, and the exam/starting-value
+    tables so FE can preview them without duplicating the numbers."""
+    # Which league each club plays in, straight from the worlddata entries so
+    # /options stays career-independent (no DB read, same as before). Cup
+    # entries are skipped — every club is in the cup, so it says nothing about
+    # where a club belongs.
+    competitions_by_id = {c["competition_id"]: c for c in COMPETITIONS}
+    team_competition = {
+        team_id: competitions_by_id[competition_id]
+        for competition_id, team_id in STARTING_ENTRIES
+        if competitions_by_id[competition_id]["kind"] == "league"
+    }
+
     return {
-        "positions": ["Kaleci", "Defans", "Orta saha", "Forvet"],
-        "clubs": [
+        "nationalities": [
+            {
+                "country_code": c["country_code"],
+                "name": c["name"],
+                "nationality": c["nationality"],
+            }
+            for c in COUNTRIES
+        ],
+        "positions": [
+            {
+                "position": position,
+                "roles": [
+                    {
+                        "role_id": role["role_id"],
+                        "name": role["name"],
+                        "group": role["group"],
+                        "attributes": list(role["attributes"]),
+                    }
+                    for role in positions_data.roles_for_position(position)
+                ],
+            }
+            for position in positions_data.POSITIONS
+        ],
+        # Any club may be a dream club — unlike the old `clubs` list, this is
+        # not a pick of where you start (§3 assigns that from nationality).
+        "target_teams": [
             {
                 "team": serializers.team_ref(team),
-                "competition": serializers.worlddata_competition_ref(birinci_lig),
+                "competition": (
+                    serializers.worlddata_competition_ref(team_competition[team["team_id"]])
+                    if team_competition.get(team["team_id"]) else None
+                ),
                 "strength_hint": serializers.strength_hint(team),
             }
-            for team in TIER2_TEAMS
+            for team in ALL_TEAMS
         ],
+        "skill_exams": [
+            {
+                "exam_id": e["exam_id"],
+                "title": e["title"],
+                "description": e["description"],
+                "attribute_key": e["attribute_key"],
+                "points_per_level": e["points_per_level"],
+                "min_level": MIN_LEVEL,
+                "max_level": MAX_LEVEL,
+                "max_value": e["max_value"],
+            }
+            for e in SKILL_EXAMS
+        ],
+        "starting_values": {
+            "money": config.STARTING_MONEY,
+            "condition": config.STARTING_CONDITION,
+            "relationships": dict(STARTING_SCORES),
+            "base_skill_value": BASE_SKILL_VALUE,
+            "role_bonus_per_slot": ROLE_BONUS_PER_SLOT,
+        },
     }
 
 
 @router.post("", status_code=201)
 def create_career(body: CreateCareerRequest, conn: sqlite3.Connection = Depends(get_db)):
     career_id = onboarding.create_career(
-        conn, body.player_name, body.position, body.team_id, body.seed
+        conn,
+        first_name=body.first_name,
+        last_name=body.last_name,
+        nationality=body.nationality,
+        position=body.position,
+        role=body.role,
+        target_team_id=body.target_team_id,
+        seed=body.seed,
     )
     conn.commit()
     return _build_hub(conn, career_id)
+
+
+@router.post("/{career_id}/skill-exams")
+def submit_skill_exams(
+    career_id: str,
+    body: SubmitSkillExamsRequest,
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    """§2 - grades in, attribute points out. Applied against the career's
+    current game_date so the write is dated inside the career's own timeline,
+    not the wall clock."""
+    serializers.require_career(conn, career_id)
+    state = serializers.fetch_career_state(conn, career_id)
+
+    changes = skill_exams.apply_results(
+        conn,
+        career_id,
+        config.USER_PLAYER_ID,
+        [r.model_dump() for r in body.results],
+        state["current_date"],
+    )
+    conn.commit()
+    return {"career_id": career_id, "results": changes}
 
 
 @router.get("")
@@ -88,7 +184,8 @@ def delete_career(career_id: str, conn: sqlite3.Connection = Depends(get_db)):
     # explicit, exhaustive purge rather than relying on cascade.
     tables = [
         "day_budget", "player_attribute", "player_fame", "fame_event",
-        "player_value_history", "player_season_stat", "player_contract", "player",
+        "player_value_history", "player_season_stat", "player_contract",
+        "skill_exam_result", "player",
         "competition_entry", "competition_rule", "competition_round", "fixture_team_stat",
         "fixture", "season", "competition", "team",
         "relationship_event", "relationship",
@@ -106,8 +203,8 @@ def _build_hub(conn: sqlite3.Connection, career_id: str) -> dict:
     career_state = serializers.fetch_career_state(conn, career_id)
 
     player_row = conn.execute(
-        "SELECT name, position, birth_date, team_id FROM player "
-        "WHERE career_id = ? AND is_user = 1",
+        "SELECT name, first_name, last_name, nationality, position, role, birth_date, "
+        "team_id, target_team_id FROM player WHERE career_id = ? AND is_user = 1",
         (career_id,),
     ).fetchone()
     import datetime as _dt
@@ -115,11 +212,24 @@ def _build_hub(conn: sqlite3.Connection, career_id: str) -> dict:
     today = _dt.date.today()
     age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
 
+    role_data = positions_data.get_role(player_row["role"]) if player_row["role"] else None
+
     player = {
         "name": player_row["name"],
+        "first_name": player_row["first_name"],
+        "last_name": player_row["last_name"],
+        "nationality": player_row["nationality"],
         "position": player_row["position"],
+        # role_name is None for careers created before roles existed; the id
+        # is still echoed so FE can tell "no role" from "unknown role".
+        "role": player_row["role"],
+        "role_name": role_data["name"] if role_data else None,
         "age": age,
         "team": serializers.fetch_team_ref(conn, career_id, player_row["team_id"]),
+        "target_team": (
+            serializers.fetch_team_ref(conn, career_id, player_row["target_team_id"])
+            if player_row["target_team_id"] else None
+        ),
     }
 
     next_fixture = serializers.fetch_next_fixture(conn, career_id, player_row["team_id"])

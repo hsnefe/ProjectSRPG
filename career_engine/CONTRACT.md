@@ -70,7 +70,7 @@
 | D18 | Çoklu müsabaka | **Piramit + paralel + lig/kupa/uluslararası** | Üçü de `competition` soyutlamasında yaşar |
 | D19 | Diğer müsabakaların simülasyonu | ~~Amortize tembel simülasyon~~ → **D40 ile kaldırıldı** | Gerekçesi olan bekleme riski ölçümle çürüdü (AÇIK-7) |
 | D20 | v1 dünyası | **Tek ülke, 2 kademe + kupa** | Şema üçünü taşır; veri dosyası küçük başlar, sonra büyür |
-| D21 | Başlangıç kademesi | **Daima alt kademe** | Yükseliş oyunun ana yayı |
+| D21 | Başlangıç kademesi | **Daima alt kademe**, kulüp milliyete göre atanır | Yükseliş oyunun ana yayı |
 | D22 | Uluslararası format | **Grup + eleme (16 takım)** | v1'de kapalı; şema ve üreteç hazır |
 | D23 | İlişki modülü ve deposu | **Aynı SQLite + JSON kolonu; ayrı paket, ayrı servis değil** | Ayrı süreç INV-3/INV-9'u kırar; şema esnekliği `traits` ile zaten sağlanıyor |
 | D24 | İlişki skoru | **Saklanır** (türetilmez) | Okuma hızlı, formül serbest; sapma tek yazma noktasıyla engellenir (INV-15) |
@@ -89,7 +89,7 @@ Beşinci turda (nitelikler) alınanlar:
 
 | # | Karar | Seçilen | Gerekçe |
 |---|---|---|---|
-| D30 | Nitelik modeli | **Radar = model, 11 nitelik** | Ekranda ne görülüyorsa model o; gizli nitelik yok |
+| D30 | Nitelik modeli | **Radar = model, 12 nitelik** | Ekranda ne görülüyorsa model o; gizli nitelik yok |
 | D31 | Kişi niteliklerinin gelişimi | **Aksiyonla** (antrenman gibi) | Fiziksel tarafla simetrik, kullanıcı kontrolü net |
 | D32 | Yaş eğrisi | **Yok** | Nitelikler yalnızca kazanılır; azalma mekaniği v1'de yok |
 
@@ -140,7 +140,7 @@ kimlik doğrulama **yok** (motorla aynı) · tarih/saat **ISO-8601 TEXT**, tek s
 | **Zaman** | Takvim, gün ilerletme, aksiyon bütçesi, sezon sınırları |
 | **Oyuncu** | Nitelikler, kondisyon, para, sezon istatistikleri, sözleşme |
 | **Dünya** | Müsabakalar (lig piramidi, paralel ligler, kupa, uluslararası), takımlar, güçler, renkler, fikstür, puan durumu, terfi/düşme |
-| **İlişki** | Beş ilişki kategorisi, skorlar, kişi künyeleri, etkileşim geçmişi |
+| **İlişki** | Altı ilişki kategorisi, skorlar, kişi künyeleri, etkileşim geçmişi |
 | **İçerik** | Haber akışı, katalog (antrenman / yaşam / dükkân) |
 | **Maç kaydı** | Biten maçın sonucu, istatistikleri ve kullanıcı katkısı |
 
@@ -324,7 +324,7 @@ CREATE TABLE player_attribute (
 );
 ```
 
-**On bir nitelik — radar neyse model o (D30).** Gizli nitelik yoktur: her anahtar
+**On iki nitelik — radar neyse model o (D30).** Gizli nitelik yoktur: her anahtar
 FE'nin iki radarından birinin ekseninde karşılığını bulur. **Türkçe etiketler
 FE'de kalır** (§1.3).
 
@@ -336,6 +336,7 @@ FE'de kalır** (§1.3).
 | saha | `shooting` | Şut | " |
 | saha | `passing` | Pas | " |
 | saha | `dribbling` | Dribling | " |
+| saha | `tackling` | Müdahale | §2 yetenek sınavı (radara eklenecek eksen) |
 | **kişi** | `charisma` | Cazibe | [`relationships_radar_screen.dart:14`](../lib/screens/relationships_radar_screen.dart) |
 | kişi | `politeness` | Kibarlık | " |
 | kişi | `confidence` | Özgüven | " |
@@ -349,8 +350,13 @@ FE'de kalır** (§1.3).
 | **saha** | `compute_team_rating()` (AÇIK-1), minigame zorluğu | Maça |
 | **kişi** | İlişki deltaları, diyalog seçeneği kilidi, medya tepkisi, sözleşme pazarlığı | Kariyere |
 
-`family` veritabanında **saklanmaz** — 11 anahtar sabit olduğu için kod
+`family` veritabanında **saklanmaz** — anahtar listesi sabit olduğu için kod
 içindeki katalogdan okunur (INV-21).
+
+`tackling` (Müdahale) yetenek sınavı sistemiyle geldi: Müdahale sınavının
+düşeceği bir nitelik gerekiyordu ve ilk altısının hiçbiri top kapmayı
+karşılamıyordu. `shooting`/`passing`/`dribbling` ile birlikte **pozisyon+rol'ün
+uzmanlaşabildiği dört saha yeteneğinden** biridir (§5.1 C1).
 
 `condition` anahtarı burada **tavanı** tutar (D15, §3.1 notu); günlük değer
 `career_state.condition`'dır. Eksen adı "Kondisyon" olarak kaldı.
@@ -721,7 +727,7 @@ sınırı. Bir gün gerçekten ayrılması gerekirse ayrılacak yer zaten belli.
 ```sql
 CREATE TABLE relationship (
   career_id       TEXT NOT NULL,
-  relationship_id TEXT NOT NULL,           -- 'coach','team','media','partner','family'
+  relationship_id TEXT NOT NULL,           -- 'coach','team','media','fans','partner','family'
   kind            TEXT NOT NULL,           -- traits'i hangi modelin doğrulayacağı
   category        TEXT NOT NULL,           -- FE'nin kart başlığı: 'Antrenör' vb.
   score           INTEGER NOT NULL,        -- 0-100, SAKLANIR (D24)
@@ -890,11 +896,12 @@ Taban: `http://127.0.0.1:8001`
 | # | Metot | Yol | Ne yapar |
 |---|---|---|---|
 | **Kariyer** ||||
-| C0 | `GET` | `/careers/options` | Yeni kariyerde seçilebilir kulüpler ve pozisyonlar |
-| C1 | `POST` | `/careers` | Yeni kariyer: seed, oyuncu adı, pozisyon, kulüp seçimi |
+| C0 | `GET` | `/careers/options` | Yeni kariyerde milliyet, pozisyon+rol, hedef kulüp, sınav ve başlangıç değerleri |
+| C1 | `POST` | `/careers` | Yeni kariyer: ad/soyad, milliyet, pozisyon+rol, hedef kulüp, seed |
 | C2 | `GET` | `/careers` | Kariyer listesi (kayıt ekranı) |
 | C3 | `GET` | `/careers/{cid}` | Kariyer merkezi özeti — tek çağrıda hub verisi |
 | C4 | `DELETE` | `/careers/{cid}` | Kariyeri sil |
+| C5 | `POST` | `/careers/{cid}/skill-exams` | Yetenek sınavı notlarını nitelik puanına çevirir |
 | **Oyuncu** ||||
 | P1 | `GET` | `/careers/{cid}/player` | Künye + altı nitelik + kondisyon + para |
 | P2 | `GET` | `/careers/{cid}/player/stats` | `?season=&competition=` → kesit listesi |
@@ -1014,33 +1021,62 @@ bu bloktan tazelenir. Alanların hangi ekranda göründüğü BE'yi ilgilendirme
 #### C0 · `GET /careers/options` — yeni kariyer seçenekleri
 
 ```jsonc
-{ "positions": ["Kaleci", "Defans", "Orta saha", "Forvet"],
-  "clubs": [                                   // D21: yalnızca alt kademe
+{ "nationalities": [
+    { "country_code": "TR", "name": "Türkiye", "nationality": "Türk" } ],
+  "positions": [                               // Kaleci v1'de yok (rolü yok)
+    { "position": "Defans",
+      "roles": [
+        { "role_id": "stoper", "name": "Stoper", "group": "DC",
+          "attributes": ["tackling", "tackling"] } ] } ],
+  "target_teams": [                            // hedef kulüp: her takım olabilir
     { "team": { /* TeamRef */ },
       "competition": { /* CompetitionRef */ },
       "strength_hint": "orta" }                // 'zayıf' | 'orta' | 'güçlü'
-  ] }
+  ],
+  "skill_exams": [
+    { "exam_id": "shooting", "title": "Şut Sınavı", "attribute_key": "shooting",
+      "points_per_level": 1.0, "min_level": 1, "max_level": 5, "max_value": 100.0 } ],
+  "starting_values": {
+    "money": 100, "condition": 100,
+    "relationships": { "coach": 70, "team": 50, "media": 10, "fans": 40,
+                       "partner": 0, "family": 0 },
+    "base_skill_value": 20.0, "role_bonus_per_slot": 2.0 } }
 ```
 
-`clubs` **yalnızca `tier` en alt olan müsabakanın takımlarını** taşır (D21 —
-kullanıcı daima alt kademede başlar). `strength_hint` takım rating'lerinden
-türetilmiş kaba bir etikettir; ham rating gönderilmez.
+`positions` her pozisyonun **kendi rollerini** taşır: rol seçenekleri pozisyona
+göre değişir ve C1 uyumluluğu doğrular. `attributes` rolün uzmanlaştığı iki
+yetenek yuvasıdır; aynı anahtar iki kez geçebilir (o zaman bonus o yeteneğe iki
+kat biner). `target_teams` **hedeflenen** kulübün listesidir — oynanacak kulüp
+seçilmez, §3'e göre atanır. `strength_hint` takım rating'lerinden türetilmiş
+kaba bir etikettir; ham rating gönderilmez.
 
 #### C1 · `POST /careers` — yeni kariyer
 
 ```jsonc
 // İstek
-{ "player_name": "Efe Kaan",
-  "position":    "Orta saha",
-  "team_id":     "t_ykz",
-  "seed":        918273 }              // opsiyonel; yoksa rastgele üretilir
+{ "first_name":     "Efe",
+  "last_name":      "Kaan",
+  "nationality":    "TR",              // C0'ın country_code'u
+  "position":       "Orta saha",
+  "role":           "regista",         // pozisyona ait olmalı
+  "target_team_id": "t_gal",           // hayalindeki kulüp, oynanan kulüp değil
+  "seed":           918273 }           // opsiyonel; yoksa rastgele üretilir
 
 // Yanıt 201 — C3 ile aynı gövde
 ```
 
-`seed` fikstür sırasını ve başlangıç formunu belirler (D9). Aynı seed + aynı
-kulüp → aynı dünya (INV-7). `team_id` C0'ın listesinde olmalıdır, yoksa
-`422 invalid_request`.
+`seed` fikstür sırasını, kupa kurasını **ve başlangıç kulübü atamasını**
+belirler (D9); aynı seed → aynı dünya ve aynı kulüp (INV-7).
+
+**Başlangıç kulübü istekte yoktur.** Oyuncunun `nationality`'sine ait ülkenin en
+alt ligindeki uygun kulüplerden biri atanır (D21) — bkz. `domain/team_assignment.py`.
+En alt lig `competition.tier`'ın en büyüğü olarak **sorgulanır**, sabit bir
+lig kimliği ile değil; yeni bir ülke eklemek bu mantığı değiştirmez.
+
+Doğrulama hataları `422 invalid_request` döner: boş ad/soyad, katalogda olmayan
+`nationality`, tanınmayan `position` (Kaleci dahil — v1'de rolü yok), tanınmayan
+`role`, **seçilen pozisyona ait olmayan `role`** (mesaj o pozisyonun geçerli
+rollerini sayar), tanınmayan `target_team_id`.
 
 #### C2 · `GET /careers` — kariyer listesi
 
@@ -1094,6 +1130,31 @@ Tek çağrıda hub verisi. FE'nin ana ekranı bununla dolar.
 
 Yanıt **204**, gövde yok. Kariyere ait hiçbir satır kalmaz (INV-9).
 
+#### C5 · `POST /careers/{cid}/skill-exams` — yetenek sınavı sonuçları
+
+```jsonc
+// İstek
+{ "results": [ { "exam_id": "shooting", "level": 5 },
+               { "exam_id": "passing",  "level": 3 },
+               { "exam_id": "tackling", "level": 1 } ] }
+
+// Yanıt 200
+{ "career_id": "car_9f2a71c4e0b8",
+  "results": [
+    { "exam_id": "shooting", "level": 5, "attribute_key": "shooting",
+      "before": 24.0, "after": 29.0, "applied": 5.0 } ] }
+```
+
+Kariyer oluşturulduktan sonra çağrılır. Kazanılan puan `level * points_per_level`
+olup niteliğin **mevcut** değerine (rol bonusu dahil) eklenir, sınavın kendi
+`max_value`'sunda kesilir — `applied` bu yüzden ham kazanımdan küçük olabilir.
+Hangi sınavın hangi niteliği, hangi oranda ve hangi tavana kadar etkilediği tek
+bir yerden yönetilir: `catalog/skill_exams.py`.
+
+Bir sınav **bir kez** verilir; tekrarında `409 skill_exam_already_taken`. Toplu
+istek önce bütünüyle doğrulanır — geçersiz bir not veya daha önce girilmiş bir
+sınav varsa **hiçbiri** uygulanmaz. Güç ve Esneklik sınavlardan etkilenmez.
+
 ---
 
 ### 5.2 Oyuncu
@@ -1109,13 +1170,14 @@ Yanıt **204**, gövde yok. Kariyere ait hiçbir satır kalmaz (INV-9).
   "team":        { /* TeamRef */ },
   "career_state": { /* CareerState */ },
 
-  "attributes": [                        // D30 · tam 11 anahtar, eksiksiz
-    { "key": "condition",       "family": "saha", "value": 64.0 },
-    { "key": "strength",        "family": "saha", "value": 38.0 },
-    { "key": "flexibility",     "family": "saha", "value": 92.0 },
-    { "key": "shooting",        "family": "saha", "value": 50.0 },
-    { "key": "passing",         "family": "saha", "value": 80.0 },
-    { "key": "dribbling",       "family": "saha", "value": 25.0 },
+  "attributes": [                        // D30 · tüm anahtarlar, eksiksiz
+    { "key": "condition",       "family": "saha", "value": 100.0 },
+    { "key": "strength",        "family": "saha", "value": 30.0 },
+    { "key": "flexibility",     "family": "saha", "value": 30.0 },
+    { "key": "shooting",        "family": "saha", "value": 20.0 },
+    { "key": "passing",         "family": "saha", "value": 24.0 },
+    { "key": "dribbling",       "family": "saha", "value": 20.0 },
+    { "key": "tackling",        "family": "saha", "value": 20.0 },
     { "key": "charisma",        "family": "kişi", "value": 74.0 },
     { "key": "politeness",      "family": "kişi", "value": 58.0 },
     { "key": "confidence",      "family": "kişi", "value": 51.0 },
@@ -1130,8 +1192,10 @@ Yanıt **204**, gövde yok. Kariyere ait hiçbir satır kalmaz (INV-9).
 }
 ```
 
-`attributes` **daima 11 satır** döner; değeri değişmemiş anahtar da bulunur
-(INV-21). `family` veritabanında saklanmaz, kod kataloğundan gelir.
+`attributes` **daima §3.2'nin tüm anahtarlarını** döner; değeri değişmemiş
+anahtar da bulunur (INV-21). `family` veritabanında saklanmaz, kod kataloğundan
+gelir. Yukarıdaki örnek `regista` rolüyle (iki yuva da `passing`) açılmış, henüz
+sınava girmemiş bir kariyerin başlangıcıdır: taban 20, rol bonusu pas'a 2x2.
 `condition` anahtarı **tavanı**, `career_state.condition` **bugünkü değeri**
 taşır (D15) — ikisi aynı kavramın iki yüzüdür.
 
@@ -1952,7 +2016,7 @@ bile olmaz; API katmanı kendi sayacını tutar.
 | INV-18 | Durumu değiştiren her yanıt tam `career_state` bloğunu taşır (D28) |
 | INV-19 | `money_ledger` toplamı daima `career_state.money`'ye eşittir |
 | INV-20 | Düzenli gider hiçbir zaman bakiyeyi negatife düşürmez; karşılanamıyorsa eşya elden çıkar (D29) |
-| INV-21 | `player_attribute.attribute_key` daima §3.2'deki 11 anahtardan biridir; tanınmayan anahtar yazılmaz (D30) |
+| INV-21 | `player_attribute.attribute_key` daima §3.2'deki anahtar kataloğundan biridir; tanınmayan anahtar yazılmaz (D30) |
 | INV-22 | Hiçbir nitelik kendiliğinden azalmaz — yaş, form veya zaman nitelik düşürmez (D32) |
 | INV-23 | FE'den gelen maç sonucu katı doğrulamayı geçmeden hiçbir tabloya yazılmaz (D33, §5.6) |
 | INV-24 | `player_fame.value` yalnızca `fame.apply()` üzerinden yazılır; aynı transaction'da `fame_event` satırı düşer (D35) |
@@ -1977,6 +2041,7 @@ kullanır ama kullanıcının maçı müdahalelerle sapar.
 | 409 | `insufficient_budget` | Günün bütçesi (zaman/enerji…) aksiyona yetmiyor (D41) |
 | 409 | `insufficient_funds` | Bakiye yetersiz |
 | 409 | `already_owned` | Ürün zaten alınmış |
+| 409 | `skill_exam_already_taken` | Yetenek sınavı bu kariyerde zaten verilmiş (C5) |
 | 409 | `match_in_progress` | Yarım kalan maç var (§6.4) |
 | 409 | `not_match_day` | M1 çağrıldı ama bugün kullanıcının maçı yok (§6.1); mesaj sonraki kickoff tarihini ve kaç gün kaldığını taşır |
 | 409 | `fixture_already_played` | Sonuç ikinci kez yazılmak isteniyor |

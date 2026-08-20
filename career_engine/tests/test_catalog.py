@@ -6,7 +6,7 @@ from catalog.shop import SHOP_ITEMS
 from catalog.training import TRAINING_ITEMS
 
 
-def test_training_catalog_covers_all_eleven_attributes():
+def test_training_catalog_covers_every_attribute():
     keys = {
         e.split(":", 1)[1]
         for item in TRAINING_ITEMS

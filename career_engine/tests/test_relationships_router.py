@@ -1,20 +1,21 @@
 import pytest
 
+from tests.conftest import create_career
+from worlddata.relationships import STARTING_SCORES
+
 
 @pytest.fixture
 def created_career(api_client):
-    return api_client.post(
-        "/careers",
-        json={"player_name": "Efe Kaan", "position": "Orta saha", "team_id": "t_ykz", "seed": 42},
-    ).json()
+    return create_career(api_client)
 
 
-def test_list_relationships_returns_five_cards(api_client, created_career):
+def test_list_relationships_returns_a_card_per_kind_at_its_starting_score(api_client, created_career):
     resp = api_client.get(f"/careers/{created_career['career_id']}/relationships")
     assert resp.status_code == 200
     rels = resp.json()["relationships"]
-    assert {r["relationship_id"] for r in rels} == {"coach", "team", "media", "partner", "family"}
-    assert all(r["score"] == 50 for r in rels)
+    assert {r["relationship_id"] for r in rels} == set(STARTING_SCORES)
+    # §4 - each kind starts at its own score, not a flat 50.
+    assert {r["relationship_id"]: r["score"] for r in rels} == STARTING_SCORES
     assert all(r["has_pending_request"] is False for r in rels)
 
     coach = next(r for r in rels if r["relationship_id"] == "coach")
@@ -49,15 +50,19 @@ def test_interact_applies_relationship_and_attribute_deltas(api_client, created_
     assert resp.status_code == 200
     body = resp.json()
 
+    media_start = STARTING_SCORES["media"]
     assert body["relationship_changes"] == [
-        {"relationship_id": "media", "before": 50, "after": 53, "delta": 3}
+        {
+            "relationship_id": "media", "before": media_start,
+            "after": media_start + 3, "delta": 3,
+        }
     ]
     assert body["attribute_changes"] == [
         {"key": "charisma", "before": 74.0, "after": 74.2}
     ]
 
     detail = api_client.get(f"/careers/{career_id}/relationships/media").json()
-    assert detail["score"] == 53
+    assert detail["score"] == media_start + 3
     assert len(detail["recent_events"]) == 1
     assert detail["recent_events"][0]["reason"] == "dialogue:media_01:r0"
 

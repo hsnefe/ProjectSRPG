@@ -13,6 +13,7 @@ from typing import List, Optional, Type
 from pydantic import BaseModel, ConfigDict
 
 from api import errors
+from worlddata.relationships import STARTING_SCORES
 
 
 class _BaseTraits(BaseModel):
@@ -40,7 +41,7 @@ class PartnerTraits(_BaseTraits):
 
 
 class _OpenTraits(_BaseTraits):
-    """team/family - no shape pinned down yet, so anything validates."""
+    """team/family/fans - no shape pinned down yet, so anything validates."""
     model_config = ConfigDict(extra="allow")
 
 
@@ -49,6 +50,7 @@ KIND_TRAIT_MODELS: dict = {
     "media": MediaTraits,
     "partner": PartnerTraits,
     "team": _OpenTraits,
+    "fans": _OpenTraits,
     "family": _OpenTraits,
 }
 
@@ -121,10 +123,26 @@ def apply_delta(
     }
 
 
-def replay_score(conn: sqlite3.Connection, career_id: str, relationship_id: str, base_score: int = 50) -> int:
+def replay_score(
+    conn: sqlite3.Connection,
+    career_id: str,
+    relationship_id: str,
+    base_score: Optional[int] = None,
+) -> int:
     """Sums relationship_event from base_score, clamping at each step the
     same way apply_delta does. Used by tests to check the stored score
-    never drifts from its own audit trail."""
+    never drifts from its own audit trail.
+
+    base_score defaults to the kind's own §4 starting score rather than a
+    flat 50 — since starting scores went per-kind, a single default would
+    silently mis-replay every kind but 'team'."""
+    if base_score is None:
+        row = conn.execute(
+            "SELECT kind FROM relationship WHERE career_id = ? AND relationship_id = ?",
+            (career_id, relationship_id),
+        ).fetchone()
+        base_score = STARTING_SCORES[row["kind"]] if row is not None else 0
+
     rows = conn.execute(
         "SELECT delta FROM relationship_event "
         "WHERE career_id = ? AND relationship_id = ? ORDER BY happened_at",

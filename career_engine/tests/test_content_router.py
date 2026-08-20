@@ -3,15 +3,12 @@ import sqlite3
 import pytest
 
 from api import config
-from tests.conftest import advance_to_match_day
+from tests.conftest import advance_to_match_day, create_career
 
 
 @pytest.fixture
 def created_career(api_client):
-    return api_client.post(
-        "/careers",
-        json={"player_name": "Efe Kaan", "position": "Orta saha", "team_id": "t_ykz", "seed": 42},
-    ).json()
+    return create_career(api_client)
 
 
 def _seed_news(career_id, n=3, category="Analiz", prefix="n_test"):
@@ -127,8 +124,8 @@ def test_get_catalog_training(api_client):
     resp = api_client.get("/catalog/training")
     assert resp.status_code == 200
     items = resp.json()["items"]
-    assert len(items) == 11
-    assert {i["catalog_id"] for i in items} >= {"sut", "kondisyon-kosusu"}
+    assert len(items) == 12
+    assert {i["catalog_id"] for i in items} >= {"sut", "kondisyon-kosusu", "mudahale"}
 
 
 def test_get_catalog_lifestyle(api_client):

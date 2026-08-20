@@ -14,13 +14,15 @@ from typing import Optional
 
 from api import config, errors
 from api.ids import new_career_id
-from domain import day_budget, scheduling, wallet
-from worlddata.attributes import STARTING_ATTRIBUTES
+from domain import day_budget, scheduling, team_assignment, wallet
+from worlddata import positions as positions_data
+from worlddata.attributes import starting_attributes
 from worlddata.competitions import (
     BIRINCI_LIG, COMPETITION_RULES, COMPETITIONS, CUP_TEAM_IDS,
     STARTING_ENTRIES, SUPER_LIG, ULUSAL_KUPA,
 )
-from worlddata.relationships import RELATIONSHIP_SEED, STARTING_SCORE
+from worlddata.countries import DEFAULT_COUNTRY_CODE, get_country
+from worlddata.relationships import RELATIONSHIP_SEED, STARTING_SCORES
 from worlddata.teams import ALL_TEAMS, TIER1_TEAMS, TIER2_TEAMS
 
 SEASON_ID = "25/26"
@@ -40,25 +42,69 @@ LEAGUE_STARTS_ON = "2026-08-08"
 # choose between.
 CUP_STARTS_ON = "2026-08-19"
 
-_VALID_POSITIONS = ("Kaleci", "Defans", "Orta saha", "Forvet")
+# A name field long enough for a double-barrelled surname, short enough that
+# it can't push FE's cards out of shape. Not pinned by CONTRACT.md.
+MAX_NAME_LENGTH = 40
+
+
+def _require_name(value: str, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise errors.invalid_request(f"{field} must not be empty")
+    cleaned = " ".join(value.split())
+    if len(cleaned) > MAX_NAME_LENGTH:
+        raise errors.invalid_request(f"{field} must be at most {MAX_NAME_LENGTH} characters")
+    return cleaned
 
 
 def create_career(
     conn: sqlite3.Connection,
-    player_name: str,
+    first_name: str,
+    last_name: str,
+    nationality: str,
     position: str,
-    team_id: str,
+    role: str,
+    target_team_id: str,
     seed: Optional[int] = None,
 ) -> str:
     """Returns the new career_id. Does not commit - the router does, once,
-    after this returns (INV-3)."""
-    if position not in _VALID_POSITIONS:
-        raise errors.invalid_request(f"position must be one of {_VALID_POSITIONS}, got {position!r}")
+    after this returns (INV-3).
 
-    tier2_ids = {t["team_id"] for t in TIER2_TEAMS}
-    if team_id not in tier2_ids:
-        # D21: the user always starts in the bottom tier (1. Lig).
-        raise errors.invalid_request(f"team_id {team_id!r} is not a tier-2 club (D21)")
+    The starting club is NOT an argument: §3 assigns it from the player's
+    nationality (bottom league of that country), so the only club the user
+    picks is target_team_id, the one they're aiming for. That assignment
+    happens after _seed_world because it reads the competition tables.
+    """
+    first_name = _require_name(first_name, "first_name")
+    last_name = _require_name(last_name, "last_name")
+
+    country = get_country(nationality)
+    if country is None:
+        from worlddata.countries import COUNTRY_CODES
+        raise errors.invalid_request(
+            f"nationality must be one of {COUNTRY_CODES}, got {nationality!r}"
+        )
+
+    if position not in positions_data.POSITIONS:
+        raise errors.invalid_request(
+            f"position must be one of {positions_data.POSITIONS}, got {position!r}"
+        )
+
+    role_data = positions_data.get_role(role)
+    if role_data is None:
+        raise errors.invalid_request(f"unknown role {role!r}")
+    if role_data["position"] != position:
+        # The core position/role compatibility check: a Forvet role can't be
+        # played by a Defans. The message names what IS allowed so FE can
+        # recover without a second round-trip to /careers/options.
+        allowed = tuple(r["role_id"] for r in positions_data.roles_for_position(position))
+        raise errors.invalid_request(
+            f"role {role!r} belongs to position {role_data['position']!r}, "
+            f"not {position!r}; roles for {position!r} are {allowed}"
+        )
+
+    known_team_ids = {t["team_id"] for t in ALL_TEAMS}
+    if target_team_id not in known_team_ids:
+        raise errors.invalid_request(f"unknown target_team_id {target_team_id!r}")
 
     seed_value = seed if seed is not None else random.SystemRandom().randint(0, 2**31 - 1)
     rng = random.Random(seed_value)
@@ -81,7 +127,15 @@ def create_career(
     day_budget.refill(conn, career_id)
 
     _seed_world(conn, career_id, rng)
-    _seed_player(conn, career_id, player_name, position, team_id)
+    team_id = team_assignment.assign_starting_team(
+        conn, career_id, SEASON_ID, country["country_code"], rng
+    )
+    _seed_player(
+        conn, career_id,
+        first_name=first_name, last_name=last_name,
+        nationality=country["country_code"], position=position, role=role,
+        team_id=team_id, target_team_id=target_team_id,
+    )
     _seed_relationships(conn, career_id)
 
     return career_id
@@ -92,9 +146,10 @@ def _seed_world(conn: sqlite3.Connection, career_id: str, rng: random.Random) ->
         conn.execute(
             "INSERT INTO team (career_id, team_id, name, short_name, country, attack, midfield, "
             "defense, goalkeeper, mentality, color_primary, color_secondary) "
-            "VALUES (?, ?, ?, ?, 'TR', ?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 career_id, team["team_id"], team["name"], team["short_name"],
+                team.get("country", DEFAULT_COUNTRY_CODE),
                 team["attack"], team["midfield"], team["defense"], team["goalkeeper"],
                 team["mentality"], team["color_primary"], team["color_secondary"],
             ),
@@ -183,15 +238,31 @@ def _insert_fixtures(conn: sqlite3.Connection, fixtures: list) -> None:
     )
 
 
-def _seed_player(conn: sqlite3.Connection, career_id: str, name: str, position: str, team_id: str) -> None:
+def _seed_player(
+    conn: sqlite3.Connection,
+    career_id: str,
+    first_name: str,
+    last_name: str,
+    nationality: str,
+    position: str,
+    role: str,
+    team_id: str,
+    target_team_id: str,
+) -> None:
     player_id = config.USER_PLAYER_ID
     birth_year = date.today().year - 21
     conn.execute(
-        "INSERT INTO player (career_id, player_id, name, position, birth_date, team_id, is_user) "
-        "VALUES (?, ?, ?, ?, ?, ?, 1)",
-        (career_id, player_id, name, position, f"{birth_year}-08-19", team_id),
+        "INSERT INTO player (career_id, player_id, name, first_name, last_name, nationality, "
+        "position, role, birth_date, team_id, target_team_id, is_user) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
+        (
+            career_id, player_id, f"{first_name} {last_name}", first_name, last_name,
+            nationality, position, role, f"{birth_year}-08-19", team_id, target_team_id,
+        ),
     )
-    for key, value in STARTING_ATTRIBUTES.items():
+    # Role decides the starting spread (§2); the skill exams then move
+    # shooting/passing/tackling on top of it, via domain/skill_exams.py.
+    for key, value in starting_attributes(role).items():
         conn.execute(
             "INSERT INTO player_attribute (career_id, player_id, attribute_key, value) "
             "VALUES (?, ?, ?, ?)",
@@ -224,7 +295,8 @@ def _seed_relationships(conn: sqlite3.Connection, career_id: str) -> None:
             "person_name, contact_name, age, occupation, bio, last_contact_at, traits) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)",
             (
-                career_id, r["relationship_id"], r["kind"], r["category"], STARTING_SCORE,
+                career_id, r["relationship_id"], r["kind"], r["category"],
+                STARTING_SCORES[r["kind"]],
                 r["person_name"], r["contact_name"], r["age"], r["occupation"], r["bio"],
                 json.dumps(traits, ensure_ascii=False),
             ),

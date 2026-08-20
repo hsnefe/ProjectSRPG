@@ -2,9 +2,27 @@ from datetime import date
 
 import pytest
 
+from api import config
 from api.errors import ApiError
 from domain import onboarding, wallet
-from worlddata.teams import TIER1_TEAMS
+from worlddata.attributes import (
+    BASE_SKILL_VALUE, FIXED_STARTING_ATTRIBUTES, ROLE_BONUS_PER_SLOT,
+)
+from worlddata.teams import TIER2_TEAMS
+
+# §5.1 C1's argument list, so a test that cares about one field names only it.
+CAREER_KWARGS = {
+    "first_name": "Efe",
+    "last_name": "Kaan",
+    "nationality": "TR",
+    "position": "Orta saha",
+    "role": "merkez_orta_saha",
+    "target_team_id": "t_gal",
+}
+
+
+def _create(conn, **overrides):
+    return onboarding.create_career(conn, **{**CAREER_KWARGS, **overrides})
 
 
 def _count(conn, career_id, table, extra_sql="", params=()):
@@ -15,8 +33,15 @@ def _count(conn, career_id, table, extra_sql="", params=()):
     return row["c"]
 
 
+def _attr(conn, career_id, key):
+    return conn.execute(
+        "SELECT value FROM player_attribute WHERE career_id = ? AND attribute_key = ?",
+        (career_id, key),
+    ).fetchone()["value"]
+
+
 def test_create_career_writes_the_full_world(db_conn):
-    career_id = onboarding.create_career(db_conn, "Efe Kaan", "Orta saha", "t_ykz", seed=42)
+    career_id = _create(db_conn, seed=42)
     db_conn.commit()
 
     assert _count(db_conn, career_id, "team") == 32
@@ -31,34 +56,155 @@ def test_create_career_writes_the_full_world(db_conn):
     assert _count(db_conn, career_id, "competition_round") == 65
     assert _count(db_conn, career_id, "fixture") == 504
     assert _count(db_conn, career_id, "player") == 1
-    assert _count(db_conn, career_id, "player_attribute") == 11
+    assert _count(db_conn, career_id, "player_attribute") == 12
     assert _count(db_conn, career_id, "player_contract") == 1
-    assert _count(db_conn, career_id, "relationship") == 5
+    assert _count(db_conn, career_id, "relationship") == 6
     assert _count(db_conn, career_id, "day_budget") == 2  # time, energy
+    # §2 - exams are sat after creation, so a fresh career has none.
+    assert _count(db_conn, career_id, "skill_exam_result") == 0
+
+
+def test_create_career_records_identity_and_target(db_conn):
+    career_id = _create(db_conn, seed=42)
+    db_conn.commit()
+
+    row = db_conn.execute(
+        "SELECT name, first_name, last_name, nationality, position, role, target_team_id "
+        "FROM player WHERE career_id = ?", (career_id,)
+    ).fetchone()
+    assert row["name"] == "Efe Kaan"
+    assert row["first_name"] == "Efe"
+    assert row["last_name"] == "Kaan"
+    assert row["nationality"] == "TR"
+    assert row["position"] == "Orta saha"
+    assert row["role"] == "merkez_orta_saha"
+    assert row["target_team_id"] == "t_gal"
+
+
+def test_create_career_assigns_a_club_in_the_countrys_bottom_league(db_conn):
+    """§3 - the starting club comes from the player's nationality, not from
+    the request, and it is always in that country's lowest division."""
+    career_id = _create(db_conn, seed=42)
+    db_conn.commit()
+
+    team_id = db_conn.execute(
+        "SELECT team_id FROM player WHERE career_id = ?", (career_id,)
+    ).fetchone()["team_id"]
+
+    tier2_ids = {t["team_id"] for t in TIER2_TEAMS}
+    assert team_id in tier2_ids
+
+    # And the contract is signed with that same club, not the target.
+    contract_team = db_conn.execute(
+        "SELECT team_id FROM player_contract WHERE career_id = ?", (career_id,)
+    ).fetchone()["team_id"]
+    assert contract_team == team_id
+
+
+def test_role_attributes_start_two_points_above_base(db_conn):
+    """§2 - the role's two slots each add ROLE_BONUS_PER_SLOT on top of the
+    taban değer. merkez_orta_saha spends both on passing, so passing is +4
+    while the other three skills sit at base."""
+    career_id = _create(db_conn, role="merkez_orta_saha", seed=1)
+    db_conn.commit()
+
+    assert _attr(db_conn, career_id, "passing") == BASE_SKILL_VALUE + 2 * ROLE_BONUS_PER_SLOT
+    assert _attr(db_conn, career_id, "shooting") == BASE_SKILL_VALUE
+    assert _attr(db_conn, career_id, "dribbling") == BASE_SKILL_VALUE
+    assert _attr(db_conn, career_id, "tackling") == BASE_SKILL_VALUE
+
+
+def test_role_with_two_different_slots_spreads_the_bonus(db_conn):
+    career_id = _create(db_conn, position="Forvet", role="hedef_adam", seed=1)
+    db_conn.commit()
+
+    # hedef_adam = (shooting, passing)
+    assert _attr(db_conn, career_id, "shooting") == BASE_SKILL_VALUE + ROLE_BONUS_PER_SLOT
+    assert _attr(db_conn, career_id, "passing") == BASE_SKILL_VALUE + ROLE_BONUS_PER_SLOT
+    assert _attr(db_conn, career_id, "dribbling") == BASE_SKILL_VALUE
+    assert _attr(db_conn, career_id, "tackling") == BASE_SKILL_VALUE
+
+
+def test_strength_and_flexibility_are_fixed_regardless_of_role(db_conn):
+    """§2 - Güç and Esneklik start from a fixed value; no role touches them."""
+    a = _create(db_conn, role="merkez_orta_saha", seed=1)
+    b = _create(db_conn, position="Defans", role="stoper", seed=1)
+    db_conn.commit()
+
+    for career_id in (a, b):
+        assert _attr(db_conn, career_id, "strength") == FIXED_STARTING_ATTRIBUTES["strength"]
+        assert _attr(db_conn, career_id, "flexibility") == FIXED_STARTING_ATTRIBUTES["flexibility"]
+
+
+def test_starting_money_and_condition_match_config(db_conn):
+    career_id = _create(db_conn, seed=1)
+    db_conn.commit()
+
+    state = db_conn.execute(
+        "SELECT money, condition FROM career_state WHERE career_id = ?", (career_id,)
+    ).fetchone()
+    assert state["money"] == config.STARTING_MONEY
+    assert state["condition"] == config.STARTING_CONDITION
+    # INV-10: the daily value never exceeds its attribute ceiling.
+    assert _attr(db_conn, career_id, "condition") == float(config.STARTING_CONDITION)
+
+
+def test_relationships_start_at_their_per_kind_scores(db_conn):
+    """§4's starting table, per kind — not one flat score for all six."""
+    career_id = _create(db_conn, seed=1)
+    db_conn.commit()
+
+    scores = {
+        r["relationship_id"]: r["score"]
+        for r in db_conn.execute(
+            "SELECT relationship_id, score FROM relationship WHERE career_id = ?", (career_id,)
+        ).fetchall()
+    }
+    assert scores == {
+        "coach": 70, "team": 50, "media": 10, "fans": 40, "partner": 0, "family": 0,
+    }
 
 
 def test_create_career_starting_balance_matches_ledger_inv19(db_conn):
-    career_id = onboarding.create_career(db_conn, "Efe Kaan", "Orta saha", "t_ykz", seed=1)
+    career_id = _create(db_conn, seed=1)
     db_conn.commit()
 
     assert wallet.get_balance(db_conn, career_id) == wallet.ledger_total(db_conn, career_id)
 
 
-def test_create_career_rejects_tier1_club(db_conn):
-    tier1_id = TIER1_TEAMS[0]["team_id"]
-    with pytest.raises(ApiError) as exc_info:
-        onboarding.create_career(db_conn, "Efe Kaan", "Orta saha", tier1_id, seed=1)
-    assert exc_info.value.code == "invalid_request"
-
-
 def test_create_career_rejects_invalid_position(db_conn):
     with pytest.raises(ApiError) as exc_info:
-        onboarding.create_career(db_conn, "Efe Kaan", "Hücum kanadı", "t_ykz", seed=1)
+        _create(db_conn, position="Hücum kanadı", seed=1)
     assert exc_info.value.code == "invalid_request"
+
+
+def test_create_career_rejects_goalkeeper_position(db_conn):
+    with pytest.raises(ApiError) as exc_info:
+        _create(db_conn, position="Kaleci", seed=1)
+    assert exc_info.value.code == "invalid_request"
+
+
+def test_create_career_rejects_role_from_another_position(db_conn):
+    with pytest.raises(ApiError) as exc_info:
+        _create(db_conn, position="Defans", role="firsatci_forvet", seed=1)
+    assert exc_info.value.code == "invalid_request"
+
+
+def test_create_career_rejects_unknown_nationality(db_conn):
+    with pytest.raises(ApiError) as exc_info:
+        _create(db_conn, nationality="DE", seed=1)
+    assert exc_info.value.code == "invalid_request"
+
+
+def test_create_career_rejects_blank_names(db_conn):
+    for field in ("first_name", "last_name"):
+        with pytest.raises(ApiError) as exc_info:
+            _create(db_conn, **{field: "  ", "seed": 1})
+        assert exc_info.value.code == "invalid_request"
 
 
 def test_create_career_cup_round1_pairs_every_team_once(db_conn):
-    career_id = onboarding.create_career(db_conn, "Efe Kaan", "Orta saha", "t_ykz", seed=7)
+    career_id = _create(db_conn, seed=7)
     db_conn.commit()
 
     rows = db_conn.execute(
@@ -72,9 +218,9 @@ def test_create_career_cup_round1_pairs_every_team_once(db_conn):
 
 
 def test_create_career_is_deterministic_for_same_seed(db_conn):
-    id_a = onboarding.create_career(db_conn, "A", "Orta saha", "t_ykz", seed=99)
+    id_a = _create(db_conn, first_name="A", seed=99)
     db_conn.commit()
-    id_b = onboarding.create_career(db_conn, "B", "Orta saha", "t_ykz", seed=99)
+    id_b = _create(db_conn, first_name="B", seed=99)
     db_conn.commit()
 
     def first_round_pairs(career_id):
@@ -86,14 +232,21 @@ def test_create_career_is_deterministic_for_same_seed(db_conn):
         ).fetchall()
         return [(r["home_team_id"], r["away_team_id"]) for r in rows]
 
+    def assigned_team(career_id):
+        return db_conn.execute(
+            "SELECT team_id FROM player WHERE career_id = ?", (career_id,)
+        ).fetchone()["team_id"]
+
     assert first_round_pairs(id_a) == first_round_pairs(id_b)
+    # §3's assignment draws from the same seeded rng, so it repeats too.
+    assert assigned_team(id_a) == assigned_team(id_b)
 
 
 def test_career_opens_a_week_before_the_first_league_round(db_conn):
     """§6.1 - the career starts on a preparation week, so a new player gets
     a full day loop before their first match instead of kicking off on day
     one."""
-    career_id = onboarding.create_career(db_conn, "Efe Kaan", "Orta saha", "t_ykz", seed=7)
+    career_id = _create(db_conn, seed=7)
     db_conn.commit()
 
     game_date = db_conn.execute(
@@ -113,7 +266,7 @@ def test_no_team_is_ever_drawn_into_two_fixtures_on_one_day(db_conn):
     """The league runs on Saturdays and the cup midweek, so M1's "today's
     fixture" query can never face two candidates. Cup rounds past the first
     aren't drawn yet, so this covers round 1 plus every league round."""
-    career_id = onboarding.create_career(db_conn, "Efe Kaan", "Orta saha", "t_ykz", seed=7)
+    career_id = _create(db_conn, seed=7)
     db_conn.commit()
 
     rows = db_conn.execute(

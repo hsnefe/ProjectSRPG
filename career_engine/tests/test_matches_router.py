@@ -1,7 +1,7 @@
 import pytest
 
 from api import config
-from tests.conftest import advance_to_match_day
+from tests.conftest import advance_to_match_day, create_career
 
 
 @pytest.fixture
@@ -9,10 +9,7 @@ def created_career(api_client, mock_engine):
     """A career sitting ON its first match day — M1 only hands out today's
     fixture (§6.1), so every test here has to walk the preparation week
     first, exactly like the player does."""
-    body = api_client.post(
-        "/careers",
-        json={"player_name": "Efe Kaan", "position": "Orta saha", "team_id": "t_ykz", "seed": 42},
-    ).json()
+    body = create_career(api_client)
     advance_to_match_day(api_client, body["career_id"])
     return body
 
@@ -59,10 +56,7 @@ def test_get_next_match_returns_engine_payload(api_client, created_career):
 def test_get_next_match_is_refused_before_the_match_day(api_client, mock_engine):
     """§6.1 - a fresh career opens on a preparation week, so M1 has nothing
     to hand out yet and says how far off the match is."""
-    career_id = api_client.post(
-        "/careers",
-        json={"player_name": "Efe Kaan", "position": "Orta saha", "team_id": "t_ykz", "seed": 42},
-    ).json()["career_id"]
+    career_id = create_career(api_client)["career_id"]
 
     resp = api_client.get(f"/careers/{career_id}/matches/next")
     assert resp.status_code == 409
@@ -186,7 +180,9 @@ def test_post_result_rejects_condition_above_pre_match(api_client, created_caree
     career_id = created_career["career_id"]
     fixture_id = api_client.get(f"/careers/{career_id}/matches/next").json()["fixture_id"]
 
-    body = _valid_result_body(fixture_id, condition=90)  # pre-match was 64
+    # Anything above the pre-match condition (config.STARTING_CONDITION) is
+    # rejected — +1 is enough to prove the boundary.
+    body = _valid_result_body(fixture_id, condition=config.STARTING_CONDITION + 1)
     resp = api_client.post(f"/careers/{career_id}/matches/{fixture_id}/result", json=body)
     assert resp.status_code == 422
 

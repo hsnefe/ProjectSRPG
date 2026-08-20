@@ -1,16 +1,32 @@
-"""§3.4 - the five relationship rows every new career starts with. Identity
+"""§3.4 - the six relationship rows every new career starts with. Identity
 content (person_name, contact_name, age, occupation, bio, hobbies) is
 ported verbatim from relationships_screen.dart's _relationships list — the
 only thing NOT ported is FE's example scores (74/58/51/63/29): those read
-as an already-lived-in playthrough, not day-one values, so every new
-career starts neutral at 50 instead (matching tests/conftest.py's
-seeded_relationship fixture).
+as an already-lived-in playthrough, not day-one values.
 
 Dialogue TREES stay in FE (§1.3/D23) - only the person's card-facing
 profile lives here.
 """
 
-STARTING_SCORE = 50
+# §4's starting-value table, per relationship kind. Replaces the old flat
+# STARTING_SCORE = 50 that every kind shared.
+#
+# partner and family are not in that table. §4 says a value it doesn't list
+# "başlangıçta oluşturulmamalı veya 0/null olarak kabul edilmeli" — of those
+# two options the row still gets written at 0 rather than skipped, because
+# the relationship model has no nullable/absent state: R1/R2 list every kind,
+# dialogue and the §6.5 decay tick both assume a row exists, and a missing
+# row would make relationships.get_score() raise instead of return. A career
+# therefore starts with no rapport with either, which is also the honest
+# reading — you haven't called home yet.
+STARTING_SCORES = {
+    "coach": 70,
+    "team": 50,
+    "media": 10,
+    "fans": 40,
+    "partner": 0,
+    "family": 0,
+}
 
 RELATIONSHIP_SEED = [
     {
@@ -40,6 +56,15 @@ RELATIONSHIP_SEED = [
         "traits_extra": {"outlet": "Spor Manşet"},
     },
     {
+        "relationship_id": "fans", "kind": "fans", "category": "Taraftarlar",
+        "person_name": "Tribün Grubu", "contact_name": "Taraftar grubu",
+        "age": None, "occupation": "Kulüp taraftar topluluğu",
+        "bio": "Kötü günde de tribünü dolduruyorlar ama sabırları sonsuz değil. "
+               "Sahadaki çabanı formundan önce görürler; bir maçta verdiğin "
+               "mücadele haftalarca konuşulur.",
+        "hobbies": ["Deplasman yolculuğu", "Koreografi", "Tezahürat"],
+    },
+    {
         "relationship_id": "partner", "kind": "partner", "category": "Partner",
         "person_name": "Elif Demir", "contact_name": "Elif",
         "age": 24, "occupation": "Grafik tasarımcı",
@@ -57,4 +82,7 @@ RELATIONSHIP_SEED = [
     },
 ]
 
-assert {r["relationship_id"] for r in RELATIONSHIP_SEED} == {"coach", "team", "media", "partner", "family"}
+assert {r["relationship_id"] for r in RELATIONSHIP_SEED} == set(STARTING_SCORES), (
+    "every seeded relationship needs a starting score, and vice versa"
+)
+assert all(0 <= s <= 100 for s in STARTING_SCORES.values())

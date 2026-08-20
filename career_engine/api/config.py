@@ -15,8 +15,13 @@ DB_PATH = Path(os.environ.get("CAREER_ENGINE_DB_PATH", str(Path(__file__).resolv
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
 
-# §5.2 P1 - the fixed 11-key attribute catalog (D30). Order is display order,
+# §5.2 P1 - the fixed 12-key attribute catalog (D30). Order is display order,
 # not semantically meaningful; INV-21 checks membership against this set.
+#
+# `tackling` joined the saha family with the career-creation work: the Müdahale
+# skill exam needs an attribute to land on, and none of the original six covered
+# winning the ball back. It is one of the four ROLE_SKILL_KEYS a position/role
+# can specialise in (worlddata/attributes.py).
 ATTRIBUTE_KEYS = {
     "condition":       "saha",
     "strength":        "saha",
@@ -24,6 +29,7 @@ ATTRIBUTE_KEYS = {
     "shooting":        "saha",
     "passing":         "saha",
     "dribbling":       "saha",
+    "tackling":        "saha",
     "charisma":        "kişi",
     "politeness":      "kişi",
     "confidence":      "kişi",
@@ -35,25 +41,27 @@ ATTRIBUTE_KEYS = {
 CONDITION_FLOOR = 35.0
 CONDITION_CEILING = 100.0
 
-# §3.4 - five fixed relationship rows per career (no roster, D4).
-RELATIONSHIP_KINDS = ("coach", "team", "media", "partner", "family")
+# §3.4 - six fixed relationship rows per career (no roster, D4). 'fans' joined
+# with the career-creation work: §4's starting table names Taraftarlar as its
+# own tracked value, and the only other candidate (player_fame) is unbounded
+# and semantically undecided (⟦AÇIK-9⟧), so it can't carry a 0-100 score.
+RELATIONSHIP_KINDS = ("coach", "team", "media", "fans", "partner", "family")
 
 # D4 - a career has exactly one user player; no roster, no id generation needed.
 USER_PLAYER_ID = "p_user"
 
-# C1 - new-career defaults, ported from player_state.dart's own starting
-# values (_money = 48200). ⟦B-1⟧ still owns whether these (and the starting
-# contract's wage) are the right scale for tier 2.
+# C1 - new-career defaults, §4's starting-value table. These two are the
+# whole "money and condition start here" contract; change them and every new
+# career changes, no other edit needed.
 #
-# Condition starts AT its ceiling, not at player_state.dart's own literal
-# 72: the ceiling is worlddata/attributes.py's condition attribute (64,
-# ported from the training radar's mock data) and INV-10 binds the daily
-# value to it. Starting above the ceiling meant the first day advanced —
-# the first time condition.apply_delta() ran at all — silently snapped the
-# bar from 72 down to 64, which reads as a bug once the day loop actually
-# runs. A fresh career is simply fully fit.
-STARTING_CONDITION = 64
-STARTING_MONEY = 48200
+# Condition starts AT its ceiling, and the ceiling is worlddata/attributes.py's
+# `condition` attribute (INV-10 binds the daily value to it), so the two
+# constants must agree — STARTING_CONDITION_ATTRIBUTE is asserted equal to this
+# at import. Starting above the ceiling means the first day advanced silently
+# snaps the bar down, which reads as a bug once the day loop runs. A fresh
+# career is simply fully fit.
+STARTING_CONDITION = 100
+STARTING_MONEY = 100
 
 # ⟦B-1⟧ v1 sözleşme ölçeği - placeholder, tier 2'ye kabaca uygun küçük
 # rakamlar. FE'nin contract_screen.dart'taki sabitleri (haftalık ₺180.000)

@@ -9,6 +9,8 @@ isolation; this test's job is different — proving the pieces compose.
 import sqlite3
 
 from api import config
+from tests.conftest import grant_money
+from worlddata.relationships import STARTING_SCORES
 
 
 def _all_career_scoped_tables(conn: sqlite3.Connection) -> list:
@@ -37,44 +39,77 @@ def _stats(goals=0):
 
 
 def test_full_career_session(api_client, mock_engine):
-    # 1. Pick a club.
+    # 1. Read the creation form's options: a nationality, a position with its
+    #    roles, and a dream club to aim at.
     options = api_client.get("/careers/options").json()
-    club = next(c for c in options["clubs"] if c["team"]["team_id"] == "t_ykz")
-    assert club["competition"]["competition_id"] == "c_lig2"
+    assert options["nationalities"][0]["country_code"] == "TR"
+    midfield = next(p for p in options["positions"] if p["position"] == "Orta saha")
+    role_id = midfield["roles"][0]["role_id"]
+    target = next(c for c in options["target_teams"] if c["team"]["team_id"] == "t_gal")
 
-    # 2. Create the career.
+    # 2. Create the career. The club played for is assigned from nationality
+    #    (§3), not chosen — only the target is.
     created = api_client.post(
         "/careers",
-        json={"player_name": "Efe Kaan", "position": "Orta saha", "team_id": "t_ykz", "seed": 7},
+        json={
+            "first_name": "Efe", "last_name": "Kaan", "nationality": "TR",
+            "position": "Orta saha", "role": role_id,
+            "target_team_id": target["team"]["team_id"], "seed": 7,
+        },
     )
     assert created.status_code == 201
     career_id = created.json()["career_id"]
+    assert created.json()["player"]["target_team"]["team_id"] == "t_gal"
 
-    # 3. Hub shows the season opener as the next fixture.
+    # 3. Sit the skill exams — grades in, attribute points out (§2).
+    exams = api_client.post(
+        f"/careers/{career_id}/skill-exams",
+        json={"results": [
+            {"exam_id": "shooting", "level": 5},
+            {"exam_id": "passing", "level": 3},
+            {"exam_id": "tackling", "level": 1},
+        ]},
+    )
+    assert exams.status_code == 200
+    by_exam = {r["exam_id"]: r for r in exams.json()["results"]}
+    assert by_exam["shooting"]["applied"] == 5.0
+    assert by_exam["tackling"]["applied"] == 1.0
+
+    # An exam only pays out once.
+    again = api_client.post(
+        f"/careers/{career_id}/skill-exams",
+        json={"results": [{"exam_id": "shooting", "level": 5}]},
+    )
+    assert again.status_code == 409
+    assert again.json()["code"] == "skill_exam_already_taken"
+
+    # 4. Hub shows the season opener as the next fixture.
     hub = api_client.get(f"/careers/{career_id}").json()
     assert hub["next_fixture"] is not None
     assert hub["standing_summary"]["competition_id"] == "c_lig2"
 
-    # 4. Train — spends budget, raises an attribute.
+    # 5. Train — spends budget, raises an attribute.
     train = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "sut"})
     assert train.status_code == 200
     assert train.json()["attribute_changes"][0]["key"] == "shooting"
 
-    # 5. Buy something — money moves, budget doesn't.
+    # 6. Buy something — money moves, budget doesn't. A career starts at
+    #    STARTING_MONEY (§4), which is far below shop prices, so fund it first.
+    grant_money(career_id, 20000)
     buy = api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "personal-boots"})
     assert buy.status_code == 200
     money_after_purchase = buy.json()["career_state"]["money"]
-    assert money_after_purchase == config.STARTING_MONEY - 8900
+    assert money_after_purchase == config.STARTING_MONEY + 20000 - 8900
 
-    # 6. Chat with the coach.
+    # 7. Chat with the coach.
     interact = api_client.post(
         f"/careers/{career_id}/relationships/coach/interact",
         json={"dialogue_id": "coach_01", "choice_path": ["start", "r0"]},
     )
     assert interact.status_code == 200
-    assert interact.json()["relationship_changes"][0]["after"] == 53
+    assert interact.json()["relationship_changes"][0]["after"] == STARTING_SCORES["coach"] + 3
 
-    # 7. Walk the preparation week to the opening match (§6.1 — a match is
+    # 8. Walk the preparation week to the opening match (§6.1 — a match is
     #    only playable on its own day, so the day loop is what gets us there).
     blocked = api_client.get(f"/careers/{career_id}/matches/next")
     assert blocked.status_code == 409
@@ -108,19 +143,19 @@ def test_full_career_session(api_client, mock_engine):
     assert result.status_code == 200
     assert result.json()["player_stat_delta"]["goals"] == 1
 
-    # 8. Standings now reflect the played match — the user's and, from the
+    # 9. Standings now reflect the played match — the user's and, from the
     #    day loop's own background sim, every other team's round 1 too.
     standings = api_client.get(f"/careers/{career_id}/standings", params={"competition": "c_lig2"}).json()
     user_row = next(r for r in standings["rows"] if r["is_user_team"])
     assert user_row["played"] == 1
     assert all(r["played"] == 1 for r in standings["rows"])  # INV-12
 
-    # 9. Player stats picked it up too.
+    # 10. Player stats picked it up too.
     stats = api_client.get(f"/careers/{career_id}/player/stats").json()
     assert stats["rows"][0]["goals"] == 1
     assert stats["rows"][0]["competition_kind"] == "lig"
 
-    # 10. Advance the world again — the next match is a week out.
+    # 11. Advance the world again — the next match is a week out.
     advance = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_event"})
     assert advance.status_code == 200
     assert advance.json()["days_advanced"] >= 1
@@ -128,7 +163,7 @@ def test_full_career_session(api_client, mock_engine):
     news = api_client.get(f"/careers/{career_id}/news").json()
     assert len(news["items"]) >= 1  # at least the match report from step 7
 
-    # 11. Delete the career — verify INV-9 exhaustively, not just spot-checked.
+    # 12. Delete the career — verify INV-9 exhaustively, not just spot-checked.
     conn = sqlite3.connect(config.DB_PATH)
     conn.row_factory = sqlite3.Row
     tables = _all_career_scoped_tables(conn)

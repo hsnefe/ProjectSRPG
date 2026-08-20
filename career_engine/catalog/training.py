@@ -10,8 +10,8 @@ existing is the shape, not these specific numbers.
 
 Six saha items match training_screen.dart's six physical cards verbatim
 (same energy costs); five kişi items are new (D31) — one per kişi
-attribute, so every one of the 11 §5.2 attributes has exactly one training
-path.
+attribute. 'Müdahale' joined them when tackling became an attribute, so
+every one of the 12 §5.2 attributes still has exactly one training path.
 """
 
 TRAINING_ITEMS = [
@@ -58,6 +58,13 @@ TRAINING_ITEMS = [
         "costs": {"time": 60, "energy": 18},
         "effects": {"attribute:dribbling": 1.0},
     },
+    {
+        "catalog_id": "mudahale", "title": "Müdahale",
+        "description": "Top kapma ve ikili mücadele çalışması.",
+        "family": "saha", "drill": None,
+        "costs": {"time": 60, "energy": 20},
+        "effects": {"attribute:tackling": 1.0},
+    },
     # --- kişi: D31, her nitelik için bir yol ---
     {
         "catalog_id": "medya-egitimi", "title": "Medya Eğitimi",
@@ -96,7 +103,7 @@ TRAINING_ITEMS = [
     },
 ]
 
-assert len(TRAINING_ITEMS) == 11
+assert len(TRAINING_ITEMS) == 12
 assert len({i["catalog_id"] for i in TRAINING_ITEMS}) == len(TRAINING_ITEMS)
 
 from catalog import validate_catalog  # noqa: E402 (after data, INV-28)

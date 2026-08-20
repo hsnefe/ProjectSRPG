@@ -108,6 +108,54 @@ def api_client(tmp_path, monkeypatch):
         yield client
 
 
+# §5.1 C1's request body, in one place: create_career takes six required
+# fields now and the starting club is assigned rather than passed, so every
+# router test that wants a career goes through here instead of repeating the
+# payload — and reads the club it actually got out of the response.
+CAREER_PAYLOAD = {
+    "first_name": "Efe",
+    "last_name": "Kaan",
+    "nationality": "TR",
+    "position": "Orta saha",
+    "role": "merkez_orta_saha",
+    "target_team_id": "t_gal",
+    "seed": 42,
+}
+
+
+def create_career(api_client, **overrides) -> dict:
+    """POSTs /careers and returns the hub body. Overrides merge into
+    CAREER_PAYLOAD, so a test that cares about one field names only it."""
+    payload = {**CAREER_PAYLOAD, **overrides}
+    resp = api_client.post("/careers", json=payload)
+    assert resp.status_code == 201, resp.json()
+    return resp.json()
+
+
+def new_career(api_client, **overrides):
+    """(career_id, team_id) for the common case. team_id is whatever §3
+    assigned — no test may assume a particular club."""
+    body = create_career(api_client, **overrides)
+    return body["career_id"], body["player"]["team"]["team_id"]
+
+
+def grant_money(career_id, amount, reason="test:top-up") -> None:
+    """§4 starts a career at STARTING_MONEY (100), which is deliberate but
+    leaves it unable to afford anything in the shop. Tests that exercise
+    spending credit themselves first — through wallet.apply() rather than a
+    bare UPDATE, so INV-19 (ledger total == balance) still holds afterwards."""
+    from api import config
+    from db.connection import get_connection
+    from domain import wallet
+
+    conn = get_connection(config.DB_PATH)
+    try:
+        wallet.apply(conn, career_id, amount, "sale", reason, "2026-08-01")
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def advance_to_match_day(api_client, career_id, max_calls=10) -> dict:
     """Walks the day loop until the user's own fixture is today, the way a
     player does. A new career opens on a preparation week

@@ -72,6 +72,16 @@ def no_standings(competition_id: str) -> ApiError:
     return ApiError(409, "no_standings", f"{competition_id!r} is elimination-format, has no table")
 
 
+def skill_exam_already_taken(exam_ids) -> ApiError:
+    """§2 - an exam awards its points once. 409 rather than 422: the request
+    is well-formed, it's the career's state that rejects it (same reading as
+    already_owned)."""
+    return ApiError(
+        409, "skill_exam_already_taken",
+        f"exam(s) {', '.join(exam_ids)} were already taken by this career",
+    )
+
+
 def invalid_request(message: str) -> ApiError:
     return ApiError(422, "invalid_request", message)
 

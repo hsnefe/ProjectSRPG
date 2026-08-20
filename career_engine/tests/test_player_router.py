@@ -1,30 +1,32 @@
 import pytest
 
+from api import config
+from api.config import ATTRIBUTE_KEYS
+from tests.conftest import create_career
+
 
 @pytest.fixture
 def created_career(api_client):
-    return api_client.post(
-        "/careers",
-        json={"player_name": "Efe Kaan", "position": "Orta saha", "team_id": "t_ykz", "seed": 42},
-    ).json()
+    return create_career(api_client)
 
 
-def test_get_player_returns_all_eleven_attributes(api_client, created_career):
+def test_get_player_returns_every_attribute(api_client, created_career):
     resp = api_client.get(f"/careers/{created_career['career_id']}/player")
     assert resp.status_code == 200
     body = resp.json()
 
     assert body["player_id"] == "p_user"
     assert body["name"] == "Efe Kaan"
-    assert len(body["attributes"]) == 11
+    assert len(body["attributes"]) == len(ATTRIBUTE_KEYS)
     keys = {a["key"] for a in body["attributes"]}
-    assert keys == {
-        "condition", "strength", "flexibility", "shooting", "passing", "dribbling",
-        "charisma", "politeness", "confidence", "intelligence", "resourcefulness",
-    }
+    assert keys == set(ATTRIBUTE_KEYS)
+    assert "tackling" in keys
+
     condition_attr = next(a for a in body["attributes"] if a["key"] == "condition")
     assert condition_attr["family"] == "saha"
-    assert condition_attr["value"] == 64.0
+    # INV-10: the attribute is career_state.condition's ceiling, so the two
+    # start equal.
+    assert condition_attr["value"] == float(config.STARTING_CONDITION)
 
 
 def test_get_player_fame_defaults_to_zero(api_client, created_career):
@@ -57,7 +59,8 @@ def test_get_player_contract_matches_starting_values(api_client, created_career)
     assert resp.status_code == 200
     body = resp.json()
 
-    assert body["team"]["team_id"] == "t_ykz"
+    # §3 assigns the club, so the contract is with whatever it picked.
+    assert body["team"]["team_id"] == created_career["player"]["team"]["team_id"]
     assert body["weekly_wage"] == 3500
     assert body["appearance_bonus"] == 500
     assert body["goal_bonus"] == 1000

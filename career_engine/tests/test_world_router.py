@@ -1,12 +1,11 @@
 import pytest
 
+from tests.conftest import create_career
+
 
 @pytest.fixture
 def created_career(api_client):
-    return api_client.post(
-        "/careers",
-        json={"player_name": "Efe Kaan", "position": "Orta saha", "team_id": "t_ykz", "seed": 42},
-    ).json()
+    return create_career(api_client)
 
 
 def test_get_competitions_marks_user_participation(api_client, created_career):
@@ -35,7 +34,7 @@ def test_get_standings_lists_all_teams_at_zero_before_any_match(api_client, crea
     assert body["promotion_slots"] == 2
     assert body["relegation_slots"] == 0
     user_row = next(r for r in body["rows"] if r["is_user_team"])
-    assert user_row["team"]["team_id"] == "t_ykz"
+    assert user_row["team"]["team_id"] == created_career["player"]["team"]["team_id"]
 
 
 def test_get_standings_404s_for_cup(api_client, created_career):
@@ -70,18 +69,20 @@ def test_get_fixtures_cup_rounds_visible_before_drawn(api_client, created_career
 
 def test_get_fixtures_team_filter(api_client, created_career):
     career_id = created_career["career_id"]
-    resp = api_client.get(f"/careers/{career_id}/fixtures", params={"team_id": "t_ykz", "limit": 100})
+    user_team = created_career["player"]["team"]["team_id"]
+    resp = api_client.get(f"/careers/{career_id}/fixtures", params={"team_id": user_team, "limit": 100})
     body = resp.json()
     assert all(f["is_user_match"] for f in body["fixtures"])
 
 
 def test_get_team_returns_ratings_and_standing(api_client, created_career):
     career_id = created_career["career_id"]
-    resp = api_client.get(f"/careers/{career_id}/teams/t_ykz")
+    user_team = created_career["player"]["team"]["team_id"]
+    resp = api_client.get(f"/careers/{career_id}/teams/{user_team}")
     assert resp.status_code == 200
     body = resp.json()
 
-    assert body["team"]["team_id"] == "t_ykz"
+    assert body["team"]["team_id"] == user_team
     assert body["country"] == "TR"
     assert set(body["ratings"].keys()) == {"attack", "midfield", "defense", "goalkeeper"}
     assert body["competition"]["competition_id"] == "c_lig2"
