@@ -7,6 +7,7 @@ import 'package:project_srpg/net/match_models.dart';
 import 'package:project_srpg/screens/match_screen.dart';
 import 'package:project_srpg/state/match_controller.dart';
 import 'package:project_srpg/state/player_scope.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 
 const _weekdayLabels = [
   'Pazartesi',
@@ -42,15 +43,6 @@ class PreMatchScreen extends StatefulWidget {
   /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
   final CareerSession? session;
   final MatchApiClient _matchApiClient;
-
-  static const _surface1 = Color(0xFF1A1D24);
-  static const _surface2 = Color(0xFF22262F);
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textSecondary = Color(0xFFA0A6B0);
-  static const _textMuted = Color(0xFF6B7280);
-  static const _success = Color(0xFF3DDC97);
-  static const _danger = Color(0xFFE85D5D);
 
   @override
   State<PreMatchScreen> createState() => _PreMatchScreenState();
@@ -209,7 +201,7 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: PreMatchScreen._surface1,
+      backgroundColor: AppColors.surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -218,9 +210,9 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: PreMatchScreen._surface2,
+                  color: AppColors.surface2,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: PreMatchScreen._border, width: 0.5),
+                  border: Border.all(color: AppColors.border, width: 0.5),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -271,7 +263,7 @@ class _LoadingSection extends StatelessWidget {
     return const SizedBox(
       height: 320,
       child: Center(
-        child: CircularProgressIndicator(color: PreMatchScreen._success),
+        child: CircularProgressIndicator(color: AppColors.success),
       ),
     );
   }
@@ -297,7 +289,7 @@ class _NotMatchDaySection extends StatelessWidget {
               const Icon(
                 Icons.event_outlined,
                 size: 28,
-                color: PreMatchScreen._textSecondary,
+                color: AppColors.textSecondary,
               ),
               const SizedBox(height: 8),
               Text(
@@ -305,7 +297,7 @@ class _NotMatchDaySection extends StatelessWidget {
                     ? 'Bugün maçın yok.'
                     : 'Maça $daysUntil gün var.',
                 style: const TextStyle(
-                  color: PreMatchScreen._textPrimary,
+                  color: AppColors.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
@@ -315,7 +307,7 @@ class _NotMatchDaySection extends StatelessWidget {
                 'Kalan günleri kariyer merkezinden ilerlet.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: PreMatchScreen._textSecondary,
+                  color: AppColors.textSecondary,
                   fontSize: 12,
                 ),
               ),
@@ -323,8 +315,8 @@ class _NotMatchDaySection extends StatelessWidget {
               OutlinedButton(
                 onPressed: () => Navigator.of(context).maybePop(),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: PreMatchScreen._textPrimary,
-                  side: const BorderSide(color: PreMatchScreen._border),
+                  foregroundColor: AppColors.textPrimary,
+                  side: const BorderSide(color: AppColors.border),
                 ),
                 child: const Text('Kariyer merkezine dön'),
               ),
@@ -355,14 +347,14 @@ class _ErrorSection extends StatelessWidget {
               const Icon(
                 Icons.error_outline,
                 size: 28,
-                color: PreMatchScreen._danger,
+                color: AppColors.danger,
               ),
               const SizedBox(height: 8),
               Text(
                 message,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  color: PreMatchScreen._textSecondary,
+                  color: AppColors.textSecondary,
                   fontSize: 12,
                 ),
               ),
@@ -370,8 +362,8 @@ class _ErrorSection extends StatelessWidget {
               OutlinedButton(
                 onPressed: onRetry,
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: PreMatchScreen._textPrimary,
-                  side: const BorderSide(color: PreMatchScreen._border),
+                  foregroundColor: AppColors.textPrimary,
+                  side: const BorderSide(color: AppColors.border),
                 ),
                 child: const Text('Tekrar dene'),
               ),
@@ -400,7 +392,7 @@ class _HeaderSection extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: PreMatchScreen._border, width: 0.5),
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: Row(
@@ -412,7 +404,7 @@ class _HeaderSection extends StatelessWidget {
             icon: const Icon(
               Icons.chevron_left,
               size: 24,
-              color: PreMatchScreen._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
           const SizedBox(width: 10),
@@ -420,7 +412,7 @@ class _HeaderSection extends StatelessWidget {
             child: Text(
               'Maça Çıkış',
               style: TextStyle(
-                color: PreMatchScreen._textPrimary,
+                color: AppColors.textPrimary,
                 fontWeight: FontWeight.w500,
                 fontSize: 16,
               ),
@@ -432,7 +424,7 @@ class _HeaderSection extends StatelessWidget {
               Text(
                 '$home - $away',
                 style: const TextStyle(
-                  color: PreMatchScreen._textPrimary,
+                  color: AppColors.textPrimary,
                   fontWeight: FontWeight.w500,
                   fontSize: 13,
                 ),
@@ -441,7 +433,7 @@ class _HeaderSection extends StatelessWidget {
               Text(
                 kickoffLabel,
                 style: const TextStyle(
-                  color: PreMatchScreen._textMuted,
+                  color: AppColors.textMuted,
                   fontSize: 11,
                 ),
               ),
@@ -464,16 +456,16 @@ class _FieldPlaceholder extends StatelessWidget {
         constraints: const BoxConstraints(minHeight: 260),
         width: double.infinity,
         decoration: BoxDecoration(
-          color: PreMatchScreen._surface1,
+          color: AppColors.surface1,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: PreMatchScreen._border,
+            color: AppColors.border,
             width: 1,
             strokeAlign: BorderSide.strokeAlignInside,
           ),
         ),
         child: CustomPaint(
-          painter: _DashedBorderPainter(color: PreMatchScreen._border),
+          painter: _DashedBorderPainter(color: AppColors.border),
           child: const Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -481,13 +473,13 @@ class _FieldPlaceholder extends StatelessWidget {
                 Icon(
                   Icons.grid_view_outlined,
                   size: 28,
-                  color: PreMatchScreen._textMuted,
+                  color: AppColors.textMuted,
                 ),
                 SizedBox(height: 6),
                 Text(
                   'Saha dizilişi (yakında)',
                   style: TextStyle(
-                    color: PreMatchScreen._textMuted,
+                    color: AppColors.textMuted,
                     fontSize: 12,
                   ),
                 ),
@@ -577,7 +569,7 @@ class _InfoTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: PreMatchScreen._surface1,
+        color: AppColors.surface1,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -586,7 +578,7 @@ class _InfoTile extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(
-              color: PreMatchScreen._textMuted,
+              color: AppColors.textMuted,
               fontSize: 11,
             ),
           ),
@@ -594,7 +586,7 @@ class _InfoTile extends StatelessWidget {
           Text(
             value,
             style: const TextStyle(
-              color: PreMatchScreen._textPrimary,
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.w500,
               fontSize: 13,
             ),
@@ -622,14 +614,14 @@ class _ConditionBar extends StatelessWidget {
               const Text(
                 'Kondisyon',
                 style: TextStyle(
-                  color: PreMatchScreen._textMuted,
+                  color: AppColors.textMuted,
                   fontSize: 12,
                 ),
               ),
               Text(
                 '$condition/100',
                 style: const TextStyle(
-                  color: PreMatchScreen._textSecondary,
+                  color: AppColors.textSecondary,
                   fontSize: 12,
                 ),
               ),
@@ -641,8 +633,8 @@ class _ConditionBar extends StatelessWidget {
             child: LinearProgressIndicator(
               value: condition / 100,
               minHeight: 6,
-              backgroundColor: PreMatchScreen._surface1,
-              color: PreMatchScreen._success,
+              backgroundColor: AppColors.surface1,
+              color: AppColors.success,
             ),
           ),
         ],
@@ -678,8 +670,8 @@ class _ActionRow extends StatelessWidget {
               onPressed: () =>
                   _showStubMessage(context, 'Antrenörle konuşma yakında'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: PreMatchScreen._textPrimary,
-                side: const BorderSide(color: PreMatchScreen._border),
+                foregroundColor: AppColors.textPrimary,
+                side: const BorderSide(color: AppColors.border),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 textStyle: const TextStyle(fontSize: 13),
               ),
@@ -694,8 +686,8 @@ class _ActionRow extends StatelessWidget {
             child: OutlinedButton(
               onPressed: starting ? null : onPlay,
               style: OutlinedButton.styleFrom(
-                foregroundColor: PreMatchScreen._textPrimary,
-                side: const BorderSide(color: PreMatchScreen._border),
+                foregroundColor: AppColors.textPrimary,
+                side: const BorderSide(color: AppColors.border),
                 padding: EdgeInsets.zero,
               ),
               child: starting

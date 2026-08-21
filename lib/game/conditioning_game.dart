@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart' show ValueChanged, ValueNotifier;
 
 import 'package:project_srpg/game/game_banner.dart';
 import 'package:project_srpg/game/training_result.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 
 /// Which button was pressed. The whole drill is one alternating rhythm, so
 /// this is the entire input alphabet.
@@ -14,22 +15,15 @@ enum RunSide { left, right }
 
 enum ConditioningPhase { ready, running, done }
 
-const _surface1 = Color(0xFF1A1D24);
-const _surface2 = Color(0xFF22262F);
-const _border = Color(0xFF333845);
 const _skin = Color(0xFFC08A63);
-const _accent = Color(0xFF1E6FD9);
-const _success = Color(0xFF3DDC97);
-const _warning = Color(0xFFF5A623);
-const _danger = Color(0xFFE5484D);
-const _textSecondary = Color(0xFFA0A6B0);
+const _danger = AppColors.dangerBright;
 
 /// Green while there is room, amber past halfway, red inside the last
 /// [ConditioningGame.warnFraction]. The bar is the clock — a conditioning run
 /// never shows a number of seconds.
 Color conditioningBarColor(double left) => left <= ConditioningGame.warnFraction
     ? _danger
-    : (left <= 0.5 ? _warning : _success);
+    : (left <= 0.5 ? AppColors.warning : AppColors.success);
 
 /// The treadmill drill: alternate SOL and SAĞ to keep the runner going, and
 /// reach [targetSteps] before the clock runs out.
@@ -95,7 +89,7 @@ class ConditioningGame extends FlameGame {
       );
 
   @override
-  Color backgroundColor() => _surface1;
+  Color backgroundColor() => AppColors.surface1;
 
   @override
   Future<void> onLoad() async {
@@ -207,7 +201,7 @@ class TreadmillComponent extends Component
   void _paintBackdrop(Canvas canvas, double u, double v) {
     canvas.drawRect(
       Rect.fromLTWH(0, 0, u, v),
-      Paint()..color = _surface1,
+      Paint()..color = AppColors.surface1,
     );
 
     // A mirrored wall panel: three shapes are enough to say "gym".
@@ -217,7 +211,7 @@ class TreadmillComponent extends Component
     );
 
     final seam = Paint()
-      ..color = _border.withValues(alpha: 0.25)
+      ..color = AppColors.border.withValues(alpha: 0.25)
       ..strokeWidth = 1;
     canvas.drawLine(Offset(0, v * 0.30), Offset(u, v * 0.30), seam);
     canvas.drawLine(Offset(0, v * 0.66), Offset(u, v * 0.66), seam);
@@ -236,12 +230,12 @@ class TreadmillComponent extends Component
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(deck, const Radius.circular(4)),
-      Paint()..color = _surface2,
+      Paint()..color = AppColors.surface2,
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(deck, const Radius.circular(4)),
       Paint()
-        ..color = _border
+        ..color = AppColors.border
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1,
     );
@@ -269,7 +263,7 @@ class TreadmillComponent extends Component
     canvas.restore();
 
     // Side rails along the deck edges.
-    final rail = Paint()..color = _border;
+    final rail = Paint()..color = AppColors.border;
     canvas.drawRect(
       Rect.fromLTRB(u * 0.16, v * 0.732, u * 0.84, v * 0.737),
       rail,
@@ -286,12 +280,12 @@ class TreadmillComponent extends Component
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(console, const Radius.circular(5)),
-      Paint()..color = _surface2,
+      Paint()..color = AppColors.surface2,
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(console, const Radius.circular(5)),
       Paint()
-        ..color = _border
+        ..color = AppColors.border
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1,
     );
@@ -311,14 +305,14 @@ class TreadmillComponent extends Component
       );
       canvas.drawRRect(
         RRect.fromRectAndRadius(bar, const Radius.circular(2)),
-        Paint()..color = i < lit ? _accent : _border.withValues(alpha: 0.6),
+        Paint()..color = i < lit ? AppColors.accent : AppColors.border.withValues(alpha: 0.6),
       );
     }
     canvas.restore();
 
     // Uprights down to the deck.
     final post = Paint()
-      ..color = _surface2
+      ..color = AppColors.surface2
       ..strokeWidth = 3;
     canvas.drawLine(
       Offset(console.left + console.width * 0.3, console.bottom),
@@ -416,8 +410,8 @@ class RunnerComponent extends Component
 
     final paint = Paint()
       ..color = back
-          ? _textSecondary.withValues(alpha: 0.55)
-          : _textSecondary
+          ? AppColors.textSecondary.withValues(alpha: 0.55)
+          : AppColors.textSecondary
       ..strokeWidth = 6
       ..strokeCap = StrokeCap.round;
     canvas.drawLine(hip, knee, paint);
@@ -432,7 +426,7 @@ class RunnerComponent extends Component
         Rect.fromCenter(center: foot, width: u * 0.030, height: v * 0.012),
         const Radius.circular(3),
       ),
-      Paint()..color = flashing ? _success : const Color(0xFF11131A),
+      Paint()..color = flashing ? AppColors.success : const Color(0xFF11131A),
     );
   }
 
@@ -446,7 +440,7 @@ class RunnerComponent extends Component
         ),
         const Radius.circular(3),
       ),
-      Paint()..color = _accent.withValues(alpha: 0.85),
+      Paint()..color = AppColors.accent.withValues(alpha: 0.85),
     );
   }
 
@@ -468,8 +462,8 @@ class RunnerComponent extends Component
 
       final paint = Paint()
         ..color = side == 0
-            ? _textSecondary
-            : _textSecondary.withValues(alpha: 0.55)
+            ? AppColors.textSecondary
+            : AppColors.textSecondary.withValues(alpha: 0.55)
         ..strokeWidth = 5
         ..strokeCap = StrokeCap.round;
       canvas.drawLine(shoulder, elbow, paint);

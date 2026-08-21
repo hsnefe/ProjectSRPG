@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_models.dart';
 import 'package:project_srpg/net/career_session.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 
 /// Lig tablosu. Veri `career_engine`'den gelir: W1 hangi liglerin olduğunu,
 /// W2 seçili ligin puan durumunu verir (CONTRACT.md §5.3). Sıra, averaj ve
@@ -13,15 +14,7 @@ class LeagueTableScreen extends StatefulWidget {
   /// ve paylaşılan [CareerSession.instance] kullanılır.
   final CareerSession? session;
 
-  static const _surface1 = Color(0xFF1A1D24);
-  static const _surface2 = Color(0xFF22262F);
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textSecondary = Color(0xFFA0A6B0);
-  static const _textMuted = Color(0xFF6B7280);
-  static const _accent = Color(0xFF1E6FD9);
-  static const _accentBg = Color(0x33228BFF);
-  static const _promotion = Color(0xFF2E9E6B);
+  static const _promotion = AppColors.greenDeep;
   static const _relegation = Color(0xFFC2413B);
 
   @override
@@ -89,7 +82,7 @@ class _LeagueTableScreenState extends State<LeagueTableScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: LeagueTableScreen._surface1,
+      backgroundColor: AppColors.surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -98,10 +91,10 @@ class _LeagueTableScreenState extends State<LeagueTableScreen> {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: LeagueTableScreen._surface2,
+                  color: AppColors.surface2,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: LeagueTableScreen._border,
+                    color: AppColors.border,
                     width: 0.5,
                   ),
                 ),
@@ -211,7 +204,7 @@ class _HeaderSection extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: LeagueTableScreen._border, width: 0.5),
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: Row(
@@ -223,7 +216,7 @@ class _HeaderSection extends StatelessWidget {
             icon: const Icon(
               Icons.chevron_left,
               size: 24,
-              color: LeagueTableScreen._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
           const SizedBox(width: 10),
@@ -232,7 +225,7 @@ class _HeaderSection extends StatelessWidget {
               title,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                color: LeagueTableScreen._textPrimary,
+                color: AppColors.textPrimary,
                 fontWeight: FontWeight.w500,
                 fontSize: 16,
               ),
@@ -262,7 +255,7 @@ class _LeagueTabs extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: LeagueTableScreen._border, width: 0.5),
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: Row(
@@ -300,12 +293,12 @@ class _LeaguePill extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: selected ? LeagueTableScreen._accentBg : null,
+          color: selected ? AppColors.accentBg : null,
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
             color: selected
-                ? LeagueTableScreen._accent
-                : LeagueTableScreen._border,
+                ? AppColors.accent
+                : AppColors.border,
             width: 0.5,
           ),
         ),
@@ -313,8 +306,8 @@ class _LeaguePill extends StatelessWidget {
           league.name,
           style: TextStyle(
             color: selected
-                ? LeagueTableScreen._accent
-                : LeagueTableScreen._textSecondary,
+                ? AppColors.accent
+                : AppColors.textSecondary,
             fontSize: 12,
             fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
           ),
@@ -333,7 +326,7 @@ class _TableHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: LeagueTableScreen._border, width: 0.5),
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: const Row(
@@ -343,7 +336,7 @@ class _TableHeader extends StatelessWidget {
             child: Text(
               '#',
               style: TextStyle(
-                color: LeagueTableScreen._textMuted,
+                color: AppColors.textMuted,
                 fontSize: 12,
               ),
             ),
@@ -352,7 +345,7 @@ class _TableHeader extends StatelessWidget {
             child: Text(
               'Takım',
               style: TextStyle(
-                color: LeagueTableScreen._textMuted,
+                color: AppColors.textMuted,
                 fontSize: 12,
               ),
             ),
@@ -363,7 +356,7 @@ class _TableHeader extends StatelessWidget {
               'O',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: LeagueTableScreen._textMuted,
+                color: AppColors.textMuted,
                 fontSize: 12,
               ),
             ),
@@ -374,7 +367,7 @@ class _TableHeader extends StatelessWidget {
               'G',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: LeagueTableScreen._textMuted,
+                color: AppColors.textMuted,
                 fontSize: 12,
               ),
             ),
@@ -385,7 +378,7 @@ class _TableHeader extends StatelessWidget {
               'B',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: LeagueTableScreen._textMuted,
+                color: AppColors.textMuted,
                 fontSize: 12,
               ),
             ),
@@ -396,7 +389,7 @@ class _TableHeader extends StatelessWidget {
               'M',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: LeagueTableScreen._textMuted,
+                color: AppColors.textMuted,
                 fontSize: 12,
               ),
             ),
@@ -407,7 +400,7 @@ class _TableHeader extends StatelessWidget {
               'P',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: LeagueTableScreen._textMuted,
+                color: AppColors.textMuted,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
@@ -428,9 +421,9 @@ class _StandingTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textColor = row.isUserTeam
-        ? LeagueTableScreen._accent
-        : LeagueTableScreen._textPrimary;
-    final bg = row.isUserTeam ? LeagueTableScreen._accentBg : null;
+        ? AppColors.accent
+        : AppColors.textPrimary;
+    final bg = row.isUserTeam ? AppColors.accentBg : null;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -439,7 +432,7 @@ class _StandingTile extends StatelessWidget {
         border: Border(
           left: BorderSide(color: _zoneColor, width: 2),
           bottom: const BorderSide(
-            color: LeagueTableScreen._border,
+            color: AppColors.border,
             width: 0.5,
           ),
         ),
@@ -554,7 +547,7 @@ class _LoadingState extends StatelessWidget {
         height: 22,
         child: CircularProgressIndicator(
           strokeWidth: 2,
-          color: LeagueTableScreen._textMuted,
+          color: AppColors.textMuted,
         ),
       ),
     );
@@ -573,7 +566,7 @@ class _EmptyState extends StatelessWidget {
           'Bu ligde henüz oynanmış maç yok.',
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: LeagueTableScreen._textSecondary,
+            color: AppColors.textSecondary,
             fontSize: 13,
           ),
         ),
@@ -599,7 +592,7 @@ class _ErrorState extends StatelessWidget {
             const Text(
               'Lig verisi alınamadı.',
               style: TextStyle(
-                color: LeagueTableScreen._textPrimary,
+                color: AppColors.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -609,7 +602,7 @@ class _ErrorState extends StatelessWidget {
               _detail,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                color: LeagueTableScreen._textMuted,
+                color: AppColors.textMuted,
                 fontSize: 12,
               ),
             ),
@@ -617,7 +610,7 @@ class _ErrorState extends StatelessWidget {
             TextButton(
               onPressed: onRetry,
               style: TextButton.styleFrom(
-                foregroundColor: LeagueTableScreen._accent,
+                foregroundColor: AppColors.accent,
               ),
               child: const Text('Yeniden dene'),
             ),

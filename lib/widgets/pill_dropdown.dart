@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:project_srpg/theme/app_colors.dart';
+
 /// Karanlık tema için hap biçimli seçici — uygulamanın ilk form kontrolü.
 ///
 /// [DropdownButton] yerine [PopupMenuButton] üzerine kuruldu: hem kapalı hâl
@@ -14,12 +16,12 @@ class PillDropdown<T> extends StatelessWidget {
     required this.items,
     required this.labelOf,
     required this.onChanged,
-    this.accentColor = const Color(0xFF1E6FD9),
-    this.pillColor = const Color(0xFF1A1D24),
-    this.menuColor = const Color(0xFF22262F),
-    this.borderColor = const Color(0xFF333845),
-    this.textColor = const Color(0xFFE8EAED),
-    this.mutedColor = const Color(0xFF6B7280),
+    this.accentColor = AppColors.accent,
+    this.pillColor = AppColors.surface1,
+    this.menuColor = AppColors.surface2,
+    this.borderColor = AppColors.border,
+    this.textColor = AppColors.textPrimary,
+    this.mutedColor = AppColors.textMuted,
     this.height = 30,
   }) : assert(items.length > 0);
 

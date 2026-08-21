@@ -3,6 +3,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import 'package:project_srpg/theme/app_colors.dart';
+
 /// Karakter kartının arkasındaki kişi: modalda gösterilen künye.
 class CharacterProfile {
   const CharacterProfile({
@@ -146,9 +148,7 @@ class CharacterProfileModal extends StatelessWidget {
   const CharacterProfileModal({super.key, required this.profile});
 
   static const _base = Color(0xFF141821);
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textSecondary = Color(0xFF8A909B);
+  static const _textSecondary = AppColors.textSoft;
 
   final CharacterProfile profile;
 
@@ -233,8 +233,8 @@ class CharacterProfileModal extends StatelessWidget {
                     child: OutlinedButton(
                       onPressed: () => Navigator.of(context).pop(),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: _textPrimary,
-                        side: const BorderSide(color: _border),
+                        foregroundColor: AppColors.textPrimary,
+                        side: const BorderSide(color: AppColors.border),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         textStyle: const TextStyle(
                           fontSize: 13,
@@ -341,7 +341,7 @@ class _ProfileHeader extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: CharacterProfileModal._textPrimary,
+                          color: AppColors.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
                         ),
@@ -404,7 +404,7 @@ class _ScorePill extends StatelessWidget {
       child: Text(
         (score / 10).toStringAsFixed(1),
         style: const TextStyle(
-          color: Color(0xFF0E1116),
+          color: AppColors.surfaceDeep,
           fontSize: 14,
           fontWeight: FontWeight.w800,
         ),
@@ -461,7 +461,7 @@ class _InfoRow extends StatelessWidget {
             child: Text(
               value,
               style: const TextStyle(
-                color: CharacterProfileModal._textPrimary,
+                color: AppColors.textPrimary,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),

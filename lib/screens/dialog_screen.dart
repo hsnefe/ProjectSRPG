@@ -3,6 +3,7 @@ import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/state/player_scope.dart';
 
+import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/typewriter_text.dart';
 
 /// Diyalog ağacındaki tek bir seçenek: gösterilen metin ve gidilecek düğümün id'si.
@@ -69,11 +70,6 @@ class DialogScreen extends StatefulWidget {
 
   /// Görsel alanın karakter katmanı; null ise ikon placeholder kullanılır.
   final String? characterAsset;
-
-  static const _surface1 = Color(0xFF1A1D24);
-  static const _surface2 = Color(0xFF22262F);
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
 
   @override
   State<DialogScreen> createState() => _DialogScreenState();
@@ -184,7 +180,7 @@ class _DialogScreenState extends State<DialogScreen> {
         24;
 
     return Scaffold(
-      backgroundColor: DialogScreen._surface1,
+      backgroundColor: AppColors.surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -195,10 +191,10 @@ class _DialogScreenState extends State<DialogScreen> {
                 height: panelHeight,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: DialogScreen._surface2,
+                    color: AppColors.surface2,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: DialogScreen._border,
+                      color: AppColors.border,
                       width: 0.5,
                     ),
                   ),
@@ -276,13 +272,13 @@ class _PhotoSection extends StatelessWidget {
                 vertical: 4,
               ),
               decoration: BoxDecoration(
-                color: DialogScreen._surface2,
+                color: AppColors.surface2,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
                 contactName,
                 style: const TextStyle(
-                  color: DialogScreen._textPrimary,
+                  color: AppColors.textPrimary,
                   fontWeight: FontWeight.w500,
                   fontSize: 12,
                 ),
@@ -306,11 +302,11 @@ class _BackgroundLayer extends StatelessWidget {
   Widget build(BuildContext context) {
     final fallback = DecoratedBox(
       decoration: BoxDecoration(
-        color: DialogScreen._surface1,
+        color: AppColors.surface1,
         gradient: RadialGradient(
           center: const Alignment(0, -0.4),
           radius: 1.1,
-          colors: [tint.withValues(alpha: 0.22), DialogScreen._surface1],
+          colors: [tint.withValues(alpha: 0.22), AppColors.surface1],
         ),
       ),
     );
@@ -378,8 +374,8 @@ class _MessageSection extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         decoration: const BoxDecoration(
           border: Border(
-            top: BorderSide(color: DialogScreen._border, width: 0.5),
-            bottom: BorderSide(color: DialogScreen._border, width: 0.5),
+            top: BorderSide(color: AppColors.border, width: 0.5),
+            bottom: BorderSide(color: AppColors.border, width: 0.5),
           ),
         ),
         alignment: Alignment.centerLeft,
@@ -387,7 +383,7 @@ class _MessageSection extends StatelessWidget {
           key: typewriterKey,
           text: line,
           style: const TextStyle(
-            color: DialogScreen._textPrimary,
+            color: AppColors.textPrimary,
             fontSize: 14,
             height: 1.6,
           ),
@@ -454,8 +450,8 @@ class _ChoiceButton extends StatelessWidget {
           child: OutlinedButton(
             onPressed: visible ? onTap : null,
             style: OutlinedButton.styleFrom(
-              foregroundColor: DialogScreen._textPrimary,
-              side: const BorderSide(color: DialogScreen._border),
+              foregroundColor: AppColors.textPrimary,
+              side: const BorderSide(color: AppColors.border),
               padding: const EdgeInsets.symmetric(
                 horizontal: 14,
                 vertical: 12,
@@ -495,8 +491,8 @@ class _AdvanceSection extends StatelessWidget {
                 onPressed:
                     visible ? () => Navigator.of(context).pop(true) : null,
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: DialogScreen._textPrimary,
-                  side: const BorderSide(color: DialogScreen._border),
+                  foregroundColor: AppColors.textPrimary,
+                  side: const BorderSide(color: AppColors.border),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   textStyle: const TextStyle(
                     fontSize: 13,

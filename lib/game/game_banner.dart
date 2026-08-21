@@ -5,8 +5,7 @@ import 'package:flame/effects.dart';
 import 'package:flutter/material.dart'
     show Colors, Curves, TextStyle, FontWeight;
 
-const _success = Color(0xFF3DDC97);
-const _textPrimary = Color(0xFFE8EAED);
+import 'package:project_srpg/theme/app_colors.dart';
 
 /// The outcome card every mini-game pops up when a round ends.
 ///
@@ -26,7 +25,7 @@ class GameBanner extends PositionComponent {
 
   late final TextPaint _painter = TextPaint(
     style: TextStyle(
-      color: highlight ? _success : _textPrimary,
+      color: highlight ? AppColors.success : AppColors.textPrimary,
       fontSize: 30,
       fontWeight: FontWeight.w800,
       letterSpacing: 2,

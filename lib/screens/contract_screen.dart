@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 
 /// Sözleşmedeki tek bir kalem.
 class _ContractTerm {
@@ -18,14 +19,6 @@ class ContractScreen extends StatefulWidget {
 
   /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
   final CareerSession? session;
-
-  static const _surface1 = Color(0xFF1A1D24);
-  static const _surface2 = Color(0xFF22262F);
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textMuted = Color(0xFF6B7280);
-  static const _accent = Color(0xFF1E6FD9);
-  static const _warning = Color(0xFFF5A623);
 
   @override
   State<ContractScreen> createState() => _ContractScreenState();
@@ -60,7 +53,7 @@ class _ContractScreenState extends State<ContractScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ContractScreen._surface1,
+      backgroundColor: AppColors.surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -69,9 +62,9 @@ class _ContractScreenState extends State<ContractScreen> {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: ContractScreen._surface2,
+                  color: AppColors.surface2,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: ContractScreen._border, width: 0.5),
+                  border: Border.all(color: AppColors.border, width: 0.5),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -97,7 +90,7 @@ class _ContractScreenState extends State<ContractScreen> {
                                   height: 22,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: ContractScreen._textMuted,
+                                    color: AppColors.textMuted,
                                   ),
                                 ),
                               );
@@ -109,7 +102,7 @@ class _ContractScreenState extends State<ContractScreen> {
                                   child: Text(
                                     'Sözleşme bilgisi alınamadı.',
                                     style: TextStyle(
-                                      color: ContractScreen._textMuted,
+                                      color: AppColors.textMuted,
                                       fontSize: 12,
                                     ),
                                   ),
@@ -124,7 +117,7 @@ class _ContractScreenState extends State<ContractScreen> {
                                   child: Text(
                                     'Henüz bir sözleşmen yok.',
                                     style: TextStyle(
-                                      color: ContractScreen._textMuted,
+                                      color: AppColors.textMuted,
                                       fontSize: 12,
                                     ),
                                   ),
@@ -168,7 +161,7 @@ class _ContractScreenState extends State<ContractScreen> {
                               _ContractTerm(
                                 label: 'Serbest kalma bedeli',
                                 value: _money(contract.releaseClause),
-                                tint: ContractScreen._warning,
+                                tint: AppColors.warning,
                               ),
                             ];
 
@@ -195,8 +188,8 @@ class _ContractScreenState extends State<ContractScreen> {
                               'Sözleşme uzatma yakında',
                             ),
                             style: FilledButton.styleFrom(
-                              backgroundColor: ContractScreen._accent,
-                              foregroundColor: ContractScreen._textPrimary,
+                              backgroundColor: AppColors.accent,
+                              foregroundColor: AppColors.textPrimary,
                               padding: const EdgeInsets.symmetric(vertical: 13),
                               textStyle: const TextStyle(
                                 fontSize: 14,
@@ -251,7 +244,7 @@ class _HeaderSection extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: ContractScreen._border, width: 0.5),
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: Row(
@@ -263,14 +256,14 @@ class _HeaderSection extends StatelessWidget {
             icon: const Icon(
               Icons.chevron_left,
               size: 24,
-              color: ContractScreen._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
           const SizedBox(width: 10),
           const Text(
             'Sözleşme',
             style: TextStyle(
-              color: ContractScreen._textPrimary,
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.w500,
               fontSize: 16,
             ),
@@ -295,7 +288,7 @@ class _SectionTitle extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            color: ContractScreen._accent.withValues(alpha: 0.95),
+            color: AppColors.accent.withValues(alpha: 0.95),
             fontWeight: FontWeight.w600,
             fontSize: 11,
             letterSpacing: 1.2,
@@ -317,7 +310,7 @@ class _TermRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: ContractScreen._border, width: 0.5),
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: Row(
@@ -326,7 +319,7 @@ class _TermRow extends StatelessWidget {
             child: Text(
               term.label,
               style: const TextStyle(
-                color: ContractScreen._textMuted,
+                color: AppColors.textMuted,
                 fontSize: 13,
               ),
             ),
@@ -334,7 +327,7 @@ class _TermRow extends StatelessWidget {
           Text(
             term.value,
             style: TextStyle(
-              color: term.tint ?? ContractScreen._textPrimary,
+              color: term.tint ?? AppColors.textPrimary,
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),

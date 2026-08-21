@@ -2,6 +2,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import 'package:project_srpg/theme/app_colors.dart';
+
 /// Yaşam tarzı ekranındaki bir aktivite.
 class LifestyleActivity {
   const LifestyleActivity({
@@ -45,8 +47,6 @@ class ActivityCard extends StatelessWidget {
     this.borderRadius = 18,
     this.titleFontSize = 13,
   });
-
-  static const _textPrimary = Color(0xFFE8EAED);
 
   final LifestyleActivity activity;
   final VoidCallback? onTap;
@@ -96,7 +96,7 @@ class ActivityCard extends StatelessWidget {
                       colors: [
                         activity.tint.withValues(alpha: 0.55),
                         activity.tint.withValues(alpha: 0.22),
-                        const Color(0xFF12151B).withValues(alpha: 0.92),
+                        AppColors.surface0.withValues(alpha: 0.92),
                       ],
                       stops: const [0.0, 0.45, 1.0],
                     ),
@@ -161,7 +161,7 @@ class ActivityCard extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: _textPrimary,
+                            color: AppColors.textPrimary,
                             fontSize: titleFontSize,
                             fontWeight: FontWeight.w600,
                             height: 1.2,

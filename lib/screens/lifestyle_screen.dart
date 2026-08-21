@@ -4,6 +4,7 @@ import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/shop_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/activity_card.dart';
 
 enum _LifestyleTab { individual, group }
@@ -44,23 +45,23 @@ const _iconByCatalogId = {
 
 const _tintByCatalogId = {
   'ev-uyku': Color(0xFF4C5BD4),
-  'ev-yemek': Color(0xFF2E9E6B),
+  'ev-yemek': AppColors.greenDeep,
   'ev-meditasyon': Color(0xFF7C5CD6),
   'ev-oyun': Color(0xFFC2544D),
   'ev-film': Color(0xFF3F6BA8),
-  'fiz-kosu': Color(0xFF1E6FD9),
+  'fiz-kosu': AppColors.accent,
   'fiz-yuzme': Color(0xFF2AA6C4),
   'fiz-bisiklet': Color(0xFF3D9A57),
   'fiz-yoga': Color(0xFF8E5CC7),
   'fiz-sauna': Color(0xFFD4783C),
   'sos-arkadas': Color(0xFFD9694F),
   'sos-kafe': Color(0xFF9C7A4E),
-  'sos-aile': Color(0xFF2E9E6B),
+  'sos-aile': AppColors.greenDeep,
   'sos-konser': Color(0xFF8B4FCF),
-  'sos-taraftar': Color(0xFFF5A623),
+  'sos-taraftar': AppColors.warning,
 };
 
-const _defaultTint = Color(0xFF6B7280);
+const _defaultTint = AppColors.textMuted;
 
 LifestyleActivity _toActivity(api.CatalogItem item) {
   return LifestyleActivity(
@@ -97,17 +98,6 @@ class LifestyleScreen extends StatefulWidget {
   /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
   final CareerSession? session;
 
-  static const _surface1 = Color(0xFF1A1D24);
-  static const _surface2 = Color(0xFF22262F);
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textSecondary = Color(0xFFA0A6B0);
-  static const _textMuted = Color(0xFF6B7280);
-  static const _accent = Color(0xFF1E6FD9);
-  static const _success = Color(0xFF3DDC97);
-  static const _warning = Color(0xFFF5A623);
-  static const _danger = Color(0xFFE85D5D);
-
   @override
   State<LifestyleScreen> createState() => _LifestyleScreenState();
 }
@@ -135,7 +125,7 @@ class _LifestyleScreenState extends State<LifestyleScreen> {
     final player = PlayerScope.of(context);
 
     return Scaffold(
-      backgroundColor: LifestyleScreen._surface1,
+      backgroundColor: AppColors.surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -144,10 +134,10 @@ class _LifestyleScreenState extends State<LifestyleScreen> {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: LifestyleScreen._surface2,
+                  color: AppColors.surface2,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: LifestyleScreen._border,
+                    color: AppColors.border,
                     width: 0.5,
                   ),
                 ),
@@ -190,7 +180,7 @@ class _LifestyleScreenState extends State<LifestyleScreen> {
                                   child: Text(
                                     'Grup aktiviteleri yakında.',
                                     style: TextStyle(
-                                      color: LifestyleScreen._textMuted,
+                                      color: AppColors.textMuted,
                                       fontSize: 13,
                                     ),
                                   ),
@@ -207,7 +197,7 @@ class _LifestyleScreenState extends State<LifestyleScreen> {
                                           height: 22,
                                           child: CircularProgressIndicator(
                                             strokeWidth: 2,
-                                            color: LifestyleScreen._textMuted,
+                                            color: AppColors.textMuted,
                                           ),
                                         ),
                                       );
@@ -217,7 +207,7 @@ class _LifestyleScreenState extends State<LifestyleScreen> {
                                         child: Text(
                                           'Yaşam tarzı kataloğu alınamadı.',
                                           style: TextStyle(
-                                            color: LifestyleScreen._textMuted,
+                                            color: AppColors.textMuted,
                                             fontSize: 12,
                                           ),
                                         ),
@@ -266,7 +256,7 @@ class _HeaderSection extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: LifestyleScreen._border, width: 0.5),
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: Row(
@@ -278,7 +268,7 @@ class _HeaderSection extends StatelessWidget {
             icon: const Icon(
               Icons.chevron_left,
               size: 24,
-              color: LifestyleScreen._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
           const Spacer(),
@@ -295,7 +285,7 @@ class _HeaderSection extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: LifestyleScreen._textMuted,
+                          color: AppColors.textMuted,
                           fontSize: 11,
                         ),
                       ),
@@ -305,7 +295,7 @@ class _HeaderSection extends StatelessWidget {
                       '$condition/100',
                       maxLines: 1,
                       style: const TextStyle(
-                        color: LifestyleScreen._textSecondary,
+                        color: AppColors.textSecondary,
                         fontSize: 11,
                       ),
                     ),
@@ -322,8 +312,8 @@ class _HeaderSection extends StatelessWidget {
                       return LinearProgressIndicator(
                         value: value,
                         minHeight: 5,
-                        backgroundColor: LifestyleScreen._surface1,
-                        color: LifestyleScreen._success,
+                        backgroundColor: AppColors.surface1,
+                        color: AppColors.success,
                       );
                     },
                   ),
@@ -342,7 +332,7 @@ class _HeaderSection extends StatelessWidget {
             icon: const Icon(
               Icons.shopping_bag_outlined,
               size: 22,
-              color: LifestyleScreen._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
         ],
@@ -370,7 +360,7 @@ class _TabToggle extends StatelessWidget {
       height: height,
       padding: const EdgeInsets.all(padding),
       decoration: BoxDecoration(
-        color: LifestyleScreen._surface1,
+        color: AppColors.surface1,
         borderRadius: BorderRadius.circular(999),
       ),
       child: SizedBox(
@@ -387,7 +377,7 @@ class _TabToggle extends StatelessWidget {
                 width: segmentWidth,
                 height: height - padding * 2,
                 decoration: BoxDecoration(
-                  color: LifestyleScreen._accent,
+                  color: AppColors.accent,
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
@@ -442,8 +432,8 @@ class _ToggleLabel extends StatelessWidget {
               fontSize: 11,
               fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
               color: selected
-                  ? LifestyleScreen._textPrimary
-                  : LifestyleScreen._textMuted,
+                  ? AppColors.textPrimary
+                  : AppColors.textMuted,
             ),
             child: Text(label),
           ),
@@ -472,7 +462,7 @@ class _ActivitySection extends StatelessWidget {
           child: Text(
             section.title,
             style: const TextStyle(
-              color: LifestyleScreen._textMuted,
+              color: AppColors.textMuted,
               fontSize: 11,
               fontWeight: FontWeight.w500,
               letterSpacing: 0.8,
@@ -693,7 +683,7 @@ class _ActivityDetails extends StatelessWidget {
             activity.description,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: LifestyleScreen._textSecondary,
+              color: AppColors.textSecondary,
               fontSize: 13,
               height: 1.45,
             ),
@@ -707,21 +697,21 @@ class _ActivityDetails extends StatelessWidget {
               _Badge(
                 icon: Icons.schedule,
                 label: activity.duration,
-                color: LifestyleScreen._textSecondary,
+                color: AppColors.textSecondary,
               ),
               if (delta != 0)
                 _Badge(
                   icon: delta > 0 ? Icons.trending_up : Icons.trending_down,
                   label: '${delta > 0 ? '+' : ''}$delta kondisyon',
                   color: delta > 0
-                      ? LifestyleScreen._success
-                      : LifestyleScreen._danger,
+                      ? AppColors.success
+                      : AppColors.danger,
                 ),
               if (activity.cost > 0)
                 _Badge(
                   icon: Icons.payments_outlined,
                   label: '₺${activity.cost}',
-                  color: LifestyleScreen._warning,
+                  color: AppColors.warning,
                 ),
             ],
           ),
@@ -731,8 +721,8 @@ class _ActivityDetails extends StatelessWidget {
             child: FilledButton(
               onPressed: onPerform,
               style: FilledButton.styleFrom(
-                backgroundColor: LifestyleScreen._accent,
-                foregroundColor: LifestyleScreen._textPrimary,
+                backgroundColor: AppColors.accent,
+                foregroundColor: AppColors.textPrimary,
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 textStyle: const TextStyle(
                   fontSize: 14,
@@ -748,7 +738,7 @@ class _ActivityDetails extends StatelessWidget {
                       height: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: LifestyleScreen._textPrimary,
+                        color: AppColors.textPrimary,
                       ),
                     )
                   : const Text('Yap'),

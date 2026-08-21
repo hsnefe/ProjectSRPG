@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/news_style.dart';
 
 class NewsDetailScreen extends StatefulWidget {
@@ -25,13 +26,6 @@ class NewsDetailScreen extends StatefulWidget {
 }
 
 class _NewsDetailScreenState extends State<NewsDetailScreen> {
-  static const _surface1 = Color(0xFF1A1D24);
-  static const _surface2 = Color(0xFF22262F);
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textSecondary = Color(0xFFA0A6B0);
-  static const _textMuted = Color(0xFF6B7280);
-
   late final CareerSession _session = widget.session ?? CareerSession.instance;
   late int _index;
 
@@ -77,7 +71,7 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _surface1,
+      backgroundColor: AppColors.surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -86,9 +80,9 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: _surface2,
+                  color: AppColors.surface2,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _border, width: 0.5),
+                  border: Border.all(color: AppColors.border, width: 0.5),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -138,7 +132,7 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
                                       height: 22,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        color: _textMuted,
+                                        color: AppColors.textMuted,
                                       ),
                                     ),
                                   );
@@ -148,7 +142,7 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
                                     child: Text(
                                       'Haber alınamadı.',
                                       style: TextStyle(
-                                        color: _textMuted,
+                                        color: AppColors.textMuted,
                                         fontSize: 12,
                                       ),
                                     ),
@@ -168,7 +162,7 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
                                       Text(
                                         item.summary.title,
                                         style: const TextStyle(
-                                          color: _textPrimary,
+                                          color: AppColors.textPrimary,
                                           fontWeight: FontWeight.w500,
                                           fontSize: 18,
                                           height: 1.35,
@@ -178,7 +172,7 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
                                       Text(
                                         item.body,
                                         style: const TextStyle(
-                                          color: _textPrimary,
+                                          color: AppColors.textPrimary,
                                           fontSize: 14,
                                           height: 1.55,
                                         ),
@@ -290,7 +284,7 @@ class _NewsHero extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               textAlign: TextAlign.right,
                               style: const TextStyle(
-                                color: _NewsDetailScreenState._textSecondary,
+                                color: AppColors.textSecondary,
                                 fontSize: 11,
                               ),
                             ),
@@ -339,7 +333,7 @@ class _ProceduralArt extends StatelessWidget {
               colors: [
                 tint.withValues(alpha: 0.55),
                 tint.withValues(alpha: 0.22),
-                const Color(0xFF12151B).withValues(alpha: 0.92),
+                AppColors.surface0.withValues(alpha: 0.92),
               ],
               stops: const [0.0, 0.45, 1.0],
             ),
@@ -411,7 +405,7 @@ class _HeaderSection extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: _NewsDetailScreenState._border, width: 0.5),
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: Row(
@@ -423,14 +417,14 @@ class _HeaderSection extends StatelessWidget {
             icon: const Icon(
               Icons.chevron_left,
               size: 24,
-              color: _NewsDetailScreenState._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
           const SizedBox(width: 10),
           const Text(
             'Haber',
             style: TextStyle(
-              color: _NewsDetailScreenState._textPrimary,
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.w500,
               fontSize: 16,
             ),
@@ -476,7 +470,7 @@ class _Pager extends StatelessWidget {
       height: 28,
       padding: const EdgeInsets.symmetric(horizontal: 2),
       decoration: BoxDecoration(
-        color: _NewsDetailScreenState._surface1,
+        color: AppColors.surface1,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
@@ -490,7 +484,7 @@ class _Pager extends StatelessWidget {
           Text(
             '${index + 1}/$total',
             style: const TextStyle(
-              color: _NewsDetailScreenState._textSecondary,
+              color: AppColors.textSecondary,
               fontSize: 11,
               fontWeight: FontWeight.w500,
             ),
@@ -533,8 +527,8 @@ class _PagerButton extends StatelessWidget {
             icon,
             size: 20,
             color: enabled
-                ? _NewsDetailScreenState._textPrimary
-                : _NewsDetailScreenState._textMuted.withValues(alpha: 0.4),
+                ? AppColors.textPrimary
+                : AppColors.textMuted.withValues(alpha: 0.4),
           ),
         ),
       ),

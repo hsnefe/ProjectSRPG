@@ -11,6 +11,7 @@ import 'package:project_srpg/screens/relationships_screen.dart';
 import 'package:project_srpg/screens/settings_screen.dart';
 import 'package:project_srpg/screens/training_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/expand_page_route.dart';
 import 'package:project_srpg/widgets/news_style.dart';
 
@@ -23,17 +24,6 @@ class CareerCenterScreen extends StatefulWidget {
 
   /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
   final CareerSession? session;
-
-  static const _surface1 = Color(0xFF1A1D24);
-  static const _surface2 = Color(0xFF22262F);
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textSecondary = Color(0xFFA0A6B0);
-  static const _textMuted = Color(0xFF6B7280);
-  static const _accent = Color(0xFF1E6FD9);
-  static const _accentBg = Color(0x33228BFF);
-  static const _success = Color(0xFF3DDC97);
-  static const _successBg = Color(0x333DDC97);
 
   @override
   State<CareerCenterScreen> createState() => _CareerCenterScreenState();
@@ -104,7 +94,7 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: CareerCenterScreen._surface1,
+      backgroundColor: AppColors.surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -113,10 +103,10 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: CareerCenterScreen._surface2,
+                  color: AppColors.surface2,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: CareerCenterScreen._border,
+                    color: AppColors.border,
                     width: 0.5,
                   ),
                 ),
@@ -163,7 +153,7 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
               height: 22,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: CareerCenterScreen._textMuted,
+                color: AppColors.textMuted,
               ),
             ),
           ),
@@ -178,7 +168,7 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
             child: Text(
               'Kariyer verisi alınamadı.',
               style: TextStyle(
-                color: CareerCenterScreen._textMuted,
+                color: AppColors.textMuted,
                 fontSize: 12,
               ),
             ),
@@ -206,7 +196,7 @@ class _HeaderSection extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: CareerCenterScreen._border,
+            color: AppColors.border,
             width: 0.5,
           ),
         ),
@@ -233,13 +223,13 @@ class _HeaderSection extends StatelessWidget {
                     height: 44,
                     alignment: Alignment.center,
                     decoration: const BoxDecoration(
-                      color: CareerCenterScreen._accentBg,
+                      color: AppColors.accentBg,
                       shape: BoxShape.circle,
                     ),
                     child: Text(
                       player.initials,
                       style: const TextStyle(
-                        color: CareerCenterScreen._accent,
+                        color: AppColors.accent,
                         fontWeight: FontWeight.w500,
                         fontSize: 14,
                       ),
@@ -256,7 +246,7 @@ class _HeaderSection extends StatelessWidget {
                               child: Text(
                                 player.name,
                                 style: const TextStyle(
-                                  color: CareerCenterScreen._textPrimary,
+                                  color: AppColors.textPrimary,
                                   fontWeight: FontWeight.w500,
                                   fontSize: 15,
                                 ),
@@ -267,7 +257,7 @@ class _HeaderSection extends StatelessWidget {
                             Text(
                               player.moneyLabel,
                               style: const TextStyle(
-                                color: CareerCenterScreen._success,
+                                color: AppColors.success,
                                 fontWeight: FontWeight.w500,
                                 fontSize: 13,
                               ),
@@ -277,7 +267,7 @@ class _HeaderSection extends StatelessWidget {
                         Text(
                           '${player.position} · ${player.teamName}',
                           style: const TextStyle(
-                            color: CareerCenterScreen._textSecondary,
+                            color: AppColors.textSecondary,
                             fontSize: 13,
                           ),
                         ),
@@ -299,13 +289,13 @@ class _HeaderSection extends StatelessWidget {
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
             style: IconButton.styleFrom(
-              side: const BorderSide(color: CareerCenterScreen._border),
+              side: const BorderSide(color: AppColors.border),
               shape: const CircleBorder(),
             ),
             icon: const Icon(
               Icons.emoji_events_outlined,
               size: 18,
-              color: CareerCenterScreen._textPrimary,
+              color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(width: 4),
@@ -322,7 +312,7 @@ class _HeaderSection extends StatelessWidget {
             icon: const Icon(
               Icons.settings_outlined,
               size: 20,
-              color: CareerCenterScreen._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
         ],
@@ -352,7 +342,7 @@ class _ProgressSection extends StatelessWidget {
                   const Text(
                     'Kondisyon',
                     style: TextStyle(
-                      color: CareerCenterScreen._textMuted,
+                      color: AppColors.textMuted,
                       fontSize: 12,
                     ),
                   ),
@@ -360,7 +350,7 @@ class _ProgressSection extends StatelessWidget {
                   Text(
                     '%$condition',
                     style: const TextStyle(
-                      color: CareerCenterScreen._textPrimary,
+                      color: AppColors.textPrimary,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
@@ -373,8 +363,8 @@ class _ProgressSection extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: condition / 100,
                   minHeight: 8,
-                  backgroundColor: CareerCenterScreen._surface1,
-                  color: CareerCenterScreen._success,
+                  backgroundColor: AppColors.surface1,
+                  color: AppColors.success,
                 ),
               ),
             ],
@@ -458,7 +448,7 @@ class _DaySection extends StatelessWidget {
                           ? 'Bugün'
                           : _fullDateLabel(day.careerState.currentDate),
                       style: const TextStyle(
-                        color: CareerCenterScreen._textPrimary,
+                        color: AppColors.textPrimary,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
@@ -468,7 +458,7 @@ class _DaySection extends StatelessWidget {
                       const Text(
                         'Maç günü',
                         style: TextStyle(
-                          color: CareerCenterScreen._success,
+                          color: AppColors.success,
                           fontSize: 11,
                         ),
                       ),
@@ -480,7 +470,7 @@ class _DaySection extends StatelessWidget {
                       Text(
                         label,
                         style: const TextStyle(
-                          color: CareerCenterScreen._textMuted,
+                          color: AppColors.textMuted,
                           fontSize: 11,
                         ),
                       ),
@@ -491,9 +481,9 @@ class _DaySection extends StatelessWidget {
               OutlinedButton(
                 onPressed: busy ? null : onAdvance,
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: CareerCenterScreen._textPrimary,
-                  disabledForegroundColor: CareerCenterScreen._textMuted,
-                  side: const BorderSide(color: CareerCenterScreen._border),
+                  foregroundColor: AppColors.textPrimary,
+                  disabledForegroundColor: AppColors.textMuted,
+                  side: const BorderSide(color: AppColors.border),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   minimumSize: Size.zero,
@@ -511,7 +501,7 @@ class _DaySection extends StatelessWidget {
                         height: 14,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: CareerCenterScreen._textMuted,
+                          color: AppColors.textMuted,
                         ),
                       )
                     : const Text('İlerle'),
@@ -533,10 +523,6 @@ class _LitCard extends StatelessWidget {
     this.borderRadius = 16,
   });
 
-  static const _cardTop = Color(0xFF2E3440);
-  static const _cardMid = Color(0xFF252932);
-  static const _cardBottom = Color(0xFF181C23);
-
   final Widget child;
   final VoidCallback? onTap;
   final double? minHeight;
@@ -557,7 +543,7 @@ class _LitCard extends StatelessWidget {
             spreadRadius: -8,
           ),
           BoxShadow(
-            color: CareerCenterScreen._accent.withValues(alpha: 0.22),
+            color: AppColors.accent.withValues(alpha: 0.22),
             blurRadius: 48,
             spreadRadius: -10,
           ),
@@ -590,7 +576,7 @@ class _LitCard extends StatelessWidget {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [_cardTop, _cardMid, _cardBottom],
+              colors: [AppColors.cardTop, AppColors.cardMid, AppColors.cardBottom],
               stops: [0.0, 0.42, 1.0],
             ),
           ),
@@ -752,7 +738,7 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
             child: Text(
               'Sıradaki maç bilgisi yok.',
               style: TextStyle(
-                color: CareerCenterScreen._textMuted,
+                color: AppColors.textMuted,
                 fontSize: 13,
               ),
             ),
@@ -778,7 +764,7 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
                     'SONRAKİ MAÇ',
                     style: TextStyle(
                       color:
-                          CareerCenterScreen._accent.withValues(alpha: 0.95),
+                          AppColors.accent.withValues(alpha: 0.95),
                       fontWeight: FontWeight.w600,
                       fontSize: 11,
                       letterSpacing: 1.2,
@@ -788,7 +774,7 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
                   Text(
                     _matchDayLabel(fixture.kickoffAt),
                     style: const TextStyle(
-                      color: CareerCenterScreen._textPrimary,
+                      color: AppColors.textPrimary,
                       fontWeight: FontWeight.w600,
                       fontSize: 15,
                     ),
@@ -797,7 +783,7 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
                   Text(
                     '${fixture.competition.name} · ${_countdownLabel(fixture.daysUntil)}',
                     style: const TextStyle(
-                      color: CareerCenterScreen._textSecondary,
+                      color: AppColors.textSecondary,
                       fontSize: 12,
                     ),
                   ),
@@ -813,7 +799,7 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
                     child: Text(
                       'vs',
                       style: TextStyle(
-                        color: CareerCenterScreen._textMuted,
+                        color: AppColors.textMuted,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
@@ -829,16 +815,16 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: CareerCenterScreen._successBg,
+                  color: AppColors.successBg,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color:
-                        CareerCenterScreen._success.withValues(alpha: 0.35),
+                        AppColors.success.withValues(alpha: 0.35),
                   ),
                   boxShadow: [
                     BoxShadow(
                       color:
-                          CareerCenterScreen._success.withValues(alpha: 0.18),
+                          AppColors.success.withValues(alpha: 0.18),
                       blurRadius: 12,
                     ),
                   ],
@@ -846,7 +832,7 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
                 child: const Text(
                   'İlk 11',
                   style: TextStyle(
-                    color: CareerCenterScreen._success,
+                    color: AppColors.success,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -891,7 +877,7 @@ class _TeamBadge extends StatelessWidget {
         Text(
           team.name,
           style: const TextStyle(
-            color: CareerCenterScreen._textPrimary,
+            color: AppColors.textPrimary,
             fontSize: 13,
           ),
         ),
@@ -951,7 +937,7 @@ class _NewsSection extends StatelessWidget {
                               colors: [
                                 tint.withValues(alpha: 0.55),
                                 tint.withValues(alpha: 0.22),
-                                const Color(0xFF12151B).withValues(alpha: 0.92),
+                                AppColors.surface0.withValues(alpha: 0.92),
                               ],
                               stops: const [0.0, 0.45, 1.0],
                             ),
@@ -1006,7 +992,7 @@ class _NewsSection extends StatelessWidget {
                   Text(
                     item.title,
                     style: const TextStyle(
-                      color: CareerCenterScreen._textPrimary,
+                      color: AppColors.textPrimary,
                       fontWeight: FontWeight.w500,
                       fontSize: 14,
                       height: 1.4,
@@ -1016,7 +1002,7 @@ class _NewsSection extends StatelessWidget {
                   Text(
                     '${item.source} · ${newsTimeAgo(item.publishedAt)}',
                     style: const TextStyle(
-                      color: CareerCenterScreen._textMuted,
+                      color: AppColors.textMuted,
                       fontSize: 12,
                     ),
                   ),
@@ -1115,13 +1101,13 @@ class _ActionButton extends StatelessWidget {
             Icon(
               icon,
               size: 16,
-              color: CareerCenterScreen._textPrimary,
+              color: AppColors.textPrimary,
             ),
             const SizedBox(width: 8),
             Text(
               label,
               style: const TextStyle(
-                color: CareerCenterScreen._textPrimary,
+                color: AppColors.textPrimary,
                 fontSize: 13,
               ),
             ),

@@ -3,6 +3,7 @@ import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/contract_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/pill_dropdown.dart';
 import 'package:project_srpg/widgets/value_scatter_chart.dart';
 
@@ -161,14 +162,6 @@ class PlayerProfileScreen extends StatefulWidget {
   /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
   final CareerSession? session;
 
-  static const _surface1 = Color(0xFF1A1D24);
-  static const _surface2 = Color(0xFF22262F);
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textSecondary = Color(0xFFA0A6B0);
-  static const _textMuted = Color(0xFF6B7280);
-  static const _accent = Color(0xFF1E6FD9);
-
   @override
   State<PlayerProfileScreen> createState() => _PlayerProfileScreenState();
 }
@@ -197,7 +190,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     final player = PlayerScope.of(context);
 
     return Scaffold(
-      backgroundColor: PlayerProfileScreen._surface1,
+      backgroundColor: AppColors.surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -206,10 +199,10 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: PlayerProfileScreen._surface2,
+                  color: AppColors.surface2,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: PlayerProfileScreen._border,
+                    color: AppColors.border,
                     width: 0.5,
                   ),
                 ),
@@ -234,7 +227,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                                   height: 22,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: PlayerProfileScreen._textMuted,
+                                    color: AppColors.textMuted,
                                   ),
                                 ),
                               );
@@ -246,7 +239,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                                   child: Text(
                                     'İstatistikler alınamadı.',
                                     style: const TextStyle(
-                                      color: PlayerProfileScreen._textMuted,
+                                      color: AppColors.textMuted,
                                       fontSize: 12,
                                     ),
                                   ),
@@ -340,7 +333,7 @@ class _HeaderSection extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: PlayerProfileScreen._border, width: 0.5),
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: Row(
@@ -352,7 +345,7 @@ class _HeaderSection extends StatelessWidget {
             icon: const Icon(
               Icons.chevron_left,
               size: 24,
-              color: PlayerProfileScreen._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
           const Spacer(),
@@ -363,8 +356,8 @@ class _HeaderSection extends StatelessWidget {
               );
             },
             style: OutlinedButton.styleFrom(
-              foregroundColor: PlayerProfileScreen._textPrimary,
-              side: const BorderSide(color: PlayerProfileScreen._border),
+              foregroundColor: AppColors.textPrimary,
+              side: const BorderSide(color: AppColors.border),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -401,7 +394,7 @@ class _IdentityRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: PlayerProfileScreen._border, width: 0.5),
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       // Üç eşit Expanded, ismi gerçekten ortalayan şey bu; Spacer tabanlı
@@ -412,7 +405,7 @@ class _IdentityRow extends StatelessWidget {
             child: Text(
               'Yaş: $age',
               style: const TextStyle(
-                color: PlayerProfileScreen._textSecondary,
+                color: AppColors.textSecondary,
                 fontSize: 12,
               ),
             ),
@@ -424,7 +417,7 @@ class _IdentityRow extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                color: PlayerProfileScreen._textPrimary,
+                color: AppColors.textPrimary,
                 fontWeight: FontWeight.w600,
                 fontSize: 15,
               ),
@@ -437,7 +430,7 @@ class _IdentityRow extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                color: PlayerProfileScreen._textSecondary,
+                color: AppColors.textSecondary,
                 fontSize: 12,
               ),
             ),
@@ -496,7 +489,7 @@ class _StatsPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: PlayerProfileScreen._surface1,
+        color: AppColors.surface1,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -543,7 +536,7 @@ class _StatRow extends StatelessWidget {
             ? null
             : const Border(
                 bottom: BorderSide(
-                  color: PlayerProfileScreen._border,
+                  color: AppColors.border,
                   width: 0.5,
                 ),
               ),
@@ -556,7 +549,7 @@ class _StatRow extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(
-              color: PlayerProfileScreen._textMuted,
+              color: AppColors.textMuted,
               fontSize: 12,
             ),
           ),
@@ -569,7 +562,7 @@ class _StatRow extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  color: PlayerProfileScreen._textSecondary,
+                  color: AppColors.textSecondary,
                   fontSize: 11,
                 ),
               ),
@@ -580,7 +573,7 @@ class _StatRow extends StatelessWidget {
           Text(
             value,
             style: const TextStyle(
-              color: PlayerProfileScreen._textPrimary,
+              color: AppColors.textPrimary,
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
@@ -600,7 +593,7 @@ class _ValuePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: PlayerProfileScreen._surface1,
+        color: AppColors.surface1,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Padding(
@@ -611,7 +604,7 @@ class _ValuePanel extends StatelessWidget {
             Text(
               'DEĞER TABLOSU',
               style: TextStyle(
-                color: PlayerProfileScreen._accent.withValues(alpha: 0.95),
+                color: AppColors.accent.withValues(alpha: 0.95),
                 fontWeight: FontWeight.w600,
                 fontSize: 11,
                 letterSpacing: 1.2,
@@ -620,13 +613,13 @@ class _ValuePanel extends StatelessWidget {
             const SizedBox(height: 12),
             ValueScatterChart(
               points: points,
-              accentColor: PlayerProfileScreen._accent,
+              accentColor: AppColors.accent,
             ),
             const SizedBox(height: 10),
             const Text(
               'Kariyer boyunca piyasa değeri',
               style: TextStyle(
-                color: PlayerProfileScreen._textMuted,
+                color: AppColors.textMuted,
                 fontSize: 11,
               ),
             ),

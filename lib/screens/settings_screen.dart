@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:project_srpg/theme/app_colors.dart';
+
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -8,20 +10,13 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  static const _surface1 = Color(0xFF1A1D24);
-  static const _surface2 = Color(0xFF22262F);
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textMuted = Color(0xFF6B7280);
-  static const _accent = Color(0xFF1E6FD9);
-
   bool _sound = true;
   bool _notifications = true;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _surface1,
+      backgroundColor: AppColors.surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -30,9 +25,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: _surface2,
+                  color: AppColors.surface2,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _border, width: 0.5),
+                  border: Border.all(color: AppColors.border, width: 0.5),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -75,7 +70,7 @@ class _HeaderSection extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: _SettingsScreenState._border,
+            color: AppColors.border,
             width: 0.5,
           ),
         ),
@@ -89,14 +84,14 @@ class _HeaderSection extends StatelessWidget {
             icon: const Icon(
               Icons.chevron_left,
               size: 24,
-              color: _SettingsScreenState._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
           const SizedBox(width: 10),
           const Text(
             'Ayarlar',
             style: TextStyle(
-              color: _SettingsScreenState._textPrimary,
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.w500,
               fontSize: 16,
             ),
@@ -125,7 +120,7 @@ class _SwitchRow extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: _SettingsScreenState._border,
+            color: AppColors.border,
             width: 0.5,
           ),
         ),
@@ -136,7 +131,7 @@ class _SwitchRow extends StatelessWidget {
             child: Text(
               label,
               style: const TextStyle(
-                color: _SettingsScreenState._textPrimary,
+                color: AppColors.textPrimary,
                 fontSize: 14,
               ),
             ),
@@ -144,7 +139,7 @@ class _SwitchRow extends StatelessWidget {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeThumbColor: _SettingsScreenState._accent,
+            activeThumbColor: AppColors.accent,
           ),
         ],
       ),
@@ -165,7 +160,7 @@ class _NavRow extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: _SettingsScreenState._border,
+            color: AppColors.border,
             width: 0.5,
           ),
         ),
@@ -176,7 +171,7 @@ class _NavRow extends StatelessWidget {
             child: Text(
               label,
               style: const TextStyle(
-                color: _SettingsScreenState._textPrimary,
+                color: AppColors.textPrimary,
                 fontSize: 14,
               ),
             ),
@@ -185,7 +180,7 @@ class _NavRow extends StatelessWidget {
             Text(
               value,
               style: const TextStyle(
-                color: _SettingsScreenState._textMuted,
+                color: AppColors.textMuted,
                 fontSize: 13,
               ),
             ),
@@ -194,7 +189,7 @@ class _NavRow extends StatelessWidget {
           const Icon(
             Icons.chevron_right,
             size: 20,
-            color: _SettingsScreenState._textMuted,
+            color: AppColors.textMuted,
           ),
         ],
       ),

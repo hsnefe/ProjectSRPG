@@ -4,6 +4,7 @@ import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/state/player_scope.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/shop_item_card.dart';
 
 enum ShopCategory {
@@ -44,23 +45,23 @@ const _iconByCatalogId = {
 };
 
 const _tintByCatalogId = {
-  'home-tv': Color(0xFF1E6FD9),
+  'home-tv': AppColors.accent,
   'home-espresso': Color(0xFFB07A4B),
   'home-console': Color(0xFF7A5CD0),
-  'home-treadmill': Color(0xFF3DDC97),
-  'personal-watch': Color(0xFFF5A623),
-  'personal-boots': Color(0xFF3DDC97),
+  'home-treadmill': AppColors.success,
+  'personal-watch': AppColors.warning,
+  'personal-boots': AppColors.success,
   'personal-suit': Color(0xFF4A5568),
-  'personal-headphones': Color(0xFF1E6FD9),
+  'personal-headphones': AppColors.accent,
   'estate-studio': Color(0xFF5A7D9A),
-  'estate-flat': Color(0xFF1E6FD9),
-  'estate-villa': Color(0xFF3DDC97),
+  'estate-flat': AppColors.accent,
+  'estate-villa': AppColors.success,
   'invest-bond': Color(0xFF4A5568),
-  'invest-gold': Color(0xFFF5A623),
-  'invest-fund': Color(0xFF3DDC97),
+  'invest-gold': AppColors.warning,
+  'invest-fund': AppColors.success,
 };
 
-const _defaultTint = Color(0xFF6B7280);
+const _defaultTint = AppColors.textMuted;
 
 ShopItem _toShopItem(api.CatalogItem item) {
   return ShopItem(
@@ -96,17 +97,6 @@ class ShopScreen extends StatefulWidget {
   /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
   final CareerSession? session;
 
-  static const _surface1 = Color(0xFF1A1D24);
-  static const _surface2 = Color(0xFF22262F);
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textSecondary = Color(0xFFA0A6B0);
-  static const _textMuted = Color(0xFF6B7280);
-  static const _accent = Color(0xFF1E6FD9);
-  static const _success = Color(0xFF3DDC97);
-  static const _warning = Color(0xFFF5A623);
-  static const _danger = Color(0xFFE85D5D);
-
   @override
   State<ShopScreen> createState() => _ShopScreenState();
 }
@@ -139,7 +129,7 @@ class _ShopScreenState extends State<ShopScreen> {
     final player = PlayerScope.of(context);
 
     return Scaffold(
-      backgroundColor: ShopScreen._surface1,
+      backgroundColor: AppColors.surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -148,9 +138,9 @@ class _ShopScreenState extends State<ShopScreen> {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: ShopScreen._surface2,
+                  color: AppColors.surface2,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: ShopScreen._border, width: 0.5),
+                  border: Border.all(color: AppColors.border, width: 0.5),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -178,7 +168,7 @@ class _ShopScreenState extends State<ShopScreen> {
                                   height: 22,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: ShopScreen._textMuted,
+                                    color: AppColors.textMuted,
                                   ),
                                 ),
                               );
@@ -188,7 +178,7 @@ class _ShopScreenState extends State<ShopScreen> {
                                 child: Text(
                                   'Dükkân kataloğu alınamadı.',
                                   style: TextStyle(
-                                    color: ShopScreen._textMuted,
+                                    color: AppColors.textMuted,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -271,7 +261,7 @@ class _HeaderSection extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: ShopScreen._border, width: 0.5),
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: Row(
@@ -283,14 +273,14 @@ class _HeaderSection extends StatelessWidget {
             icon: const Icon(
               Icons.chevron_left,
               size: 24,
-              color: ShopScreen._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
           const SizedBox(width: 10),
           const Text(
             'Alışveriş',
             style: TextStyle(
-              color: ShopScreen._textPrimary,
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.w500,
               fontSize: 16,
             ),
@@ -299,7 +289,7 @@ class _HeaderSection extends StatelessWidget {
           Text(
             moneyLabel,
             style: const TextStyle(
-              color: ShopScreen._success,
+              color: AppColors.success,
               fontWeight: FontWeight.w600,
               fontSize: 13,
             ),
@@ -333,7 +323,7 @@ class _CategoryTabs extends StatelessWidget {
           height: height,
           padding: const EdgeInsets.all(padding),
           decoration: BoxDecoration(
-            color: ShopScreen._surface1,
+            color: AppColors.surface1,
             borderRadius: BorderRadius.circular(999),
           ),
           child: Stack(
@@ -347,7 +337,7 @@ class _CategoryTabs extends StatelessWidget {
                 width: segmentWidth,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: ShopScreen._accent,
+                    color: AppColors.accent,
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
@@ -399,8 +389,8 @@ class _TabLabel extends StatelessWidget {
                 duration: const Duration(milliseconds: 200),
                 style: TextStyle(
                   color: selected
-                      ? ShopScreen._textPrimary
-                      : ShopScreen._textSecondary,
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary,
                   fontSize: 11,
                   fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
                 ),
@@ -632,7 +622,7 @@ class _ItemDetails extends StatelessWidget {
             item.description,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: ShopScreen._textSecondary,
+              color: AppColors.textSecondary,
               fontSize: 13,
               height: 1.45,
             ),
@@ -647,20 +637,20 @@ class _ItemDetails extends StatelessWidget {
                 icon: Icons.payments_outlined,
                 label: item.priceLabel,
                 color: affordable || owned
-                    ? ShopScreen._warning
-                    : ShopScreen._danger,
+                    ? AppColors.warning
+                    : AppColors.danger,
               ),
               if (note != null)
                 _Badge(
                   icon: Icons.info_outline,
                   label: note,
-                  color: ShopScreen._textSecondary,
+                  color: AppColors.textSecondary,
                 ),
               if (owned)
                 _Badge(
                   icon: Icons.check,
                   label: 'Sahip',
-                  color: ShopScreen._success,
+                  color: AppColors.success,
                 ),
             ],
           ),
@@ -670,10 +660,10 @@ class _ItemDetails extends StatelessWidget {
             child: FilledButton(
               onPressed: enabled ? onBuy : null,
               style: FilledButton.styleFrom(
-                backgroundColor: ShopScreen._accent,
-                foregroundColor: ShopScreen._textPrimary,
-                disabledBackgroundColor: ShopScreen._surface2,
-                disabledForegroundColor: ShopScreen._textMuted,
+                backgroundColor: AppColors.accent,
+                foregroundColor: AppColors.textPrimary,
+                disabledBackgroundColor: AppColors.surface2,
+                disabledForegroundColor: AppColors.textMuted,
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 textStyle: const TextStyle(
                   fontSize: 14,
@@ -689,7 +679,7 @@ class _ItemDetails extends StatelessWidget {
                       height: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: ShopScreen._textPrimary,
+                        color: AppColors.textPrimary,
                       ),
                     )
                   : Text(_buttonLabel),

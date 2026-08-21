@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:project_srpg/state/player_scope.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/radar_chart.dart';
 
 class RelationshipsRadarScreen extends StatelessWidget {
   const RelationshipsRadarScreen({super.key});
 
-  static const _surface1 = Color(0xFF1A1D24);
-  static const _surface2 = Color(0xFF22262F);
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textMuted = Color(0xFF6B7280);
-  static const _accent = Color(0xFFE85D5D);
+  static const _accent = AppColors.danger;
 
   /// D30 §3.2 — 'kişi' ailesi, radar sırasıyla. Bu eksen kümesi ilişki
   /// skorlarından (R1) DEĞİL, oyuncunun kendi kişi niteliklerinden gelir —
@@ -29,7 +25,7 @@ class RelationshipsRadarScreen extends StatelessWidget {
     final values = [for (final key in _axes.keys) player.attribute(key)];
 
     return Scaffold(
-      backgroundColor: _surface1,
+      backgroundColor: AppColors.surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -38,9 +34,9 @@ class RelationshipsRadarScreen extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: _surface2,
+                  color: AppColors.surface2,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _border, width: 0.5),
+                  border: Border.all(color: AppColors.border, width: 0.5),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -55,7 +51,7 @@ class RelationshipsRadarScreen extends StatelessWidget {
                           values: values,
                           accentColor: _accent,
                           gridShape: RadarGridShape.circle,
-                          backgroundColor: _surface2,
+                          backgroundColor: AppColors.surface2,
                         ),
                       ),
                       const Padding(
@@ -63,7 +59,7 @@ class RelationshipsRadarScreen extends StatelessWidget {
                         child: Text(
                           'Çevrendeki bağların genel dengesi. Merkeze yakın eksenler ilgi ister.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: _textMuted, fontSize: 12),
+                          style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                         ),
                       ),
                     ],
@@ -88,7 +84,7 @@ class _HeaderSection extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: RelationshipsRadarScreen._border,
+            color: AppColors.border,
             width: 0.5,
           ),
         ),
@@ -102,14 +98,14 @@ class _HeaderSection extends StatelessWidget {
             icon: const Icon(
               Icons.chevron_left,
               size: 24,
-              color: RelationshipsRadarScreen._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
           const SizedBox(width: 10),
           const Text(
             'İlişki Haritası',
             style: TextStyle(
-              color: RelationshipsRadarScreen._textPrimary,
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.w500,
               fontSize: 16,
             ),

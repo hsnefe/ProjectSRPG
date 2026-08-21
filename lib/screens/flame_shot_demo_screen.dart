@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:project_srpg/game/pitch_projector.dart';
 import 'package:project_srpg/game/shot_game.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 
 /// Flame-based version of the shot prototype.
 ///
@@ -11,15 +12,6 @@ import 'package:project_srpg/game/shot_game.dart';
 /// direction, which is the point of the demo.
 class FlameShotDemoScreen extends StatefulWidget {
   const FlameShotDemoScreen({super.key});
-
-  static const _surface1 = Color(0xFF1A1D24);
-  static const _surface2 = Color(0xFF22262F);
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textSecondary = Color(0xFFA0A6B0);
-  static const _textMuted = Color(0xFF6B7280);
-  static const _accent = Color(0xFF1E6FD9);
-  static const _success = Color(0xFF3DDC97);
 
   @override
   State<FlameShotDemoScreen> createState() => _FlameShotDemoScreenState();
@@ -44,7 +36,7 @@ class _FlameShotDemoScreenState extends State<FlameShotDemoScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: FlameShotDemoScreen._surface1,
+      backgroundColor: AppColors.surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -53,10 +45,10 @@ class _FlameShotDemoScreenState extends State<FlameShotDemoScreen> {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: FlameShotDemoScreen._surface2,
+                  color: AppColors.surface2,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: FlameShotDemoScreen._border,
+                    color: AppColors.border,
                     width: 0.5,
                   ),
                 ),
@@ -103,7 +95,7 @@ class _Header extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: FlameShotDemoScreen._border, width: 0.5),
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: Row(
@@ -115,14 +107,14 @@ class _Header extends StatelessWidget {
             icon: const Icon(
               Icons.chevron_left,
               size: 24,
-              color: FlameShotDemoScreen._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
           const SizedBox(width: 8),
           const Text(
             'Şut Prototipi (Flame)',
             style: TextStyle(
-              color: FlameShotDemoScreen._textPrimary,
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.w600,
               fontSize: 14,
             ),
@@ -136,7 +128,7 @@ class _Header extends StatelessWidget {
             icon: const Icon(
               Icons.refresh,
               size: 20,
-              color: FlameShotDemoScreen._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
         ],
@@ -164,7 +156,7 @@ class _DirectionPad extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: FlameShotDemoScreen._border, width: 0.5),
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: Column(
@@ -193,7 +185,7 @@ class _DirectionPad extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    color: FlameShotDemoScreen._textSecondary,
+                    color: AppColors.textSecondary,
                     fontSize: 11,
                   ),
                 ),
@@ -226,7 +218,7 @@ class _Arrow extends StatelessWidget {
     required this.onTurn,
   });
 
-  static const _facingColor = Color(0xFFE5484D);
+  static const _facingColor = AppColors.dangerBright;
 
   final IconData icon;
   final Facing direction;
@@ -274,7 +266,7 @@ class _Readout extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       decoration: const BoxDecoration(
         border: Border(
-          top: BorderSide(color: FlameShotDemoScreen._border, width: 0.5),
+          top: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: Column(
@@ -283,7 +275,7 @@ class _Readout extends StatelessWidget {
           Text(
             _hint,
             style: const TextStyle(
-              color: FlameShotDemoScreen._textSecondary,
+              color: AppColors.textSecondary,
               fontSize: 12,
             ),
           ),
@@ -344,7 +336,7 @@ class _Stat extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: FlameShotDemoScreen._textMuted,
+                      color: AppColors.textMuted,
                       fontSize: 10,
                     ),
                   ),
@@ -355,7 +347,7 @@ class _Stat extends StatelessWidget {
                       ? '+${value.toStringAsFixed(2)}'
                       : value.toStringAsFixed(2),
                   style: const TextStyle(
-                    color: FlameShotDemoScreen._textSecondary,
+                    color: AppColors.textSecondary,
                     fontSize: 10,
                   ),
                 ),
@@ -367,10 +359,10 @@ class _Stat extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: magnitude,
                 minHeight: 4,
-                backgroundColor: FlameShotDemoScreen._surface1,
+                backgroundColor: AppColors.surface1,
                 color: magnitude > 0.75
-                    ? FlameShotDemoScreen._success
-                    : FlameShotDemoScreen._accent,
+                    ? AppColors.success
+                    : AppColors.accent,
               ),
             ),
           ],

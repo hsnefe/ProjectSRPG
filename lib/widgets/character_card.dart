@@ -2,6 +2,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import 'package:project_srpg/theme/app_colors.dart';
+
 /// Karakter kartında gösterilen kişi/kurum.
 class CharacterCardData {
   const CharacterCardData({
@@ -68,9 +70,8 @@ class CharacterCard extends StatelessWidget {
     this.onSecondary,
   });
 
-  static const _base = Color(0xFF0E1116);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textSecondary = Color(0xFF8A909B);
+  static const _base = AppColors.surfaceDeep;
+  static const _textSecondary = AppColors.textSoft;
 
   final CharacterCardData data;
   final double width;
@@ -235,7 +236,7 @@ class CharacterCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              color: _textPrimary,
+                              color: AppColors.textPrimary,
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
                             ),

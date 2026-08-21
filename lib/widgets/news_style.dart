@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:project_srpg/theme/app_colors.dart';
+
 /// N1/N2/C3 `category`'nin bilinen dört değeri (§3.5) → filigran ikon ve
 /// kart tonu, career_center_screen.dart ile news_detail_screen.dart arasında
 /// paylaşılır. §5.8: bu ikisi BE'den gelmez, FE'nin sunum kararı. Bilinmeyen
@@ -12,13 +14,13 @@ const _iconByCategory = {
 };
 
 const _tintByCategory = {
-  'Transfer': Color(0xFF1E6FD9),
-  'Maç': Color(0xFF3DDC97),
-  'Röportaj': Color(0xFFF5A623),
-  'Analiz': Color(0xFFE85D5D),
+  'Transfer': AppColors.accent,
+  'Maç': AppColors.success,
+  'Röportaj': AppColors.warning,
+  'Analiz': AppColors.danger,
 };
 
-const _defaultTint = Color(0xFF6B7280);
+const _defaultTint = AppColors.textMuted;
 
 IconData iconForNewsCategory(String category) =>
     _iconByCategory[category] ?? Icons.article_outlined;

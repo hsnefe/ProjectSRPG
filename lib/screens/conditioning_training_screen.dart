@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:project_srpg/game/conditioning_game.dart';
 import 'package:project_srpg/game/training_result.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/training_result_panel.dart';
 
 /// Kondisyon koşusu. Sol ve sağ butonlara sırayla basarak adam koşturulur;
@@ -13,14 +14,6 @@ import 'package:project_srpg/widgets/training_result_panel.dart';
 /// sona yaklaşınca kırmızıya döner.
 class ConditioningTrainingScreen extends StatefulWidget {
   const ConditioningTrainingScreen({super.key});
-
-  static const _surface1 = Color(0xFF1A1D24);
-  static const _surface2 = Color(0xFF22262F);
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textSecondary = Color(0xFFA0A6B0);
-  static const _textMuted = Color(0xFF6B7280);
-  static const _danger = Color(0xFFE85D5D);
 
   @override
   State<ConditioningTrainingScreen> createState() =>
@@ -57,7 +50,7 @@ class _ConditioningTrainingScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ConditioningTrainingScreen._surface1,
+      backgroundColor: AppColors.surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -66,10 +59,10 @@ class _ConditioningTrainingScreenState
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: ConditioningTrainingScreen._surface2,
+                  color: AppColors.surface2,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: ConditioningTrainingScreen._border,
+                    color: AppColors.border,
                     width: 0.5,
                   ),
                 ),
@@ -120,7 +113,7 @@ class _HeaderSection extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: ConditioningTrainingScreen._border,
+            color: AppColors.border,
             width: 0.5,
           ),
         ),
@@ -134,14 +127,14 @@ class _HeaderSection extends StatelessWidget {
             icon: const Icon(
               Icons.chevron_left,
               size: 24,
-              color: ConditioningTrainingScreen._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
           const SizedBox(width: 8),
           const Text(
             'Kondisyon Koşusu',
             style: TextStyle(
-              color: ConditioningTrainingScreen._textPrimary,
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.w600,
               fontSize: 14,
             ),
@@ -171,7 +164,7 @@ class _TimeBar extends StatelessWidget {
             child: LinearProgressIndicator(
               value: left,
               minHeight: 5,
-              backgroundColor: ConditioningTrainingScreen._surface1,
+              backgroundColor: AppColors.surface1,
               color: conditioningBarColor(left),
             ),
           );
@@ -194,7 +187,7 @@ class _StepControls extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(
           top: BorderSide(
-            color: ConditioningTrainingScreen._border,
+            color: AppColors.border,
             width: 0.5,
           ),
         ),
@@ -209,7 +202,7 @@ class _StepControls extends StatelessWidget {
                 builder: (context, steps, _) => Text(
                   '$steps / ${ConditioningGame.targetSteps}',
                   style: const TextStyle(
-                    color: ConditioningTrainingScreen._textSecondary,
+                    color: AppColors.textSecondary,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -262,12 +255,12 @@ class _SideButton extends StatelessWidget {
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
           foregroundColor: stumbling
-              ? ConditioningTrainingScreen._danger
-              : ConditioningTrainingScreen._textPrimary,
+              ? AppColors.danger
+              : AppColors.textPrimary,
           side: BorderSide(
             color: stumbling
-                ? ConditioningTrainingScreen._danger
-                : ConditioningTrainingScreen._border,
+                ? AppColors.danger
+                : AppColors.border,
           ),
           minimumSize: Size.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,

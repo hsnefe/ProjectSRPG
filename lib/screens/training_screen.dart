@@ -10,6 +10,7 @@ import 'package:project_srpg/screens/strength_training_screen.dart';
 import 'package:project_srpg/screens/training_radar_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/state/player_state.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 
 enum _TrainingTab { physical, personal }
 
@@ -77,9 +78,9 @@ String? _targetAttributeOf(api.CatalogItem item) {
 }
 
 Color _barColorFor(double progress) {
-  if (progress >= 0.75) return TrainingScreen._success;
-  if (progress >= 0.4) return TrainingScreen._accent;
-  return TrainingScreen._warning;
+  if (progress >= 0.75) return AppColors.success;
+  if (progress >= 0.4) return AppColors.accent;
+  return AppColors.warning;
 }
 
 _TrainingItem _toTrainingItem(api.CatalogItem item, PlayerState player) {
@@ -101,16 +102,6 @@ class TrainingScreen extends StatefulWidget {
 
   /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
   final CareerSession? session;
-
-  static const _surface1 = Color(0xFF1A1D24);
-  static const _surface2 = Color(0xFF22262F);
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textSecondary = Color(0xFFA0A6B0);
-  static const _textMuted = Color(0xFF6B7280);
-  static const _accent = Color(0xFF1E6FD9);
-  static const _success = Color(0xFF3DDC97);
-  static const _warning = Color(0xFFF5A623);
 
   @override
   State<TrainingScreen> createState() => _TrainingScreenState();
@@ -184,7 +175,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
     final condition = PlayerScope.of(context).condition;
 
     return Scaffold(
-      backgroundColor: TrainingScreen._surface1,
+      backgroundColor: AppColors.surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -193,10 +184,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: TrainingScreen._surface2,
+                  color: AppColors.surface2,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: TrainingScreen._border,
+                    color: AppColors.border,
                     width: 0.5,
                   ),
                 ),
@@ -231,7 +222,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
                                   height: 22,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: TrainingScreen._textMuted,
+                                    color: AppColors.textMuted,
                                   ),
                                 ),
                               );
@@ -241,7 +232,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
                                 child: Text(
                                   'Antrenman kataloğu alınamadı.',
                                   style: TextStyle(
-                                    color: TrainingScreen._textMuted,
+                                    color: AppColors.textMuted,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -285,7 +276,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
                                       child: Text(
                                         'Bu kategoride henüz antrenman yok.',
                                         style: TextStyle(
-                                          color: TrainingScreen._textMuted,
+                                          color: AppColors.textMuted,
                                           fontSize: 13,
                                         ),
                                       ),
@@ -338,7 +329,7 @@ class _HeaderSection extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: TrainingScreen._border, width: 0.5),
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: Row(
@@ -350,7 +341,7 @@ class _HeaderSection extends StatelessWidget {
             icon: const Icon(
               Icons.chevron_left,
               size: 24,
-              color: TrainingScreen._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
           const Spacer(),
@@ -369,7 +360,7 @@ class _HeaderSection extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: TrainingScreen._textMuted,
+                          color: AppColors.textMuted,
                           fontSize: 11,
                         ),
                       ),
@@ -379,7 +370,7 @@ class _HeaderSection extends StatelessWidget {
                       '$condition/100',
                       maxLines: 1,
                       style: const TextStyle(
-                        color: TrainingScreen._textSecondary,
+                        color: AppColors.textSecondary,
                         fontSize: 11,
                       ),
                     ),
@@ -391,8 +382,8 @@ class _HeaderSection extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: condition / 100,
                     minHeight: 5,
-                    backgroundColor: TrainingScreen._surface1,
-                    color: TrainingScreen._success,
+                    backgroundColor: AppColors.surface1,
+                    color: AppColors.success,
                   ),
                 ),
               ],
@@ -407,7 +398,7 @@ class _HeaderSection extends StatelessWidget {
             icon: const Icon(
               Icons.explore_outlined,
               size: 22,
-              color: TrainingScreen._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
         ],
@@ -435,7 +426,7 @@ class _TabToggle extends StatelessWidget {
       height: height,
       padding: const EdgeInsets.all(padding),
       decoration: BoxDecoration(
-        color: TrainingScreen._surface1,
+        color: AppColors.surface1,
         borderRadius: BorderRadius.circular(999),
       ),
       child: SizedBox(
@@ -452,7 +443,7 @@ class _TabToggle extends StatelessWidget {
                 width: segmentWidth,
                 height: height - padding * 2,
                 decoration: BoxDecoration(
-                  color: TrainingScreen._accent,
+                  color: AppColors.accent,
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
@@ -507,8 +498,8 @@ class _ToggleLabel extends StatelessWidget {
               fontSize: 11,
               fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
               color: selected
-                  ? TrainingScreen._textPrimary
-                  : TrainingScreen._textMuted,
+                  ? AppColors.textPrimary
+                  : AppColors.textMuted,
             ),
             child: Text(label),
           ),
@@ -531,7 +522,7 @@ class _TrainingCard extends StatelessWidget {
     return Container(
       height: 96,
       decoration: BoxDecoration(
-        color: TrainingScreen._surface1,
+        color: AppColors.surface1,
         borderRadius: BorderRadius.circular(10),
       ),
       clipBehavior: Clip.antiAlias,
@@ -539,12 +530,12 @@ class _TrainingCard extends StatelessWidget {
         children: [
           Container(
             width: 92,
-            color: TrainingScreen._surface2,
+            color: AppColors.surface2,
             alignment: Alignment.center,
             child: Icon(
               item.icon,
               size: 26,
-              color: TrainingScreen._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
           Expanded(
@@ -558,7 +549,7 @@ class _TrainingCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: TrainingScreen._textPrimary,
+                      color: AppColors.textPrimary,
                       fontWeight: FontWeight.w700,
                       fontSize: 15,
                     ),
@@ -569,7 +560,7 @@ class _TrainingCard extends StatelessWidget {
                     child: LinearProgressIndicator(
                       value: item.progress,
                       minHeight: 5,
-                      backgroundColor: TrainingScreen._surface2,
+                      backgroundColor: AppColors.surface2,
                       color: item.barColor,
                     ),
                   ),
@@ -580,13 +571,13 @@ class _TrainingCard extends StatelessWidget {
                       const Icon(
                         Icons.bolt,
                         size: 13,
-                        color: TrainingScreen._textMuted,
+                        color: AppColors.textMuted,
                       ),
                       const SizedBox(width: 2),
                       Text(
                         '${item.energy}',
                         style: const TextStyle(
-                          color: TrainingScreen._textMuted,
+                          color: AppColors.textMuted,
                           fontSize: 11,
                         ),
                       ),
@@ -594,10 +585,10 @@ class _TrainingCard extends StatelessWidget {
                       OutlinedButton(
                         onPressed: onStart,
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: TrainingScreen._textPrimary,
-                          disabledForegroundColor: TrainingScreen._textMuted,
+                          foregroundColor: AppColors.textPrimary,
+                          disabledForegroundColor: AppColors.textMuted,
                           side: const BorderSide(
-                            color: TrainingScreen._border,
+                            color: AppColors.border,
                           ),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 14,

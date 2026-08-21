@@ -9,6 +9,7 @@ import 'package:flutter/material.dart' show Colors, ValueChanged;
 import 'package:project_srpg/game/game_banner.dart';
 import 'package:project_srpg/game/pitch_projector.dart';
 import 'package:project_srpg/game/training_result.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 
 enum ShotPhase { aim, strike, flight, result }
 
@@ -765,10 +766,7 @@ class ShotGame extends FlameGame {
 const _grassDark = Color(0xFF15251B);
 const _grassLight = Color(0xFF1A2D20);
 const _lineColor = Color(0x55FFFFFF);
-const _accent = Color(0xFF1E6FD9);
-const _success = Color(0xFF3DDC97);
-const _warning = Color(0xFFF5A623);
-const _rival = Color(0xFFE5484D);
+const _rival = AppColors.dangerBright;
 
 /// A full-bleed component that receives gestures. Component-level input is
 /// the modern Flame API — the deprecated game-level detectors would work too,
@@ -1087,7 +1085,7 @@ class AimComponent extends Component with HasGameReference<ShotGame> {
     final s = p.scale(game.aimDepth);
     final radius = math.max(4.0, 0.09 * p.halfWidth * s);
     final reticle = Paint()
-      ..color = _warning
+      ..color = AppColors.warning
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.6;
 
@@ -1189,7 +1187,7 @@ class ActorsComponent extends Component with HasGameReference<ShotGame> {
         depth: depth,
         halfWidth: ShotWorld.keeperHalfWidth,
         height: ShotWorld.keeperHeight,
-        color: _warning,
+        color: AppColors.warning,
         alpha: 0.85,
       ),
     );
@@ -1332,7 +1330,7 @@ class StrikeComponent extends Component with HasGameReference<ShotGame> {
     canvas.drawCircle(
       center,
       r * 0.22,
-      Paint()..color = _accent.withValues(alpha: 0.35),
+      Paint()..color = AppColors.accent.withValues(alpha: 0.35),
     );
     // Curve axis
     canvas.drawLine(
@@ -1349,7 +1347,7 @@ class StrikeComponent extends Component with HasGameReference<ShotGame> {
       center,
       ring,
       Paint()
-        ..color = sweet ? _success : _accent
+        ..color = sweet ? AppColors.success : AppColors.accent
         ..style = PaintingStyle.stroke
         ..strokeWidth = sweet ? 3 : 2,
     );

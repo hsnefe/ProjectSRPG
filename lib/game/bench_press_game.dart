@@ -8,19 +8,14 @@ import 'package:flutter/foundation.dart' show ValueChanged;
 
 import 'package:project_srpg/game/game_banner.dart';
 import 'package:project_srpg/game/training_result.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 
 enum BenchPhase { ready, sweeping, lifting, done }
 
-const _surface1 = Color(0xFF1A1D24);
-const _surface2 = Color(0xFF22262F);
-const _border = Color(0xFF333845);
 const _steel = Color(0xFFB9BFC9);
 const _skin = Color(0xFFC08A63);
 const _chest = Color(0xFF9C6E4E);
-const _accent = Color(0xFF1E6FD9);
-const _success = Color(0xFF3DDC97);
-const _warning = Color(0xFFF5A623);
-const _danger = Color(0xFFE5484D);
+const _danger = AppColors.dangerBright;
 
 /// The bench press drill: a marker sweeps a vertical bar, and pressing while it
 /// sits in the green band is a clean rep. Three clean reps pass the session,
@@ -104,7 +99,7 @@ class BenchPressGame extends FlameGame {
       );
 
   @override
-  Color backgroundColor() => _surface1;
+  Color backgroundColor() => AppColors.surface1;
 
   @override
   Future<void> onLoad() async {
@@ -236,7 +231,7 @@ class BenchSceneComponent extends Component
   }
 
   void _paintCeiling(Canvas canvas, double u, double v) {
-    canvas.drawRect(Rect.fromLTWH(0, 0, u, v), Paint()..color = _surface1);
+    canvas.drawRect(Rect.fromLTWH(0, 0, u, v), Paint()..color = AppColors.surface1);
 
     // One light, faked with three ovals. Looking up is the whole point of the
     // shot, so it has to be the first thing the eye lands on.
@@ -255,16 +250,16 @@ class BenchSceneComponent extends Component
 
     // Panel seams converging toward the top centre.
     final seam = Paint()
-      ..color = _border.withValues(alpha: 0.2)
+      ..color = AppColors.border.withValues(alpha: 0.2)
       ..strokeWidth = 1;
     canvas.drawLine(Offset(u * 0.10, v * 0.42), Offset(u * 0.34, 0), seam);
     canvas.drawLine(Offset(u * 0.90, v * 0.42), Offset(u * 0.66, 0), seam);
   }
 
   void _paintRack(Canvas canvas, double u, double v) {
-    final fill = Paint()..color = _surface2;
+    final fill = Paint()..color = AppColors.surface2;
     final line = Paint()
-      ..color = _border
+      ..color = AppColors.border
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
 
@@ -343,7 +338,7 @@ class BenchSceneComponent extends Component
       Offset(shaft.left, shaft.bottom - 1),
       Offset(shaft.right, shaft.bottom - 1),
       Paint()
-        ..color = _border
+        ..color = AppColors.border
         ..strokeWidth = 1,
     );
 
@@ -367,7 +362,7 @@ class BenchSceneComponent extends Component
 
     // Plates. Ellipses rather than circles: the foreshortening is what sells
     // the point of view.
-    const plateColors = [Color(0xFF2A2F3A), Color(0xFF20242C), _border];
+    const plateColors = [Color(0xFF2A2F3A), Color(0xFF20242C), AppColors.border];
     for (final sign in [-1, 1]) {
       for (var i = 0; i < 3; i++) {
         final cx = u * 0.5 + sign * (half - u * 0.02 - i * u * 0.028 * scale);
@@ -456,7 +451,7 @@ class BenchSceneComponent extends Component
     final pulse = lifting
         ? math.sin(math.pi * (game.liftT / BenchPressGame.liftTime))
         : 1.0;
-    final color = (lifting && game.lastRepOk) ? _success : _danger;
+    final color = (lifting && game.lastRepOk) ? AppColors.success : _danger;
 
     canvas.drawRect(
       Rect.fromLTWH(0, 0, u, v).deflate(u * 0.025),
@@ -497,12 +492,12 @@ class PowerBarComponent extends Component
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(track, radius),
-      Paint()..color = _surface1.withValues(alpha: 0.9),
+      Paint()..color = AppColors.surface1.withValues(alpha: 0.9),
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(track, radius),
       Paint()
-        ..color = _border
+        ..color = AppColors.border
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1,
     );
@@ -512,7 +507,7 @@ class PowerBarComponent extends Component
     final zoneTop = yAt(game.zoneCenter + game.zoneHalf);
     final zoneBottom = yAt(game.zoneCenter - game.zoneHalf);
     final missed = game.phase == BenchPhase.lifting && !game.lastRepOk;
-    final zoneColor = _hitFlash > 0 ? (missed ? _danger : _success) : _success;
+    final zoneColor = _hitFlash > 0 ? (missed ? _danger : AppColors.success) : AppColors.success;
 
     canvas.drawRect(
       Rect.fromLTRB(track.left, zoneTop, track.right, zoneBottom),
@@ -551,7 +546,7 @@ class PowerBarComponent extends Component
   }
 
   void _paintMarker(Canvas canvas, Rect track, double y, double u) {
-    final color = game.markerInZone ? _warning : _accent;
+    final color = game.markerInZone ? AppColors.warning : AppColors.accent;
 
     canvas.drawLine(
       Offset(track.left, y),
@@ -576,7 +571,7 @@ class PowerBarComponent extends Component
         Offset(track.center.dx, y),
         u * 0.05 * (1 - _hitFlash / 0.25),
         Paint()
-          ..color = (game.lastRepOk ? _success : _danger)
+          ..color = (game.lastRepOk ? AppColors.success : _danger)
               .withValues(alpha: _hitFlash / 0.25)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2,
@@ -595,7 +590,7 @@ class PowerBarComponent extends Component
         center,
         u * 0.013,
         Paint()
-          ..color = filled ? _success : _border
+          ..color = filled ? AppColors.success : AppColors.border
           ..style = filled ? PaintingStyle.fill : PaintingStyle.stroke
           ..strokeWidth = 1.5,
       );
@@ -611,7 +606,7 @@ class PowerBarComponent extends Component
         center,
         u * 0.010,
         Paint()
-          ..color = filled ? _danger : _border
+          ..color = filled ? _danger : AppColors.border
           ..style = filled ? PaintingStyle.fill : PaintingStyle.stroke
           ..strokeWidth = 1.5,
       );

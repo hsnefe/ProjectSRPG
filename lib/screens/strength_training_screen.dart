@@ -3,19 +3,13 @@ import 'package:flutter/material.dart';
 
 import 'package:project_srpg/game/bench_press_game.dart';
 import 'package:project_srpg/game/training_result.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/training_result_panel.dart';
 
 /// Güç antrenmanı: POV bench press. Sağdaki dikey barda ok git-gel yapar,
 /// yeşil bölgedeyken basmak temiz bir tekrar demektir.
 class StrengthTrainingScreen extends StatefulWidget {
   const StrengthTrainingScreen({super.key});
-
-  static const _surface1 = Color(0xFF1A1D24);
-  static const _surface2 = Color(0xFF22262F);
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textSecondary = Color(0xFFA0A6B0);
-  static const _textMuted = Color(0xFF6B7280);
 
   @override
   State<StrengthTrainingScreen> createState() => _StrengthTrainingScreenState();
@@ -62,7 +56,7 @@ class _StrengthTrainingScreenState extends State<StrengthTrainingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: StrengthTrainingScreen._surface1,
+      backgroundColor: AppColors.surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -71,10 +65,10 @@ class _StrengthTrainingScreenState extends State<StrengthTrainingScreen> {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: StrengthTrainingScreen._surface2,
+                  color: AppColors.surface2,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: StrengthTrainingScreen._border,
+                    color: AppColors.border,
                     width: 0.5,
                   ),
                 ),
@@ -121,7 +115,7 @@ class _HeaderSection extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: StrengthTrainingScreen._border,
+            color: AppColors.border,
             width: 0.5,
           ),
         ),
@@ -135,14 +129,14 @@ class _HeaderSection extends StatelessWidget {
             icon: const Icon(
               Icons.chevron_left,
               size: 24,
-              color: StrengthTrainingScreen._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
           const SizedBox(width: 8),
           const Text(
             'Güç Antrenmanı',
             style: TextStyle(
-              color: StrengthTrainingScreen._textPrimary,
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.w600,
               fontSize: 14,
             ),
@@ -167,7 +161,7 @@ class _PressControls extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
       decoration: const BoxDecoration(
         border: Border(
-          top: BorderSide(color: StrengthTrainingScreen._border, width: 0.5),
+          top: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: Column(
@@ -177,7 +171,7 @@ class _PressControls extends StatelessWidget {
             hint,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: StrengthTrainingScreen._textSecondary,
+              color: AppColors.textSecondary,
               fontSize: 12,
             ),
           ),
@@ -187,8 +181,8 @@ class _PressControls extends StatelessWidget {
             child: OutlinedButton(
               onPressed: onPress,
               style: OutlinedButton.styleFrom(
-                foregroundColor: StrengthTrainingScreen._textPrimary,
-                side: const BorderSide(color: StrengthTrainingScreen._border),
+                foregroundColor: AppColors.textPrimary,
+                side: const BorderSide(color: AppColors.border),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 textStyle: const TextStyle(

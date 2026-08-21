@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:project_srpg/state/player_scope.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/radar_chart.dart';
 
 class TrainingRadarScreen extends StatelessWidget {
   const TrainingRadarScreen({super.key});
 
-  static const _surface1 = Color(0xFF1A1D24);
-  static const _surface2 = Color(0xFF22262F);
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textMuted = Color(0xFF6B7280);
-  static const _accent = Color(0xFF3DDC97);
+  static const _accent = AppColors.success;
 
   /// D30 §3.2 — 'saha' ailesi, radar sırasıyla; Türkçe etiketler FE'de kalır
   /// (§1.3). Anahtar → etiket eşlemesi.
@@ -29,7 +25,7 @@ class TrainingRadarScreen extends StatelessWidget {
     final values = [for (final key in _axes.keys) player.attribute(key)];
 
     return Scaffold(
-      backgroundColor: _surface1,
+      backgroundColor: AppColors.surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -38,9 +34,9 @@ class TrainingRadarScreen extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: _surface2,
+                  color: AppColors.surface2,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _border, width: 0.5),
+                  border: Border.all(color: AppColors.border, width: 0.5),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -55,7 +51,7 @@ class TrainingRadarScreen extends StatelessWidget {
                           values: values,
                           accentColor: _accent,
                           gridShape: RadarGridShape.polygon,
-                          backgroundColor: _surface2,
+                          backgroundColor: AppColors.surface2,
                           smooth: true,
                           glow: true,
                         ),
@@ -65,7 +61,7 @@ class TrainingRadarScreen extends StatelessWidget {
                         child: Text(
                           'Fiziksel antrenman alanlarındaki gelişim düzeyin.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: _textMuted, fontSize: 12),
+                          style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                         ),
                       ),
                     ],
@@ -90,7 +86,7 @@ class _HeaderSection extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: TrainingRadarScreen._border,
+            color: AppColors.border,
             width: 0.5,
           ),
         ),
@@ -104,14 +100,14 @@ class _HeaderSection extends StatelessWidget {
             icon: const Icon(
               Icons.chevron_left,
               size: 24,
-              color: TrainingRadarScreen._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
           const SizedBox(width: 10),
           const Text(
             'Antrenman Haritası',
             style: TextStyle(
-              color: TrainingRadarScreen._textPrimary,
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.w500,
               fontSize: 16,
             ),

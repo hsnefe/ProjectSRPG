@@ -6,6 +6,7 @@ import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/dialog_screen.dart';
 import 'package:project_srpg/screens/relationships_radar_screen.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/character_card.dart';
 import 'package:project_srpg/widgets/character_profile_modal.dart';
 import 'package:project_srpg/widgets/expand_page_route.dart';
@@ -31,23 +32,19 @@ class _Presentation {
   final String dialogueId;
 }
 
-const _accent = Color(0xFF1E6FD9);
-const _success = Color(0xFF3DDC97);
-const _danger = Color(0xFFE85D5D);
-const _warning = Color(0xFFF5A623);
 const _purple = Color(0xFF9B5CF6);
 
 const _presentationByRelationshipId = {
   'coach': _Presentation(
-    icon: Icons.assignment_outlined, tint: _accent, badgeCode: 'AN',
+    icon: Icons.assignment_outlined, tint: AppColors.accent, badgeCode: 'AN',
     leftTag: 'KLÜP', dialogueId: 'coach_01',
   ),
   'team': _Presentation(
-    icon: Icons.groups_outlined, tint: _success, badgeCode: 'TK',
+    icon: Icons.groups_outlined, tint: AppColors.success, badgeCode: 'TK',
     leftTag: 'KLÜP', dialogueId: 'team_01',
   ),
   'media': _Presentation(
-    icon: Icons.mic_none_outlined, tint: _danger, badgeCode: 'MD',
+    icon: Icons.mic_none_outlined, tint: AppColors.danger, badgeCode: 'MD',
     leftTag: 'BASIN', dialogueId: 'media_01',
   ),
   'partner': _Presentation(
@@ -55,13 +52,13 @@ const _presentationByRelationshipId = {
     leftTag: 'ÖZEL', dialogueId: 'partner_01',
   ),
   'family': _Presentation(
-    icon: Icons.home_outlined, tint: _warning, badgeCode: 'AS',
+    icon: Icons.home_outlined, tint: AppColors.warning, badgeCode: 'AS',
     leftTag: 'ÖZEL', dialogueId: 'family_01',
   ),
 };
 
 const _defaultPresentation = _Presentation(
-  icon: Icons.person_outline, tint: Color(0xFF6B7280), badgeCode: '??',
+  icon: Icons.person_outline, tint: AppColors.textMuted, badgeCode: '??',
   leftTag: '', dialogueId: '',
 );
 
@@ -263,12 +260,6 @@ class RelationshipsScreen extends StatefulWidget {
   /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
   final CareerSession? session;
 
-  static const _surface1 = Color(0xFF1A1D24);
-  static const _surface2 = Color(0xFF22262F);
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textMuted = Color(0xFF6B7280);
-
   static const _cardWidth = 225.0;
   static const _cardHeight = 380.0;
 
@@ -298,7 +289,7 @@ class _RelationshipsScreenState extends State<RelationshipsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: RelationshipsScreen._surface1,
+      backgroundColor: AppColors.surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -307,10 +298,10 @@ class _RelationshipsScreenState extends State<RelationshipsScreen> {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: RelationshipsScreen._surface2,
+                  color: AppColors.surface2,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: RelationshipsScreen._border,
+                    color: AppColors.border,
                     width: 0.5,
                   ),
                 ),
@@ -333,7 +324,7 @@ class _RelationshipsScreenState extends State<RelationshipsScreen> {
                                   height: 22,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: RelationshipsScreen._textMuted,
+                                    color: AppColors.textMuted,
                                   ),
                                 ),
                               );
@@ -343,7 +334,7 @@ class _RelationshipsScreenState extends State<RelationshipsScreen> {
                                 child: Text(
                                   'İlişkiler alınamadı.',
                                   style: TextStyle(
-                                    color: RelationshipsScreen._textMuted,
+                                    color: AppColors.textMuted,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -462,7 +453,7 @@ class _HeaderSection extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: RelationshipsScreen._border, width: 0.5),
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: Row(
@@ -474,14 +465,14 @@ class _HeaderSection extends StatelessWidget {
             icon: const Icon(
               Icons.chevron_left,
               size: 24,
-              color: RelationshipsScreen._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
           const SizedBox(width: 10),
           const Text(
             'İlişkiler',
             style: TextStyle(
-              color: RelationshipsScreen._textPrimary,
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.w500,
               fontSize: 16,
             ),
@@ -500,7 +491,7 @@ class _HeaderSection extends StatelessWidget {
             icon: const Icon(
               Icons.explore_outlined,
               size: 22,
-              color: RelationshipsScreen._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
         ],
@@ -519,7 +510,7 @@ class _FooterSection extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: const BoxDecoration(
         border: Border(
-          top: BorderSide(color: RelationshipsScreen._border, width: 0.5),
+          top: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: SizedBox(
@@ -527,8 +518,8 @@ class _FooterSection extends StatelessWidget {
         child: OutlinedButton.icon(
           onPressed: () => Navigator.of(context).pop(),
           style: OutlinedButton.styleFrom(
-            foregroundColor: RelationshipsScreen._textPrimary,
-            side: const BorderSide(color: RelationshipsScreen._border),
+            foregroundColor: AppColors.textPrimary,
+            side: const BorderSide(color: AppColors.border),
             padding: const EdgeInsets.symmetric(vertical: 12),
             textStyle: const TextStyle(
               fontSize: 13,

@@ -8,6 +8,7 @@ import 'package:project_srpg/net/match_models.dart';
 import 'package:project_srpg/screens/request_screen.dart';
 import 'package:project_srpg/state/match_controller.dart';
 import 'package:project_srpg/state/player_scope.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 
 class MatchScreen extends StatefulWidget {
   MatchScreen({
@@ -39,18 +40,7 @@ class MatchScreen extends StatefulWidget {
   /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
   final MatchApiClient _matchApiClient;
 
-  static const _surface1 = Color(0xFF1A1D24);
-  static const _surface2 = Color(0xFF22262F);
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textSecondary = Color(0xFFA0A6B0);
-  static const _textMuted = Color(0xFF6B7280);
-  static const _success = Color(0xFF3DDC97);
   static const _warning = Color(0xFFE8B93D);
-  static const _accent = Color(0xFF1E6FD9);
-  static const _accentBg = Color(0x33228BFF);
-  static const _danger = Color(0xFFE85D5D);
-  static const _dangerBg = Color(0x33E85D5D);
 
   @override
   State<MatchScreen> createState() => _MatchScreenState();
@@ -213,7 +203,7 @@ class _MatchScreenState extends State<MatchScreen> {
         24;
 
     return Scaffold(
-      backgroundColor: MatchScreen._surface1,
+      backgroundColor: AppColors.surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -224,9 +214,9 @@ class _MatchScreenState extends State<MatchScreen> {
                 height: panelHeight,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: MatchScreen._surface2,
+                    color: AppColors.surface2,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: MatchScreen._border, width: 0.5),
+                    border: Border.all(color: AppColors.border, width: 0.5),
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
@@ -296,7 +286,7 @@ class _MatchBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: MatchScreen._border, width: 0.5),
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: Row(
@@ -307,14 +297,14 @@ class _MatchBar extends StatelessWidget {
               children: [
                 Expanded(
                   child: _ScoreChip(
-                    tint: MatchScreen._accent,
-                    tintBg: MatchScreen._accentBg,
+                    tint: AppColors.accent,
+                    tintBg: AppColors.accentBg,
                     child: Text(
                       home,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: MatchScreen._textPrimary,
+                        color: AppColors.textPrimary,
                         fontWeight: FontWeight.w500,
                         fontSize: 12,
                       ),
@@ -327,7 +317,7 @@ class _MatchBar extends StatelessWidget {
                   child: Text(
                     '$homeGoals',
                     style: const TextStyle(
-                      color: MatchScreen._textPrimary,
+                      color: AppColors.textPrimary,
                       fontWeight: FontWeight.w600,
                       fontSize: 15,
                     ),
@@ -339,7 +329,7 @@ class _MatchBar extends StatelessWidget {
                   child: Text(
                     '$awayGoals',
                     style: const TextStyle(
-                      color: MatchScreen._textPrimary,
+                      color: AppColors.textPrimary,
                       fontWeight: FontWeight.w600,
                       fontSize: 15,
                     ),
@@ -348,15 +338,15 @@ class _MatchBar extends StatelessWidget {
                 const SizedBox(width: 6),
                 Expanded(
                   child: _ScoreChip(
-                    tint: MatchScreen._danger,
-                    tintBg: MatchScreen._dangerBg,
+                    tint: AppColors.danger,
+                    tintBg: AppColors.dangerBg,
                     child: Text(
                       away,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                        color: MatchScreen._textPrimary,
+                        color: AppColors.textPrimary,
                         fontWeight: FontWeight.w500,
                         fontSize: 12,
                       ),
@@ -374,8 +364,8 @@ class _MatchBar extends StatelessWidget {
               child: OutlinedButton(
                 onPressed: onSpeedTap,
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: MatchScreen._textPrimary,
-                  backgroundColor: MatchScreen._surface1,
+                  foregroundColor: AppColors.textPrimary,
+                  backgroundColor: AppColors.surface1,
                   side: BorderSide.none,
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   minimumSize: Size.zero,
@@ -425,16 +415,16 @@ class _PhaseStrip extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: const BoxDecoration(
-        color: MatchScreen._surface1,
+        color: AppColors.surface1,
         border: Border(
-          bottom: BorderSide(color: MatchScreen._border, width: 0.5),
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       alignment: Alignment.center,
       child: Text(
         situation == null ? 'Kick Off' : situationLabel(situation!),
         style: const TextStyle(
-          color: MatchScreen._textSecondary,
+          color: AppColors.textSecondary,
           fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
@@ -459,7 +449,7 @@ class _PossessionBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: MatchScreen._border, width: 0.5),
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: Column(
@@ -469,7 +459,7 @@ class _PossessionBar extends StatelessWidget {
               Text(
                 '%$home',
                 style: const TextStyle(
-                  color: MatchScreen._accent,
+                  color: AppColors.accent,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
@@ -477,13 +467,13 @@ class _PossessionBar extends StatelessWidget {
               const Spacer(),
               const Text(
                 'Top hakimiyeti',
-                style: TextStyle(color: MatchScreen._textMuted, fontSize: 10),
+                style: TextStyle(color: AppColors.textMuted, fontSize: 10),
               ),
               const Spacer(),
               Text(
                 '%$away',
                 style: const TextStyle(
-                  color: MatchScreen._danger,
+                  color: AppColors.danger,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
@@ -499,11 +489,11 @@ class _PossessionBar extends StatelessWidget {
                 children: [
                   Expanded(
                     flex: home,
-                    child: const ColoredBox(color: MatchScreen._accent),
+                    child: const ColoredBox(color: AppColors.accent),
                   ),
                   Expanded(
                     flex: away,
-                    child: const ColoredBox(color: MatchScreen._danger),
+                    child: const ColoredBox(color: AppColors.danger),
                   ),
                 ],
               ),
@@ -532,25 +522,25 @@ class _TeamStatusRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: MatchScreen._border, width: 0.5),
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: Row(
         children: [
           const Icon(Icons.psychology_outlined,
-              size: 14, color: MatchScreen._textMuted),
+              size: 14, color: AppColors.textMuted),
           const SizedBox(width: 6),
           Text(
             mentality,
             style: const TextStyle(
-              color: MatchScreen._textSecondary,
+              color: AppColors.textSecondary,
               fontSize: 11,
             ),
           ),
           const Spacer(),
           if (yellow > 0) _CardBadge(color: MatchScreen._warning, count: yellow),
           if (yellow > 0 && red > 0) const SizedBox(width: 8),
-          if (red > 0) _CardBadge(color: MatchScreen._danger, count: red),
+          if (red > 0) _CardBadge(color: AppColors.danger, count: red),
         ],
       ),
     );
@@ -573,7 +563,7 @@ class _CardBadge extends StatelessWidget {
         Text(
           '$count',
           style: const TextStyle(
-            color: MatchScreen._textSecondary,
+            color: AppColors.textSecondary,
             fontSize: 11,
             fontWeight: FontWeight.w600,
           ),
@@ -602,7 +592,7 @@ class _ScoreChip extends StatelessWidget {
       constraints: BoxConstraints(minWidth: minWidth ?? 0),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: tintBg ?? MatchScreen._surface1,
+        color: tintBg ?? AppColors.surface1,
         borderRadius: BorderRadius.circular(8),
         border: tint == null ? null : Border.all(color: tint!, width: 0.5),
       ),
@@ -635,7 +625,7 @@ class _CommentaryFeed extends StatelessWidget {
         child: pendingOfferPrompt == null
             ? const Text(
                 'Maç başlıyor…',
-                style: TextStyle(color: MatchScreen._textMuted, fontSize: 12),
+                style: TextStyle(color: AppColors.textMuted, fontSize: 12),
               )
             : _WaitingIndicator(prompt: pendingOfferPrompt!),
       );
@@ -677,14 +667,14 @@ class _WaitingIndicator extends StatelessWidget {
             height: 18,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              color: MatchScreen._accent,
+              color: AppColors.accent,
             ),
           ),
           const SizedBox(height: 12),
           const Text(
             'Karar bekleniyor…',
             style: TextStyle(
-              color: MatchScreen._textSecondary,
+              color: AppColors.textSecondary,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -693,7 +683,7 @@ class _WaitingIndicator extends StatelessWidget {
           Text(
             prompt,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: MatchScreen._textMuted, fontSize: 11),
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
           ),
         ],
       ),
@@ -713,7 +703,7 @@ class _WaitingBanner extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: MatchScreen._accentBg,
+      color: AppColors.accentBg,
       child: Row(
         children: [
           const SizedBox(
@@ -721,7 +711,7 @@ class _WaitingBanner extends StatelessWidget {
             height: 14,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              color: MatchScreen._accent,
+              color: AppColors.accent,
             ),
           ),
           const SizedBox(width: 8),
@@ -731,7 +721,7 @@ class _WaitingBanner extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                color: MatchScreen._textPrimary,
+                color: AppColors.textPrimary,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),
@@ -753,15 +743,15 @@ class _EventCard extends StatelessWidget {
     final side = event.side;
     final isNeutral = side == MatchSide.neutral;
     final tint = side == MatchSide.home
-        ? MatchScreen._accent
+        ? AppColors.accent
         : side == MatchSide.away
-            ? MatchScreen._danger
-            : MatchScreen._textMuted;
+            ? AppColors.danger
+            : AppColors.textMuted;
     final tintBg = side == MatchSide.home
-        ? MatchScreen._accentBg
+        ? AppColors.accentBg
         : side == MatchSide.away
-            ? MatchScreen._dangerBg
-            : MatchScreen._surface1;
+            ? AppColors.dangerBg
+            : AppColors.surface1;
     final alignment = side == MatchSide.home
         ? Alignment.centerLeft
         : side == MatchSide.away
@@ -782,13 +772,13 @@ class _EventCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-              color: MatchScreen._surface1,
+              color: AppColors.surface1,
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(
               "${event.minute}'",
               style: const TextStyle(
-                color: MatchScreen._textMuted,
+                color: AppColors.textMuted,
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
               ),
@@ -803,7 +793,7 @@ class _EventCard extends StatelessWidget {
             child: Text(
               event.text,
               style: TextStyle(
-                color: event.isGoal ? tint : MatchScreen._textPrimary,
+                color: event.isGoal ? tint : AppColors.textPrimary,
                 fontSize: event.isGoal ? 13 : 12,
                 fontWeight: event.isGoal ? FontWeight.w700 : FontWeight.w400,
                 height: 1.3,
@@ -890,7 +880,7 @@ class _ActionBar extends StatelessWidget {
 
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: MatchScreen._surface2,
+      backgroundColor: AppColors.surface2,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -931,7 +921,7 @@ class _ActionBar extends StatelessWidget {
 
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: MatchScreen._surface2,
+      backgroundColor: AppColors.surface2,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -970,7 +960,7 @@ class _ActionBar extends StatelessWidget {
 
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: MatchScreen._surface2,
+      backgroundColor: AppColors.surface2,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -1002,7 +992,7 @@ class _ActionBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
       decoration: const BoxDecoration(
         border: Border(
-          top: BorderSide(color: MatchScreen._border, width: 0.5),
+          top: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: Column(
@@ -1020,9 +1010,9 @@ class _ActionBar extends StatelessWidget {
               child: OutlinedButton.icon(
                 onPressed: advancing ? null : () => onAdvance(),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: MatchScreen._accent,
-                  disabledForegroundColor: MatchScreen._textMuted,
-                  side: const BorderSide(color: MatchScreen._accent),
+                  foregroundColor: AppColors.accent,
+                  disabledForegroundColor: AppColors.textMuted,
+                  side: const BorderSide(color: AppColors.accent),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   textStyle: const TextStyle(fontSize: 13),
                 ),
@@ -1084,10 +1074,10 @@ class _ConditionBar extends StatelessWidget {
     final range = (catalog.ceiling - catalog.floor).clamp(1, 1 << 30);
     final frac = ((condition - catalog.floor) / range).clamp(0.0, 1.0);
     final color = frac >= 0.6
-            ? MatchScreen._success
+            ? AppColors.success
             : frac >= 0.3
                 ? MatchScreen._warning
-                : MatchScreen._danger;
+                : AppColors.danger;
 
     return Column(
       children: [
@@ -1096,12 +1086,12 @@ class _ConditionBar extends StatelessWidget {
           children: [
             const Text(
               'Kondisyon',
-              style: TextStyle(color: MatchScreen._textMuted, fontSize: 12),
+              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
             ),
             Text(
               '$condition/${catalog.ceiling}',
               style: const TextStyle(
-                color: MatchScreen._textSecondary,
+                color: AppColors.textSecondary,
                 fontSize: 12,
               ),
             ),
@@ -1113,7 +1103,7 @@ class _ConditionBar extends StatelessWidget {
           child: LinearProgressIndicator(
             value: frac,
             minHeight: 6,
-            backgroundColor: MatchScreen._surface1,
+            backgroundColor: AppColors.surface1,
             color: color,
           ),
         ),
@@ -1159,7 +1149,7 @@ class _DirectiveSheet extends StatelessWidget {
           Text(
             title,
             style: const TextStyle(
-              color: MatchScreen._textPrimary,
+              color: AppColors.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w700,
             ),
@@ -1168,7 +1158,7 @@ class _DirectiveSheet extends StatelessWidget {
           Text(
             valueLabel,
             style: const TextStyle(
-              color: MatchScreen._textPrimary,
+              color: AppColors.textPrimary,
               fontSize: 20,
               fontWeight: FontWeight.w600,
             ),
@@ -1176,14 +1166,14 @@ class _DirectiveSheet extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             detailLabel,
-            style: const TextStyle(color: MatchScreen._textMuted, fontSize: 12),
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
           ),
           Slider(
             value: sliderIndex.toDouble(),
             min: 0,
             max: sliderMax.toDouble(),
             divisions: sliderMax == 0 ? null : sliderMax,
-            activeColor: MatchScreen._accent,
+            activeColor: AppColors.accent,
             onChanged: (v) => onSliderChanged(v.round()),
           ),
           SizedBox(
@@ -1191,7 +1181,7 @@ class _DirectiveSheet extends StatelessWidget {
             child: ElevatedButton(
               onPressed: onConfirm,
               style: ElevatedButton.styleFrom(
-                backgroundColor: MatchScreen._accent,
+                backgroundColor: AppColors.accent,
                 foregroundColor: Colors.white,
               ),
               child: const Text('Uygula'),
@@ -1234,7 +1224,7 @@ class _FocusSheet extends StatelessWidget {
           const Text(
             'Rol',
             style: TextStyle(
-              color: MatchScreen._textPrimary,
+              color: AppColors.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w700,
             ),
@@ -1249,12 +1239,12 @@ class _FocusSheet extends StatelessWidget {
                   label: Text(options[i].label),
                   selected: i == selectedIndex,
                   onSelected: (_) => onSelected(i),
-                  selectedColor: MatchScreen._accentBg,
-                  backgroundColor: MatchScreen._surface1,
+                  selectedColor: AppColors.accentBg,
+                  backgroundColor: AppColors.surface1,
                   labelStyle: TextStyle(
                     color: i == selectedIndex
-                        ? MatchScreen._accent
-                        : MatchScreen._textSecondary,
+                        ? AppColors.accent
+                        : AppColors.textSecondary,
                   ),
                 ),
             ],
@@ -1265,7 +1255,7 @@ class _FocusSheet extends StatelessWidget {
             child: ElevatedButton(
               onPressed: onConfirm,
               style: ElevatedButton.styleFrom(
-                backgroundColor: MatchScreen._accent,
+                backgroundColor: AppColors.accent,
                 foregroundColor: Colors.white,
               ),
               child: const Text('Uygula'),
@@ -1293,8 +1283,8 @@ class _MatchActionButton extends StatelessWidget {
     return OutlinedButton(
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
-        foregroundColor: MatchScreen._textPrimary,
-        side: const BorderSide(color: MatchScreen._border),
+        foregroundColor: AppColors.textPrimary,
+        side: const BorderSide(color: AppColors.border),
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
         minimumSize: Size.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,

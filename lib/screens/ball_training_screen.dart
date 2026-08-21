@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:project_srpg/game/shot_game.dart';
 import 'package:project_srpg/game/training_result.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/training_result_panel.dart';
 
 /// Şut ve pas antrenmanları. İkisi de aynı [ShotGame]; fark yalnızca
@@ -15,15 +16,6 @@ class BallTrainingScreen extends StatefulWidget {
   const BallTrainingScreen({super.key, required this.mode});
 
   final ShotMode mode;
-
-  static const _surface1 = Color(0xFF1A1D24);
-  static const _surface2 = Color(0xFF22262F);
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textSecondary = Color(0xFFA0A6B0);
-  static const _textMuted = Color(0xFF6B7280);
-  static const _success = Color(0xFF3DDC97);
-  static const _danger = Color(0xFFE85D5D);
 
   @override
   State<BallTrainingScreen> createState() => _BallTrainingScreenState();
@@ -80,7 +72,7 @@ class _BallTrainingScreenState extends State<BallTrainingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: BallTrainingScreen._surface1,
+      backgroundColor: AppColors.surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -89,10 +81,10 @@ class _BallTrainingScreenState extends State<BallTrainingScreen> {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: BallTrainingScreen._surface2,
+                  color: AppColors.surface2,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: BallTrainingScreen._border,
+                    color: AppColors.border,
                     width: 0.5,
                   ),
                 ),
@@ -147,7 +139,7 @@ class _HeaderSection extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: BallTrainingScreen._border, width: 0.5),
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: Row(
@@ -159,14 +151,14 @@ class _HeaderSection extends StatelessWidget {
             icon: const Icon(
               Icons.chevron_left,
               size: 24,
-              color: BallTrainingScreen._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
           const SizedBox(width: 8),
           Text(
             title,
             style: const TextStyle(
-              color: BallTrainingScreen._textPrimary,
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.w600,
               fontSize: 14,
             ),
@@ -197,7 +189,7 @@ class _AttemptFooter extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       decoration: const BoxDecoration(
         border: Border(
-          top: BorderSide(color: BallTrainingScreen._border, width: 0.5),
+          top: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: Column(
@@ -215,7 +207,7 @@ class _AttemptFooter extends StatelessWidget {
                 Text(
                   lastLabel!,
                   style: const TextStyle(
-                    color: BallTrainingScreen._textSecondary,
+                    color: AppColors.textSecondary,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
@@ -226,7 +218,7 @@ class _AttemptFooter extends StatelessWidget {
           Text(
             hint,
             style: const TextStyle(
-              color: BallTrainingScreen._textSecondary,
+              color: AppColors.textSecondary,
               fontSize: 12,
             ),
           ),
@@ -253,11 +245,11 @@ class _Pip extends StatelessWidget {
         color: made == null
             ? Colors.transparent
             : (made
-                ? BallTrainingScreen._success
-                : BallTrainingScreen._danger),
+                ? AppColors.success
+                : AppColors.danger),
         border: Border.all(
           color: made == null
-              ? BallTrainingScreen._border
+              ? AppColors.border
               : Colors.transparent,
           width: 1.5,
         ),

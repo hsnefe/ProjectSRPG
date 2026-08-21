@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:project_srpg/net/career_models.dart';
 import 'package:project_srpg/screens/career_center_screen.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 
 /// Maç sonrası ekran. M2'nin (career_engine) sonucu varsa gerçek özet
 /// gösterilir — skor, puan durumu değişimi, gol katkısı; talep sistemi
@@ -21,15 +22,6 @@ class RequestScreen extends StatelessWidget {
   final String? homeTeamName;
   final String? awayTeamName;
 
-  static const _surface1 = Color(0xFF1A1D24);
-  static const _surface2 = Color(0xFF22262F);
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textSecondary = Color(0xFFA0A6B0);
-  static const _textMuted = Color(0xFF6B7280);
-  static const _success = Color(0xFF3DDC97);
-  static const _danger = Color(0xFFE85D5D);
-
   /// Yığındaki mevcut kariyer merkezine döner; maç öncesi/maç ekranları atılır.
   /// `route.isFirst` güvenlik ağı: kariyer merkezi yığında yoksa (izole test,
   /// ileride farklı bir giriş noktası) tüm yığın boşaltılmasın.
@@ -44,7 +36,7 @@ class RequestScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final result = this.result;
     return Scaffold(
-      backgroundColor: _surface1,
+      backgroundColor: AppColors.surface1,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -53,9 +45,9 @@ class RequestScreen extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: _surface2,
+                  color: AppColors.surface2,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _border, width: 0.5),
+                  border: Border.all(color: AppColors.border, width: 0.5),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -78,7 +70,7 @@ class RequestScreen extends StatelessWidget {
                         child: Text(
                           'Maç sonrası talepler yakında.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: _textMuted, fontSize: 12),
+                          style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                         ),
                       ),
                       Padding(
@@ -88,8 +80,8 @@ class RequestScreen extends StatelessWidget {
                           child: OutlinedButton.icon(
                             onPressed: () => _openCareerCenter(context),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: _textPrimary,
-                              side: const BorderSide(color: _border),
+                              foregroundColor: AppColors.textPrimary,
+                              side: const BorderSide(color: AppColors.border),
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               textStyle: const TextStyle(fontSize: 13),
                             ),
@@ -120,7 +112,7 @@ class _HeaderSection extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: RequestScreen._border,
+            color: AppColors.border,
             width: 0.5,
           ),
         ),
@@ -134,14 +126,14 @@ class _HeaderSection extends StatelessWidget {
             icon: const Icon(
               Icons.chevron_left,
               size: 24,
-              color: RequestScreen._textMuted,
+              color: AppColors.textMuted,
             ),
           ),
           const SizedBox(width: 10),
           const Text(
             'Talepler',
             style: TextStyle(
-              color: RequestScreen._textPrimary,
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.w500,
               fontSize: 16,
             ),
@@ -180,7 +172,7 @@ class _MatchResultSection extends StatelessWidget {
             '${awayTeamName ?? 'Deplasman'}',
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: RequestScreen._textPrimary,
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.w600,
               fontSize: 16,
             ),
@@ -200,20 +192,20 @@ class _MatchResultSection extends StatelessWidget {
                           : Icons.trending_flat,
                   label: '${delta.rankBefore}. → ${delta.rankAfter}.',
                   color: delta.rankAfter! < delta.rankBefore!
-                      ? RequestScreen._success
+                      ? AppColors.success
                       : delta.rankAfter! > delta.rankBefore!
-                          ? RequestScreen._danger
-                          : RequestScreen._textSecondary,
+                          ? AppColors.danger
+                          : AppColors.textSecondary,
                 ),
               _StatPill(
                 icon: Icons.sports_soccer,
                 label: '${stat.goals} gol',
-                color: RequestScreen._textSecondary,
+                color: AppColors.textSecondary,
               ),
               _StatPill(
                 icon: Icons.timer_outlined,
                 label: '${stat.minutes} dk',
-                color: RequestScreen._textSecondary,
+                color: AppColors.textSecondary,
               ),
             ],
           ),

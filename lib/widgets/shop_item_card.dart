@@ -2,6 +2,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import 'package:project_srpg/theme/app_colors.dart';
+
 /// Alışveriş ekranındaki bir ürün.
 class ShopItem {
   const ShopItem({
@@ -66,10 +68,6 @@ class ShopItemCard extends StatelessWidget {
     this.height = 210,
     this.borderRadius = 18,
   });
-
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _success = Color(0xFF3DDC97);
-  static const _danger = Color(0xFFE85D5D);
 
   final ShopItem item;
   final VoidCallback? onTap;
@@ -161,7 +159,7 @@ class ShopItemCard extends StatelessWidget {
                       child: _Pill(
                         icon: Icons.check,
                         label: 'Sahip',
-                        color: _success,
+                        color: AppColors.success,
                       ),
                     ),
                   // Alt şerit: kendi arkasındaki görüntüyü bulanıklaştırır.
@@ -197,7 +195,7 @@ class ShopItemCard extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                  color: _textPrimary,
+                                  color: AppColors.textPrimary,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
                                   height: 1.2,
@@ -209,7 +207,7 @@ class ShopItemCard extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: affordable ? _textPrimary : _danger,
+                                  color: affordable ? AppColors.textPrimary : AppColors.danger,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -277,7 +275,7 @@ class ShopItemArt extends StatelessWidget {
                   colors: [
                     item.tint.withValues(alpha: 0.55),
                     item.tint.withValues(alpha: 0.22),
-                    const Color(0xFF12151B).withValues(alpha: 0.92),
+                    AppColors.surface0.withValues(alpha: 0.92),
                   ],
                   stops: const [0.0, 0.45, 1.0],
                 ),

@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'package:project_srpg/theme/app_colors.dart';
+
 enum RadarGridShape { polygon, circle }
 
 class RadarChart extends StatelessWidget {
@@ -13,9 +15,9 @@ class RadarChart extends StatelessWidget {
     this.max = 100,
     this.ringCount = 4,
     this.gridShape = RadarGridShape.polygon,
-    this.gridColor = const Color(0xFF333845),
-    this.labelColor = const Color(0xFFA0A6B0),
-    this.backgroundColor = const Color(0xFF1A1D24),
+    this.gridColor = AppColors.border,
+    this.labelColor = AppColors.textSecondary,
+    this.backgroundColor = AppColors.surface1,
     this.smooth = false,
     this.glow = false,
   }) : assert(labels.length == values.length && labels.length >= 3);

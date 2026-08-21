@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:project_srpg/game/training_result.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 
 /// Bir antrenman mini-oyunu bittiğinde alt kontrollerin yerine geçen panel.
 /// Üç host ekran da bunu kullanıyor, o yüzden burada.
@@ -14,12 +15,6 @@ class TrainingResultPanel extends StatelessWidget {
     required this.onDone,
   });
 
-  static const _border = Color(0xFF333845);
-  static const _textPrimary = Color(0xFFE8EAED);
-  static const _textMuted = Color(0xFF6B7280);
-  static const _success = Color(0xFF3DDC97);
-  static const _danger = Color(0xFFE85D5D);
-
   final TrainingResult result;
   final VoidCallback onDone;
 
@@ -29,14 +24,14 @@ class TrainingResultPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
       decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: _border, width: 0.5)),
+        border: Border(top: BorderSide(color: AppColors.border, width: 0.5)),
       ),
       child: Row(
         children: [
           Icon(
             good ? Icons.check_circle_outline : Icons.cancel_outlined,
             size: 26,
-            color: good ? _success : _danger,
+            color: good ? AppColors.success : AppColors.danger,
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -47,7 +42,7 @@ class TrainingResultPanel extends StatelessWidget {
                 Text(
                   good ? 'Antrenman başarılı' : 'Antrenman başarısız',
                   style: TextStyle(
-                    color: good ? _success : _danger,
+                    color: good ? AppColors.success : AppColors.danger,
                     fontWeight: FontWeight.w700,
                     fontSize: 14,
                   ),
@@ -55,7 +50,7 @@ class TrainingResultPanel extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   result.detail,
-                  style: const TextStyle(color: _textMuted, fontSize: 11),
+                  style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
                 ),
               ],
             ),
@@ -64,8 +59,8 @@ class TrainingResultPanel extends StatelessWidget {
           OutlinedButton(
             onPressed: onDone,
             style: OutlinedButton.styleFrom(
-              foregroundColor: _textPrimary,
-              side: const BorderSide(color: _border),
+              foregroundColor: AppColors.textPrimary,
+              side: const BorderSide(color: AppColors.border),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
