@@ -89,30 +89,57 @@ class CareerApiClient {
         .toList(growable: false);
   }
 
-  /// C0 · `GET /careers/options` — seçilebilir kulüpler (D21: yalnızca alt
-  /// kademe) ve pozisyonlar.
-  Future<List<ClubOption>> careerOptions() async {
+  /// C0 · `GET /careers/options` — yeni kariyer formunun seçenekleri:
+  /// milliyetler, pozisyon+rol katalogu ve hedef kulüpler.
+  Future<CareerOptions> careerOptions() async {
     final body = await _get('/careers/options');
-    return (body['clubs'] as List<dynamic>)
-        .map((e) => ClubOption.fromJson(e as Map<String, dynamic>))
-        .toList(growable: false);
+    return CareerOptions.fromJson(body);
   }
 
-  /// C1 · `POST /careers` — yeni kariyer. Yanıt C3 ile aynı hub gövdesidir;
-  /// buradaki tek ilgi alanı `career_id`.
-  Future<String> createCareer({
-    required String playerName,
+  /// C1 · `POST /careers` — yeni kariyer. Yanıt C3 ile aynı hub gövdesidir,
+  /// olduğu gibi döndürülür: sihirbaz kariyer kimliğinin yanında atanan kulübü
+  /// ve künyeyi de aynı yanıttan okur.
+  ///
+  /// Oynanacak kulüp istekte yok: D21/§3 uyarınca [nationality]'nin en alt
+  /// liginden atanır. [targetTeamId] hedeflenen kulüptür, oynanan değil.
+  Future<CareerHub> createCareer({
+    required String firstName,
+    required String lastName,
+    required String nationality,
     required String position,
-    required String teamId,
+    required String role,
+    required String targetTeamId,
     int? seed,
   }) async {
     final body = await _post('/careers', expect: 201, body: {
-      'player_name': playerName,
+      'first_name': firstName,
+      'last_name': lastName,
+      'nationality': nationality,
       'position': position,
-      'team_id': teamId,
+      'role': role,
+      'target_team_id': targetTeamId,
       'seed': ?seed,
     });
-    return body['career_id'] as String;
+    return CareerHub.fromJson(body);
+  }
+
+  /// C5 · `POST /careers/{cid}/skill-exams` — sınav notlarını nitelik puanına
+  /// çevirir. Üç sınav **tek istekte** gider: gövde önce bütünüyle doğrulanır,
+  /// bir not geçersizse veya sınav daha önce girilmişse (`409
+  /// skill_exam_already_taken`) hiçbiri uygulanmaz.
+  Future<List<SkillExamOutcome>> submitSkillExams(
+    String careerId,
+    Map<String, int> levelsByExamId,
+  ) async {
+    final body = await _post('/careers/$careerId/skill-exams', body: {
+      'results': [
+        for (final entry in levelsByExamId.entries)
+          {'exam_id': entry.key, 'level': entry.value},
+      ],
+    });
+    return (body['results'] as List<dynamic>)
+        .map((e) => SkillExamOutcome.fromJson(e as Map<String, dynamic>))
+        .toList(growable: false);
   }
 
   /// C4 · `DELETE /careers/{cid}` — kariyeri sil. INV-9: hiçbir satır kalmaz.

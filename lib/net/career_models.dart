@@ -189,28 +189,273 @@ class CareerSummary {
   final CompetitionRef? competition;
 }
 
-/// §5.1 C0'ın seçilebilir kulübü. C1 yalnızca `team.teamId`'yi ister.
-class ClubOption {
-  const ClubOption({
+/// §5.1 C0 — yeni kariyer formunun tüm seçenekleri tek çağrıda.
+///
+/// Sihirbaz hiçbir sayıyı kendi bilmez: sınav ölçeği ve başlangıç değerleri de
+/// (taban yetenek, rol bonusu, para/kondisyon, ilişki skorları) buradan gelir,
+/// böylece motorun katalogları değişince ekran yalan söylemez.
+class CareerOptions {
+  const CareerOptions({
+    required this.nationalities,
+    required this.positions,
+    required this.targetTeams,
+    required this.skillExams,
+    required this.startingValues,
+  });
+
+  factory CareerOptions.fromJson(Map<String, dynamic> json) {
+    List<T> list<T>(String key, T Function(Map<String, dynamic>) parse) =>
+        ((json[key] as List<dynamic>?) ?? const [])
+            .map((e) => parse(e as Map<String, dynamic>))
+            .toList(growable: false);
+
+    return CareerOptions(
+      nationalities: list('nationalities', NationalityOption.fromJson),
+      positions: list('positions', PositionOption.fromJson),
+      targetTeams: list('target_teams', TargetTeamOption.fromJson),
+      skillExams: list('skill_exams', SkillExamOption.fromJson),
+      startingValues: StartingValues.fromJson(
+        (json['starting_values'] as Map<String, dynamic>?) ?? const {},
+      ),
+    );
+  }
+
+  final List<NationalityOption> nationalities;
+  final List<PositionOption> positions;
+
+  /// Hedef ("hayalindeki") kulüpler. Oynanacak kulüp burada seçilmez —
+  /// D21/§3 uyarınca milliyetin en alt liginden atanır.
+  final List<TargetTeamOption> targetTeams;
+
+  /// C5'te girilecek sınavların katalogu (Şut / Pas / Müdahale).
+  final List<SkillExamOption> skillExams;
+
+  final StartingValues startingValues;
+}
+
+/// §5.1 C0'ın milliyet kalemi. C1'e giden değer [countryCode].
+class NationalityOption {
+  const NationalityOption({
+    required this.countryCode,
+    required this.name,
+    required this.nationality,
+  });
+
+  factory NationalityOption.fromJson(Map<String, dynamic> json) {
+    return NationalityOption(
+      countryCode: json['country_code'] as String,
+      name: json['name'] as String,
+      nationality: json['nationality'] as String,
+    );
+  }
+
+  final String countryCode;
+
+  /// Ülke adı ('Türkiye').
+  final String name;
+
+  /// FE'ye gösterilen sıfat ('Türk') — anahtar değil.
+  final String nationality;
+}
+
+/// §5.1 C0'ın pozisyonu, kendi rolleriyle. Roller pozisyona göre değişir ve
+/// C1 uyumluluğu doğrular — bu yüzden rol listesi pozisyonun içinde gelir.
+class PositionOption {
+  const PositionOption({required this.position, required this.roles});
+
+  factory PositionOption.fromJson(Map<String, dynamic> json) {
+    return PositionOption(
+      position: json['position'] as String,
+      roles: ((json['roles'] as List<dynamic>?) ?? const [])
+          .map((e) => RoleOption.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+    );
+  }
+
+  final String position;
+  final List<RoleOption> roles;
+}
+
+/// §5.1 C0'ın rolü. C1'e giden değer [roleId].
+class RoleOption {
+  const RoleOption({
+    required this.roleId,
+    required this.name,
+    required this.group,
+    required this.attributes,
+  });
+
+  factory RoleOption.fromJson(Map<String, dynamic> json) {
+    return RoleOption(
+      roleId: json['role_id'] as String,
+      name: json['name'] as String,
+      group: json['group'] as String,
+      attributes: ((json['attributes'] as List<dynamic>?) ?? const [])
+          .cast<String>()
+          .toList(growable: false),
+    );
+  }
+
+  final String roleId;
+  final String name;
+
+  /// Saha bölgesi etiketi ('DC', 'DL/DR', 'MC'…).
+  final String group;
+
+  /// Rolün uzmanlaştığı iki yetenek yuvası; aynı anahtar iki kez geçebilir
+  /// (o zaman rol bonusu o yeteneğe iki kat biner).
+  final List<String> attributes;
+}
+
+/// §5.1 C0'ın hedef kulüp kalemi. C1 yalnızca `team.teamId`'yi ister.
+class TargetTeamOption {
+  const TargetTeamOption({
     required this.team,
     required this.competition,
     required this.strengthHint,
   });
 
-  factory ClubOption.fromJson(Map<String, dynamic> json) {
-    return ClubOption(
+  factory TargetTeamOption.fromJson(Map<String, dynamic> json) {
+    final competition = json['competition'] as Map<String, dynamic>?;
+    return TargetTeamOption(
       team: TeamRef.fromJson(json['team'] as Map<String, dynamic>),
+      // Yalnızca lig kayıtlarından doldurulur; hiçbir lige yazılmamış kulüpte
+      // null gelir (kupa kayıtları hesaba katılmaz).
       competition:
-          CompetitionRef.fromJson(json['competition'] as Map<String, dynamic>),
+          competition == null ? null : CompetitionRef.fromJson(competition),
       strengthHint: json['strength_hint'] as String? ?? '',
     );
   }
 
   final TeamRef team;
-  final CompetitionRef competition;
+  final CompetitionRef? competition;
 
   /// 'zayıf' | 'orta' | 'güçlü'.
   final String strengthHint;
+}
+
+/// §5.1 C0'ın yetenek sınavı kalemi (`catalog/skill_exams.py`).
+///
+/// Puanlama tek formül: `level * pointsPerLevel`, niteliğin **mevcut** değerine
+/// eklenir ve [maxValue]'da kesilir. Sihirbazın "20 → 25" önizlemesi de bunu
+/// kullanır, ayrı bir sabit tutmaz.
+class SkillExamOption {
+  const SkillExamOption({
+    required this.examId,
+    required this.title,
+    required this.description,
+    required this.attributeKey,
+    required this.pointsPerLevel,
+    required this.minLevel,
+    required this.maxLevel,
+    required this.maxValue,
+  });
+
+  factory SkillExamOption.fromJson(Map<String, dynamic> json) {
+    return SkillExamOption(
+      examId: json['exam_id'] as String,
+      title: json['title'] as String,
+      description: json['description'] as String? ?? '',
+      attributeKey: json['attribute_key'] as String,
+      pointsPerLevel: (json['points_per_level'] as num).toDouble(),
+      minLevel: (json['min_level'] as num).toInt(),
+      maxLevel: (json['max_level'] as num).toInt(),
+      maxValue: (json['max_value'] as num).toDouble(),
+    );
+  }
+
+  /// C5'e giden değer.
+  final String examId;
+  final String title;
+  final String description;
+
+  /// Sınavın yükselttiği nitelik anahtarı ('shooting' | 'passing' | 'tackling').
+  final String attributeKey;
+  final double pointsPerLevel;
+  final int minLevel;
+  final int maxLevel;
+
+  /// Sınavın niteliği çıkarabileceği tavan — player_attribute'un 0-100
+  /// sınırından ayrı, sınava özgü bir kesme noktası.
+  final double maxValue;
+
+  /// [level] notunun bu sınavda ne kadar puan ettiği (tavan uygulanmadan).
+  double awardFor(int level) => level * pointsPerLevel;
+}
+
+/// §5.1 C0'ın `starting_values` bloğu — yeni kariyerin açılış değerleri.
+class StartingValues {
+  const StartingValues({
+    required this.money,
+    required this.condition,
+    required this.relationships,
+    required this.baseSkillValue,
+    required this.roleBonusPerSlot,
+  });
+
+  factory StartingValues.fromJson(Map<String, dynamic> json) {
+    return StartingValues(
+      money: (json['money'] as num?)?.toInt() ?? 0,
+      condition: (json['condition'] as num?)?.toInt() ?? 0,
+      relationships:
+          ((json['relationships'] as Map<String, dynamic>?) ?? const {}).map(
+        (key, value) => MapEntry(key, (value as num).toInt()),
+      ),
+      baseSkillValue: (json['base_skill_value'] as num?)?.toDouble() ?? 0,
+      roleBonusPerSlot: (json['role_bonus_per_slot'] as num?)?.toDouble() ?? 0,
+    );
+  }
+
+  final int money;
+  final int condition;
+
+  /// İlişki türü → başlangıç skoru ('coach': 70, 'fans': 40 …).
+  final Map<String, int> relationships;
+
+  /// Her saha yeteneğinin rol bonusundan önceki taban değeri.
+  final double baseSkillValue;
+
+  /// Rolün harcadığı her yuvanın o yeteneğe eklediği puan.
+  final double roleBonusPerSlot;
+
+  /// [roleAttributes] iki yuvalı bir rolün anahtar listesi; aynı anahtar iki
+  /// kez geçerse bonus o yeteneğe iki kat biner.
+  double skillFor(String attributeKey, List<String> roleAttributes) {
+    final slots = roleAttributes.where((a) => a == attributeKey).length;
+    return baseSkillValue + slots * roleBonusPerSlot;
+  }
+}
+
+/// §5.1 C5 yanıtının `results[]` satırı — bir sınavın niteliğe yansıması.
+class SkillExamOutcome {
+  const SkillExamOutcome({
+    required this.examId,
+    required this.level,
+    required this.attributeKey,
+    required this.before,
+    required this.after,
+    required this.applied,
+  });
+
+  factory SkillExamOutcome.fromJson(Map<String, dynamic> json) {
+    return SkillExamOutcome(
+      examId: json['exam_id'] as String,
+      level: (json['level'] as num).toInt(),
+      attributeKey: json['attribute_key'] as String,
+      before: (json['before'] as num).toDouble(),
+      after: (json['after'] as num).toDouble(),
+      applied: (json['applied'] as num).toDouble(),
+    );
+  }
+
+  final String examId;
+  final int level;
+  final String attributeKey;
+  final double before;
+  final double after;
+
+  /// Tavana takıldıysa ham kazançtan küçük olabilir.
+  final double applied;
 }
 
 /// §5.0 `CareerState` — durumu değiştiren her yanıtta bulunur (D28, INV-18).
@@ -398,9 +643,15 @@ class CareerHub {
     required this.careerId,
     required this.careerState,
     required this.playerName,
+    required this.firstName,
+    required this.lastName,
+    required this.nationality,
     required this.playerPosition,
+    this.role,
+    this.roleName,
     required this.playerAge,
     required this.playerTeam,
+    this.targetTeam,
     this.nextFixture,
     this.standingSummary,
     required this.newsPreview,
@@ -408,6 +659,7 @@ class CareerHub {
 
   factory CareerHub.fromJson(Map<String, dynamic> json) {
     final player = json['player'] as Map<String, dynamic>;
+    final targetTeam = player['target_team'] as Map<String, dynamic>?;
     final nextFixture = json['next_fixture'] as Map<String, dynamic>?;
     final standingSummary = json['standing_summary'] as Map<String, dynamic>?;
     return CareerHub(
@@ -415,9 +667,15 @@ class CareerHub {
       careerState:
           CareerState.fromJson(json['career_state'] as Map<String, dynamic>),
       playerName: player['name'] as String,
+      firstName: player['first_name'] as String? ?? '',
+      lastName: player['last_name'] as String? ?? '',
+      nationality: player['nationality'] as String? ?? '',
       playerPosition: player['position'] as String,
+      role: player['role'] as String?,
+      roleName: player['role_name'] as String?,
       playerAge: player['age'] as int,
       playerTeam: TeamRef.fromJson(player['team'] as Map<String, dynamic>),
+      targetTeam: targetTeam == null ? null : TeamRef.fromJson(targetTeam),
       nextFixture: nextFixture == null
           ? null
           : NextFixtureSummary.fromJson(nextFixture),
@@ -432,10 +690,26 @@ class CareerHub {
 
   final String careerId;
   final CareerState careerState;
+
+  /// Ad + soyadın motorda birleştirilmiş hali.
   final String playerName;
+  final String firstName;
+  final String lastName;
+
+  /// `country_code` ('TR'), sıfat hali değil.
+  final String nationality;
   final String playerPosition;
+
+  /// Rol kimliği ve adı: roller gelmeden açılmış kariyerlerde ikisi de null
+  /// gelir (BE kimliği yine de yankılar, "rolsüz" ile "bilinmeyen rol" ayrılsın
+  /// diye).
+  final String? role;
+  final String? roleName;
   final int playerAge;
   final TeamRef playerTeam;
+
+  /// Hedeflenen kulüp — oynanan kulüp [playerTeam].
+  final TeamRef? targetTeam;
 
   /// Sezon bittiyse null.
   final NextFixtureSummary? nextFixture;

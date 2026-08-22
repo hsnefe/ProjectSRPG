@@ -2,13 +2,13 @@ import 'career_api_client.dart';
 
 /// Uygulamanın hangi kariyerle konuştuğunu tutar.
 ///
-/// FE'de henüz kariyer kurma/seçme ekranı yok (landing doğrudan kariyer
-/// merkezine gidiyor), ama `career_engine`'in her dünya ucu bir `career_id`
-/// istiyor. Bu sınıf aradaki boşluğu kapatır: **varsa** en son kariyeri
-/// kullanır (C2), yoksa FE'nin bugünkü sabit künyesiyle bir tane açar (C0+C1).
+/// Normal yol artık sihirbaz: [NewCareerScreen] kariyeri kurar ve [adopt] ile
+/// oturuma bağlar. [resolve] bunun yedeği — bir ekran sihirbazdan geçmeden
+/// açıldığında (testler, doğrudan navigasyon) **varsa** en son kariyeri
+/// kullanır (C2), yoksa sabit bir künyeyle bir tane açar (C0+C1).
 ///
 /// Kimlik bir kez çözülür ve uygulama çalıştığı sürece bellekte kalır; kalıcı
-/// saklama ve gerçek bir kariyer seçme akışı kayıt ekranıyla birlikte gelecek.
+/// saklama ve kariyer seçme akışı kayıt ekranıyla birlikte gelecek.
 class CareerSession {
   CareerSession({CareerApiClient? client})
       : _client = client ?? CareerApiClient();
@@ -23,13 +23,17 @@ class CareerSession {
   /// üretim kodu asla atama yapmaz.
   static CareerSession instance = CareerSession();
 
-  /// FE'nin bugünkü sabit oyuncu künyesi (`player_state.dart`). Kariyer kurma
-  /// ekranı geldiğinde bunun yerini kullanıcının girdisi alacak.
-  static const _defaultPlayerName = 'Efe Kaan';
+  /// [resolve]'un yedek yolunda kullanılan sabit künye (`player_state.dart`
+  /// metinleriyle aynı isim). Sihirbazdan geçen kullanıcı bunu hiç görmez.
+  static const _defaultFirstName = 'Efe';
+  static const _defaultLastName = 'Kaan';
+  static const _defaultNationality = 'TR';
   static const _defaultPosition = 'Orta saha';
 
-  /// C0'ın listesinde varsa tercih edilen kulüp — FE'nin metinlerinde geçen
-  /// takım bu (`player_state.dart` `teamName`). Yoksa listenin ilki alınır.
+  /// C0'ın hedef kulüp listesinde varsa tercih edilen kulüp — FE'nin
+  /// metinlerinde geçen takım bu (`player_state.dart` `teamName`). Yoksa
+  /// listenin ilki alınır. Not: bu **hedef** kulüptür; oynanan kulübü §3
+  /// milliyetten atar, istek onu seçmez.
   static const _preferredTeamId = 't_ykz';
 
   final CareerApiClient _client;
@@ -42,6 +46,17 @@ class CareerSession {
   /// Çözülmüş kariyer kimliği; henüz çözülmediyse null.
   String? get careerId => _careerId;
 
+  /// Sihirbazın kurduğu kariyeri oturumun kariyeri yapar.
+  ///
+  /// [resolve] listenin ilkini alacağı için çoğu zaman aynı kimliğe varırdı,
+  /// ama bu hem fazladan bir C2 turu hem de "en son kariyer" varsayımına
+  /// bağımlılık demek: kullanıcı hangi kariyeri kurduysa oturum onu tutar,
+  /// eski kariyerler kayıt listesinde durmaya devam eder.
+  void adopt(String careerId) {
+    _careerId = careerId;
+    _pending = null;
+  }
+
   /// Kariyer kimliğini döndürür, gerekiyorsa çözer. Aynı anda birden fazla
   /// çağrı gelirse hepsi tek isteği bekler; hata durumunda [Future] yeniden
   /// denenebilsin diye temizlenir.
@@ -49,6 +64,20 @@ class CareerSession {
     final cached = _careerId;
     if (cached != null) return Future.value(cached);
     return _pending ??= _resolveAndCache();
+  }
+
+  /// Var olan kariyeri döndürür, **yenisini açmaz** (yoksa null).
+  ///
+  /// Açılışta çalışan [PlayerState.load] bunu kullanır: uygulama daha landing
+  /// ekranındayken sabit künyeli bir kariyer açmak, kullanıcı sihirbazda kendi
+  /// künyesini girmeden önce ortada sahipsiz bir kayıt bırakırdı.
+  Future<String?> resolveExisting() async {
+    final cached = _careerId;
+    if (cached != null) return cached;
+
+    final careers = await _client.listCareers();
+    if (careers.isEmpty) return null;
+    return _careerId = careers.first.careerId;
   }
 
   Future<String> _resolveAndCache() async {
@@ -67,18 +96,52 @@ class CareerSession {
     final careers = await _client.listCareers();
     if (careers.isNotEmpty) return careers.first.careerId;
 
-    final clubs = await _client.careerOptions();
-    if (clubs.isEmpty) {
-      throw StateError('career_engine seçilebilir kulüp döndürmedi');
+    final options = await _client.careerOptions();
+    if (options.positions.isEmpty || options.targetTeams.isEmpty) {
+      throw StateError('career_engine kariyer seçeneği döndürmedi');
     }
-    final club = clubs.firstWhere(
-      (c) => c.team.teamId == _preferredTeamId,
-      orElse: () => clubs.first,
+
+    // Sabit künyeyi katalogla eşleştiririz: tercih edilen değer listede yoksa
+    // ilkine düşeriz, böylece BE katalogu değişince C1 `422` yerine geçerli
+    // bir kariyer üretmeye devam eder.
+    final nationality = _pick(
+      options.nationalities,
+      (n) => n.countryCode == _defaultNationality,
     );
-    return _client.createCareer(
-      playerName: _defaultPlayerName,
-      position: _defaultPosition,
-      teamId: club.team.teamId,
+    if (nationality == null) {
+      throw StateError('career_engine milliyet döndürmedi');
+    }
+
+    // Rolsüz pozisyon geçerli kariyer üretemez (C1 rolü zorunlu ister), o
+    // yüzden yedek seçim de rolü olanlar arasından yapılır.
+    final withRoles =
+        options.positions.where((p) => p.roles.isNotEmpty).toList();
+    final position = _pick(withRoles, (p) => p.position == _defaultPosition);
+    if (position == null) {
+      throw StateError('career_engine rolü olan pozisyon döndürmedi');
+    }
+
+    final target = _pick(
+      options.targetTeams,
+      (t) => t.team.teamId == _preferredTeamId,
+    )!;
+
+    final hub = await _client.createCareer(
+      firstName: _defaultFirstName,
+      lastName: _defaultLastName,
+      nationality: nationality.countryCode,
+      position: position.position,
+      role: position.roles.first.roleId,
+      targetTeamId: target.team.teamId,
     );
+    return hub.careerId;
+  }
+
+  /// [test]'i sağlayan ilk kalem, yoksa listenin ilki; liste boşsa null.
+  static T? _pick<T>(List<T> items, bool Function(T) test) {
+    for (final item in items) {
+      if (test(item)) return item;
+    }
+    return items.isEmpty ? null : items.first;
   }
 }

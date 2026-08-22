@@ -66,10 +66,16 @@ class PlayerState extends ChangeNotifier {
 
   /// P1'i çeker ve alanları doldurur. Hata durumunda sessizce vazgeçer —
   /// ekranlar boş/varsayılan değerlerle kalır, kritik bir akışı bloklamaz;
-  /// [PlayerScope] uygulama açılışında bir kez çağırır.
+  /// [PlayerScope] uygulama açılışında bir kez, sihirbaz da yeni kariyeri
+  /// kurduktan sonra bir kez çağırır.
+  ///
+  /// Kariyer **yoksa** hiçbir şey yapmaz: açılışta kariyer açmak, kullanıcı
+  /// sihirbazda künyesini girmeden sahipsiz bir kayıt yaratmak olurdu
+  /// ([CareerSession.resolveExisting]).
   Future<void> load() async {
     try {
-      final careerId = await _session.resolve();
+      final careerId = await _session.resolveExisting();
+      if (careerId == null) return;
       final profile = await _session.client.player(careerId);
       _name = profile.name;
       _position = profile.position;
