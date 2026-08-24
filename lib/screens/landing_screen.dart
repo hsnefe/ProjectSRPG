@@ -1,13 +1,18 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:project_srpg/net/career_session.dart';
+import 'package:project_srpg/screens/load_career_screen.dart';
 import 'package:project_srpg/screens/new_career_screen.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/glass_panel.dart';
-import 'package:project_srpg/widgets/new_game_button.dart';
+import 'package:project_srpg/widgets/glow_text_button.dart';
 
 class LandingScreen extends StatelessWidget {
-  const LandingScreen({super.key});
+  const LandingScreen({super.key, this.session});
+
+  /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
+  final CareerSession? session;
 
   @override
   Widget build(BuildContext context) {
@@ -76,17 +81,40 @@ class LandingScreen extends StatelessWidget {
                     ),
                     alignment: Alignment.bottomRight,
                     padding: const EdgeInsets.fromLTRB(24, 24, 32, 32),
-                    child: NewGameButton(
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const NewCareerScreen(),
-                            settings: const RouteSettings(
-                              name: NewCareerScreen.routeName,
-                            ),
-                          ),
-                        );
-                      },
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        GlowTextButton(
+                          label: 'New Game',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => const NewCareerScreen(),
+                                settings: const RouteSettings(
+                                  name: NewCareerScreen.routeName,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        GlowTextButton(
+                          label: 'Load Career',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => LoadCareerScreen(
+                                  session: session,
+                                ),
+                                settings: const RouteSettings(
+                                  name: LoadCareerScreen.routeName,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
                   ),
                 ),

@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/career_center_screen.dart';
@@ -11,6 +10,7 @@ import 'package:project_srpg/screens/new_career/role_step.dart';
 import 'package:project_srpg/screens/new_career/target_step.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/theme/app_colors.dart';
+import 'package:project_srpg/widgets/panel_states.dart';
 
 /// §5.1 C0 → C1 → C5: yeni kariyer sihirbazı.
 ///
@@ -205,24 +205,10 @@ class _NewCareerScreenState extends State<NewCareerScreen> {
   void _showError(Object error) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(_errorText(error)),
+        content: Text(careerErrorText(error)),
         backgroundColor: AppColors.surface2,
       ),
     );
-  }
-
-  static String _errorText(Object error) {
-    if (error is CareerApiException) {
-      switch (error.code) {
-        case 'invalid_request':
-          return 'Motor bilgileri kabul etmedi: ${error.message ?? 'geçersiz istek'}';
-        case 'skill_exam_already_taken':
-          return 'Bu sınav zaten girilmiş, bir kez veriliyor.';
-        default:
-          return error.message ?? 'Beklenmeyen hata (${error.statusCode}).';
-      }
-    }
-    return 'career_engine\'e ulaşılamadı (8001).';
   }
 
   // --- çatı -----------------------------------------------------------------
@@ -254,11 +240,11 @@ class _NewCareerScreenState extends State<NewCareerScreen> {
                       future: _optionsFuture,
                       builder: (context, snapshot) {
                         if (snapshot.connectionState != ConnectionState.done) {
-                          return const _CenteredSpinner();
+                          return const CenteredSpinner();
                         }
                         if (snapshot.hasError) {
-                          return _OptionsError(
-                            message: _errorText(snapshot.error!),
+                          return PanelError(
+                            message: careerErrorText(snapshot.error!),
                             onRetry: () =>
                                 setState(() => _optionsFuture = _loadOptions()),
                           );
@@ -613,74 +599,6 @@ class _ActionBar extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _CenteredSpinner extends StatelessWidget {
-  const _CenteredSpinner();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Padding(
-        padding: EdgeInsets.all(24),
-        child: SizedBox(
-          width: 22,
-          height: 22,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: AppColors.textMuted,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _OptionsError extends StatelessWidget {
-  const _OptionsError({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
-            ),
-            const SizedBox(height: 12),
-            GestureDetector(
-              onTap: onRetry,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  border: Border.all(color: AppColors.border),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text(
-                  'Tekrar dene',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

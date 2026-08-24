@@ -163,6 +163,7 @@ class CareerSummary {
     required this.playerName,
     required this.seasonId,
     required this.currentDate,
+    this.playerAge,
     this.team,
     this.competition,
   });
@@ -175,6 +176,7 @@ class CareerSummary {
       playerName: json['player_name'] as String,
       seasonId: json['season_id'] as String,
       currentDate: json['current_date'] as String,
+      playerAge: json['player_age'] as int?,
       team: team == null ? null : TeamRef.fromJson(team),
       competition:
           competition == null ? null : CompetitionRef.fromJson(competition),
@@ -185,6 +187,10 @@ class CareerSummary {
   final String playerName;
   final String seasonId;
   final String currentDate;
+
+  /// Nullable: motorun eski/ara bir sürümü bu alanı hiç göndermeyebilir,
+  /// liste yine de çizilsin diye kart bunu koşullu gösterir.
+  final int? playerAge;
   final TeamRef? team;
   final CompetitionRef? competition;
 }

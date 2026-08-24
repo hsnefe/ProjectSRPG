@@ -1084,6 +1084,7 @@ rollerini sayar), tanınmayan `target_team_id`.
 { "careers": [
     { "career_id":    "car_9f2a71c4e0b8",
       "player_name":  "Efe Kaan",
+      "player_age":   21,
       "team":         { /* TeamRef */ },
       "competition":  { /* CompetitionRef */ },
       "season_id":    "25/26",

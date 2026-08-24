@@ -19,12 +19,6 @@ def _fetch_player_row(conn: sqlite3.Connection, career_id: str) -> sqlite3.Row:
     return row
 
 
-def _age(birth_date: str) -> int:
-    b = _dt.date.fromisoformat(birth_date)
-    today = _dt.date.today()
-    return today.year - b.year - ((today.month, today.day) < (b.month, b.day))
-
-
 @router.get("")
 def get_player(career_id: str, conn: sqlite3.Connection = Depends(get_db)):
     player_row = _fetch_player_row(conn, career_id)
@@ -55,7 +49,7 @@ def get_player(career_id: str, conn: sqlite3.Connection = Depends(get_db)):
         "name": player_row["name"],
         "position": player_row["position"],
         "birth_date": player_row["birth_date"],
-        "age": _age(player_row["birth_date"]),
+        "age": serializers.age_from_birth_date(player_row["birth_date"]),
         "team": serializers.fetch_team_ref(conn, career_id, player_row["team_id"]),
         "career_state": serializers.fetch_career_state(conn, career_id),
         "attributes": attributes,
@@ -83,7 +77,7 @@ def _build_market_value(conn, career_id, player_row, attr_rows, fame) -> dict:
     overall_fame = next((f["value"] for f in fame if f["scope"] == "overall"), 0.0)
     computed = formulas.compute_market_value(
         attributes=attr_rows,
-        age=_age(player_row["birth_date"]),
+        age=serializers.age_from_birth_date(player_row["birth_date"]),
         contract_days_remaining=contract_days_remaining,
         fame=overall_fame,
     )

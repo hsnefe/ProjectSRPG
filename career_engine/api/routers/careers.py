@@ -138,7 +138,7 @@ def submit_skill_exams(
 def list_careers(conn: sqlite3.Connection = Depends(get_db)):
     rows = conn.execute(
         "SELECT c.career_id, c.created_at, cs.season_id, cs.game_date, p.name AS player_name, "
-        "p.team_id FROM career c "
+        "p.birth_date, p.team_id FROM career c "
         "JOIN career_state cs ON cs.career_id = c.career_id "
         "JOIN player p ON p.career_id = c.career_id AND p.is_user = 1 "
         "ORDER BY c.created_at DESC"
@@ -160,6 +160,7 @@ def list_careers(conn: sqlite3.Connection = Depends(get_db)):
         careers.append({
             "career_id": row["career_id"],
             "player_name": row["player_name"],
+            "player_age": serializers.age_from_birth_date(row["birth_date"]),
             "team": team,
             "competition": competition,
             "season_id": row["season_id"],
@@ -207,10 +208,7 @@ def _build_hub(conn: sqlite3.Connection, career_id: str) -> dict:
         "team_id, target_team_id FROM player WHERE career_id = ? AND is_user = 1",
         (career_id,),
     ).fetchone()
-    import datetime as _dt
-    birth_date = _dt.date.fromisoformat(player_row["birth_date"])
-    today = _dt.date.today()
-    age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+    age = serializers.age_from_birth_date(player_row["birth_date"])
 
     role_data = positions_data.get_role(player_row["role"]) if player_row["role"] else None
 

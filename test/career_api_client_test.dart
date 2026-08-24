@@ -703,6 +703,49 @@ void main() {
 
       await client.deleteCareer('car_1');
     });
+
+    test('listCareers() parses player_age when present', () async {
+      final client = _clientWith((request) {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/careers');
+        return _json({
+          'careers': [
+            {
+              'career_id': 'car_1',
+              'player_name': 'Efe Kaan',
+              'player_age': 21,
+              'team': null,
+              'competition': null,
+              'season_id': '25/26',
+              'current_date': '2026-03-14',
+            },
+          ],
+        });
+      });
+
+      final careers = await client.listCareers();
+
+      expect(careers.single.playerAge, 21);
+    });
+
+    test('listCareers() alan yokken playerAge null kalır', () async {
+      final client = _clientWith((request) => _json({
+            'careers': [
+              {
+                'career_id': 'car_1',
+                'player_name': 'Efe Kaan',
+                'team': null,
+                'competition': null,
+                'season_id': '25/26',
+                'current_date': '2026-03-14',
+              },
+            ],
+          }));
+
+      final careers = await client.listCareers();
+
+      expect(careers.single.playerAge, isNull);
+    });
   });
 
   group('career bootstrap (CareerSession)', () {

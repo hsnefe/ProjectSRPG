@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 
-class NewGameButton extends StatefulWidget {
-  const NewGameButton({super.key, this.onTap});
+class GlowTextButton extends StatefulWidget {
+  const GlowTextButton({super.key, required this.label, this.onTap});
 
+  final String label;
   final VoidCallback? onTap;
 
   @override
-  State<NewGameButton> createState() => _NewGameButtonState();
+  State<GlowTextButton> createState() => _GlowTextButtonState();
 }
 
-class _NewGameButtonState extends State<NewGameButton> {
+class _GlowTextButtonState extends State<GlowTextButton> {
   bool _isPressed = false;
 
   @override
@@ -46,7 +47,7 @@ class _NewGameButtonState extends State<NewGameButton> {
                   ),
                 ],
         ),
-        child: const Text('New Game'),
+        child: Text(widget.label),
       ),
     );
   }

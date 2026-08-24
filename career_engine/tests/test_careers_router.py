@@ -135,6 +135,10 @@ def test_list_careers_includes_created_career(api_client):
     ids = [c["career_id"] for c in listed]
     assert created["career_id"] in ids
 
+    row = next(c for c in listed if c["career_id"] == created["career_id"])
+    assert isinstance(row["player_age"], int)
+    assert row["player_age"] == created["player"]["age"]
+
 
 def test_delete_career_removes_it(api_client):
     career_id = create_career(api_client)["career_id"]

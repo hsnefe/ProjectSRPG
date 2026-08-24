@@ -1,9 +1,19 @@
 """§5.0 - shared response shapes every router builds from, so TeamRef,
 CompetitionRef, and CareerState are assembled in exactly one place each."""
+import datetime as _dt
 import sqlite3
 from typing import Optional
 
 from api import errors
+
+
+def age_from_birth_date(birth_date: str) -> int:
+    """Wall-clock age from an ISO birth date. Lives here because three
+    responses now carry it (C2's list row, C3's hub, P1's profile) and they
+    must not drift apart."""
+    b = _dt.date.fromisoformat(birth_date)
+    today = _dt.date.today()
+    return today.year - b.year - ((today.month, today.day) < (b.month, b.day))
 
 
 def team_ref(row) -> dict:

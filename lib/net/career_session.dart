@@ -57,6 +57,16 @@ class CareerSession {
     _pending = null;
   }
 
+  /// Silinen bir kariyer oturumun kariyeriyse onu unutur — aksi halde
+  /// oturum motorda artık var olmayan bir kimliği tutmaya devam ederdi.
+  /// Silinen kariyer oturumun kariyeri değilse (başka bir kayıt silindi)
+  /// hiçbir şey yapmaz.
+  void forget(String careerId) {
+    if (_careerId != careerId) return;
+    _careerId = null;
+    _pending = null;
+  }
+
   /// Kariyer kimliğini döndürür, gerekiyorsa çözer. Aynı anda birden fazla
   /// çağrı gelirse hepsi tek isteği bekler; hata durumunda [Future] yeniden
   /// denenebilsin diye temizlenir.

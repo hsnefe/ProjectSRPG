@@ -25,6 +25,15 @@ Future<void> _openCareerCenter(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('Landing New Game ve Load Career düğmelerini gösterir',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pump();
+
+    expect(find.text('New Game'), findsOneWidget);
+    expect(find.text('Load Career'), findsOneWidget);
+  });
+
   testWidgets('Career Center açılır', (WidgetTester tester) async {
     await _openCareerCenter(tester);
 
