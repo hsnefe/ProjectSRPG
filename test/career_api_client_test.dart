@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:project_srpg/net/career_api_client.dart';
+import 'package:project_srpg/net/career_session.dart';
 
 /// career_engine CONTRACT.md §5'teki her uç için bir sağlık testi: gerçek
 /// örnek gövdeler doğru ayrıştırılıyor mu, doğru HTTP metodu/yol/gövde
@@ -540,6 +541,159 @@ void main() {
   });
 
   group('career lifecycle', () {
+    test('careerOptions() parses nationalities/positions/target_teams',
+        () async {
+      final client = _clientWith((request) {
+        expect(request.url.path, '/careers/options');
+        return _json(_optionsBody);
+      });
+
+      final options = await client.careerOptions();
+
+      expect(options.nationalities.single.countryCode, 'TR');
+      expect(options.nationalities.single.nationality, 'Türk');
+      expect(options.positions.map((p) => p.position),
+          ['Defans', 'Orta saha']);
+      expect(options.positions[1].roles.first.roleId, 'defansif_orta_saha');
+      expect(options.positions[1].roles.first.attributes,
+          ['tackling', 'passing']);
+      expect(options.targetTeams.first.team.teamId, 't_gal');
+      expect(options.targetTeams.first.competition?.tier, 1);
+      expect(options.targetTeams.first.strengthHint, 'güçlü');
+      // Hiçbir lige yazılmamış kulüpte `competition` null gelir.
+      expect(options.targetTeams.last.competition, isNull);
+    });
+
+    test('careerOptions() sınav ve başlangıç değeri bloklarını da okur',
+        () async {
+      final client = _clientWith((request) => _json(_optionsBody));
+
+      final options = await client.careerOptions();
+
+      expect(options.skillExams.map((e) => e.examId),
+          ['shooting', 'passing', 'tackling']);
+      final exam = options.skillExams.first;
+      expect(exam.title, 'Şut Sınavı');
+      expect(exam.attributeKey, 'shooting');
+      expect(exam.minLevel, 1);
+      expect(exam.maxLevel, 5);
+      expect(exam.maxValue, 100.0);
+      expect(exam.awardFor(5), 5.0);
+
+      final starting = options.startingValues;
+      expect(starting.money, 100);
+      expect(starting.condition, 100);
+      expect(starting.relationships['coach'], 70);
+      expect(starting.baseSkillValue, 20.0);
+      expect(starting.roleBonusPerSlot, 2.0);
+      // Regista iki yuvasını da pasa harcar: taban 20 + 2 x 2.
+      expect(starting.skillFor('passing', ['passing', 'passing']), 24.0);
+      expect(starting.skillFor('shooting', ['passing', 'passing']), 20.0);
+    });
+
+    test('createCareer() sends the C1 identity body and reads the hub',
+        () async {
+      final client = _clientWith((request) {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/careers');
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body, {
+          'first_name': 'Efe',
+          'last_name': 'Kaan',
+          'nationality': 'TR',
+          'position': 'Orta saha',
+          'role': 'regista',
+          'target_team_id': 't_ykz',
+        });
+        return _json(_createdHubBody('car_1'), status: 201);
+      });
+
+      final hub = await client.createCareer(
+        firstName: 'Efe',
+        lastName: 'Kaan',
+        nationality: 'TR',
+        position: 'Orta saha',
+        role: 'regista',
+        targetTeamId: 't_ykz',
+      );
+
+      // C1'in yanıtı C3 hub gövdesiyle birebir: sihirbaz atanan kulübü de
+      // hedef kulübü de ikinci bir çağrı yapmadan buradan okur.
+      expect(hub.careerId, 'car_1');
+      expect(hub.firstName, 'Efe');
+      expect(hub.lastName, 'Kaan');
+      expect(hub.nationality, 'TR');
+      expect(hub.role, 'regista');
+      expect(hub.roleName, 'Regista');
+      expect(hub.playerTeam.name, 'Palamut SK');
+      expect(hub.targetTeam?.name, 'FK Yıldız');
+    });
+
+    test('submitSkillExams() üç notu tek gövdede yollar ve sonucu çözer',
+        () async {
+      final client = _clientWith((request) {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/careers/car_1/skill-exams');
+        expect(jsonDecode(request.body), {
+          'results': [
+            {'exam_id': 'shooting', 'level': 5},
+            {'exam_id': 'passing', 'level': 3},
+            {'exam_id': 'tackling', 'level': 1},
+          ],
+        });
+        return _json({
+          'career_id': 'car_1',
+          'results': [
+            {
+              'exam_id': 'shooting', 'level': 5, 'attribute_key': 'shooting',
+              'before': 20.0, 'after': 25.0, 'applied': 5.0,
+            },
+            {
+              'exam_id': 'passing', 'level': 3, 'attribute_key': 'passing',
+              'before': 24.0, 'after': 27.0, 'applied': 3.0,
+            },
+            {
+              'exam_id': 'tackling', 'level': 1, 'attribute_key': 'tackling',
+              'before': 20.0, 'after': 21.0, 'applied': 1.0,
+            },
+          ],
+        });
+      });
+
+      final outcomes = await client.submitSkillExams(
+        'car_1',
+        {'shooting': 5, 'passing': 3, 'tackling': 1},
+      );
+
+      expect(outcomes, hasLength(3));
+      expect(outcomes.first.attributeKey, 'shooting');
+      expect(outcomes.first.before, 20.0);
+      expect(outcomes.first.after, 25.0);
+      expect(outcomes[1].applied, 3.0);
+    });
+
+    test('submitSkillExams() aynı sınav tekrar girilirse 409 fırlatır',
+        () async {
+      final client = _clientWith(
+        (request) => _json(
+          {
+            'code': 'skill_exam_already_taken',
+            'message': 'shooting sınavı zaten girildi',
+          },
+          status: 409,
+        ),
+      );
+
+      expect(
+        () => client.submitSkillExams('car_1', {'shooting': 5}),
+        throwsA(
+          isA<CareerApiException>()
+              .having((e) => e.statusCode, 'statusCode', 409)
+              .having((e) => e.code, 'code', 'skill_exam_already_taken'),
+        ),
+      );
+    });
+
     test('deleteCareer() sends DELETE and expects 204', () async {
       final client = _clientWith((request) {
         expect(request.method, 'DELETE');
@@ -550,4 +704,216 @@ void main() {
       await client.deleteCareer('car_1');
     });
   });
+
+  group('career bootstrap (CareerSession)', () {
+    test('kayıtlı kariyer varsa en yenisini kullanır, C1 çağrılmaz', () async {
+      var created = false;
+      final session = CareerSession(
+        client: _clientWith((request) {
+          if (request.method == 'POST') created = true;
+          expect(request.url.path, '/careers');
+          return _json({
+            'careers': [
+              {
+                'career_id': 'car_9', 'player_name': 'Efe Kaan',
+                'season_id': '25/26', 'current_date': '2026-03-14',
+              }
+            ],
+          });
+        }),
+      );
+
+      expect(await session.resolve(), 'car_9');
+      expect(created, isFalse);
+    });
+
+    test('kariyer yoksa C0 katalogundan geçerli bir künyeyle kurar', () async {
+      Map<String, dynamic>? sent;
+      final session = CareerSession(
+        client: _clientWith((request) {
+          switch ('${request.method} ${request.url.path}') {
+            case 'GET /careers':
+              return _json({'careers': <dynamic>[]});
+            case 'GET /careers/options':
+              return _json(_optionsBody);
+            case 'POST /careers':
+              sent = jsonDecode(request.body) as Map<String, dynamic>;
+              return _json(_createdHubBody('car_new'), status: 201);
+          }
+          fail('beklenmeyen istek: ${request.method} ${request.url}');
+        }),
+      );
+
+      expect(await session.resolve(), 'car_new');
+      // Rol pozisyona ait olmalı (C1 doğrular) ve hedef kulüp FE'nin tercihi.
+      expect(sent, {
+        'first_name': 'Efe',
+        'last_name': 'Kaan',
+        'nationality': 'TR',
+        'position': 'Orta saha',
+        'role': 'defansif_orta_saha',
+        'target_team_id': 't_ykz',
+      });
+    });
+
+    test('tercih edilen pozisyon/kulüp katalogda yoksa ilkine düşer', () async {
+      Map<String, dynamic>? sent;
+      final options = Map<String, dynamic>.from(_optionsBody)
+        ..['positions'] = [(_optionsBody['positions'] as List).first]
+        ..['target_teams'] = [(_optionsBody['target_teams'] as List).first];
+      final session = CareerSession(
+        client: _clientWith((request) {
+          switch ('${request.method} ${request.url.path}') {
+            case 'GET /careers':
+              return _json({'careers': <dynamic>[]});
+            case 'GET /careers/options':
+              return _json(options);
+            case 'POST /careers':
+              sent = jsonDecode(request.body) as Map<String, dynamic>;
+              return _json(_createdHubBody('car_new'), status: 201);
+          }
+          fail('beklenmeyen istek: ${request.method} ${request.url}');
+        }),
+      );
+
+      await session.resolve();
+
+      expect(sent!['position'], 'Defans');
+      expect(sent!['role'], 'stoper');
+      expect(sent!['target_team_id'], 't_gal');
+    });
+
+    test('adopt() sihirbazın kurduğu kariyeri hiç istek atmadan benimser',
+        () async {
+      final session = CareerSession(
+        client: _clientWith(
+          (request) => fail('adopt sonrası istek beklenmiyordu: ${request.url}'),
+        ),
+      );
+
+      session.adopt('car_wizard');
+
+      expect(session.careerId, 'car_wizard');
+      expect(await session.resolve(), 'car_wizard');
+      expect(await session.resolveExisting(), 'car_wizard');
+    });
+
+    test('resolveExisting() kariyer yoksa null döner, C1 çağırmaz', () async {
+      var created = false;
+      final session = CareerSession(
+        client: _clientWith((request) {
+          if (request.method == 'POST') created = true;
+          return _json({'careers': <dynamic>[]});
+        }),
+      );
+
+      expect(await session.resolveExisting(), isNull);
+      expect(created, isFalse);
+    });
+  });
 }
+
+/// C1/C3'ün hub gövdesi — yeni kariyer kurulduğunda dönen yanıt.
+Map<String, dynamic> _createdHubBody(String careerId) => {
+      'career_id': careerId,
+      'career_state': {
+        'current_date': '2026-08-01', 'season_id': '25/26',
+        'money': 100, 'condition': 100, 'day_budget': {'time': 720.0},
+      },
+      'player': {
+        'name': 'Efe Kaan', 'first_name': 'Efe', 'last_name': 'Kaan',
+        'nationality': 'TR', 'position': 'Orta saha', 'role': 'regista',
+        'role_name': 'Regista', 'age': 21,
+        'team': {
+          'team_id': 't_plm', 'name': 'Palamut SK', 'short_name': 'PLM',
+          'color_primary': '#003049', 'color_secondary': '#F5A623',
+        },
+        'target_team': {
+          'team_id': 't_ykz', 'name': 'FK Yıldız', 'short_name': 'YKZ',
+          'color_primary': '#1E6FD9', 'color_secondary': '#FFFFFF',
+        },
+      },
+      'next_fixture': null,
+      'standing_summary': null,
+      'news_preview': <dynamic>[],
+    };
+
+/// C0'ın gerçek yanıtının kısaltılmış hali (CONTRACT.md §5.1).
+const _optionsBody = <String, dynamic>{
+  'nationalities': [
+    {'country_code': 'TR', 'name': 'Türkiye', 'nationality': 'Türk'},
+  ],
+  'positions': [
+    {
+      'position': 'Defans',
+      'roles': [
+        {
+          'role_id': 'stoper', 'name': 'Stoper', 'group': 'DC',
+          'attributes': ['tackling', 'tackling'],
+        },
+      ],
+    },
+    {
+      'position': 'Orta saha',
+      'roles': [
+        {
+          'role_id': 'defansif_orta_saha', 'name': 'Defansif Orta Saha',
+          'group': 'DM', 'attributes': ['tackling', 'passing'],
+        },
+        {
+          'role_id': 'regista', 'name': 'Regista', 'group': 'DM',
+          'attributes': ['passing', 'passing'],
+        },
+      ],
+    },
+  ],
+  'target_teams': [
+    {
+      'team': {
+        'team_id': 't_gal', 'name': 'Galatasaray', 'short_name': 'GS',
+        'color_primary': '#A32638', 'color_secondary': '#FBB03B',
+      },
+      'competition': {
+        'competition_id': 'c_sl', 'kind': 'league', 'name': 'Süper Lig',
+        'country': 'TR', 'tier': 1,
+      },
+      'strength_hint': 'güçlü',
+    },
+    {
+      'team': {
+        'team_id': 't_ykz', 'name': 'FK Yıldız', 'short_name': 'YKZ',
+        'color_primary': '#1E6FD9', 'color_secondary': '#FFFFFF',
+      },
+      'competition': null,
+      'strength_hint': 'orta',
+    },
+  ],
+  'skill_exams': [
+    {
+      'exam_id': 'shooting', 'title': 'Şut Sınavı',
+      'description': 'Bitiricilik ve isabet ölçümü.',
+      'attribute_key': 'shooting', 'points_per_level': 1.0,
+      'min_level': 1, 'max_level': 5, 'max_value': 100.0,
+    },
+    {
+      'exam_id': 'passing', 'title': 'Pas Sınavı',
+      'description': 'Kısa ve uzun pas isabeti ölçümü.',
+      'attribute_key': 'passing', 'points_per_level': 1.0,
+      'min_level': 1, 'max_level': 5, 'max_value': 100.0,
+    },
+    {
+      'exam_id': 'tackling', 'title': 'Müdahale Sınavı',
+      'description': 'Top kapma ve ikili mücadele ölçümü.',
+      'attribute_key': 'tackling', 'points_per_level': 1.0,
+      'min_level': 1, 'max_level': 5, 'max_value': 100.0,
+    },
+  ],
+  'starting_values': {
+    'money': 100, 'condition': 100,
+    'relationships': {
+      'coach': 70, 'team': 50, 'media': 10, 'fans': 40,
+      'partner': 0, 'family': 0,
+    },
+    'base_skill_value': 20.0, 'role_bonus_per_slot': 2.0,
+  },
+};

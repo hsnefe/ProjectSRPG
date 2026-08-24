@@ -1,16 +1,31 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:project_srpg/main.dart';
+import 'package:project_srpg/screens/career_center_screen.dart';
 
+/// Landing'in "New Game" düğmesi artık kariyer sihirbazına gidiyor
+/// (`NewCareerScreen`) ve sihirbaz canlı bir `career_engine` ister. Bu
+/// dosyanın konusu kariyer merkezinden çıkan navigasyon olduğu için ekran
+/// doğrudan yığına konuyor.
 Future<void> _openCareerCenter(WidgetTester tester) async {
   await tester.pumpWidget(const MyApp());
-  await tester.tap(find.text('New Game'));
+  final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+  unawaited(
+    navigator.push(
+      MaterialPageRoute<void>(
+        builder: (_) => const CareerCenterScreen(),
+        settings: const RouteSettings(name: CareerCenterScreen.routeName),
+      ),
+    ),
+  );
   await tester.pumpAndSettle();
 }
 
 void main() {
-  testWidgets('New Game navigates to Career Center', (WidgetTester tester) async {
+  testWidgets('Career Center açılır', (WidgetTester tester) async {
     await _openCareerCenter(tester);
 
     expect(find.text('Efe Kaan'), findsOneWidget);

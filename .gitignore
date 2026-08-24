@@ -52,3 +52,5 @@ career_engine/.venv/
 career_engine/.pytest_cache/
 career_engine/*.db
 career_engine/*.db-journal
+# Widget Preview related
+.widget_preview/

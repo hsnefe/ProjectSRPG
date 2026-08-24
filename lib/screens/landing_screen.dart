@@ -1,7 +1,8 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:project_srpg/screens/career_center_screen.dart';
+import 'package:project_srpg/screens/new_career_screen.dart';
+import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/glass_panel.dart';
 import 'package:project_srpg/widgets/new_game_button.dart';
 
@@ -68,7 +69,7 @@ class LandingScreen extends StatelessWidget {
                         begin: Alignment.bottomRight,
                         end: Alignment.topLeft,
                         colors: [
-                          const Color(0xFF1E6FD9).withValues(alpha: 0.55),
+                          AppColors.accent.withValues(alpha: 0.55),
                           Colors.transparent,
                         ],
                       ),
@@ -79,9 +80,9 @@ class LandingScreen extends StatelessWidget {
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute<void>(
-                            builder: (_) => const CareerCenterScreen(),
+                            builder: (_) => const NewCareerScreen(),
                             settings: const RouteSettings(
-                              name: CareerCenterScreen.routeName,
+                              name: NewCareerScreen.routeName,
                             ),
                           ),
                         );
