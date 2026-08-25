@@ -1,13 +1,25 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:project_srpg/screens/career_list_screen.dart';
 import 'package:project_srpg/screens/new_career_screen.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/glass_panel.dart';
-import 'package:project_srpg/widgets/new_game_button.dart';
+import 'package:project_srpg/widgets/landing_menu_button.dart';
 
 class LandingScreen extends StatelessWidget {
   const LandingScreen({super.key});
+
+  /// Menü hedeflerini isimli route ile yığına koyar — uygulamada route tablosu
+  /// yok, ekranlar birbirini `RouteSettings.name` üzerinden arıyor.
+  static void _push(BuildContext context, Widget screen, String routeName) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => screen,
+        settings: RouteSettings(name: routeName),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,17 +88,28 @@ class LandingScreen extends StatelessWidget {
                     ),
                     alignment: Alignment.bottomRight,
                     padding: const EdgeInsets.fromLTRB(24, 24, 32, 32),
-                    child: NewGameButton(
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const NewCareerScreen(),
-                            settings: const RouteSettings(
-                              name: NewCareerScreen.routeName,
-                            ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        LandingMenuButton(
+                          label: 'New Game',
+                          onTap: () => _push(
+                            context,
+                            const NewCareerScreen(),
+                            NewCareerScreen.routeName,
                           ),
-                        );
-                      },
+                        ),
+                        const SizedBox(height: 12),
+                        LandingMenuButton(
+                          label: 'Load Career',
+                          onTap: () => _push(
+                            context,
+                            const CareerListScreen(),
+                            CareerListScreen.routeName,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

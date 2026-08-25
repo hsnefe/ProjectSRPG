@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 
-class NewGameButton extends StatefulWidget {
-  const NewGameButton({super.key, this.onTap});
+/// Açılış ekranının menü satırı: çerçevesiz metin, basılınca mavi neon.
+///
+/// Tek bir düğme olduğu sürece `NewGameButton` adıyla yaşıyordu; "Load Career"
+/// eklenince etiket dışarıdan geliyor.
+class LandingMenuButton extends StatefulWidget {
+  const LandingMenuButton({super.key, required this.label, this.onTap});
 
+  final String label;
   final VoidCallback? onTap;
 
   @override
-  State<NewGameButton> createState() => _NewGameButtonState();
+  State<LandingMenuButton> createState() => _LandingMenuButtonState();
 }
 
-class _NewGameButtonState extends State<NewGameButton> {
+class _LandingMenuButtonState extends State<LandingMenuButton> {
   bool _isPressed = false;
 
   @override
@@ -46,7 +51,7 @@ class _NewGameButtonState extends State<NewGameButton> {
                   ),
                 ],
         ),
-        child: const Text('New Game'),
+        child: Text(widget.label),
       ),
     );
   }
