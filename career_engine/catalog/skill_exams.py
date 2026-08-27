@@ -1,10 +1,11 @@
-"""§2 - the Şut / Pas / Müdahale skill exams a new career sits after creation.
+"""§2 - the Şut / Pas / Müdahale / Dribling exams a new career sits after creation.
 
 This is the single, central place that decides *which attribute each exam
 moves, by how much per grade, and how high it may push it*. The domain layer
 (domain/skill_exams.py) reads this table and nothing else — there is no
 per-exam branch anywhere in the code, so adding a fourth exam or re-tuning the
-grading curve is a data edit here.
+grading curve is a data edit here — the Dribling exam was added exactly
+that way, as a fourth row.
 
 Grading is a fixed 5-level scale (MIN_LEVEL..MAX_LEVEL). The award is
 `level * points_per_level`, added on top of whatever the role already granted
@@ -44,6 +45,14 @@ SKILL_EXAMS = [
         "title": "Müdahale Sınavı",
         "description": "Top kapma ve ikili mücadele ölçümü.",
         "attribute_key": "tackling",
+        "points_per_level": 1.0,
+        "max_value": 100.0,
+    },
+    {
+        "exam_id": "dribbling",
+        "title": "Dribling Sınavı",
+        "description": "Top sürme ve çalım ölçümü.",
+        "attribute_key": "dribbling",
         "points_per_level": 1.0,
         "max_value": 100.0,
     },

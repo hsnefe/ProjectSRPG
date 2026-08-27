@@ -26,7 +26,7 @@ def _attr(api_client, career_id, key):
 
 def test_every_exam_targets_a_distinct_attribute():
     keys = [e["attribute_key"] for e in SKILL_EXAMS]
-    assert sorted(keys) == ["passing", "shooting", "tackling"]
+    assert sorted(keys) == ["dribbling", "passing", "shooting", "tackling"]
     assert len(set(keys)) == len(keys)
 
 
@@ -69,16 +69,19 @@ def test_exam_points_stack_on_top_of_the_role_bonus(api_client):
     assert _attr(api_client, career_id, "passing") == expected_start + 3.0
 
 
-def test_all_three_exams_apply_in_one_request(api_client, created_career):
+def test_every_exam_applies_in_one_request(api_client, created_career):
     career_id = created_career["career_id"]
     resp = _submit(api_client, career_id, [
         {"exam_id": "shooting", "level": 2},
         {"exam_id": "passing", "level": 4},
         {"exam_id": "tackling", "level": 5},
+        {"exam_id": "dribbling", "level": 3},
     ])
     assert resp.status_code == 200
     applied = {r["exam_id"]: r["applied"] for r in resp.json()["results"]}
-    assert applied == {"shooting": 2.0, "passing": 4.0, "tackling": 5.0}
+    assert applied == {
+        "shooting": 2.0, "passing": 4.0, "tackling": 5.0, "dribbling": 3.0,
+    }
 
 
 def test_exam_never_exceeds_its_max_value(db_conn, monkeypatch):
@@ -184,6 +187,7 @@ def test_exams_do_not_touch_strength_or_flexibility(api_client, created_career):
         {"exam_id": "shooting", "level": 5},
         {"exam_id": "passing", "level": 5},
         {"exam_id": "tackling", "level": 5},
+        {"exam_id": "dribbling", "level": 5},
     ])
 
     after = {k: _attr(api_client, career_id, k) for k in ("strength", "flexibility")}

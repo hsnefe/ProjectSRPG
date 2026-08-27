@@ -31,7 +31,9 @@ def test_get_options_lists_nationalities_positions_and_roles(api_client):
 def test_get_options_exposes_exam_and_starting_value_tables(api_client):
     body = api_client.get("/careers/options").json()
 
-    assert [e["exam_id"] for e in body["skill_exams"]] == ["shooting", "passing", "tackling"]
+    assert [e["exam_id"] for e in body["skill_exams"]] == [
+        "shooting", "passing", "tackling", "dribbling",
+    ]
     assert all(e["max_level"] == MAX_LEVEL for e in body["skill_exams"])
 
     starting = body["starting_values"]
