@@ -9,7 +9,7 @@ the career-creation spec treats them differently:
     ROLE_BONUS_PER_SLOT per slot it spends on that key. A role that spends
     both slots on one key (Stoper -> tackling, tackling) therefore starts
     +4 there rather than +2 on two keys. These four are also the only keys
-    the Şut/Pas/Müdahale exams can move afterwards (catalog/skill_exams.py);
+    the Şut/Pas/Müdahale/Dribling exams can move afterwards (catalog/skill_exams.py);
     dribbling has no exam, so a role bonus is the only way it starts above
     base.
   * FIXED_STARTING_ATTRIBUTES - condition, strength, flexibility. §2 says

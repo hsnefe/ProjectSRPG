@@ -1,4 +1,4 @@
-"""§2 - turning Şut / Pas / Müdahale exam grades into player_attribute points.
+"""§2 - turning Şut / Pas / Müdahale / Dribling grades into player_attribute points.
 
 All the tuning lives in catalog/skill_exams.py; this module only enforces the
 rules around it: a grade must be on the 5-level scale, an exam must be known,

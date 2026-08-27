@@ -261,7 +261,7 @@ def _seed_player(
         ),
     )
     # Role decides the starting spread (§2); the skill exams then move
-    # shooting/passing/tackling on top of it, via domain/skill_exams.py.
+    # shooting/passing/tackling/dribbling on top of it, via domain/skill_exams.py.
     for key, value in starting_attributes(role).items():
         conn.execute(
             "INSERT INTO player_attribute (career_id, player_id, attribute_key, value) "
