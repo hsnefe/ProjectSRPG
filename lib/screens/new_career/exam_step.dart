@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/game/skill_exam_game.dart';
 import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/screens/new_career/wizard_kit.dart';
+import 'package:project_srpg/screens/skill_exam_screen.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 
 /// Adım 4 · Yetenek sınavları ve sonuç kartı.
@@ -31,10 +33,12 @@ class ExamStep extends StatelessWidget {
       children: [
         StepIntro(
           eyebrow: 'ADIM 4 / 4 · KARİYER KURULDU',
-          title: results == null ? 'Üç sınav, tek gönderim' : 'Notlar işlendi',
+          title: results == null ? 'Sınavlar, tek gönderim' : 'Notlar işlendi',
           subtitle: results == null
-              ? 'Notlar rolün verdiği bonusun üstüne eklenir. Üç sınav tek '
-                    'istekte gider ve bir kez verilir — geri dönüşü yok.'
+              ? 'Notun sahada belli oluyor: sınava girip mini oyunu oyna, '
+                    'üç denemenin sonucu notun olsun. Notlar rolün verdiği '
+                    'bonusun üstüne eklenir, hepsi tek istekte gider ve bir '
+                    'kez verilir — geri dönüşü yok.'
               : 'Nitelikler motorda güncellendi; kariyer merkezinde bu '
                     'değerlerle başlıyorsun.',
         ),
@@ -84,6 +88,7 @@ class _ExamCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = attributeLabels[exam.attributeKey] ?? exam.attributeKey;
+    final game = SkillExamGame.forExamId(exam.examId);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
@@ -125,19 +130,24 @@ class _ExamCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              for (var value = exam.minLevel; value <= exam.maxLevel; value++)
-                Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: _LevelButton(
-                    value: value,
-                    selected: value == level,
-                    onTap: () => onLevel(value),
+          // Oyunu olan sınav oynanarak notlanır; olmayan (şimdilik Dribling,
+          // kalıcı olarak Müdahale) eski elle not sırasını korur.
+          if (game != null)
+            _PlayRow(game: game, level: level, onGraded: onLevel)
+          else
+            Row(
+              children: [
+                for (var value = exam.minLevel; value <= exam.maxLevel; value++)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: _LevelButton(
+                      value: value,
+                      selected: value == level,
+                      onTap: () => onLevel(value),
+                    ),
                   ),
-                ),
-            ],
-          ),
+              ],
+            ),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -179,6 +189,104 @@ class _ExamCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Oynanarak notlanan sınavın eylem satırı: ya "Sınava Gir", ya alınmış notun
+/// rozeti ve tekrar girme hakkı.
+///
+/// Notu ekran değil sınav belirliyor — buradan geriye yalnızca
+/// [SkillExamScreen]'in döndürdüğü not taşınıyor, o da sihirbazın zaten sahip
+/// olduğu `onLevel` kanalından geçiyor.
+class _PlayRow extends StatelessWidget {
+  const _PlayRow({
+    required this.game,
+    required this.level,
+    required this.onGraded,
+  });
+
+  final SkillExamGame game;
+  final int? level;
+  final ValueChanged<int> onGraded;
+
+  Future<void> _play(BuildContext context) async {
+    final grade = await Navigator.of(context).push<int>(
+      MaterialPageRoute<int>(
+        builder: (_) => SkillExamScreen(exam: game),
+        settings: const RouteSettings(name: SkillExamScreen.routeName),
+      ),
+    );
+    // Sınavı yarıda bırakmak notu silmez; eldeki not neyse o kalır.
+    if (grade != null) onGraded(grade);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final level = this.level;
+
+    return Row(
+      children: [
+        if (level != null) ...[
+          Container(
+            width: 38,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.accent,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '$level',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Text(
+            'sınav notun',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+          ),
+        ],
+        const Spacer(),
+        GestureDetector(
+          onTap: () => _play(context),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            decoration: BoxDecoration(
+              color: level == null ? AppColors.accent : AppColors.surface2,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: level == null ? AppColors.accent : AppColors.border,
+                width: 0.5,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.sports_soccer,
+                  size: 14,
+                  color: level == null ? Colors.white : AppColors.textSecondary,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  level == null ? 'Sınava Gir' : 'Tekrar Gir',
+                  style: TextStyle(
+                    color:
+                        level == null ? Colors.white : AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -285,6 +393,3 @@ class _OutcomeRow extends StatelessWidget {
     );
   }
 }
-
-/// Nitelikler motorda `double`; tam sayı olanlar ondalıksız yazılır
-/// (20 → "20", 22.5 → "22.5").

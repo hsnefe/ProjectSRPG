@@ -291,7 +291,7 @@ class _Readout extends StatelessWidget {
               _Stat(
                 label: 'Mesafe',
                 value: game.aimDepth,
-                max: ShotWorld.maxAimDepth,
+                max: game.scene.maxAimDepth,
               ),
               _Stat(label: 'Güç', value: game.power),
               _Stat(label: 'Yükseklik', value: game.loft),

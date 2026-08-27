@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:project_srpg/game/shot_game.dart';
 import 'package:project_srpg/game/training_result.dart';
 import 'package:project_srpg/theme/app_colors.dart';
+import 'package:project_srpg/widgets/game_chrome.dart';
 import 'package:project_srpg/widgets/training_result_panel.dart';
 
 /// Şut ve pas antrenmanları. İkisi de aynı [ShotGame]; fark yalnızca
@@ -92,7 +93,7 @@ class _BallTrainingScreenState extends State<BallTrainingScreen> {
                   borderRadius: BorderRadius.circular(12),
                   child: Column(
                     children: [
-                      _HeaderSection(
+                      GameHeaderBar(
                         title: _isPass ? 'Pas Antrenmanı' : 'Şut Antrenmanı',
                       ),
                       Expanded(
@@ -110,7 +111,7 @@ class _BallTrainingScreenState extends State<BallTrainingScreen> {
                           onDone: () => Navigator.of(context).pop(result),
                         )
                       else
-                        _AttemptFooter(
+                        AttemptFooter(
                           log: _game.attemptLog,
                           total: ShotGame.attemptsPerSession,
                           hint: _hint,
@@ -127,134 +128,3 @@ class _BallTrainingScreenState extends State<BallTrainingScreen> {
     );
   }
 }
-
-class _HeaderSection extends StatelessWidget {
-  const _HeaderSection({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: AppColors.border, width: 0.5),
-        ),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            icon: const Icon(
-              Icons.chevron_left,
-              size: 24,
-              color: AppColors.textMuted,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Üç deneme göstergesi, faz ipucu ve son uçuşun sonucu.
-class _AttemptFooter extends StatelessWidget {
-  const _AttemptFooter({
-    required this.log,
-    required this.total,
-    required this.hint,
-    required this.lastLabel,
-  });
-
-  final List<bool> log;
-  final int total;
-  final String hint;
-  final String? lastLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      decoration: const BoxDecoration(
-        border: Border(
-          top: BorderSide(color: AppColors.border, width: 0.5),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              for (var i = 0; i < total; i++)
-                Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: _Pip(made: i < log.length ? log[i] : null),
-                ),
-              const Spacer(),
-              if (lastLabel != null)
-                Text(
-                  lastLabel!,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            hint,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Pip extends StatelessWidget {
-  const _Pip({required this.made});
-
-  /// null = henüz atılmadı.
-  final bool? made;
-
-  @override
-  Widget build(BuildContext context) {
-    final made = this.made;
-    return Container(
-      width: 12,
-      height: 12,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: made == null
-            ? Colors.transparent
-            : (made
-                ? AppColors.success
-                : AppColors.danger),
-        border: Border.all(
-          color: made == null
-              ? AppColors.border
-              : Colors.transparent,
-          width: 1.5,
-        ),
-      ),
-    );
-  }
-}
-
