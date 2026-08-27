@@ -29,6 +29,15 @@ enum ShotMode {
 
   /// The one label out of [ShotGame.resolve] that counts as a made attempt.
   final String? successLabel;
+
+  /// The world this mode plays in when the caller does not name one. Keeping
+  /// the default here is what leaves every existing call site — the prototype
+  /// screen and both training drills — constructing exactly the game it always
+  /// did.
+  ShotScene get defaultScene => switch (this) {
+        ShotMode.free || ShotMode.shot => ShotScene.full,
+        ShotMode.pass => ShotScene.passDrill,
+      };
 }
 
 /// The four bearings the player can turn to face. Nothing in the world is
@@ -84,21 +93,27 @@ class ShotTarget {
   static const rivalFullBack =
       ShotTarget(label: 'Rakip bek', x: 0.85, y: 0.40, isRival: true);
 
-  static const all = [goal, leftWing, rightBack, backPass];
+  /// The team mates of a full-sized scene. The goal is not in here: it is not
+  /// somebody you pass to, and [ShotScene.scoresGoals] is what decides whether
+  /// it can be scored in.
+  static const teamMates = [leftWing, rightBack, backPass];
+
+  /// What the free-mode compass can point at. A scene with its own cast passes
+  /// its own list to [inFrontOf] instead.
+  static const all = [goal, ...teamMates];
 
   static const rivals = [rivalCentreBack, rivalMidfielder, rivalFullBack];
-
-  /// Everyone with a body on the pitch: what the ball can run into, and what
-  /// gets drawn. The goal has no body and the keeper is his own component.
-  static const players = [leftWing, rightBack, backPass, ...rivals];
 
   /// Whatever stands closest to the given bearing, if anything does. The
   /// player turns to look somewhere; what is in front of them follows from
   /// the world, rather than being picked from a menu.
-  static ShotTarget? inFrontOf(Facing facing) {
+  static ShotTarget? inFrontOf(
+    Facing facing, {
+    List<ShotTarget> candidates = all,
+  }) {
     ShotTarget? best;
     var bestDiff = double.infinity;
-    for (final t in all) {
+    for (final t in candidates) {
       final diff = ShotGame.shortestAngle(t.facingAngle - facing.angle).abs();
       if (diff < bestDiff) {
         bestDiff = diff;
@@ -107,6 +122,102 @@ class ShotTarget {
     }
     return bestDiff <= math.pi / 4 ? best : null;
   }
+}
+
+/// The world a session is played in: who is standing on the pitch, whether a
+/// keeper and a scoreable goal exist at all, and where the player takes the
+/// ball from.
+///
+/// The rules do not branch on the mode — [ShotGame.resolve] still cannot see
+/// one. They read this instead, which is what lets a skill exam strip the pitch
+/// down to an empty goal or a single team mate without a second rule set.
+class ShotScene {
+  const ShotScene({
+    required this.receivers,
+    required this.rivals,
+    required this.facing,
+    this.hasKeeper = true,
+    this.scoresGoals = true,
+    this.origin = (x: 0.0, y: 0.0),
+    this.defaultAimDepth = ShotWorld.defaultAimDepth,
+    this.maxAimDepth = ShotWorld.maxAimDepth,
+  });
+
+  /// Everyone in your own shirt: they get drawn, they block the ball, and a
+  /// ball arriving at one of them is judged as a pass.
+  final List<ShotTarget> receivers;
+
+  final List<ShotTarget> rivals;
+
+  /// Which way the camera starts out looking.
+  final Facing facing;
+
+  /// Whether anybody is minding the goal. False leaves it empty — a shot on
+  /// target simply goes in.
+  final bool hasKeeper;
+
+  /// Whether crossing the goal line is an outcome at all. False is not "the
+  /// goal is gone": it is "this drill is not about the goal", so a ball that
+  /// runs on past a team mate is a stray pass rather than a goal.
+  final bool scoresGoals;
+
+  /// Where the player stands, in absolute world coordinates.
+  final GroundPoint origin;
+
+  final double defaultAimDepth;
+  final double maxAimDepth;
+
+  /// Everyone with a body on the pitch: what the ball can run into, and what
+  /// gets drawn. The goal has no body and the keeper is his own case.
+  ///
+  /// Built on every read, so the contact sweep hoists it out of its loop rather
+  /// than allocating one per sample.
+  List<ShotTarget> get bodies => [...receivers, ...rivals];
+
+  /// The prototype and the shooting drill: a full pitch, everyone on it.
+  static const full = ShotScene(
+    receivers: ShotTarget.teamMates,
+    rivals: ShotTarget.rivals,
+    facing: Facing.forward,
+  );
+
+  /// The passing drill. Same world, and the player simply starts out looking
+  /// at a team mate instead of at the goal.
+  static const passDrill = ShotScene(
+    receivers: ShotTarget.teamMates,
+    rivals: ShotTarget.rivals,
+    facing: Facing.left,
+  );
+
+  /// The shooting exam: a penalty into an empty goal, three times.
+  ///
+  /// [origin] is the penalty spot, so the spot sits under the ball rather than
+  /// eleven metres in front of it and the goal is the distance it should be.
+  /// The aim reach shrinks with the distance — reaching the far touchline from
+  /// here would only make the reticle harder to place on the goal.
+  static const shotExam = ShotScene(
+    receivers: [],
+    rivals: [],
+    facing: Facing.forward,
+    hasKeeper: false,
+    origin: (x: 0.0, y: PitchLines.penaltySpotY),
+    defaultAimDepth: PitchLines.penaltySpotDepth,
+    maxAimDepth: 0.75,
+  );
+
+  /// The passing exam: one team mate standing still, and nothing else.
+  ///
+  /// [scoresGoals] is off because the goal is still out there to the right of
+  /// frame: without it a pass hit hard enough to run on across the line would
+  /// come back as 'GOL!' in a passing exam. A ball that misses its man is a
+  /// missed pass no matter where it ends up.
+  static const passExam = ShotScene(
+    receivers: [ShotTarget.leftWing],
+    rivals: [],
+    facing: Facing.left,
+    hasKeeper: false,
+    scoresGoals: false,
+  );
 }
 
 /// Flame port of the shot prototype.
@@ -119,16 +230,16 @@ class ShotGame extends FlameGame {
   ShotGame({
     required this.onStateChanged,
     this.mode = ShotMode.free,
+    ShotScene? scene,
     this.onFinished,
-  }) {
-    // A pass drill starts looking at a team mate rather than at the goal. The
-    // bearing is the only thing the mode moves — [ShotTarget.all] is the same
-    // list it always was.
-    if (mode == ShotMode.pass) {
-      facing = Facing.left;
-      desiredAngle = Facing.left.angle;
-      cameraAngle = Facing.left.angle;
-    }
+  }) : scene = scene ?? mode.defaultScene {
+    // A pass drill starts out looking at a team mate rather than at the goal,
+    // and an exam looks wherever its scene points. The bearing is the only
+    // thing set up front; every other rule reads the scene as it runs.
+    facing = this.scene.facing;
+    desiredAngle = facing.angle;
+    cameraAngle = facing.angle;
+    aimDepth = this.scene.defaultAimDepth;
   }
 
   /// Lets the surrounding Flutter UI rebuild its readout.
@@ -137,6 +248,9 @@ class ShotGame extends FlameGame {
   /// Defaulted so the prototype screen and the existing tests construct this
   /// game exactly as they always did.
   final ShotMode mode;
+
+  /// The pitch this session is played on. Fixed for the life of the game.
+  final ShotScene scene;
 
   /// Fired once, when a scored session runs out of attempts. Never in
   /// [ShotMode.free].
@@ -152,7 +266,11 @@ class ShotGame extends FlameGame {
   double desiredAngle = 0;
 
   /// Whatever the player is currently looking at, derived from [facing].
-  ShotTarget? get target => ShotTarget.inFrontOf(facing);
+  ShotTarget? get target =>
+      ShotTarget.inFrontOf(
+        facing,
+        candidates: [ShotTarget.goal, ...scene.receivers],
+      );
 
   // Aim (phase 1). A ground point in camera space, free of whatever the compass
   // happens to be facing — the ball goes where you point it and the outcome
@@ -217,6 +335,15 @@ class ShotGame extends FlameGame {
   bool get lastAttemptSucceeded =>
       mode.successLabel != null && result == mode.successLabel;
 
+  /// Made attempts → exam grade, on the catalog's five-level scale.
+  ///
+  /// Three attempts produce four outcomes and the scale has five rungs, so one
+  /// rung is unreachable by construction; it is the middle one, which keeps the
+  /// table symmetric. Retune here and nowhere else.
+  static const gradeByMade = [1, 2, 4, 5];
+
+  int get examGrade => gradeByMade[made];
+
   TrainingResult get sessionResult => TrainingResult(
         drill: mode == ShotMode.pass ? TrainingDrill.pass : TrainingDrill.shot,
         outcome: made >= madeToPass
@@ -230,8 +357,11 @@ class ShotGame extends FlameGame {
 
   Size get screenSize => Size(size.x, size.y);
 
-  PitchProjector get projector =>
-      PitchProjector(size: screenSize, cameraAngle: cameraAngle);
+  PitchProjector get projector => PitchProjector(
+        size: screenSize,
+        cameraAngle: cameraAngle,
+        origin: scene.origin,
+      );
 
   /// Time to the aim point. A farther aim genuinely takes a longer, flatter
   /// shot instead of being a reskin of the same one.
@@ -307,9 +437,9 @@ class ShotGame extends FlameGame {
     if (phase != ShotPhase.aim || _dragStart == null) return;
     final delta = local - _dragStart!;
 
-    final reach = ShotWorld.maxAimDepth - ShotWorld.minAimDepth;
-    aimDepth = (ShotWorld.defaultAimDepth - delta.dy / (size.y * 0.34) * reach)
-        .clamp(ShotWorld.minAimDepth, ShotWorld.maxAimDepth);
+    final reach = scene.maxAimDepth - ShotWorld.minAimDepth;
+    aimDepth = (scene.defaultAimDepth - delta.dy / (size.y * 0.34) * reach)
+        .clamp(ShotWorld.minAimDepth, scene.maxAimDepth);
 
     // Two caps: the gameplay one, and whatever is still on screen at this
     // depth, kept just inside the edge.
@@ -392,7 +522,7 @@ class ShotGame extends FlameGame {
     // commits to the unspun line. Bending the ball away from where he goes is
     // the whole counterplay — send him to the real crossing point and he is
     // unbeatable, because he always leaves exactly when you do.
-    _keeperTarget = _shotAtGoal() == null
+    _keeperTarget = !scene.hasKeeper || _shotAtGoal() == null
         ? 0
         : _goalLineCrossing(withSpin: false)?.x.clamp(
               -ShotWorld.keeperMaxX,
@@ -433,8 +563,12 @@ class ShotGame extends FlameGame {
   }
 
   /// Where the ball is in absolute world coordinates at time [t].
-  GroundPoint worldAt(double t) =>
-      PitchProjector.cameraToWorld(lateralAt(t), depthAt(t), cameraAngle);
+  GroundPoint worldAt(double t) => PitchProjector.cameraToWorld(
+        lateralAt(t),
+        depthAt(t),
+        cameraAngle,
+        origin: scene.origin,
+      );
 
   // --- Rivals -------------------------------------------------------------
 
@@ -464,7 +598,7 @@ class ShotGame extends FlameGame {
   /// never get to, and never strays further than [ShotWorld.rivalRange].
   void _readRivalRuns() {
     _rivalRuns.clear();
-    for (final rival in ShotTarget.rivals) {
+    for (final rival in scene.rivals) {
       final spot = _closestApproach((x: rival.x, y: rival.y));
       if (spot == null || spot.t <= ShotWorld.rivalReaction) continue;
       if (spot.gap < 1e-9) continue;
@@ -490,6 +624,7 @@ class ShotGame extends FlameGame {
         _lateralAt(t, withSpin: false),
         depthAt(t),
         cameraAngle,
+        origin: scene.origin,
       );
       final gap = _gap(point, post);
       if (best == null || gap < best.gap) {
@@ -513,13 +648,16 @@ class ShotGame extends FlameGame {
   ({double t, ShotTarget player})? _firstContact() {
     if (_flightSpan <= 0) return null;
 
+    final bodies = scene.bodies;
+    if (bodies.isEmpty) return null;
+
     for (var i = 1; i <= _sweepSamples; i++) {
       final t = _flightSpan * i / _sweepSamples;
       // Over everyone's head there is nothing to hit.
       if (heightAt(t) >= ShotWorld.blockHeight) continue;
 
       final ball = worldAt(t);
-      for (final player in ShotTarget.players) {
+      for (final player in bodies) {
         final at = playerAt(player, t);
         if (_gap(ball, at) < ShotWorld.blockRadius) {
           return (t: t, player: player);
@@ -571,6 +709,7 @@ class ShotGame extends FlameGame {
           _lateralAt(t, withSpin: withSpin),
           depthAt(t),
           cameraAngle,
+          origin: scene.origin,
         );
 
     const samples = _sweepSamples;
@@ -601,8 +740,7 @@ class ShotGame extends FlameGame {
 
     ShotTarget? nearest;
     var nearestGap = double.infinity;
-    for (final t in ShotTarget.all) {
-      if (t.isGoal) continue;
+    for (final t in scene.receivers) {
       final gap = _gap(landing, (x: t.x, y: t.y));
       if (gap < nearestGap) {
         nearestGap = gap;
@@ -625,6 +763,8 @@ class ShotGame extends FlameGame {
   /// — [ShotWorld.passCatchRadius] is more generous than a body is wide, and a
   /// pass that only just misses its man is still a pass.
   ({double t, double x, double z})? _shotAtGoal() {
+    if (!scene.scoresGoals) return null;
+
     final crossing = _goalLineCrossing();
     if (crossing == null) return null;
 
@@ -688,9 +828,10 @@ class ShotGame extends FlameGame {
         return past('DİREK');
       }
 
-      // Keeper reach: harder to get to high balls.
+      // Keeper reach: harder to get to high balls. An empty goal has nobody
+      // to beat, so anything on target simply goes in.
       final reach = z < 0.28 ? 0.15 : (z < 0.42 ? 0.07 : 0.0);
-      if ((keeperReachAt(atGoal.t) - x).abs() < reach) {
+      if (scene.hasKeeper && (keeperReachAt(atGoal.t) - x).abs() < reach) {
         return (label: 'KURTARIŞ', t: atGoal.t, touched: true);
       }
 
@@ -734,7 +875,7 @@ class ShotGame extends FlameGame {
   void reset() {
     phase = ShotPhase.aim;
     aimLateral = 0;
-    aimDepth = ShotWorld.defaultAimDepth;
+    aimDepth = scene.defaultAimDepth;
     power = 0;
     spin = 0;
     loft = 0;
@@ -1156,7 +1297,7 @@ class ActorsComponent extends Component with HasGameReference<ShotGame> {
       actors.add((depth: depth, paint: () => paint(depth)));
     }
 
-    for (final player in ShotTarget.players) {
+    for (final player in game.scene.bodies) {
       final spot = game.playerAt(player, game.flightT);
       at(
         spot.x,
@@ -1175,22 +1316,24 @@ class ActorsComponent extends Component with HasGameReference<ShotGame> {
     }
 
     // The keeper's absolute position follows the lateral offset his dive has
-    // taken him to.
-    final keeperX = game.keeperReachAt(game.flightT);
-    at(
-      keeperX,
-      keeperDepth,
-      (depth) => _paintBody(
-        canvas,
-        p,
-        feet: p.projectWorld(keeperX, keeperDepth, 0),
-        depth: depth,
-        halfWidth: ShotWorld.keeperHalfWidth,
-        height: ShotWorld.keeperHeight,
-        color: AppColors.warning,
-        alpha: 0.85,
-      ),
-    );
+    // taken him to. An empty goal has none to draw.
+    if (game.scene.hasKeeper) {
+      final keeperX = game.keeperReachAt(game.flightT);
+      at(
+        keeperX,
+        keeperDepth,
+        (depth) => _paintBody(
+          canvas,
+          p,
+          feet: p.projectWorld(keeperX, keeperDepth, 0),
+          depth: depth,
+          halfWidth: ShotWorld.keeperHalfWidth,
+          height: ShotWorld.keeperHeight,
+          color: AppColors.warning,
+          alpha: 0.85,
+        ),
+      );
+    }
 
     if (game.phase != ShotPhase.strike) {
       final ball = game.ballAt(game.flightT);
@@ -1202,6 +1345,7 @@ class ActorsComponent extends Component with HasGameReference<ShotGame> {
         lateral,
         depth,
         game.cameraAngle,
+        origin: game.scene.origin,
       );
       // Never culled: it starts at the camera line, where a body would be
       // thrown away, and it is the one thing that always has to be on screen.
@@ -1353,6 +1497,3 @@ class StrikeComponent extends Component with HasGameReference<ShotGame> {
     );
   }
 }
-
-/// The result banner — the one place a Flame effect genuinely pays off,
-/// since the pop-in is declarative instead of another hand-rolled tween.

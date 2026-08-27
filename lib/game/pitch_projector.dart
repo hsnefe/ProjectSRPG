@@ -121,13 +121,25 @@ typedef GroundPoint = ({double x, double y});
 /// what makes a backward pass viewable without duplicating any geometry.
 /// Then camera space is flattened with a perspective divide.
 class PitchProjector {
-  const PitchProjector({required this.size, this.cameraAngle = 0});
+  const PitchProjector({
+    required this.size,
+    this.cameraAngle = 0,
+    this.origin = (x: 0.0, y: 0.0),
+  });
 
   final Size size;
 
   /// Direction the camera faces, in radians, measured from the +y axis
   /// (0 = looking at the goal, pi = looking back at your own half).
   final double cameraAngle;
+
+  /// Where the camera — and with it the ball and the player — stands, in
+  /// absolute world coordinates. Everything is projected relative to this, so
+  /// moving it moves the *viewpoint* rather than the pitch: the markings, the
+  /// goal and the other bodies all keep the coordinates they always had and
+  /// simply arrive at new depths. That is what lets a drill be taken from the
+  /// penalty spot without a second set of geometry.
+  final GroundPoint origin;
 
   /// Perspective strength: the higher it is, the more distant objects shrink.
   static const k = 1.25;
@@ -142,28 +154,35 @@ class PitchProjector {
 
   /// Depth of an absolute ground point along the camera's forward axis.
   double depthOf(double wx, double wy) =>
-      wx * math.sin(cameraAngle) + wy * math.cos(cameraAngle);
+      (wx - origin.x) * math.sin(cameraAngle) +
+      (wy - origin.y) * math.cos(cameraAngle);
 
   /// Lateral offset of an absolute ground point along the camera's right axis.
   double lateralOf(double wx, double wy) =>
-      wx * math.cos(cameraAngle) - wy * math.sin(cameraAngle);
+      (wx - origin.x) * math.cos(cameraAngle) -
+      (wy - origin.y) * math.sin(cameraAngle);
 
   /// The camera-facing angle that puts an absolute ground point dead ahead.
+  ///
+  /// Measured from the world origin rather than from [origin]: the only caller
+  /// is the free-mode compass, and that scene stands at the origin.
   static double angleToward(double wx, double wy) => math.atan2(wx, wy);
 
   /// A camera-space ground point back in absolute world coordinates.
   ///
-  /// [depthOf] and [lateralOf] are a rotation, so this is its transpose. It is
-  /// static and takes the angle because the shot decides its outcome from where
-  /// the ball really ends up, and that question has nothing to do with a screen.
+  /// [depthOf] and [lateralOf] are a rotation about [origin], so this is its
+  /// transpose plus the translation back. It is static and takes the angle and
+  /// the origin because the shot decides its outcome from where the ball really
+  /// ends up, and that question has nothing to do with a screen.
   static GroundPoint cameraToWorld(
     double lateral,
     double depth,
-    double angle,
-  ) =>
+    double angle, {
+    GroundPoint origin = (x: 0.0, y: 0.0),
+  }) =>
       (
-        x: lateral * math.cos(angle) + depth * math.sin(angle),
-        y: depth * math.cos(angle) - lateral * math.sin(angle),
+        x: origin.x + lateral * math.cos(angle) + depth * math.sin(angle),
+        y: origin.y + depth * math.cos(angle) - lateral * math.sin(angle),
       );
 
   double scale(double depth) => 1 / (1 + k * depth);

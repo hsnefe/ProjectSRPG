@@ -97,4 +97,53 @@ void main() {
       expect(p.isPointVisible(between), isTrue);
     });
   });
+
+  group('origin', () {
+    const spot = (x: 0.0, y: PitchLines.penaltySpotY);
+
+    test('the viewpoint sits at zero depth and zero lateral', () {
+      const p = PitchProjector(size: _size, origin: spot);
+
+      expect(p.depthOf(spot.x, spot.y), closeTo(0, 1e-9));
+      expect(p.lateralOf(spot.x, spot.y), closeTo(0, 1e-9));
+    });
+
+    test('the pitch keeps its coordinates and arrives at new depths', () {
+      const world = PitchProjector(size: _size);
+      const penalty = PitchProjector(size: _size, origin: spot);
+
+      // Kale çizgisi yerinden kımıldamıyor; ona olan mesafe kısalıyor.
+      expect(world.depthOf(0, PitchLines.goalLineY), PitchLines.goalLineY);
+      expect(
+        penalty.depthOf(0, PitchLines.goalLineY),
+        closeTo(PitchLines.penaltySpotDepth, 1e-9),
+      );
+    });
+
+    test('cameraToWorld inverts the rotation about the origin', () {
+      for (final angle in [0.0, math.pi / 2, -math.pi / 2, math.pi]) {
+        final p = PitchProjector(size: _size, cameraAngle: angle, origin: spot);
+        const wx = 0.42;
+        const wy = -0.17;
+
+        final back = PitchProjector.cameraToWorld(
+          p.lateralOf(wx, wy),
+          p.depthOf(wx, wy),
+          angle,
+          origin: spot,
+        );
+
+        expect(back.x, closeTo(wx, 1e-9));
+        expect(back.y, closeTo(wy, 1e-9));
+      }
+    });
+
+    test('a default projector is unchanged', () {
+      const shifted = PitchProjector(size: _size, origin: (x: 0.0, y: 0.0));
+      const plain = PitchProjector(size: _size);
+
+      expect(shifted.depthOf(0.3, 0.7), plain.depthOf(0.3, 0.7));
+      expect(shifted.lateralOf(0.3, 0.7), plain.lateralOf(0.3, 0.7));
+    });
+  });
 }
