@@ -278,6 +278,151 @@ class DirectiveResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Müdahale teklifi (§7) — SSE `event: intervention_offer` verisi.
+// ---------------------------------------------------------------------------
+
+/// `intervention_offer` zarfındaki tek bir sonuç seçeneği (§7.2) — yalnızca
+/// `resolution:"minigame"` tekliflerinde gelir. Bu turda motor hiç minigame
+/// teklifi üretmiyor (`api/config.py`'deki `MINIGAME_ACTION_KEYS` boş), ama
+/// şema burada duruyor: minigame geri açıldığında FE'de değişiklik gerekmesin.
+class OutcomeKeyOption {
+  const OutcomeKeyOption({
+    required this.key,
+    required this.label,
+    required this.tone,
+  });
+
+  final String key;
+  final String label;
+
+  /// `positive` | `neutral` | `negative`.
+  final String tone;
+
+  factory OutcomeKeyOption.fromJson(Map<String, dynamic> json) {
+    return OutcomeKeyOption(
+      key: json['key'] as String,
+      label: json['label'] as String,
+      tone: json['tone'] as String,
+    );
+  }
+}
+
+/// SSE `event: intervention_offer` zarfı (§7.2) — motor oyuncuya bir karar
+/// teklif ettiğinde gelir, motor bu tick'i yanıt gelene (ya da 180 sn'lik
+/// sunucu emniyet zaman aşımına) kadar durdurur.
+class InterventionOfferFrame {
+  const InterventionOfferFrame({
+    required this.seq,
+    required this.matchId,
+    required this.offerId,
+    required this.minute,
+    required this.resolution,
+    required this.actionKey,
+    required this.prompt,
+    required this.riskHint,
+    required this.timeoutSeconds,
+    required this.onTimeout,
+    this.minigame,
+    this.outcomeKeys = const [],
+    this.resolved,
+  });
+
+  final int seq;
+  final String matchId;
+  final String offerId;
+  final int minute;
+
+  /// `minigame` | `engine`. Bu turda daima `engine` — sonucu sunucu atıyor.
+  final String resolution;
+  final String actionKey;
+
+  /// ≤110 karakter, motorun `DevAction.setup`'ı — olduğu gibi çizilir.
+  final String prompt;
+  final String? riskHint;
+  final int timeoutSeconds;
+
+  /// Daima `"decline"` sabiti (§7.2 [İ-35]) — zaman aşımı asla bir sonuç
+  /// anahtarına düşmez.
+  final String onTimeout;
+
+  /// SADECE `resolution:"minigame"` iken dolu. v1'de tek değer: `"shot"`.
+  final String? minigame;
+
+  /// SADECE `resolution:"minigame"` iken dolu; 2 (binary) ya da 3 (graded)
+  /// eleman, en iyiden en kötüye sıralı.
+  final List<OutcomeKeyOption> outcomeKeys;
+
+  /// SADECE E8 `GET /timeline` yanıtında dolu (§9.2) — canlı SSE'de hiç
+  /// gelmez. `true` ise teklif zaten kapanmış, FE hiç göstermeden atlar.
+  final bool? resolved;
+
+  factory InterventionOfferFrame.fromJson(Map<String, dynamic> json) {
+    return InterventionOfferFrame(
+      seq: json['seq'] as int,
+      matchId: json['match_id'] as String,
+      offerId: json['offer_id'] as String,
+      minute: json['minute'] as int,
+      // §7.2 [İ-31]: tanınmayan bir `resolution` `engine` gibi işlenir.
+      // §7.2 [İ-31]: yalnızca "minigame" tanınır, eksik ya da başka her
+      // değer (gelecekte tanımlanabilecek üçüncü bir mod dahil) "engine"
+      // gibi işlenir.
+      resolution: json['resolution'] == 'minigame' ? 'minigame' : 'engine',
+      actionKey: json['action_key'] as String,
+      prompt: json['prompt'] as String,
+      riskHint: json['risk_hint'] as String?,
+      timeoutSeconds: json['timeout_seconds'] as int? ?? 20,
+      onTimeout: json['on_timeout'] as String? ?? 'decline',
+      minigame: json['minigame'] as String?,
+      outcomeKeys: (json['outcome_keys'] as List<dynamic>? ?? const [])
+          .map((e) => OutcomeKeyOption.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      resolved: json['resolved'] as bool?,
+    );
+  }
+}
+
+/// Tick zarfının `resolved_intervention` bloğu (§3.1/§3.2) — yalnızca kabul
+/// edilmiş bir müdahalenin çözümlendiği tick'te bulunur. `outcome_key` zarını
+/// sunucu attığı için (§7.4) FE'nin sonucu öğrenebildiği **tek** yer burasıdır
+/// — `events[]`'ten türetilemez (bkz. `match_engine/api/envelope.py`'nin
+/// kendi yorumu: bazı dallar olay bazında birebir aynı).
+class ResolvedInterventionDto {
+  const ResolvedInterventionDto({
+    required this.offerId,
+    required this.actionKey,
+    required this.outcomeKey,
+  });
+
+  final String offerId;
+  final String actionKey;
+  final String outcomeKey;
+
+  factory ResolvedInterventionDto.fromJson(Map<String, dynamic> json) {
+    return ResolvedInterventionDto(
+      offerId: json['offer_id'] as String,
+      actionKey: json['action_key'] as String,
+      outcomeKey: json['outcome_key'] as String,
+    );
+  }
+}
+
+/// `POST /matches/{id}/intervention` (E5) yanıtı — başarıda daima
+/// `{accepted: true, reason: null}` döner.
+class InterventionResponse {
+  const InterventionResponse({required this.accepted, required this.reason});
+
+  final bool accepted;
+  final String? reason;
+
+  factory InterventionResponse.fromJson(Map<String, dynamic> json) {
+    return InterventionResponse(
+      accepted: json['accepted'] as bool,
+      reason: json['reason'] as String?,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Tick zarfı (§3) — SSE `event: tick` verisi.
 // ---------------------------------------------------------------------------
 
@@ -395,6 +540,7 @@ class TickFrame {
     required this.team,
     required this.directives,
     required this.events,
+    this.resolvedIntervention,
   });
 
   final int seq;
@@ -412,6 +558,10 @@ class TickFrame {
   /// Bu tick'te üretilen yeni olaylar — tüm geçmiş değil, sadece bu dakika.
   final List<TickEventDto> events;
 
+  /// Dolu ise bu tick, kabul edilmiş bir müdahaleyi çözümledi (§3.1). Diğer
+  /// her tick'te `null` — düz tick'lerde ve reddedilen tekliflerde hiç yazılmaz.
+  final ResolvedInterventionDto? resolvedIntervention;
+
   factory TickFrame.fromJson(Map<String, dynamic> json) {
     return TickFrame(
       seq: json['seq'] as int,
@@ -428,6 +578,10 @@ class TickFrame {
       events: (json['events'] as List<dynamic>)
           .map((e) => TickEventDto.fromJson(e as Map<String, dynamic>))
           .toList(),
+      resolvedIntervention: json['resolved_intervention'] == null
+          ? null
+          : ResolvedInterventionDto.fromJson(
+              json['resolved_intervention'] as Map<String, dynamic>),
     );
   }
 }

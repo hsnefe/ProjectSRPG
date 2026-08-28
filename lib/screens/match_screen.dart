@@ -9,6 +9,7 @@ import 'package:project_srpg/screens/request_screen.dart';
 import 'package:project_srpg/state/match_controller.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/theme/app_colors.dart';
+import 'package:project_srpg/widgets/intervention_offer_modal.dart';
 
 class MatchScreen extends StatefulWidget {
   MatchScreen({
@@ -59,6 +60,12 @@ class _MatchScreenState extends State<MatchScreen> {
   bool _handledConnectionError = false;
   bool _reporting = false;
 
+  /// Modalın açık kaldığı teklifin `offer_id`'si — sunucu aynı anda en fazla
+  /// bir açık teklife izin verdiği için `Set` değil tek değer yeterli.
+  /// `_openOfferDialog`'un aynı teklif için iki kez modal açmasını önler.
+  String? _shownOfferId;
+  bool _offerDialogOpen = false;
+
   @override
   void initState() {
     super.initState();
@@ -88,6 +95,19 @@ class _MatchScreenState extends State<MatchScreen> {
         );
       });
     }
+    final offer = widget.controller.activeOffer;
+    if (offer != null && _shownOfferId != offer.offerId) {
+      _shownOfferId = offer.offerId;
+      // notifyListeners bir build'in içinden gelebilir; mevcut kaydırma
+      // bloğuyla aynı idiom kullanılıyor.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _openOfferDialog(offer));
+    } else if (offer == null && _offerDialogOpen) {
+      // activeOffer, bizim yanıtımız DIŞINDA bir yolla temizlendi - sunucunun
+      // 180 sn emniyet zaman aşımı devreye girdi (ya da maç bitti). Panel
+      // hâlâ ekrandaysa kapatılır; hiçbir POST atılmaz, karar zaten verilmiş.
+      _dismissOfferDialog();
+    }
+
     final error = widget.controller.connectionError;
     if (error != null && !_handledConnectionError) {
       _handledConnectionError = true;
@@ -95,9 +115,50 @@ class _MatchScreenState extends State<MatchScreen> {
     }
   }
 
+  /// `intervention_offer` teklifini modalla gösterir ve dönen karara göre
+  /// `MatchController`'ı yanıtlar (§7.2).
+  Future<void> _openOfferDialog(InterventionOfferFrame offer) async {
+    if (!mounted) return;
+    // Kare arasında bir tick gelip teklifi kapatmış olabilir (sunucunun kendi
+    // emniyet zaman aşımı) - ölü bir panel açmayalım.
+    if (widget.controller.activeOffer?.offerId != offer.offerId) return;
+
+    _offerDialogOpen = true;
+    final choice = await showInterventionOffer(context, offer: offer);
+    _offerDialogOpen = false;
+    if (!mounted) return;
+
+    switch (choice) {
+      case InterventionChoice.intervene:
+        await widget.controller.acceptOffer();
+      case InterventionChoice.decline:
+        await widget.controller.declineOffer(reason: 'user');
+      case InterventionChoice.timeout:
+        await widget.controller.declineOffer(reason: 'timeout');
+      case null:
+        // Programatik kapatma (akış koptu) - POST atılmaz, teklif sunucuda
+        // açık kalır ve 180 sn'de `decline` edilir. Zaten ekrandan çıkıyoruz.
+        break;
+    }
+  }
+
+  /// Açık teklif panelini programatik olarak kapatır (`null` döndürerek —
+  /// böylece hiçbir E5 POST'u atılmaz).
+  void _dismissOfferDialog() {
+    if (!_offerDialogOpen) return;
+    _offerDialogOpen = false;
+    Navigator.of(context).pop();
+  }
+
   /// SSE akışı koptuğunda/404 döndüğünde (reconnect bu turda yok, §9.1) —
   /// kullanıcıya mesajı gösterip bir önceki ekrana döner.
+  ///
+  /// ⚠️ Açık bir müdahale paneli varken önce onu kapatmak şart: panel
+  /// `PopScope(canPop:false)` ile geri tuşunu yutuyor, aşağıdaki `maybePop`
+  /// panel üstteyken çağrılırsa ekranı değil paneli kapatır ve kullanıcı
+  /// canlı bir SSE hatasıyla çıkışsız bir ekranda kalır.
   void _handleConnectionError(String message) {
+    _dismissOfferDialog();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Maç akışı kesildi: $message'),
@@ -114,12 +175,11 @@ class _MatchScreenState extends State<MatchScreen> {
   /// `MatchScreen.dispose` çalışır: controller ve SSE aboneliği kapanır, geri
   /// tuşu bitmiş maça dönmez.
   ///
-  /// ⚠️ **Bilinen sınır — `interventions` her zaman boş.** FE şu an
-  /// `intervention_offer` tekliflerine yanıt toplamıyor (match_controller.dart
-  /// bunu kapsam dışı bırakıyor, §7.2 notu); D13 gereği career_engine bireysel
-  /// gol sayısını yalnızca `interventions[]`'dan türetir, o yüzden
-  /// `player_season_stat.goals` bu maçlar için her zaman 0 kalır — uydurulmuş
-  /// bir sayı yazmak yerine dürüstçe boş bırakılıyor.
+  /// `interventions`, controller'ın tick'lerin `resolved_intervention`
+  /// bloğundan biriktirdiği defterdir (`MatchController.interventions`,
+  /// §3.1) — `outcome_key` zarını sunucu attığı için tek doğruluk kaynağı
+  /// odur. career_engine D13 bireysel gol sayısını buradan türetir: şut
+  /// aksiyonlarının en iyi dalı bir goldür.
   ///
   /// `final_condition`, controller'ın maç boyunca eritilmiş
   /// [MatchController.playerCondition] sayacıdır (D38, CONTRACT §6.6):
@@ -147,7 +207,13 @@ class _MatchScreenState extends State<MatchScreen> {
         'final_possession_home': summary.finalPossessionHome,
         'final_condition':
             widget.controller.playerCondition.clamp(35, preMatchCondition),
-        'interventions': <Map<String, dynamic>>[],
+        'interventions': widget.controller.interventions
+            .map((e) => {
+                  'minute': e.minute,
+                  'action_key': e.actionKey,
+                  'outcome_key': e.outcomeKey,
+                })
+            .toList(),
       };
       final careerId = await careerSession.resolve();
       result = await careerSession.client.reportMatchResult(
@@ -604,9 +670,18 @@ class _ScoreChip extends StatelessWidget {
 
 /// Kayan maç yorumu akışı. Ekranın boş sahne yer tutucusunun yerini alır.
 ///
-/// `pendingOfferPrompt` doluyken (bir `intervention_offer` yanıt/zaman aşımı
-/// bekliyor, §7.2) akış geçici olarak durur — bu, kullanıcıya bağlantının
-/// donmadığını, bir kararın beklendiğini gösterir.
+/// Bir teklif geldiği anda `MatchController` onun `prompt`'unu bu akışa da
+/// normal bir satır olarak ekler (`touch_app_outlined` ikonuyla) — modal
+/// kapandıktan sonra da kullanıcı o anın ne olduğunu feed'de görsün diye.
+/// Bu yüzden bir teklif varken `events` artık asla boş değildir; boş durum
+/// yalnızca ilk tick hiç gelmemişken görülür.
+///
+/// Karar beklenen ANDA gösterilen şey `InterventionOfferModal`'dır (§7.2) —
+/// `pendingOfferPrompt` onun **dışındaki** üç durum için kullanılır: (1)
+/// yanıtımız gönderildikten sonra bir sonraki tick'i bekleme, (2) POST'ta ağ
+/// hatası (teklif sunucuda açık kalır, 180 sn'de kendiliğinden çözülür), (3)
+/// modal gösterilemezken gelen bir teklif. Bu üçünde de akış geçici olarak
+/// durur — kullanıcıya bağlantının donmadığını gösterir.
 class _CommentaryFeed extends StatelessWidget {
   const _CommentaryFeed({
     required this.events,
@@ -621,13 +696,11 @@ class _CommentaryFeed extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (events.isEmpty) {
-      return Center(
-        child: pendingOfferPrompt == null
-            ? const Text(
-                'Maç başlıyor…',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-              )
-            : _WaitingIndicator(prompt: pendingOfferPrompt!),
+      return const Center(
+        child: Text(
+          'Maç başlıyor…',
+          style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+        ),
       );
     }
 
@@ -644,49 +717,6 @@ class _CommentaryFeed extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// Akış tamamen boşken (henüz hiçbir tick gelmemiş) ve bir teklif yanıt
-/// beklerken gösterilen tam ekran gösterge.
-class _WaitingIndicator extends StatelessWidget {
-  const _WaitingIndicator({required this.prompt});
-
-  final String prompt;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: AppColors.accent,
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Karar bekleniyor…',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            prompt,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
-          ),
-        ],
-      ),
     );
   }
 }

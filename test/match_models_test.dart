@@ -162,5 +162,102 @@ void main() {
 
       expect(result.events, isEmpty);
     });
+
+    test('resolvedIntervention is null when the block is absent', () {
+      final result = TickFrame.fromJson(
+        jsonDecode(_tickJson) as Map<String, dynamic>,
+      );
+
+      expect(result.resolvedIntervention, isNull);
+    });
+
+    test('parses the resolved_intervention block when present (§3.1)', () {
+      final json = jsonDecode(_tickJson) as Map<String, dynamic>;
+      json['resolved_intervention'] = {
+        'offer_id': 'off_a91c',
+        'action_key': 'finish_power',
+        'outcome_key': 'great',
+      };
+
+      final result = TickFrame.fromJson(json);
+
+      expect(result.resolvedIntervention?.offerId, 'off_a91c');
+      expect(result.resolvedIntervention?.actionKey, 'finish_power');
+      expect(result.resolvedIntervention?.outcomeKey, 'great');
+    });
+  });
+
+  group('InterventionOfferFrame.fromJson', () {
+    test('parses an engine offer (no minigame/outcome_keys)', () {
+      final json = {
+        'type': 'intervention_offer',
+        'seq': 142,
+        'match_id': 'm_20260815_ykz_dnz',
+        'offer_id': 'off_a91c',
+        'minute': 63,
+        'resolution': 'engine',
+        'action_key': 'counter_attack',
+        'prompt': 'Rakip savunması dağınık, hızlı çıkış fırsatı var',
+        'risk_hint': null,
+        'timeout_seconds': 20,
+        'on_timeout': 'decline',
+      };
+
+      final result = InterventionOfferFrame.fromJson(json);
+
+      expect(result.offerId, 'off_a91c');
+      expect(result.resolution, 'engine');
+      expect(result.minigame, isNull);
+      expect(result.outcomeKeys, isEmpty);
+      expect(result.resolved, isNull);
+    });
+
+    test('parses a minigame offer with ordered outcome_keys (dormant this round)',
+        () {
+      final json = {
+        'seq': 142,
+        'match_id': 'm_test',
+        'offer_id': 'off_a91c',
+        'minute': 63,
+        'resolution': 'minigame',
+        'minigame': 'shot',
+        'action_key': 'finish_power',
+        'prompt': 'Forvet ceza sahasında topla buluştu',
+        'risk_hint': null,
+        'timeout_seconds': 20,
+        'on_timeout': 'decline',
+        'outcome_keys': [
+          {'key': 'great', 'label': 'Ağlara gitti', 'tone': 'positive'},
+          {'key': 'good', 'label': 'Kaleci çeldi', 'tone': 'neutral'},
+          {'key': 'bad', 'label': 'Kaleyle alakasız', 'tone': 'negative'},
+        ],
+      };
+
+      final result = InterventionOfferFrame.fromJson(json);
+
+      expect(result.minigame, 'shot');
+      expect(result.outcomeKeys, hasLength(3));
+      expect(result.outcomeKeys.first.key, 'great');
+      expect(result.outcomeKeys.first.tone, 'positive');
+    });
+
+    test('an unrecognized resolution degrades to engine (§7.2 [İ-31])', () {
+      final json = {
+        'seq': 1,
+        'match_id': 'm_test',
+        'offer_id': 'off_x',
+        'minute': 1,
+        'resolution': 'some_future_mode',
+        'action_key': 'counter_attack',
+        'prompt': 'x',
+        'risk_hint': null,
+        'timeout_seconds': 20,
+        'on_timeout': 'decline',
+      };
+
+      final result = InterventionOfferFrame.fromJson(json);
+
+      expect(result.resolution, 'engine');
+    });
   });
 }

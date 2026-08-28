@@ -16,9 +16,11 @@ import '../net/match_sse_client.dart';
 /// `GET /matches/{id}/stream`'e bağlanır, her `tick` zarfını uygular ve
 /// birikimli bir olay listesi tutar (her tick'in `events[]`'i geçmişin
 /// tamamı değil, o dakikaya ait yeni satırlardır — §3.2). `intervention_offer`
-/// ve `error` çerçeveleri bu turda kapsam dışı: yanıtlanmayan bir teklifi
-/// backend kendi 180s güvenlik zaman aşımıyla `decline` edip akışı sürdürür
-/// (§7.2), bu yüzden burada özel bir işlem gerekmez.
+/// zarfı [activeOffer]'ı doldurur — ekran bunu görünce bir modal açar ve
+/// [acceptOffer]/[declineOffer] ile yanıtlar. Kabul edilen bir müdahalenin
+/// sonucu (`outcome_key`) sunucu tarafından atıldığı için FE'ye yalnızca
+/// çözümlendiği tick'in `resolved_intervention` bloğuyla ulaşır; bu blok
+/// [interventions] defterine biriktirilir (§7.2/§3.1).
 class MatchController extends ChangeNotifier {
   MatchController({
     required this.matchId,
@@ -70,6 +72,10 @@ class MatchController extends ChangeNotifier {
   double _playerCondition;
   int? _lastTickStamina;
 
+  bool _disposed = false;
+  InterventionOfferFrame? _activeOffer;
+  final List<InterventionLogEntry> _interventions = [];
+
   int get minute => _minute;
   bool get finished => _finished;
   ScoreInfo get score => _score;
@@ -102,6 +108,16 @@ class MatchController extends ChangeNotifier {
   /// gelmiyor — UI bu sırada boş/donmuş görünmesin diye kullanılır.
   String? get pendingOfferPrompt => _pendingOfferPrompt;
 
+  /// Dolu ise sunucu bir teklif yayınladı ve hâlâ yanıt bekliyor — ekran
+  /// bunu gördüğünde modalı açar. Bir tick geldiği anda (yanıtımızla ya da
+  /// sunucunun 180 sn emniyet zaman aşımıyla) temizlenir.
+  InterventionOfferFrame? get activeOffer => _activeOffer;
+
+  /// M2'ye (`interventions[]`, D13) yazılacak defter. Girdiler yalnızca
+  /// tick'lerin `resolved_intervention` bloğundan gelir: `outcome_key`
+  /// zarını sunucu attığı için tek doğruluk kaynağı odur.
+  List<InterventionLogEntry> get interventions => List.unmodifiable(_interventions);
+
   void connect() {
     final uri = Uri.parse('${ApiConfig.baseUrl}$streamUrl');
     _subscription = _streamSource.connect(uri).listen(
@@ -113,16 +129,34 @@ class MatchController extends ChangeNotifier {
 
   void _onMessage(MatchStreamMessage message) {
     if (message is MatchTickMessage) {
+      // Tick geldiyse teklif kapandı - yanıtımızla ya da sunucunun 180 sn
+      // emniyet zaman aşımıyla.
+      _activeOffer = null;
       _pendingOfferPrompt = null;
       _applyTick(message.tick);
-    } else if (message is MatchStreamIgnored &&
-        message.eventType == 'intervention_offer') {
-      // Karar (yanıt ya da 180s güvenlik zaman aşımı) sonrası zaten bir tick
-      // gelecek — burada yalnızca bekleme göstergesi için not düşülür.
-      _pendingOfferPrompt = message.raw['prompt'] as String? ?? 'Karar bekleniyor…';
+    } else if (message is MatchInterventionMessage) {
+      // `resolved:true` yalnızca E8 replay'inde gelir (§9.2) - canlı akışta
+      // hiç görülmez, görülürse de gösterilmeden atlanır.
+      if (message.offer.resolved == true) return;
+      _activeOffer = message.offer;
+      _pendingOfferPrompt = message.offer.prompt;
+      // Modalda gösterilen "an" metni yorum akışına da yazılır - kullanıcı
+      // kararını verip modal kapandıktan sonra da o anın ne olduğunu feed'de
+      // görsün (§7.2 [İ-33]: teklif daima kullanıcının takımı için, bu yüzden
+      // tint her zaman userSide). Sonucun kendisi (`resolved_intervention`
+      // gelince) ayrı bir satır olarak zaten ekleniyor - bu yalnızca "an".
+      _events.add(
+        MatchEvent(
+          minute: message.offer.minute,
+          side: _sideFrom(userSide),
+          text: message.offer.prompt,
+          icon: Icons.touch_app_outlined,
+          eventType: 'intervention_offer',
+        ),
+      );
       notifyListeners();
     }
-    // Diğer MatchStreamIgnored türleri (error/bilinmeyen) atlanır.
+    // MatchStreamIgnored (error/bilinmeyen) atlanır.
   }
 
   void _applyTick(TickFrame tick) {
@@ -134,6 +168,20 @@ class MatchController extends ChangeNotifier {
     _team = tick.team;
     _situation = tick.situation;
     _directives = tick.directives;
+
+    final resolved = tick.resolvedIntervention;
+    if (resolved != null &&
+        !_interventions.any((e) => e.offerId == resolved.offerId)) {
+      // offer_id'ye göre tekilleştirilir: aynı zarf E8 replay'inde birebir
+      // yeniden gelebilir (§9.2). Dakika artan sırada gelir çünkü tick'ler
+      // artan sırada gelir - M2'nin sıralama kuralı yapısal olarak sağlanır.
+      _interventions.add(InterventionLogEntry(
+        minute: tick.minute,
+        offerId: resolved.offerId,
+        actionKey: resolved.actionKey,
+        outcomeKey: resolved.outcomeKey,
+      ));
+    }
 
     for (final event in tick.events) {
       _events.add(
@@ -219,9 +267,11 @@ class MatchController extends ChangeNotifier {
         aggression: aggression,
         focus: focus,
       );
+      if (_disposed) return;
       _lastDirectiveNote = response.note;
       notifyListeners();
     } on MatchApiException catch (e) {
+      if (_disposed) return;
       _lastDirectiveNote = e.message ?? 'Direktif gönderilemedi.';
       notifyListeners();
     }
@@ -239,9 +289,73 @@ class MatchController extends ChangeNotifier {
     }
   }
 
+  /// `POST /matches/{id}/intervention` (E5). Bu turda her teklif
+  /// `resolution:"engine"` olduğu için `outcome_key` daima `null` gider —
+  /// zarı sunucu atar, sonucu bir sonraki tick'in `resolved_intervention`
+  /// bloğundan öğreniriz (§7.4). **Burada deftere hiçbir şey yazılmaz.**
+  Future<void> _respondToOffer({required bool intervene, String? reason}) async {
+    final offer = _activeOffer;
+    if (offer == null) return; // çift dokunuşta ikinci çağrı sessiz no-op
+    _activeOffer = null; // await'ten ÖNCE, senkron olarak temizlenir
+    notifyListeners();
+
+    final requestId =
+        'req_${matchId}_${DateTime.now().microsecondsSinceEpoch}_${_requestSeq++}';
+    try {
+      await _apiClient.postIntervention(
+        matchId,
+        offerId: offer.offerId,
+        clientRequestId: requestId,
+        action: intervene ? 'intervene' : 'decline',
+        outcomeKey: null,
+        reason: reason,
+      );
+    } on MatchApiException catch (e) {
+      if (e.statusCode == 409) {
+        // Teklif zaten kapanmış: ya sunucunun 180 sn emniyet zaman aşımı
+        // `decline` etti, ya da bu ikinci bir POST. Gövde `{"accepted": false}`
+        // olduğu için `e.code` null'dır - kod değil durum koduna bakılır.
+        // Yapacak bir şey yok: kapanışın tick'i ya geldi ya geliyor.
+        _pendingOfferPrompt = null;
+      } else {
+        _pendingOfferPrompt = 'Karar gönderilemedi — sunucu bekleniyor…';
+      }
+    } catch (_) {
+      // Ağ hatası. Teklif sunucuda AÇIK kaldı; 180 sn sonra `decline` edilip
+      // maç devam edecek. Kullanıcı o ana kadar donmuş bir feed görmesin diye
+      // bekleme şeridi (`_WaitingBanner`) açıklamayla ayakta bırakılır.
+      _pendingOfferPrompt = 'Karar gönderilemedi — sunucu bekleniyor…';
+    }
+    if (_disposed) return;
+    notifyListeners();
+  }
+
+  Future<void> acceptOffer() => _respondToOffer(intervene: true);
+
+  Future<void> declineOffer({String reason = 'user'}) =>
+      _respondToOffer(intervene: false, reason: reason);
+
   @override
   void dispose() {
+    _disposed = true;
     _subscription?.cancel();
     super.dispose();
   }
+}
+
+/// M2'ye (`interventions[]`, D13) yazılacak tek bir müdahale kaydı — tel
+/// şekli değil, FE'nin biriktirdiği defterin bir satırı. `offerId`
+/// yalnızca E8 replay'inde tekilleştirme için tutulur, M2 gövdesine sızmaz.
+class InterventionLogEntry {
+  const InterventionLogEntry({
+    required this.minute,
+    required this.offerId,
+    required this.actionKey,
+    required this.outcomeKey,
+  });
+
+  final int minute;
+  final String offerId;
+  final String actionKey;
+  final String outcomeKey;
 }

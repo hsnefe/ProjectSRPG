@@ -14,6 +14,7 @@ import 'package:project_srpg/screens/match_screen.dart';
 import 'package:project_srpg/screens/request_screen.dart';
 import 'package:project_srpg/state/match_controller.dart';
 import 'package:project_srpg/state/player_scope.dart';
+import 'package:project_srpg/widgets/intervention_offer_modal.dart';
 
 /// A stream source the test drives by hand instead of relying on real HTTP.
 class _FakeSseClient implements MatchStreamSource {
@@ -30,6 +31,7 @@ TickFrame _tick({
   int awayScore = 0,
   int stamina = 90,
   List<TickEventDto> events = const [],
+  ResolvedInterventionDto? resolvedIntervention,
 }) {
   return TickFrame(
     seq: minute,
@@ -48,6 +50,29 @@ TickFrame _tick({
     ),
     directives: const DirectivesInfo(effort: 50, aggression: 50, focus: null),
     events: events,
+    resolvedIntervention: resolvedIntervention,
+  );
+}
+
+InterventionOfferFrame _offer({
+  String offerId = 'off_1',
+  int minute = 10,
+  String actionKey = 'counter_attack',
+  String prompt = 'Rakip savunması dağınık, hızlı çıkış fırsatı var',
+  String? riskHint,
+  int timeoutSeconds = 20,
+}) {
+  return InterventionOfferFrame(
+    seq: minute,
+    matchId: 'm_test',
+    offerId: offerId,
+    minute: minute,
+    resolution: 'engine',
+    actionKey: actionKey,
+    prompt: prompt,
+    riskHint: riskHint,
+    timeoutSeconds: timeoutSeconds,
+    onTimeout: 'decline',
   );
 }
 
@@ -58,8 +83,17 @@ MatchController _buildController(
 }) {
   // The speed button now POSTs to /speed, so every screen test needs a stubbed
   // HTTP client - otherwise the tap would attempt a real socket connection.
+  // /intervention (E5) gets its own 200 JSON body; everything else (only
+  // /speed today) keeps the bare 204 the speed tests expect.
   final mock = MockClient((request) async {
     recordedRequests?.add(request);
+    if (request.url.path.endsWith('/intervention')) {
+      return http.Response(
+        jsonEncode({'accepted': true, 'reason': null}),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
     return http.Response('', 204);
   });
 
@@ -103,6 +137,21 @@ Future<void> _emitTick(
   TickFrame tick,
 ) async {
   source.controller.add(MatchTickMessage(tick));
+  await tester.pump();
+  await tester.pump();
+}
+
+/// Emits an intervention offer and pumps three times: once for the stream's
+/// microtask delivery, once for the frame whose post-frame callback opens
+/// the dialog (`_MatchScreenState._openOfferDialog`), and once more so the
+/// pushed route actually builds its content.
+Future<void> _emitOffer(
+  WidgetTester tester,
+  _FakeSseClient source,
+  InterventionOfferFrame offer,
+) async {
+  source.controller.add(MatchInterventionMessage(offer));
+  await tester.pump();
   await tester.pump();
   await tester.pump();
 }
@@ -330,6 +379,116 @@ void main() {
     expect(find.text('Geri ekran'), findsOneWidget);
   });
 
+  group('müdahale teklifi modalı', () {
+    testWidgets('opens with the prompt, risk hint and two buttons',
+        (tester) async {
+      final source = _FakeSseClient();
+      await _pumpMatchScreen(tester, _buildController(source));
+
+      await _emitOffer(tester, source, _offer(
+        prompt: 'Forvet ceza sahasında topla buluştu',
+        riskHint: 'Kötü zamanlama doğrudan kırmızı kart getirir.',
+      ));
+
+      // Prompt metni artık yorum akışındaki kalıcı satırda ve
+      // `_WaitingBanner`de de görünür (aynı `pendingOfferPrompt`'tan
+      // besleniyor) - bu yüzden arama modalın kendisiyle sınırlanıyor.
+      final modal = find.byType(InterventionOfferModal);
+      expect(
+        find.descendant(
+          of: modal,
+          matching: find.textContaining('Forvet ceza sahasında topla buluştu'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: modal,
+          matching:
+              find.textContaining('Kötü zamanlama doğrudan kırmızı kart getirir.'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Müdahale et'), findsOneWidget);
+      expect(find.text('Vazgeç'), findsOneWidget);
+
+      // Zamanlayıcı `dispose()`'da iptal edilir - kapatmadan unmount etmek
+      // yeterli, "Timer still pending" hatası oluşmaz.
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('Müdahale et closes the dialog and posts action:intervene',
+        (tester) async {
+      final source = _FakeSseClient();
+      final requests = <http.Request>[];
+      await _pumpMatchScreen(
+        tester,
+        _buildController(source, recordedRequests: requests),
+      );
+
+      await _emitOffer(tester, source, _offer());
+
+      await tester.tap(find.text('Müdahale et'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Müdahale et'), findsNothing); // panel kapandı
+      final intervention =
+          requests.singleWhere((r) => r.url.path.endsWith('/intervention'));
+      final body = jsonDecode(intervention.body) as Map<String, dynamic>;
+      expect(body['offer_id'], 'off_1');
+      expect(body['action'], 'intervene');
+      expect(body['outcome_key'], isNull);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    // Zaman aşımı (20 sn geri sayımın dolması) `test/intervention_offer_modal_test.dart`
+    // içinde `InterventionOfferModal.debugNow` kancasıyla test ediliyor -
+    // `flutter_test`'in FakeAsync tabanlı `pump(duration)`'ı `Timer`'ı
+    // sanallaştırır ama gerçek `DateTime.now()`'ı ilerletmez, bu yüzden bu
+    // ekranın kendi entegrasyon testinde 20 sn'lik gerçek zaman aşımını
+    // tetiklemenin güvenilir bir yolu yok. `_openOfferDialog`'un `timeout`
+    // dalı zaten `decline` dalıyla birebir aynı switch kolunu paylaşıyor
+    // (bkz. match_screen.dart) - yukarıdaki "Müdahale et" testi o anahtarlama
+    // mekanizmasını `intervene` koluyla kanıtlıyor.
+
+    testWidgets(
+        'a stream error while the dialog is open closes the dialog and the screen',
+        (tester) async {
+      final source = _FakeSseClient();
+      final controller = _buildController(source);
+
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: Text('Geri ekran'))),
+      );
+      final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+      navigator.push(
+        MaterialPageRoute<void>(builder: (_) => MatchScreen(controller: controller)),
+      );
+      await tester.pumpAndSettle();
+
+      await _emitOffer(tester, source, _offer());
+      expect(find.text('Müdahale et'), findsOneWidget);
+
+      // Regresyon testi: `_handleConnectionError` panel açıkken çağrılırsa
+      // `maybePop` yalnızca paneli kapatıp kullanıcıyı çıkışsız bir ekranda
+      // bırakmamalı - önce panel, sonra ekran kapanmalı.
+      source.controller.addError(
+        MatchStreamException(404, code: 'match_not_found'),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Müdahale et'), findsNothing); // panel kapandı
+
+      await tester.pump(const Duration(milliseconds: 1000));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Geri ekran'), findsOneWidget);
+    });
+  });
+
   testWidgets('keeps the directive buttons while the match is running',
       (tester) async {
     final source = _FakeSseClient();
@@ -434,9 +593,13 @@ void main() {
         }
         if (request.url.path == '/careers/car_test/matches/f_1/result') {
           final body = jsonDecode(request.body) as Map<String, dynamic>;
-          // İnterventions boş gönderilir (bilinen sınır, match_screen.dart'ta
-          // belgelendi) ve final_condition maç öncesi değerden büyük olamaz.
-          expect(body['interventions'], isEmpty);
+          // `interventions`, controller'ın tick'lerin `resolved_intervention`
+          // bloğundan biriktirdiği defterdir (§3.1) - burada tek bir kabul
+          // edilmiş müdahale besleniyor ve M2 gövdesine üç alanla geçiyor.
+          expect(body['interventions'], [
+            {'minute': 63, 'action_key': 'finish_power', 'outcome_key': 'great'},
+          ]);
+          // final_condition maç öncesi değerden büyük olamaz.
           // D38: 70'ten başladı, maç boyunca 22 puan eridi (100 -> 78).
           expect(body['final_condition'], 48);
           return http.Response(
@@ -482,6 +645,13 @@ void main() {
       await tester.pump();
 
       await _emitTick(tester, source, _tick(minute: 1, stamina: 100));
+      await _emitTick(tester, source, _tick(
+        minute: 63,
+        stamina: 90,
+        resolvedIntervention: const ResolvedInterventionDto(
+          offerId: 'off_1', actionKey: 'finish_power', outcomeKey: 'great',
+        ),
+      ));
       await _emitTick(tester, source, _tick(minute: 90, stamina: 78, finished: true));
       await tester.tap(find.text('İlerle'));
       await tester.pumpAndSettle();

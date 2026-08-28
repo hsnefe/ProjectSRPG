@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -28,6 +29,7 @@ TickFrame _tick({
   List<TickEventDto> events = const [],
   int homeScore = 0,
   int awayScore = 0,
+  ResolvedInterventionDto? resolvedIntervention,
 }) {
   return TickFrame(
     seq: seq,
@@ -46,6 +48,29 @@ TickFrame _tick({
     ),
     directives: const DirectivesInfo(effort: 50, aggression: 50, focus: null),
     events: events,
+    resolvedIntervention: resolvedIntervention,
+  );
+}
+
+InterventionOfferFrame _offer({
+  String offerId = 'off_1',
+  int seq = 1,
+  int minute = 10,
+  String actionKey = 'counter_attack',
+  String prompt = 'Karşı atak fırsatı doğdu',
+  String? riskHint,
+}) {
+  return InterventionOfferFrame(
+    seq: seq,
+    matchId: 'm_test',
+    offerId: offerId,
+    minute: minute,
+    resolution: 'engine',
+    actionKey: actionKey,
+    prompt: prompt,
+    riskHint: riskHint,
+    timeoutSeconds: 20,
+    onTimeout: 'decline',
   );
 }
 
@@ -159,18 +184,254 @@ void main() {
       expect(controller.events.last.text, contains('2-1'));
     });
 
-    test('ignores non-tick stream messages without affecting state', () async {
+    test('ignores unknown stream messages without affecting state', () async {
       final source = _FakeStreamSource();
       final controller = _buildController(source);
       addTearDown(controller.dispose);
       controller.connect();
 
-      source.controller.add(const MatchStreamIgnored('intervention_offer', {}));
+      // `intervention_offer` artık tipli bir mesaja dönüşür (bkz. aşağıdaki
+      // 'MatchController interventions' grubu) - burada gerçekten bilinmeyen
+      // bir tür test ediliyor.
+      source.controller.add(const MatchStreamIgnored('some_future_frame', {}));
       await pumpEventQueue();
 
       expect(controller.minute, 0);
       expect(controller.events, isEmpty);
       expect(controller.connectionError, isNull);
+    });
+  });
+
+  group('MatchController interventions', () {
+    test('an offer message fills activeOffer and pendingOfferPrompt', () async {
+      final source = _FakeStreamSource();
+      final controller = _buildController(source);
+      addTearDown(controller.dispose);
+      controller.connect();
+
+      source.controller.add(MatchInterventionMessage(_offer(prompt: 'Karar an\'ı')));
+      await pumpEventQueue();
+
+      expect(controller.activeOffer?.offerId, 'off_1');
+      expect(controller.pendingOfferPrompt, 'Karar an\'ı');
+    });
+
+    test('an offer also appends its prompt as a feed line, tinted to userSide',
+        () async {
+      final source = _FakeStreamSource();
+      final controller = _buildController(source);
+      addTearDown(controller.dispose);
+      controller.connect();
+
+      source.controller.add(MatchInterventionMessage(
+        _offer(minute: 42, prompt: 'Efe Kaan\'dan muazzam bir hat kırıcı pas'),
+      ));
+      await pumpEventQueue();
+
+      expect(controller.events, hasLength(1));
+      final line = controller.events.single;
+      expect(line.minute, 42);
+      expect(line.text, 'Efe Kaan\'dan muazzam bir hat kırıcı pas');
+      expect(line.side, MatchSide.home); // _buildController userSide: 'home'
+    });
+
+    test('a resolved:true replay offer is not shown', () async {
+      final source = _FakeStreamSource();
+      final controller = _buildController(source);
+      addTearDown(controller.dispose);
+      controller.connect();
+
+      source.controller.add(MatchInterventionMessage(InterventionOfferFrame(
+        seq: 1, matchId: 'm_test', offerId: 'off_1', minute: 10,
+        resolution: 'engine', actionKey: 'counter_attack', prompt: 'x',
+        riskHint: null, timeoutSeconds: 20, onTimeout: 'decline', resolved: true,
+      )));
+      await pumpEventQueue();
+
+      expect(controller.activeOffer, isNull);
+      expect(controller.pendingOfferPrompt, isNull);
+    });
+
+    test('a plain tick clears activeOffer (server safety-timeout path)', () async {
+      final source = _FakeStreamSource();
+      final controller = _buildController(source);
+      addTearDown(controller.dispose);
+      controller.connect();
+
+      source.controller.add(MatchInterventionMessage(_offer()));
+      await pumpEventQueue();
+      expect(controller.activeOffer, isNotNull);
+
+      source.controller.add(MatchTickMessage(_tick(seq: 2, minute: 11)));
+      await pumpEventQueue();
+      expect(controller.activeOffer, isNull);
+    });
+
+    test('acceptOffer posts intervene with a null outcome_key and clears activeOffer',
+        () async {
+      final source = _FakeStreamSource();
+      final requests = <http.Request>[];
+      final mock = MockClient((request) async {
+        requests.add(request);
+        return http.Response(jsonEncode({'accepted': true, 'reason': null}), 200,
+            headers: {'content-type': 'application/json; charset=utf-8'});
+      });
+      final controller = _buildController(
+        source,
+        apiClient: MatchApiClient(httpClient: mock, baseUrl: 'http://test'),
+      );
+      addTearDown(controller.dispose);
+      controller.connect();
+
+      source.controller.add(MatchInterventionMessage(_offer()));
+      await pumpEventQueue();
+
+      await controller.acceptOffer();
+
+      expect(requests, hasLength(1));
+      expect(requests.single.url.path, '/matches/m_test/intervention');
+      final body = jsonDecode(requests.single.body) as Map<String, dynamic>;
+      expect(body['offer_id'], 'off_1');
+      expect(body['action'], 'intervene');
+      expect(body['outcome_key'], isNull);
+      expect(controller.activeOffer, isNull);
+    });
+
+    test('declineOffer sends the given reason', () async {
+      final source = _FakeStreamSource();
+      final requests = <http.Request>[];
+      final mock = MockClient((request) async {
+        requests.add(request);
+        return http.Response(jsonEncode({'accepted': true, 'reason': null}), 200,
+            headers: {'content-type': 'application/json; charset=utf-8'});
+      });
+      final controller = _buildController(
+        source,
+        apiClient: MatchApiClient(httpClient: mock, baseUrl: 'http://test'),
+      );
+      addTearDown(controller.dispose);
+      controller.connect();
+
+      source.controller.add(MatchInterventionMessage(_offer()));
+      await pumpEventQueue();
+
+      await controller.declineOffer(reason: 'timeout');
+
+      final body = jsonDecode(requests.single.body) as Map<String, dynamic>;
+      expect(body['action'], 'decline');
+      expect(body['reason'], 'timeout');
+    });
+
+    test('two acceptOffer calls for the same offer produce exactly one request',
+        () async {
+      final source = _FakeStreamSource();
+      var callCount = 0;
+      final mock = MockClient((request) async {
+        callCount++;
+        return http.Response(jsonEncode({'accepted': true, 'reason': null}), 200,
+            headers: {'content-type': 'application/json; charset=utf-8'});
+      });
+      final controller = _buildController(
+        source,
+        apiClient: MatchApiClient(httpClient: mock, baseUrl: 'http://test'),
+      );
+      addTearDown(controller.dispose);
+      controller.connect();
+
+      source.controller.add(MatchInterventionMessage(_offer()));
+      await pumpEventQueue();
+
+      // İkinci çağrı senkron olarak no-op olmalı: ilk çağrı _activeOffer'ı
+      // await'ten önce temizliyor.
+      final first = controller.acceptOffer();
+      final second = controller.acceptOffer();
+      await Future.wait([first, second]);
+
+      expect(callCount, 1);
+    });
+
+    test('a 409 offer_closed response does not throw and leaves the log empty',
+        () async {
+      final source = _FakeStreamSource();
+      final mock = MockClient((request) async {
+        return http.Response(jsonEncode({'accepted': false}), 409,
+            headers: {'content-type': 'application/json; charset=utf-8'});
+      });
+      final controller = _buildController(
+        source,
+        apiClient: MatchApiClient(httpClient: mock, baseUrl: 'http://test'),
+      );
+      addTearDown(controller.dispose);
+      controller.connect();
+
+      source.controller.add(MatchInterventionMessage(_offer()));
+      await pumpEventQueue();
+
+      await expectLater(controller.acceptOffer(), completes);
+      expect(controller.interventions, isEmpty);
+    });
+
+    test('a network failure sets an explanatory pendingOfferPrompt', () async {
+      final source = _FakeStreamSource();
+      final mock = MockClient((request) async {
+        throw const SocketException('bağlantı yok');
+      });
+      final controller = _buildController(
+        source,
+        apiClient: MatchApiClient(httpClient: mock, baseUrl: 'http://test'),
+      );
+      addTearDown(controller.dispose);
+      controller.connect();
+
+      source.controller.add(MatchInterventionMessage(_offer()));
+      await pumpEventQueue();
+
+      await controller.acceptOffer();
+
+      expect(controller.pendingOfferPrompt, contains('gönderilemedi'));
+    });
+
+    test('a tick carrying resolved_intervention appends a log entry', () async {
+      final source = _FakeStreamSource();
+      final controller = _buildController(source);
+      addTearDown(controller.dispose);
+      controller.connect();
+
+      source.controller.add(MatchTickMessage(_tick(
+        seq: 2,
+        minute: 11,
+        resolvedIntervention: const ResolvedInterventionDto(
+          offerId: 'off_1', actionKey: 'finish_power', outcomeKey: 'great',
+        ),
+      )));
+      await pumpEventQueue();
+
+      expect(controller.interventions, hasLength(1));
+      expect(controller.interventions.single.minute, 11);
+      expect(controller.interventions.single.actionKey, 'finish_power');
+      expect(controller.interventions.single.outcomeKey, 'great');
+    });
+
+    test('a replayed tick with the same offer_id does not duplicate the log entry',
+        () async {
+      final source = _FakeStreamSource();
+      final controller = _buildController(source);
+      addTearDown(controller.dispose);
+      controller.connect();
+
+      final tick = _tick(
+        seq: 2,
+        minute: 11,
+        resolvedIntervention: const ResolvedInterventionDto(
+          offerId: 'off_1', actionKey: 'finish_power', outcomeKey: 'great',
+        ),
+      );
+      source.controller.add(MatchTickMessage(tick));
+      await pumpEventQueue();
+      source.controller.add(MatchTickMessage(tick));
+      await pumpEventQueue();
+
+      expect(controller.interventions, hasLength(1));
     });
   });
 

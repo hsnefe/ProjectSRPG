@@ -22,8 +22,8 @@ class MatchApiException implements Exception {
       'MatchApiException($statusCode, code: $code, message: $message)';
 }
 
-/// `match_engine`'in REST uçlarını (E1, E2, E4, E9, E11) saran ince istemci.
-/// SSE akışı (E3) ayrı bir sınıfta (`match_sse_client.dart`) ele alınır.
+/// `match_engine`'in REST uçlarını (E1, E2, E4, E5, E9, E11) saran ince
+/// istemci. SSE akışı (E3) ayrı bir sınıfta (`match_sse_client.dart`) ele alınır.
 class MatchApiClient {
   MatchApiClient({http.Client? httpClient, String? baseUrl})
       : _client = httpClient ?? http.Client(),
@@ -112,6 +112,40 @@ class MatchApiClient {
     );
     if (response.statusCode != 200) throw _errorFrom(response);
     return DirectiveResponse.fromJson(_decode(response));
+  }
+
+  /// `POST /matches/{matchId}/intervention` (E5, §6.5). Katı bir uçtur:
+  /// `resolution:"engine"` tekliflerinde `outcomeKey` **null** olmalıdır,
+  /// aksi halde 400 `outcome_key_not_allowed` döner. Bu turda motor hiç
+  /// minigame teklifi üretmediği için her çağrı `outcomeKey: null` gönderir.
+  ///
+  /// ⚠️ Kapanmış bir teklife yanıt `409` döner ve gövdesi standart
+  /// `{code, message}` hata şekli DEĞİL, `{"accepted": false}`'tur. [_errorFrom]
+  /// bu gövdeyi başarıyla ayrıştırır ama `code`/`message` `null` kalır —
+  /// çağıran bu durumu `statusCode == 409` ile tanımalı, `code` ile değil.
+  Future<InterventionResponse> postIntervention(
+    String matchId, {
+    required String offerId,
+    required String clientRequestId,
+    required String action, // "intervene" | "decline"
+    String? outcomeKey,
+    String? minigameResult,
+    String? reason, // "user" | "timeout" | "disconnected" | null
+  }) async {
+    final response = await _client.post(
+      _uri('/matches/$matchId/intervention'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'offer_id': offerId,
+        'client_request_id': clientRequestId,
+        'action': action,
+        'outcome_key': outcomeKey,
+        'minigame_result': minigameResult,
+        'reason': reason,
+      }),
+    );
+    if (response.statusCode != 200) throw _errorFrom(response);
+    return InterventionResponse.fromJson(_decode(response));
   }
 
   /// `POST /matches/{matchId}/speed` (E10). Yalnızca oynatma temposunu

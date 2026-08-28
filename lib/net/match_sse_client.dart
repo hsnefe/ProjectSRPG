@@ -23,11 +23,10 @@ class MatchStreamException implements Exception {
 
 /// SSE akışından gelen tek bir mesaj.
 ///
-/// Bu turda yalnızca `tick` çerçeveleri UI'a taşınır; `intervention_offer`
-/// ve `error` (ve gelecekte tanımlanabilecek başka her tür) [MatchStreamIgnored]
-/// olarak sessizce elden geçer — motor yanıtlanmayan bir teklifi kendi 180s
-/// güvenlik zaman aşımıyla `decline` edip akışı sürdürür (§7.2), bu yüzden
-/// burada özel bir işlem gerekmez.
+/// `tick` ve `intervention_offer` çerçevelerinin ikisi de tipli mesajlara
+/// dönüşür; `error` fırlatılır; geriye kalan her şey (ve gelecekte
+/// tanımlanabilecek başka her tür) [MatchStreamIgnored] olarak sessizce
+/// elden geçer — ileri uyumluluk için.
 sealed class MatchStreamMessage {
   const MatchStreamMessage();
 }
@@ -36,6 +35,14 @@ class MatchTickMessage extends MatchStreamMessage {
   const MatchTickMessage(this.tick);
 
   final TickFrame tick;
+}
+
+/// Motorun bir karar teklif ettiğini bildirir (§7.2) — ekran bunu bir modalla
+/// gösterip `MatchController.acceptOffer`/`declineOffer` ile yanıtlar.
+class MatchInterventionMessage extends MatchStreamMessage {
+  const MatchInterventionMessage(this.offer);
+
+  final InterventionOfferFrame offer;
 }
 
 class MatchStreamIgnored extends MatchStreamMessage {
@@ -105,6 +112,17 @@ class HttpMatchSseClient implements MatchStreamSource {
     final type = eventType ?? 'message';
     if (type == 'tick') {
       return MatchTickMessage(TickFrame.fromJson(raw));
+    }
+    if (type == 'intervention_offer') {
+      try {
+        return MatchInterventionMessage(InterventionOfferFrame.fromJson(raw));
+      } catch (_) {
+        // Bozuk/ileri sürüm bir teklif zarfı yüzünden akışın tamamı ölmesin:
+        // bu metod async* jeneratörünün içinden çağrılıyor, buradan sızan bir
+        // hata aboneliği kapatır ve maç ekranı hatayla çıkar. Teklifi atlamak
+        // güvenli — sunucu 180 sn sonra kendi `decline`'ını uygular (§7.2).
+        return MatchStreamIgnored(type, raw);
+      }
     }
     if (type == 'error') {
       throw MatchStreamException(

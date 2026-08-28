@@ -128,4 +128,71 @@ void main() {
       expect(result.applied.effort, 70);
     });
   });
+
+  group('MatchApiClient.postIntervention', () {
+    test('posts all six body keys and parses a 200 response', () async {
+      Map<String, dynamic>? sentBody;
+      final mock = MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/matches/m_test/intervention');
+        sentBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({'accepted': true, 'reason': null}),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+      final client = MatchApiClient(httpClient: mock, baseUrl: 'http://test');
+
+      final result = await client.postIntervention(
+        'm_test',
+        offerId: 'off_a91c',
+        clientRequestId: 'req_1',
+        action: 'intervene',
+        outcomeKey: null,
+        minigameResult: null,
+        reason: 'user',
+      );
+
+      expect(result.accepted, isTrue);
+      expect(sentBody, {
+        'offer_id': 'off_a91c',
+        'client_request_id': 'req_1',
+        'action': 'intervene',
+        'outcome_key': null,
+        'minigame_result': null,
+        'reason': 'user',
+      });
+    });
+
+    test('a 409 with {"accepted": false} throws with null code/message', () async {
+      final mock = MockClient((request) async {
+        return http.Response(
+          jsonEncode({'accepted': false}),
+          409,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+      final client = MatchApiClient(httpClient: mock, baseUrl: 'http://test');
+
+      // §9.2: kapanmış bir teklife yanıt 409 döner ve gövdesi standart
+      // {code, message} şekli değil {"accepted": false}'tur - _errorFrom bu
+      // gövdeyi başarıyla ayrıştırır ama code/message null kalır. Çağıran
+      // (MatchController) bu yüzden statusCode ile dallanmak zorunda.
+      expect(
+        () => client.postIntervention(
+          'm_test',
+          offerId: 'off_a91c',
+          clientRequestId: 'req_1',
+          action: 'decline',
+        ),
+        throwsA(
+          isA<MatchApiException>()
+              .having((e) => e.statusCode, 'statusCode', 409)
+              .having((e) => e.code, 'code', isNull)
+              .having((e) => e.message, 'message', isNull),
+        ),
+      );
+    });
+  });
 }
