@@ -289,11 +289,20 @@ class MatchController extends ChangeNotifier {
     }
   }
 
-  /// `POST /matches/{id}/intervention` (E5). Bu turda her teklif
-  /// `resolution:"engine"` olduğu için `outcome_key` daima `null` gider —
-  /// zarı sunucu atar, sonucu bir sonraki tick'in `resolved_intervention`
-  /// bloğundan öğreniriz (§7.4). **Burada deftere hiçbir şey yazılmaz.**
-  Future<void> _respondToOffer({required bool intervene, String? reason}) async {
+  /// `POST /matches/{id}/intervention` (E5). `resolution:"engine"`
+  /// tekliflerinde `outcomeKey` daima `null` gider — zarı sunucu atar,
+  /// sonucu bir sonraki tick'in `resolved_intervention` bloğundan öğreniriz
+  /// (§7.4). `resolution:"minigame"` tekliflerinde (§7.3) çağıran
+  /// (`match_screen.dart`) `InterventionShotScreen`'den dönen gerçek
+  /// `outcomeKey`/`minigameResult`'ı geçirir — zarı bu turda FE atıyor.
+  /// **Burada deftere hiçbir şey yazılmaz**, defter yalnızca tick'in
+  /// `resolved_intervention` bloğundan beslenir (`_applyTick`).
+  Future<void> _respondToOffer({
+    required bool intervene,
+    String? reason,
+    String? outcomeKey,
+    String? minigameResult,
+  }) async {
     final offer = _activeOffer;
     if (offer == null) return; // çift dokunuşta ikinci çağrı sessiz no-op
     _activeOffer = null; // await'ten ÖNCE, senkron olarak temizlenir
@@ -307,7 +316,8 @@ class MatchController extends ChangeNotifier {
         offerId: offer.offerId,
         clientRequestId: requestId,
         action: intervene ? 'intervene' : 'decline',
-        outcomeKey: null,
+        outcomeKey: outcomeKey,
+        minigameResult: minigameResult,
         reason: reason,
       );
     } on MatchApiException catch (e) {
@@ -330,7 +340,12 @@ class MatchController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> acceptOffer() => _respondToOffer(intervene: true);
+  Future<void> acceptOffer({String? outcomeKey, String? minigameResult}) =>
+      _respondToOffer(
+        intervene: true,
+        outcomeKey: outcomeKey,
+        minigameResult: minigameResult,
+      );
 
   Future<void> declineOffer({String reason = 'user'}) =>
       _respondToOffer(intervene: false, reason: reason);

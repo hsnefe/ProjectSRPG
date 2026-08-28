@@ -10,6 +10,7 @@ import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/net/match_api_client.dart';
 import 'package:project_srpg/net/match_models.dart';
 import 'package:project_srpg/net/match_sse_client.dart';
+import 'package:project_srpg/screens/intervention_shot_screen.dart';
 import 'package:project_srpg/screens/match_screen.dart';
 import 'package:project_srpg/screens/request_screen.dart';
 import 'package:project_srpg/state/match_controller.dart';
@@ -73,6 +74,33 @@ InterventionOfferFrame _offer({
     riskHint: riskHint,
     timeoutSeconds: timeoutSeconds,
     onTimeout: 'decline',
+  );
+}
+
+InterventionOfferFrame _minigameOffer({
+  String offerId = 'off_1',
+  int minute = 63,
+  String actionKey = 'finish_power',
+  String prompt = 'Forvet ceza sahasında topla buluştu',
+}) {
+  return InterventionOfferFrame(
+    seq: minute,
+    matchId: 'm_test',
+    offerId: offerId,
+    minute: minute,
+    resolution: 'minigame',
+    minigame: 'shot',
+    actionKey: actionKey,
+    prompt: prompt,
+    riskHint: null,
+    timeoutSeconds: 20,
+    onTimeout: 'decline',
+    outcomeKeys: const [
+      OutcomeKeyOption(key: 'great', label: 'Ağlara gitti', tone: 'positive'),
+      OutcomeKeyOption(key: 'asist', label: 'Arkadaşına pas', tone: 'positive'),
+      OutcomeKeyOption(key: 'good', label: 'Kaleci çeldi', tone: 'neutral'),
+      OutcomeKeyOption(key: 'bad', label: 'Kaleyle alakasız', tone: 'negative'),
+    ],
   );
 }
 
@@ -486,6 +514,61 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Geri ekran'), findsOneWidget);
+    });
+
+    testWidgets('Müdahale et on a minigame offer opens the shot screen, not a POST',
+        (tester) async {
+      final source = _FakeSseClient();
+      final requests = <http.Request>[];
+      await _pumpMatchScreen(
+        tester,
+        _buildController(source, recordedRequests: requests),
+      );
+
+      await _emitOffer(tester, source, _minigameOffer());
+
+      await tester.tap(find.text('Müdahale et'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300)); // push geçişi
+
+      expect(find.byType(InterventionShotScreen), findsOneWidget);
+      // Sonuç henüz gelmedi - motora hiçbir POST atılmamalı.
+      expect(requests.where((r) => r.url.path.endsWith('/intervention')), isEmpty);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('abandoning the shot screen (back button) posts nothing',
+        (tester) async {
+      final source = _FakeSseClient();
+      final requests = <http.Request>[];
+      await _pumpMatchScreen(
+        tester,
+        _buildController(source, recordedRequests: requests),
+      );
+
+      await _emitOffer(tester, source, _minigameOffer());
+      await tester.tap(find.text('Müdahale et'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(InterventionShotScreen), findsOneWidget);
+
+      // Geri tuşuna gerçek bir dokunuşla değil (GameWidget kendi Flame
+      // ticker'ını sürekli çalıştırdığı için hem `pumpAndSettle` hiç oturmaz
+      // hem de gesture hedefleme GameWidget'ın kendi InputLayer'ıyla
+      // çakışabiliyor - bkz. intervention_shot_screen_test.dart'taki aynı
+      // ekranın izole testinde bu çakışma yok, oradaki tap güvenilir çalışıyor)
+      // doğrudan Navigator üzerinden pop ederek - `GameHeaderBar`'ın kendi
+      // `onPressed`'inin yaptığı ile birebir aynı çağrı.
+      Navigator.of(tester.element(find.byType(InterventionShotScreen))).pop();
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      expect(find.byType(InterventionShotScreen), findsNothing);
+      expect(requests.where((r) => r.url.path.endsWith('/intervention')), isEmpty);
+
+      await tester.pumpWidget(const SizedBox.shrink());
     });
   });
 

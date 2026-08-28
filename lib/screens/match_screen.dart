@@ -5,6 +5,7 @@ import 'package:project_srpg/net/career_models.dart';
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/net/match_api_client.dart';
 import 'package:project_srpg/net/match_models.dart';
+import 'package:project_srpg/screens/intervention_shot_screen.dart';
 import 'package:project_srpg/screens/request_screen.dart';
 import 'package:project_srpg/state/match_controller.dart';
 import 'package:project_srpg/state/player_scope.dart';
@@ -65,6 +66,11 @@ class _MatchScreenState extends State<MatchScreen> {
   /// `_openOfferDialog`'un aynı teklif için iki kez modal açmasını önler.
   String? _shownOfferId;
   bool _offerDialogOpen = false;
+
+  /// `_resolveViaMinigame`'in tam ekran şut ekranını (`InterventionShotScreen`)
+  /// push'lu tuttuğu süre boyunca `true` — bir bağlantı hatası o pencerede
+  /// gelirse önce bu ekran, sonra maç ekranı kapanmalı.
+  bool _shotScreenOpen = false;
 
   @override
   void initState() {
@@ -130,7 +136,11 @@ class _MatchScreenState extends State<MatchScreen> {
 
     switch (choice) {
       case InterventionChoice.intervene:
-        await widget.controller.acceptOffer();
+        if (offer.resolution == 'minigame') {
+          await _resolveViaMinigame(offer);
+        } else {
+          await widget.controller.acceptOffer();
+        }
       case InterventionChoice.decline:
         await widget.controller.declineOffer(reason: 'user');
       case InterventionChoice.timeout:
@@ -142,6 +152,25 @@ class _MatchScreenState extends State<MatchScreen> {
     }
   }
 
+  /// `resolution:"minigame"` bir teklif kabul edildiğinde tam ekran şut
+  /// ekranını açar, sonucu bekler, dönen `outcome_key`/`minigame_result`
+  /// ile controller'ı yanıtlar. Ekran `null` döndürürse (kullanıcı hiç atış
+  /// yapmadan geri çıktı) hiçbir şey yapılmaz — teklif sunucuda açık kalır,
+  /// 180 sn'de kendiliğinden `decline` olur (§7.2/§9.2).
+  Future<void> _resolveViaMinigame(InterventionOfferFrame offer) async {
+    if (!mounted) return;
+    _shotScreenOpen = true;
+    final result = await Navigator.of(context).push<InterventionShotResult>(
+      MaterialPageRoute(builder: (_) => InterventionShotScreen(offer: offer)),
+    );
+    _shotScreenOpen = false;
+    if (!mounted || result == null) return;
+    await widget.controller.acceptOffer(
+      outcomeKey: result.outcomeKey,
+      minigameResult: result.rawLabel,
+    );
+  }
+
   /// Açık teklif panelini programatik olarak kapatır (`null` döndürerek —
   /// böylece hiçbir E5 POST'u atılmaz).
   void _dismissOfferDialog() {
@@ -150,14 +179,24 @@ class _MatchScreenState extends State<MatchScreen> {
     Navigator.of(context).pop();
   }
 
+  /// Açık şut mini-oyunu ekranını programatik olarak kapatır (`null`
+  /// döndürerek — `_resolveViaMinigame` bu durumda hiç POST atmaz).
+  void _dismissShotScreen() {
+    if (!_shotScreenOpen) return;
+    _shotScreenOpen = false;
+    Navigator.of(context).pop();
+  }
+
   /// SSE akışı koptuğunda/404 döndüğünde (reconnect bu turda yok, §9.1) —
   /// kullanıcıya mesajı gösterip bir önceki ekrana döner.
   ///
-  /// ⚠️ Açık bir müdahale paneli varken önce onu kapatmak şart: panel
-  /// `PopScope(canPop:false)` ile geri tuşunu yutuyor, aşağıdaki `maybePop`
-  /// panel üstteyken çağrılırsa ekranı değil paneli kapatır ve kullanıcı
-  /// canlı bir SSE hatasıyla çıkışsız bir ekranda kalır.
+  /// ⚠️ Açık bir müdahale paneli/şut ekranı varken önce onları kapatmak
+  /// şart: panel `PopScope(canPop:false)` ile geri tuşunu yutuyor, şut
+  /// ekranı da ayrı bir push'lu route; aşağıdaki `maybePop` bunlardan biri
+  /// üstteyken çağrılırsa ekranı değil o route'u kapatır ve kullanıcı canlı
+  /// bir SSE hatasıyla çıkışsız bir ekranda kalır.
   void _handleConnectionError(String message) {
+    _dismissShotScreen();
     _dismissOfferDialog();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

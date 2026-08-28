@@ -297,6 +297,33 @@ void main() {
       expect(controller.activeOffer, isNull);
     });
 
+    test('acceptOffer forwards a real outcome_key/minigame_result for minigame offers',
+        () async {
+      final source = _FakeStreamSource();
+      final requests = <http.Request>[];
+      final mock = MockClient((request) async {
+        requests.add(request);
+        return http.Response(jsonEncode({'accepted': true, 'reason': null}), 200,
+            headers: {'content-type': 'application/json; charset=utf-8'});
+      });
+      final controller = _buildController(
+        source,
+        apiClient: MatchApiClient(httpClient: mock, baseUrl: 'http://test'),
+      );
+      addTearDown(controller.dispose);
+      controller.connect();
+
+      source.controller.add(MatchInterventionMessage(_offer()));
+      await pumpEventQueue();
+
+      await controller.acceptOffer(outcomeKey: 'asist', minigameResult: 'PAS TUTTU');
+
+      final body = jsonDecode(requests.single.body) as Map<String, dynamic>;
+      expect(body['action'], 'intervene');
+      expect(body['outcome_key'], 'asist');
+      expect(body['minigame_result'], 'PAS TUTTU');
+    });
+
     test('declineOffer sends the given reason', () async {
       final source = _FakeStreamSource();
       final requests = <http.Request>[];
