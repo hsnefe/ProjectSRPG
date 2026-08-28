@@ -13,7 +13,7 @@ import 'package:project_srpg/widgets/expand_page_route.dart';
 
 /// §5.8 — ikon, ton, rozet kodu ve üst kategori etiketi BE'den gelmez, FE'nin
 /// sunum kararı (R1 yalnızca `relationship_id/kind/category/score/...`
-/// verir). Beş ilişki sabit olduğu için (D4, §3.4) elle eşleniyor.
+/// verir). Altı ilişki sabit olduğu için (D4, §3.4) elle eşleniyor.
 class _Presentation {
   const _Presentation({
     required this.icon,
@@ -46,6 +46,13 @@ const _presentationByRelationshipId = {
   'media': _Presentation(
     icon: Icons.mic_none_outlined, tint: AppColors.danger, badgeCode: 'MD',
     leftTag: 'BASIN', dialogueId: 'media_01',
+  ),
+  // `dialogueId` bilinçli olarak boş: catalog/dialogue.py'de 'fans' için bir
+  // diyalog ağacı yok, `_openDialog` bunu `_dialogueTreeByRelationshipId`'de
+  // bulamayınca sessizce no-op olur (bkz. aşağıdaki `_openDialog`).
+  'fans': _Presentation(
+    icon: Icons.groups_2_outlined, tint: AppColors.warning, badgeCode: 'TF',
+    leftTag: 'TARAFTAR', dialogueId: '',
   ),
   'partner': _Presentation(
     icon: Icons.favorite_border, tint: _purple, badgeCode: 'PA',

@@ -1559,11 +1559,14 @@ class StandingDelta {
   final int? rankAfter;
 }
 
-/// M2 `player_stat_delta`.
+/// M2 `player_stat_delta`. `assists` yoksa (henüz eski bir backend'e karşı
+/// konuşuluyorsa) `0` varsayılır — career_engine v1.4 öncesi bu alanı hiç
+/// göndermiyordu.
 class PlayerStatDelta {
   const PlayerStatDelta({
     required this.appearances,
     required this.goals,
+    required this.assists,
     required this.minutes,
   });
 
@@ -1571,12 +1574,14 @@ class PlayerStatDelta {
     return PlayerStatDelta(
       appearances: json['appearances'] as int,
       goals: json['goals'] as int,
+      assists: (json['assists'] as int?) ?? 0,
       minutes: json['minutes'] as int,
     );
   }
 
   final int appearances;
   final int goals;
+  final int assists;
   final int minutes;
 }
 
@@ -1587,6 +1592,7 @@ class MatchResultResponse {
     required this.fixture,
     required this.standingDelta,
     required this.playerStatDelta,
+    required this.relationshipChanges,
     required this.ledgerEntries,
     required this.newsCreated,
   });
@@ -1600,6 +1606,13 @@ class MatchResultResponse {
           json['standing_delta'] as Map<String, dynamic>? ?? const {}),
       playerStatDelta: PlayerStatDelta.fromJson(
           json['player_stat_delta'] as Map<String, dynamic>),
+      // Antrenör/Takım/Taraftarlar/Medya için maçın yarattığı kalıcı ±5
+      // delta (§5.6 M2, career_engine CONTRACT.md). Yoksa (eski backend)
+      // boş liste — ekran bu bölümü hiç çizmez.
+      relationshipChanges: ((json['relationship_changes'] as List<dynamic>?) ??
+              const [])
+          .map((e) => RelationshipChange.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
       ledgerEntries: _parseLedgerEntries(json['ledger_entries']),
       newsCreated: ((json['news_created'] as List<dynamic>?) ?? const [])
           .map((e) => e as String)
@@ -1611,6 +1624,7 @@ class MatchResultResponse {
   final FixtureStatus fixture;
   final StandingDelta standingDelta;
   final PlayerStatDelta playerStatDelta;
+  final List<RelationshipChange> relationshipChanges;
   final List<LedgerEntry> ledgerEntries;
   final List<String> newsCreated;
 }

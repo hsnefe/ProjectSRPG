@@ -421,7 +421,13 @@ void main() {
           'fixture': {'fixture_id': 'f_1', 'status': 'played', 'score': {'home': 2, 'away': 1}},
           'other_results': const [],
           'standing_delta': {'rank_before': 3, 'rank_after': 2},
-          'player_stat_delta': {'appearances': 1, 'goals': 1, 'minutes': 95},
+          'player_stat_delta': {
+            'appearances': 1, 'goals': 1, 'assists': 1, 'minutes': 95,
+          },
+          'relationship_changes': [
+            {'relationship_id': 'coach', 'before': 70, 'after': 74, 'delta': 4},
+            {'relationship_id': 'fans', 'before': 40, 'after': 42, 'delta': 2},
+          ],
           'ledger_entries': const [],
           'news_created': ['n_0143'],
         });
@@ -435,7 +441,42 @@ void main() {
       expect(result.fixture.status, 'played');
       expect(result.standingDelta.rankAfter, 2);
       expect(result.playerStatDelta.goals, 1);
+      expect(result.playerStatDelta.assists, 1);
+      expect(result.relationshipChanges, hasLength(2));
+      expect(result.relationshipChanges.first.relationshipId, 'coach');
+      expect(result.relationshipChanges.first.delta, 4);
     });
+
+    test(
+      'reportMatchResult() defaults assists/relationship_changes when an '
+      'older backend omits them',
+      () async {
+        final client = _clientWith((request) {
+          return _json({
+            'career_state': {
+              'current_date': '2026-03-16', 'season_id': '25/26',
+              'money': 49700, 'condition': 54, 'day_budget': {'time': 720.0},
+            },
+            'fixture': {'fixture_id': 'f_1', 'status': 'played', 'score': {'home': 2, 'away': 1}},
+            'other_results': const [],
+            'standing_delta': {'rank_before': 3, 'rank_after': 2},
+            // Ne `assists` ne de `relationship_changes` var - v1.4 öncesi
+            // career_engine bu alanları hiç göndermiyordu.
+            'player_stat_delta': {'appearances': 1, 'goals': 1, 'minutes': 95},
+            'ledger_entries': const [],
+            'news_created': ['n_0143'],
+          });
+        });
+
+        final result = await client.reportMatchResult('car_1', 'f_1', {
+          'match_id': 'm_20260316_ykz_dnz',
+          'score': {'home': 2, 'away': 1},
+        });
+
+        expect(result.playerStatDelta.assists, 0);
+        expect(result.relationshipChanges, isEmpty);
+      },
+    );
 
     test('abandonMatch() posts with no body and parses the fixture', () async {
       final client = _clientWith((request) {

@@ -4,12 +4,14 @@ import 'package:project_srpg/screens/career_center_screen.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 
 /// Maç sonrası ekran. M2'nin (career_engine) sonucu varsa gerçek özet
-/// gösterilir — skor, puan durumu değişimi, gol katkısı; talep sistemi
-/// (röportaj vb.) henüz yok, yer tutucu olarak kalıyor.
+/// gösterilir — skor, puan durumu değişimi, istatistik tablosu, ilişki
+/// delta'ları; röportaj/talep akışı henüz yok, medya satırındaki mikrofon
+/// şimdilik pasif bir "yakında" göstergesi.
 class RequestScreen extends StatelessWidget {
   const RequestScreen({
     super.key,
     this.result,
+    this.userStats,
     this.homeTeamName,
     this.awayTeamName,
   });
@@ -18,6 +20,12 @@ class RequestScreen extends StatelessWidget {
   /// başarısız olduysa null — bu durumda özet bölümü hiç çizilmez (§6.4:
   /// fikstür 'in_progress' kalır, bir sonraki M1 çağrısı kurtarır).
   final MatchResultResponse? result;
+
+  /// E9 (`GET /matches/{id}/summary`) özetinin `stats[userSide]` haritası —
+  /// 13 anahtarlık ham motor istatistiği. `result` gibi null olabilir (maç
+  /// bir kariyer fikstürüne bağlı değilse ya da özet çağrısı başarısız
+  /// olduysa); bu durumda istatistik tablosu hiç çizilmez.
+  final Map<String, dynamic>? userStats;
 
   final String? homeTeamName;
   final String? awayTeamName;
@@ -51,26 +59,43 @@ class RequestScreen extends StatelessWidget {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
+                  // İstatistik tablosu + ilişki bar'ları eklenince içerik
+                  // her zaman tek ekrana sığmayabiliyor (kısa ekranlar,
+                  // çok satırlı özet) — kart artık kayan bir gövde,
+                  // header/buton sabit kalıyor.
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const _HeaderSection(),
-                      // `result` null olabilir: ya bu maç bir kariyer
-                      // fikstürüne hiç bağlı değildi, ya da M2 başarısız oldu
-                      // (o durumda kullanıcı hatayı zaten MatchScreen'in
-                      // SnackBar'ında gördü — burada tekrar etmiyoruz).
-                      if (result != null)
-                        _MatchResultSection(
-                          result: result,
-                          homeTeamName: homeTeamName,
-                          awayTeamName: awayTeamName,
-                        ),
-                      const Padding(
-                        padding: EdgeInsets.fromLTRB(24, 16, 24, 40),
-                        child: Text(
-                          'Maç sonrası talepler yakında.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // `result` null olabilir: ya bu maç bir
+                              // kariyer fikstürüne hiç bağlı değildi, ya da
+                              // M2 başarısız oldu (o durumda kullanıcı
+                              // hatayı zaten MatchScreen'in SnackBar'ında
+                              // gördü — burada tekrar etmiyoruz).
+                              if (result != null)
+                                _MatchResultSection(
+                                  result: result,
+                                  homeTeamName: homeTeamName,
+                                  awayTeamName: awayTeamName,
+                                ),
+                              if (result != null && userStats != null)
+                                _StatsTable(
+                                  stats: userStats!,
+                                  playerStatDelta: result.playerStatDelta,
+                                ),
+                              if (result != null &&
+                                  result.relationshipChanges.isNotEmpty)
+                                _RelationshipSection(
+                                  changes: result.relationshipChanges,
+                                ),
+                              const SizedBox(height: 8),
+                            ],
+                          ),
                         ),
                       ),
                       Padding(
@@ -86,7 +111,7 @@ class RequestScreen extends StatelessWidget {
                               textStyle: const TextStyle(fontSize: 13),
                             ),
                             icon: const Icon(Icons.home_outlined, size: 16),
-                            label: const Text('Kariyer Merkezi'),
+                            label: const Text('İlerle'),
                           ),
                         ),
                       ),
@@ -208,6 +233,206 @@ class _MatchResultSection extends StatelessWidget {
                 color: AppColors.textSecondary,
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 7 satırlık maç istatistik tablosu (kullanıcının kendi tarafı — rakip
+/// verisi burada gösterilmiyor). `stats` E9'un ham `stats[userSide]`
+/// haritası; motorda karşılığı olmayan pas/dribling/başarılı müdahale
+/// sayıları **dürüst 0** olarak gösterilir, uydurulmaz.
+class _StatsTable extends StatelessWidget {
+  const _StatsTable({required this.stats, required this.playerStatDelta});
+
+  final Map<String, dynamic> stats;
+  final PlayerStatDelta playerStatDelta;
+
+  int _int(String key) => (stats[key] as num?)?.toInt() ?? 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <_StatRow>[
+      _StatRow('Fırsat sayısı', '${_int('dangerous_attacks')}'),
+      _StatRow('Başarılı pas / Pas denemesi', '0/0'),
+      _StatRow(
+        'İsabetli şut / Şut',
+        '${_int('shots_on_target')}/${_int('shots')}',
+      ),
+      _StatRow('Başarılı dribling / Dribling', '0/0'),
+      _StatRow('Başarılı müdahale', '0'),
+      _StatRow('Gol', '${playerStatDelta.goals}'),
+      _StatRow('Asist', '${playerStatDelta.assists}'),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.surface1,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.border, width: 0.5),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Column(
+            children: [
+              for (var i = 0; i < rows.length; i++) ...[
+                if (i > 0)
+                  const Divider(height: 13, color: AppColors.border, thickness: 0.5),
+                Row(
+                  children: [
+                    // Uzun etiketler (ör. "Başarılı pas / Pas denemesi")
+                    // dar ekranlarda taşabiliyordu - `Expanded` kalan
+                    // genişliği alır, sığmazsa satır kırar.
+                    Expanded(
+                      child: Text(
+                        rows[i].label,
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      rows[i].value,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatRow {
+  const _StatRow(this.label, this.value);
+  final String label;
+  final String value;
+}
+
+/// Antrenör/Takım/Taraftarlar/Medya ilişki bar'ları — sabit sırayla, M2'nin
+/// `relationship_changes` listesinden `relationshipId`'ye göre haritalanır.
+/// Medya satırının yanında pasif (dokununca hiçbir şey yapmayan) mikrofon
+/// ikonu var — röportaj akışı bu turda yok.
+class _RelationshipSection extends StatelessWidget {
+  const _RelationshipSection({required this.changes});
+
+  final List<RelationshipChange> changes;
+
+  static const _order = ['coach', 'team', 'fans', 'media'];
+  static const _labels = {
+    'coach': 'Antrenör',
+    'team': 'Takım',
+    'fans': 'Taraftarlar',
+    'media': 'Medya',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final byId = {for (final c in changes) c.relationshipId: c};
+    final rows = [
+      for (final id in _order)
+        if (byId.containsKey(id)) MapEntry(id, byId[id]!),
+    ];
+    if (rows.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+      child: Column(
+        children: [
+          for (final entry in rows)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _RelationshipDeltaBar(
+                label: _labels[entry.key] ?? entry.key,
+                delta: entry.value.delta,
+                trailing: entry.key == 'media'
+                    ? const IconButton(
+                        onPressed: null,
+                        padding: EdgeInsets.zero,
+                        constraints: BoxConstraints(),
+                        icon: Icon(
+                          Icons.mic_none_outlined,
+                          size: 16,
+                          color: AppColors.textMuted,
+                        ),
+                      )
+                    : null,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RelationshipDeltaBar extends StatelessWidget {
+  const _RelationshipDeltaBar({
+    required this.label,
+    required this.delta,
+    this.trailing,
+  });
+
+  final String label;
+  final int delta;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = delta > 0
+        ? AppColors.success
+        : delta < 0
+            ? AppColors.danger
+            : AppColors.textSecondary;
+    final sign = delta > 0 ? '+$delta' : '$delta';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surface1,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border, width: 0.5),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          if (trailing != null) ...[trailing!, const SizedBox(width: 8)],
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: color.withValues(alpha: 0.35), width: 0.5),
+            ),
+            child: Text(
+              sign,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),

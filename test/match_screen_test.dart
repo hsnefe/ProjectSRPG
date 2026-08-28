@@ -697,7 +697,27 @@ void main() {
               },
               'other_results': const [],
               'standing_delta': {'rank_before': 3, 'rank_after': 2},
-              'player_stat_delta': {'appearances': 1, 'goals': 0, 'minutes': 95},
+              'player_stat_delta': {
+                'appearances': 1, 'goals': 0, 'assists': 1, 'minutes': 95,
+              },
+              'relationship_changes': [
+                {
+                  'relationship_id': 'coach', 'before': 70, 'after': 74,
+                  'delta': 4,
+                },
+                {
+                  'relationship_id': 'team', 'before': 50, 'after': 52,
+                  'delta': 2,
+                },
+                {
+                  'relationship_id': 'fans', 'before': 40, 'after': 45,
+                  'delta': 5,
+                },
+                {
+                  'relationship_id': 'media', 'before': 10, 'after': 11,
+                  'delta': 1,
+                },
+              ],
               'ledger_entries': const [],
               'news_created': ['n_1'],
             }),
@@ -747,6 +767,14 @@ void main() {
         careerRequests.any((r) => r.url.path.endsWith('/matches/f_1/result')),
         isTrue,
       );
+      // `_advance()`, E9'un `stats[userSide]`'ını (userSide: 'home')
+      // `RequestScreen`'e `userStats` olarak taşıdı - istatistik tablosu
+      // gerçek motor verisiyle dolu.
+      expect(find.text('20'), findsOneWidget); // dangerous_attacks
+      expect(find.text('5/10'), findsOneWidget); // shots_on_target/shots
+      // İlişki bar'ları da M2'nin `relationship_changes`'inden geldi.
+      expect(find.textContaining('Antrenör'), findsOneWidget);
+      expect(find.textContaining('Taraftarlar'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
     },

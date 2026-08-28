@@ -11,8 +11,8 @@ import sqlite3
 from typing import Optional
 
 from api import config, errors, serializers
-from catalog.match_actions import ACTION_SCHEMAS, BINARY_OUTCOMES, GRADED_OUTCOMES, is_goal
-from domain import condition, daytime, formulas, wallet
+from catalog.match_actions import ACTION_SCHEMAS, OUTCOME_SETS, is_assist, is_goal
+from domain import condition, daytime, formulas, relationships, wallet
 
 _STATS_KEYS = {
     "goals", "shots", "shots_on_target", "corners", "dangerous_attacks",
@@ -154,7 +154,7 @@ def validate_result(body: dict, pre_match_condition: int) -> None:
         schema = ACTION_SCHEMAS.get(action_key)
         if schema is None:
             raise errors.invalid_match_result(f"unknown action_key {action_key!r}")
-        valid_outcomes = GRADED_OUTCOMES if schema == "graded" else BINARY_OUTCOMES
+        valid_outcomes = OUTCOME_SETS[schema]
         if outcome_key not in valid_outcomes:
             raise errors.invalid_match_result(
                 f"outcome_key {outcome_key!r} invalid for {schema} action {action_key!r}"
@@ -186,6 +186,8 @@ def apply_result(conn: sqlite3.Connection, career_id: str, fixture_id: str, body
     validate_result(body, pre_match_condition)
 
     user_team_id = serializers.fetch_user_team_id(conn, career_id)
+    user_side = "home" if fixture["home_team_id"] == user_team_id else "away"
+    opponent_side = "away" if user_side == "home" else "home"
     season_id, competition_id = fixture["season_id"], fixture["competition_id"]
     on_date = fixture["kickoff_at"][:10]
     happened_at = f"{on_date}T22:00:00+03:00"
@@ -217,9 +219,19 @@ def apply_result(conn: sqlite3.Connection, career_id: str, fixture_id: str, body
 
     condition.set_from_match(conn, career_id, body["final_condition"])
 
-    goal_count = sum(
-        1 for iv in body.get("interventions", []) if is_goal(iv["action_key"], iv["outcome_key"])
+    interventions = body.get("interventions", [])
+    goal_count = sum(1 for iv in interventions if is_goal(iv["action_key"], iv["outcome_key"]))
+    assist_count = sum(1 for iv in interventions if is_assist(iv["action_key"], iv["outcome_key"]))
+
+    deltas, match_result = _match_relationship_deltas(
+        body["score"], user_side, opponent_side, body["stats"][user_side], goal_count
     )
+    relationship_changes = [
+        relationships.apply_delta(
+            conn, career_id, rel_id, delta, f"match:{fixture_id}:{match_result}", happened_at,
+        )
+        for rel_id, delta in deltas.items()
+    ]
 
     ledger_entries = []
     contract = conn.execute(
@@ -241,11 +253,11 @@ def apply_result(conn: sqlite3.Connection, career_id: str, fixture_id: str, body
     conn.execute(
         "INSERT INTO player_season_stat (career_id, player_id, season_id, competition_id, "
         "appearances, starts, goals, assists, minutes, passes_completed, passes_attempted) "
-        "VALUES (?, ?, ?, ?, 1, 1, ?, 0, 95, 0, 0) "
+        "VALUES (?, ?, ?, ?, 1, 1, ?, ?, 95, 0, 0) "
         "ON CONFLICT (career_id, player_id, season_id, competition_id) DO UPDATE SET "
         "appearances = appearances + 1, starts = starts + 1, goals = goals + excluded.goals, "
-        "minutes = minutes + 95",
-        (career_id, config.USER_PLAYER_ID, season_id, competition_id, goal_count),
+        "assists = assists + excluded.assists, minutes = minutes + 95",
+        (career_id, config.USER_PLAYER_ID, season_id, competition_id, goal_count, assist_count),
     )
 
     seed = conn.execute("SELECT seed FROM career WHERE career_id = ?", (career_id,)).fetchone()["seed"]
@@ -273,10 +285,62 @@ def apply_result(conn: sqlite3.Connection, career_id: str, fixture_id: str, body
         "fixture": {"fixture_id": fixture_id, "status": "played", "score": body["score"]},
         "other_results": other_results,
         "standing_delta": {"rank_before": rank_before, "rank_after": rank_after},
-        "player_stat_delta": {"appearances": 1, "goals": goal_count, "minutes": 95},
+        "player_stat_delta": {
+            "appearances": 1, "goals": goal_count, "assists": assist_count, "minutes": 95,
+        },
+        "relationship_changes": relationship_changes,
         "ledger_entries": ledger_entries,
         "news_created": [news_id],
     }
+
+
+def _match_relationship_deltas(
+    score: dict, user_side: str, opponent_side: str, user_stats: dict, goal_count: int,
+) -> tuple:
+    """New M2 behavior: coach/team/fans/media each react to this one match,
+    clamped to ±5. partner/family are deliberately untouched - the feature
+    that asked for this only named these four, and worlddata/relationships
+    .py's own note on partner/family starting at 0 ("you haven't called
+    home yet") supports a match result not being their trigger; dialogue
+    interactions (§5.4/R3) are their only path.
+
+    Weighted by how much each side plausibly cares about a personal stat
+    line vs. the bare result: coach weighs discipline + personal
+    contribution heaviest (tactical trust); team is the most muted (shared
+    result matters more than your line, but a man down hurts everyone);
+    fans swing hardest on the scoreline and love goals, indifferent to
+    cards unless it costs the match; media is the most headline-driven -
+    barely reacts to a plain draw, lights up for goals, and cards are their
+    biggest negative hook."""
+    user_goals, opp_goals = score[user_side], score[opponent_side]
+    result = "win" if user_goals > opp_goals else "loss" if user_goals < opp_goals else "draw"
+    reds, yellows = user_stats["red_cards"], user_stats["yellow_cards"]
+
+    coach = {"win": 3, "draw": 1, "loss": -2}[result]
+    coach += 1 if goal_count >= 1 else 0
+    coach -= 2 if reds >= 1 else 0
+    coach -= 1 if yellows >= 3 else 0
+
+    team = {"win": 2, "draw": 0, "loss": -1}[result]
+    team += 1 if goal_count >= 1 else 0
+    team -= 1 if reds >= 1 else 0
+
+    fans = {"win": 3, "draw": 0, "loss": -2}[result]
+    fans += min(2, goal_count)
+    fans -= 1 if reds >= 1 else 0
+
+    media = {"win": 1, "draw": 0, "loss": -1}[result]
+    media += min(2, goal_count)
+    media -= 2 if reds >= 1 else 0
+    media -= 1 if yellows >= 2 else 0
+
+    def clamp(v):
+        return max(-5, min(5, v))
+
+    deltas = {
+        "coach": clamp(coach), "team": clamp(team), "fans": clamp(fans), "media": clamp(media),
+    }
+    return deltas, result
 
 
 def _user_rank(conn, career_id, season_id, competition_id, user_team_id) -> Optional[int]:

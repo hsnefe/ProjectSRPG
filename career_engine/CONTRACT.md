@@ -474,8 +474,8 @@ kendi yapıyor (`_StatTotals.of`), BE kesitleri verir.
 | `appearances` | Oynanan her maç için +1 |
 | `starts` | `appearances` ile aynı — v1'de kullanıcı daima ilk 11'de |
 | `minutes` | +95 (motorun sabit maç uzunluğu, [`API_CONTRACT.md` §8.2](../../API_CONTRACT.md)) |
-| `goals` | `interventions[]`'da 4 minigame aksiyonundan (`finish_power`/`finish_finesse`/`long_shot`/`set_piece`) biri **en iyi dalla** sonuçlanmış sayısı: graded üçlüde `outcome_key == "great"`, binary `set_piece`'te `outcome_key == "success"` (`API_CONTRACT.md` §7.3 eşleme tablosu) |
-| `assists` | **v1'de daima 0** — motorda karşılığı yok |
+| `goals` | `interventions[]`'da bir gol üreten dalla sonuçlanmış müdahale sayısı — `catalog/match_actions.py`'nin `GOAL_OUTCOMES` tablosu: `finish_power`/`finish_finesse`/`long_shot`/`counter_attack`'te `outcome_key == "great"`, `set_piece`/`penalty_win`'de `outcome_key == "success"` (`API_CONTRACT.md` §7.4 — motorun hangi dalların gerçekten `Goal` olayı ürettiğiyle çapraz kontrol edilmiş) |
+| `assists` | `interventions[]`'da `outcome_key == "asist"` sonuçlanmış müdahale sayısı — yalnızca 4 `graded4` (şut) aksiyonunda mümkün, `goals`'la karşılıklı dışlayıcı (`catalog/match_actions.py`'nin `is_assist()`'i) |
 | `passes_completed` / `passes_attempted` | **v1'de daima 0** — motorda karşılığı yok |
 
 > Motorda bireysel oyuncu katmanı yok (`API_CONTRACT.md` müşteri kararı 1) ve
@@ -753,9 +753,10 @@ CREATE TABLE relationship_event (
 );
 ```
 
-Alanlar [`relationships_screen.dart:396-435`](../lib/screens/relationships_screen.dart)
-`_RelationshipData`'dan. **Beş kategori** [`relationships_screen.dart:31,90,135,191,236`](../lib/screens/relationships_screen.dart):
-Antrenör · Takım Arkadaşları · Medya · Partner · Aile/Sosyal Çevre.
+Alanlar [`worlddata/relationships.py`](../career_engine/worlddata/relationships.py)'nin
+`RELATIONSHIP_SEED`'inden — FE artık bu kartları statik değil, R1'den dinamik
+çekiyor (`relationships_screen.dart`'ın `_toCardData()`'sı). **Altı kategori**:
+Antrenör · Takım Arkadaşları · Medya · Taraftarlar · Partner · Aile/Sosyal Çevre.
 `status` ("Güven seviyesi yüksek") ve `dateLabel` ("2 gün önce") **türetilmiştir** —
 BE `score` ve `last_contact_at` verir, cümleyi FE kurar (§1.3).
 
@@ -1213,7 +1214,7 @@ Sorgu: `?season=25/26|all&competition=<competition_id>|all`
       "appearances":       12,
       "starts":            12,
       "goals":             3,
-      "assists":           0,              // D13 · v1'de daima 0
+      "assists":           1,              // D13 · interventions[] outcome_key=="asist" sayısı
       "minutes":           1140,
       "passes_completed":  0,              // D13 · v1'de daima 0
       "passes_attempted":  0 }
@@ -1355,7 +1356,7 @@ takım geçen sezon başka kademede olabilir (§3.3).
 ] }
 ```
 
-Beş kategori döner (§3.4). `traits` içeriği `kind`'a göre değişir; FE tanıdığı
+Altı kategori döner (§3.4). `traits` içeriği `kind`'a göre değişir; FE tanıdığı
 anahtarı okur, tanımadığını yok sayar — **yeni trait eklemek FE'yi bozmaz**.
 
 `status` ("Güven seviyesi yüksek") ve `dateLabel` ("2 gün önce") **gönderilmez**;
@@ -1536,7 +1537,13 @@ tarihiyle kaç gün kaldığını bildirir (§6.1) — maç kendi gününde oyna
                "score": { "home": 2, "away": 1 } },
   "other_results": [ { "fixture_id": "f_…", "score": { "home": 0, "away": 0 } } ],
   "standing_delta": { "rank_before": 3, "rank_after": 2 },
-  "player_stat_delta": { "appearances": 1, "goals": 1, "minutes": 95 },
+  "player_stat_delta": { "appearances": 1, "goals": 1, "assists": 0, "minutes": 95 },
+  "relationship_changes": [
+    { "relationship_id": "coach", "before": 70, "after": 74, "delta": 4 },
+    { "relationship_id": "team",  "before": 50, "after": 53, "delta": 3 },
+    { "relationship_id": "fans",  "before": 40, "after": 44, "delta": 4 },
+    { "relationship_id": "media", "before": 10, "after": 12, "delta": 2 }
+  ],
   "ledger_entries": [ /* maç primi + gol primi */ ],
   "news_created": ["n_0143"] }
 ```
@@ -1549,7 +1556,7 @@ gibi kabul edilmez (INV-23):
 | `stats.{home,away}` | **Tam olarak 13 anahtar** ([`models.py:82-88`](../../match_engine/models.py)); eksik veya fazla kabul edilmez |
 | `score.*` | `stats.*.goals` ile tutarlı olmalı |
 | `interventions[].action_key` | Motorun 11 aksiyonluk kataloğundan (`API_CONTRACT.md` Ek B) |
-| `interventions[].outcome_key` | O aksiyonun şemasına uygun (`API_CONTRACT.md` §7.3 Ek B): graded aksiyonlarda `{great,good,bad}`, binary aksiyonlarda `{success,failure}` — **`"goal"`/`"save"` gibi serbest metin değil** |
+| `interventions[].outcome_key` | Aksiyonun şemasına uygun (`catalog/match_actions.py`, `API_CONTRACT.md` §7.3/Ek B ile birebir): `graded` → `{great,good,bad}`, `graded4` (4 şut-minigame aksiyonu: `finish_power`/`finish_finesse`/`long_shot`/`counter_attack`) → `{great,asist,good,bad}`, `binary` → `{success,failure}` — **`"goal"`/`"save"` gibi serbest metin değil** |
 | `interventions[].minute` | 1-95, artan sırada |
 | `final_condition` | 35-100 ve maç öncesi kondisyondan büyük olamaz |
 
@@ -1559,6 +1566,24 @@ Bu doğrulama hile önlemeye çalışmaz — tek oyunculu bir oyunda kullanıcı
 kendini aldatır. Amacı **sapmayı erken yakalamak**: motorda bir anahtar
 değişirse ya da FE'nin defteri bozulursa sessiz veri bozulması yerine anında
 hata alınır.
+
+**`player_stat_delta.assists`** — `outcome_key == "asist"` ile çözümlenen
+müdahale sayısı (yalnızca `graded4` aksiyonlarda anlamlı). `goals` ile
+karşılıklı dışlayıcıdır: aynı müdahale ikisine birden sayılmaz — `is_goal()`/
+`is_assist()` (`catalog/match_actions.py`) aynı `(action_key, outcome_key)`
+çiftini asla ikisine de eşlemez.
+
+**`relationship_changes`** — bu maçın `coach`/`team`/`fans`/`media`
+ilişkilerinde yarattığı, kalıcı olarak yazılmış (`relationships.apply_delta`)
+değişim; her zaman tam 4 kayıt, sırası her zaman bu (coach → team → fans →
+media), `delta` her zaman `-5..5` aralığında. `partner`/`family`'ye
+dokunulmaz — bir maç sonucu onların tetikleyicisi değil, tek yolları hâlâ
+diyalog etkileşimi (§5.4/R3). Formül `domain/matches.py`'deki
+`_match_relationship_deltas()`'ta yaşıyor: sonuç (galibiyet/beraberlik/
+mağlubiyet) + kişisel gol/asist katkısı + sarı/kırmızı kart disiplini —
+antrenör disiplin ve katkıya en çok ağırlık verir, takım en az kişisel-odaklı,
+taraftar sonuca/gole en sert tepki verir, medya kart/gol gibi "manşetlik"
+olaylara en duyarlı. ⚠️ İlk taslak — oyun testiyle kalibre edilmesi gerekebilir.
 
 #### M3 · `POST /careers/{cid}/matches/{fid}/abandon`
 

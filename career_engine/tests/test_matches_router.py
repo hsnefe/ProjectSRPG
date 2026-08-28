@@ -101,7 +101,7 @@ def test_post_result_applies_everything(api_client, created_career, mock_engine)
     body = resp.json()
 
     assert body["fixture"]["status"] == "played"
-    assert body["player_stat_delta"] == {"appearances": 1, "goals": 1, "minutes": 95}
+    assert body["player_stat_delta"] == {"appearances": 1, "goals": 1, "assists": 0, "minutes": 95}
     assert body["career_state"]["condition"] == 54
     kinds = {e["kind"] for e in body["ledger_entries"]}
     assert "appearance_bonus" in kinds
@@ -113,6 +113,104 @@ def test_post_result_applies_everything(api_client, created_career, mock_engine)
     # world's today has been played). It only fills when a fixture of that
     # date is still scheduled — e.g. a cup tie drawn the same morning.
     assert body["other_results"] == []
+
+
+def test_post_result_accepts_asist_outcome_for_graded4_action(api_client, created_career, mock_engine):
+    """Regression test: a stale catalog used to reject any 'asist' outcome
+    with a 422, discarding the whole match result. finish_power is
+    graded4 (great/asist/good/bad) since match_engine v1.4."""
+    career_id = created_career["career_id"]
+    fixture_id = api_client.get(f"/careers/{career_id}/matches/next").json()["fixture_id"]
+
+    body = _valid_result_body(fixture_id)
+    body["interventions"][0]["outcome_key"] = "asist"
+    resp = api_client.post(f"/careers/{career_id}/matches/{fixture_id}/result", json=body)
+    assert resp.status_code == 200
+
+
+def test_post_result_credits_counter_attack_and_penalty_win_goals(api_client, created_career, mock_engine):
+    """Both action_keys were silently uncredited before the catalog fix -
+    counter_attack wasn't in the old minigame-action set at all, and
+    penalty_win's best outcome ('success') was never mapped to a goal."""
+    career_id = created_career["career_id"]
+    fixture_id = api_client.get(f"/careers/{career_id}/matches/next").json()["fixture_id"]
+
+    body = _valid_result_body(fixture_id, home_goals=2, away_goals=0)
+    body["interventions"] = [
+        {"minute": 20, "action_key": "counter_attack", "outcome_key": "great"},
+        {"minute": 70, "action_key": "penalty_win", "outcome_key": "success"},
+    ]
+    resp = api_client.post(f"/careers/{career_id}/matches/{fixture_id}/result", json=body)
+    assert resp.status_code == 200
+    assert resp.json()["player_stat_delta"]["goals"] == 2
+
+
+def test_post_result_credits_assist_not_goal(api_client, created_career, mock_engine):
+    career_id = created_career["career_id"]
+    fixture_id = api_client.get(f"/careers/{career_id}/matches/next").json()["fixture_id"]
+
+    body = _valid_result_body(fixture_id)
+    body["interventions"] = [
+        {"minute": 63, "action_key": "finish_power", "outcome_key": "asist"},
+    ]
+    resp = api_client.post(f"/careers/{career_id}/matches/{fixture_id}/result", json=body)
+    assert resp.status_code == 200
+    delta = resp.json()["player_stat_delta"]
+    assert delta["assists"] == 1
+    assert delta["goals"] == 0
+
+
+def test_post_result_includes_relationship_changes(api_client, created_career, mock_engine):
+    career_id = created_career["career_id"]
+    fixture_id = api_client.get(f"/careers/{career_id}/matches/next").json()["fixture_id"]
+
+    resp = api_client.post(
+        f"/careers/{career_id}/matches/{fixture_id}/result",
+        json=_valid_result_body(fixture_id),
+    )
+    assert resp.status_code == 200
+    changes = resp.json()["relationship_changes"]
+    assert [c["relationship_id"] for c in changes] == ["coach", "team", "fans", "media"]
+    for c in changes:
+        assert -5 <= c["delta"] <= 5
+        assert c["after"] == c["before"] + c["delta"]
+
+
+def test_post_result_relationship_deltas_react_to_result(api_client, mock_engine):
+    """fans should swing positive on a win and negative on a loss -
+    a coarse but real behavioral check, not just a shape assertion."""
+    win_id = create_career(api_client)["career_id"]
+    advance_to_match_day(api_client, win_id)
+    win_next = api_client.get(f"/careers/{win_id}/matches/next").json()
+    win_side = win_next["user_side"]
+    win_fixture_id = win_next["fixture_id"]
+    win_body = _valid_result_body(
+        win_fixture_id,
+        home_goals=2 if win_side == "home" else 0,
+        away_goals=0 if win_side == "home" else 2,
+    )
+    win_body["interventions"] = []
+    win_resp = api_client.post(f"/careers/{win_id}/matches/{win_fixture_id}/result", json=win_body)
+    assert win_resp.status_code == 200
+    win_fans = next(c for c in win_resp.json()["relationship_changes"] if c["relationship_id"] == "fans")
+
+    loss_id = create_career(api_client)["career_id"]
+    advance_to_match_day(api_client, loss_id)
+    loss_next = api_client.get(f"/careers/{loss_id}/matches/next").json()
+    loss_side = loss_next["user_side"]
+    loss_fixture_id = loss_next["fixture_id"]
+    loss_body = _valid_result_body(
+        loss_fixture_id,
+        home_goals=0 if loss_side == "home" else 2,
+        away_goals=2 if loss_side == "home" else 0,
+    )
+    loss_body["interventions"] = []
+    loss_resp = api_client.post(f"/careers/{loss_id}/matches/{loss_fixture_id}/result", json=loss_body)
+    assert loss_resp.status_code == 200
+    loss_fans = next(c for c in loss_resp.json()["relationship_changes"] if c["relationship_id"] == "fans")
+
+    assert win_fans["delta"] > 0
+    assert loss_fans["delta"] < 0
 
 
 def test_post_result_already_played_errors(api_client, created_career, mock_engine):
