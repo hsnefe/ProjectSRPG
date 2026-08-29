@@ -236,12 +236,9 @@ class _MatchScreenState extends State<MatchScreen> {
 
     setState(() => _reporting = true);
     MatchResultResponse? result;
-    Map<String, dynamic>? userStats;
     try {
       final summary = await widget._matchApiClient
           .fetchSummary(widget.controller.matchId);
-      userStats =
-          summary.stats[widget.controller.userSide] as Map<String, dynamic>?;
       final body = {
         'match_id': widget.controller.matchId,
         'score': {'home': summary.score.home, 'away': summary.score.away},
@@ -279,18 +276,15 @@ class _MatchScreenState extends State<MatchScreen> {
       if (mounted) setState(() => _reporting = false);
     }
     if (!mounted) return;
-    _goToRequestScreen(result, userStats);
+    _goToRequestScreen(result);
   }
 
-  void _goToRequestScreen(
-    MatchResultResponse? result, [
-    Map<String, dynamic>? userStats,
-  ]) {
+  void _goToRequestScreen(MatchResultResponse? result) {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
         builder: (_) => RequestScreen(
           result: result,
-          userStats: userStats,
+          userStats: widget.controller.userMatchStats,
           homeTeamName: widget.controller.teams.home.name,
           awayTeamName: widget.controller.teams.away.name,
         ),

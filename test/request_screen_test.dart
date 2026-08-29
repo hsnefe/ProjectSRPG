@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:project_srpg/game/intervention_stats.dart';
 import 'package:project_srpg/net/career_models.dart';
 import 'package:project_srpg/screens/career_center_screen.dart';
 import 'package:project_srpg/screens/request_screen.dart';
@@ -37,11 +38,11 @@ MatchResultResponse _result({
   });
 }
 
-const _userStats = {
-  'dangerous_attacks': 20,
-  'shots': 10,
-  'shots_on_target': 5,
-};
+const _userStats = UserMatchStats(
+  opportunities: 12,
+  shots: 4,
+  shotsOnTarget: 2,
+);
 
 void main() {
   testWidgets('renders the stub content', (tester) async {
@@ -64,9 +65,9 @@ void main() {
     ));
 
     expect(find.text('Fırsat sayısı'), findsOneWidget);
-    expect(find.text('20'), findsOneWidget);
+    expect(find.text('12'), findsOneWidget);
     expect(find.text('İsabetli şut / Şut'), findsOneWidget);
-    expect(find.text('5/10'), findsOneWidget);
+    expect(find.text('2/4'), findsOneWidget);
     expect(find.text('Başarılı pas / Pas denemesi'), findsOneWidget);
     expect(find.text('0/0'), findsNWidgets(2)); // pas ve dribling satırları
     expect(find.text('Gol'), findsOneWidget);

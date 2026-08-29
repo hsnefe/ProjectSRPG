@@ -748,6 +748,10 @@ void main() {
       await tester.pump();
 
       await _emitTick(tester, source, _tick(minute: 1, stamina: 100));
+      // İki teklif sunuldu, biri kabul edilip şuta çevrildi. İkincisi
+      // yanıtsız kaldı (sunucunun emniyet zaman aşımı bir sonraki tick'te
+      // paneli kapatıyor) - "fırsat" sayacı yine de ikisini de sayar.
+      await _emitOffer(tester, source, _minigameOffer());
       await _emitTick(tester, source, _tick(
         minute: 63,
         stamina: 90,
@@ -755,6 +759,7 @@ void main() {
           offerId: 'off_1', actionKey: 'finish_power', outcomeKey: 'great',
         ),
       ));
+      await _emitOffer(tester, source, _offer(offerId: 'off_2', minute: 70));
       await _emitTick(tester, source, _tick(minute: 90, stamina: 78, finished: true));
       await tester.tap(find.text('İlerle'));
       await tester.pumpAndSettle();
@@ -767,11 +772,12 @@ void main() {
         careerRequests.any((r) => r.url.path.endsWith('/matches/f_1/result')),
         isTrue,
       );
-      // `_advance()`, E9'un `stats[userSide]`'ını (userSide: 'home')
-      // `RequestScreen`'e `userStats` olarak taşıdı - istatistik tablosu
-      // gerçek motor verisiyle dolu.
-      expect(find.text('20'), findsOneWidget); // dangerous_attacks
-      expect(find.text('5/10'), findsOneWidget); // shots_on_target/shots
+      // İstatistik tablosu oyuncunun kendi defterinden geliyor: iki teklif
+      // sunuldu (fırsat), biri finish_power/great ile sonuçlandı (1 şut,
+      // isabetli). E9'un takım geneli sayaçları (20 tehlikeli atak, 5/10
+      // şut) bu satırlara artık hiç karışmıyor.
+      expect(find.text('2'), findsOneWidget); // fırsat sayısı
+      expect(find.text('1/1'), findsOneWidget); // isabetli şut / şut
       // İlişki bar'ları da M2'nin `relationship_changes`'inden geldi.
       expect(find.textContaining('Antrenör'), findsOneWidget);
       expect(find.textContaining('Taraftarlar'), findsOneWidget);

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show Icons;
 
 import '../game/event_icons.dart';
+import '../game/intervention_stats.dart';
 import '../game/match_feed.dart';
 import '../net/api_config.dart';
 import '../net/match_api_client.dart';
@@ -75,6 +76,7 @@ class MatchController extends ChangeNotifier {
   bool _disposed = false;
   InterventionOfferFrame? _activeOffer;
   final List<InterventionLogEntry> _interventions = [];
+  final Set<String> _offeredIds = {};
 
   int get minute => _minute;
   bool get finished => _finished;
@@ -118,6 +120,31 @@ class MatchController extends ChangeNotifier {
   /// zarını sunucu attığı için tek doğruluk kaynağı odur.
   List<InterventionLogEntry> get interventions => List.unmodifiable(_interventions);
 
+  /// Maç boyunca sunulan teklif sayısı — kabul/ret/zaman aşımı ayrımı
+  /// yapılmaz, `offer_id`'ye göre tekilleştirilir (E8 replay'i aynı teklifi
+  /// yeniden yayınlar). [interventions] yalnızca **kabul edilenleri**
+  /// tuttuğu için ("decline" hiç `resolved_intervention` üretmez, §3.1) bu
+  /// sayaç ayrı tutulmak zorunda.
+  int get offerCount => _offeredIds.length;
+
+  /// Maç sonu ekranının oyuncu satırları (fırsat/şut) — E9'un takım geneli
+  /// sayaçlarından değil, oyuncunun kendi müdahale defterinden türetilir
+  /// (bkz. `game/intervention_stats.dart`).
+  UserMatchStats get userMatchStats {
+    var shots = 0;
+    var onTarget = 0;
+    for (final entry in _interventions) {
+      if (!isPlayerShot(entry.actionKey, entry.outcomeKey)) continue;
+      shots++;
+      if (isShotOnTarget(entry.actionKey, entry.outcomeKey)) onTarget++;
+    }
+    return UserMatchStats(
+      opportunities: offerCount,
+      shots: shots,
+      shotsOnTarget: onTarget,
+    );
+  }
+
   void connect() {
     final uri = Uri.parse('${ApiConfig.baseUrl}$streamUrl');
     _subscription = _streamSource.connect(uri).listen(
@@ -135,6 +162,9 @@ class MatchController extends ChangeNotifier {
       _pendingOfferPrompt = null;
       _applyTick(message.tick);
     } else if (message is MatchInterventionMessage) {
+      // Fırsat sayacı gösterimden bağımsız: `resolved:true` replay zarfı
+      // ekranda modal açmasa da o teklif maçta gerçekten sunulmuştu.
+      _offeredIds.add(message.offer.offerId);
       // `resolved:true` yalnızca E8 replay'inde gelir (§9.2) - canlı akışta
       // hiç görülmez, görülürse de gösterilmeden atlanır.
       if (message.offer.resolved == true) return;

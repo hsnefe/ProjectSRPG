@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/game/intervention_stats.dart';
 import 'package:project_srpg/net/career_models.dart';
 import 'package:project_srpg/screens/career_center_screen.dart';
 import 'package:project_srpg/theme/app_colors.dart';
@@ -21,11 +22,13 @@ class RequestScreen extends StatelessWidget {
   /// fikstür 'in_progress' kalır, bir sonraki M1 çağrısı kurtarır).
   final MatchResultResponse? result;
 
-  /// E9 (`GET /matches/{id}/summary`) özetinin `stats[userSide]` haritası —
-  /// 13 anahtarlık ham motor istatistiği. `result` gibi null olabilir (maç
-  /// bir kariyer fikstürüne bağlı değilse ya da özet çağrısı başarısız
-  /// olduysa); bu durumda istatistik tablosu hiç çizilmez.
-  final Map<String, dynamic>? userStats;
+  /// Oyuncunun kendi maç istatistikleri — `MatchController`'ın müdahale
+  /// defterinden türetilir (`game/intervention_stats.dart`). E9 özetinin
+  /// `stats[userSide]`'ı **kullanılmaz**: o, 11 kişilik takımın maç geneli
+  /// sayacıdır; kullanıcının kaç fırsata çıkıp kaç şut çektiğiyle ilgisi
+  /// yoktur. Maç ekranı dışından açılan bir özet için null olabilir; o
+  /// zaman tablo hiç çizilmez.
+  final UserMatchStats? userStats;
 
   final String? homeTeamName;
   final String? awayTeamName;
@@ -240,26 +243,25 @@ class _MatchResultSection extends StatelessWidget {
   }
 }
 
-/// 7 satırlık maç istatistik tablosu (kullanıcının kendi tarafı — rakip
-/// verisi burada gösterilmiyor). `stats` E9'un ham `stats[userSide]`
-/// haritası; motorda karşılığı olmayan pas/dribling/başarılı müdahale
-/// sayıları **dürüst 0** olarak gösterilir, uydurulmaz.
+/// 7 satırlık maç istatistik tablosu — **oyuncunun kendi** rakamları,
+/// takımın maç geneli değil. Fırsat/şut satırları müdahale defterinden
+/// gelir (`stats`), gol/asist M2'nin oyuncu delta'sından; motorda karşılığı
+/// olmayan pas/dribling/başarılı müdahale sayıları **dürüst 0** olarak
+/// gösterilir, uydurulmaz.
 class _StatsTable extends StatelessWidget {
   const _StatsTable({required this.stats, required this.playerStatDelta});
 
-  final Map<String, dynamic> stats;
+  final UserMatchStats stats;
   final PlayerStatDelta playerStatDelta;
-
-  int _int(String key) => (stats[key] as num?)?.toInt() ?? 0;
 
   @override
   Widget build(BuildContext context) {
     final rows = <_StatRow>[
-      _StatRow('Fırsat sayısı', '${_int('dangerous_attacks')}'),
+      _StatRow('Fırsat sayısı', '${stats.opportunities}'),
       _StatRow('Başarılı pas / Pas denemesi', '0/0'),
       _StatRow(
         'İsabetli şut / Şut',
-        '${_int('shots_on_target')}/${_int('shots')}',
+        '${stats.shotsOnTarget}/${stats.shots}',
       ),
       _StatRow('Başarılı dribling / Dribling', '0/0'),
       _StatRow('Başarılı müdahale', '0'),

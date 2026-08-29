@@ -462,6 +462,96 @@ void main() {
     });
   });
 
+  group('MatchController.userMatchStats', () {
+    test('fırsat sayısı sunulan tüm teklifleri sayar (ret/zaman aşımı dahil)',
+        () async {
+      final source = _FakeStreamSource();
+      final controller = _buildController(source);
+      addTearDown(controller.dispose);
+      controller.connect();
+
+      // Üç teklif sunuldu: biri kabul edilip çözümlendi, ikisi yanıtsız
+      // kaldı. `interventions` (M2 defteri) yalnızca kabul edileni tutar,
+      // ama kullanıcı üç modal gördü.
+      source.controller.add(MatchInterventionMessage(_offer(offerId: 'off_1')));
+      await pumpEventQueue();
+      source.controller.add(MatchTickMessage(_tick(
+        seq: 2,
+        minute: 11,
+        resolvedIntervention: const ResolvedInterventionDto(
+          offerId: 'off_1', actionKey: 'finish_power', outcomeKey: 'great',
+        ),
+      )));
+      await pumpEventQueue();
+      source.controller.add(MatchInterventionMessage(_offer(offerId: 'off_2')));
+      await pumpEventQueue();
+      source.controller.add(MatchInterventionMessage(_offer(offerId: 'off_3')));
+      await pumpEventQueue();
+
+      expect(controller.interventions, hasLength(1));
+      expect(controller.userMatchStats.opportunities, 3);
+    });
+
+    test('aynı offer_id iki kez yayınlanırsa fırsat bir kez sayılır',
+        () async {
+      final source = _FakeStreamSource();
+      final controller = _buildController(source);
+      addTearDown(controller.dispose);
+      controller.connect();
+
+      source.controller.add(MatchInterventionMessage(_offer(offerId: 'off_1')));
+      await pumpEventQueue();
+      // E8 replay'i aynı teklifi `resolved:true` ile geri verir - modal
+      // açılmaz ama fırsat zaten sayılmıştır.
+      source.controller.add(MatchInterventionMessage(InterventionOfferFrame(
+        seq: 1, matchId: 'm_test', offerId: 'off_1', minute: 10,
+        resolution: 'engine', actionKey: 'counter_attack', prompt: 'x',
+        riskHint: null, timeoutSeconds: 20, onTimeout: 'decline', resolved: true,
+      )));
+      await pumpEventQueue();
+
+      expect(controller.userMatchStats.opportunities, 1);
+    });
+
+    test('şut yalnızca oyuncunun kendi bitirdiği dallardan sayılır',
+        () async {
+      final source = _FakeStreamSource();
+      final controller = _buildController(source);
+      addTearDown(controller.dispose);
+      controller.connect();
+
+      // great: gol (şut, isabetli) · good: kaleci çeldi (şut, isabetli) ·
+      // bad: auta (şut, isabetsiz) · asist: şutu arkadaşı çekti (şut değil) ·
+      // counter_attack/good: hiç şut üretmeyen dal · tactical_sub: şutla
+      // alakasız aksiyon.
+      final resolved = [
+        const ResolvedInterventionDto(
+            offerId: 'o1', actionKey: 'finish_power', outcomeKey: 'great'),
+        const ResolvedInterventionDto(
+            offerId: 'o2', actionKey: 'long_shot', outcomeKey: 'good'),
+        const ResolvedInterventionDto(
+            offerId: 'o3', actionKey: 'finish_finesse', outcomeKey: 'bad'),
+        const ResolvedInterventionDto(
+            offerId: 'o4', actionKey: 'finish_power', outcomeKey: 'asist'),
+        const ResolvedInterventionDto(
+            offerId: 'o5', actionKey: 'counter_attack', outcomeKey: 'good'),
+        const ResolvedInterventionDto(
+            offerId: 'o6', actionKey: 'tactical_sub', outcomeKey: 'success'),
+      ];
+      for (var i = 0; i < resolved.length; i++) {
+        source.controller.add(MatchTickMessage(_tick(
+          seq: i + 2,
+          minute: 10 + i,
+          resolvedIntervention: resolved[i],
+        )));
+        await pumpEventQueue();
+      }
+
+      expect(controller.userMatchStats.shots, 3);
+      expect(controller.userMatchStats.shotsOnTarget, 2);
+    });
+  });
+
   group('MatchController error handling', () {
     test('sets connectionError when the stream emits MatchStreamException', () async {
       final source = _FakeStreamSource();
