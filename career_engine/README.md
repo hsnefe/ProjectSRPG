@@ -26,7 +26,7 @@ and its schema are created automatically on first startup.
 .venv/Scripts/python -m pytest -q
 ```
 
-108 tests: one file per domain module and per router, plus
+240 tests: one file per domain module and per router, plus
 `tests/test_end_to_end.py` — a single session walking every domain area in
 sequence (create a career, train, shop, play a match, advance the world,
 read the results, delete the career and verify INV-9 holds exhaustively).

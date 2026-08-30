@@ -3,7 +3,7 @@ import sqlite3
 import pytest
 
 from api import config
-from tests.conftest import advance_to_match_day, create_career, grant_money
+from tests.conftest import advance_to_match_day, create_career, grant_money, set_attribute
 from worlddata.attributes import BASE_SKILL_VALUE
 from worlddata.relationships import STARTING_SCORES
 
@@ -265,3 +265,85 @@ def test_advance_upkeep_shortfall_warns_then_repossesses(api_client, created_car
     sale_entries = [e for e in resolved["ledger_entries"] if e["kind"] == "sale"]
     assert len(sale_entries) == 1
     assert sale_entries[0]["amount"] == 12750000 // 2
+
+
+# --- D42: the catalog gate ------------------------------------------------
+
+def test_post_action_gated_item_refused_without_spending_a_minute(api_client, created_career):
+    """INV-30, and the reason the check runs before day_budget.spend():
+    a threshold you don't meet must not cost you the day."""
+    career_id = created_career["career_id"]
+    before = api_client.get(f"/careers/{career_id}/day").json()["career_state"]["day_budget"]
+
+    # medya-egitimi wants confidence 6; a fresh career sits at 51.0 (level 5).
+    resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "medya-egitimi"})
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "requirement_not_met"
+
+    after = api_client.get(f"/careers/{career_id}/day").json()["career_state"]["day_budget"]
+    assert after == before
+    charisma = next(
+        a for a in api_client.get(f"/careers/{career_id}/player").json()["attributes"]
+        if a["key"] == "charisma"
+    )
+    assert charisma["value"] == 74.0  # the effect never landed either
+
+
+def test_post_action_gated_item_runs_once_the_level_is_reached(api_client, created_career):
+    career_id = created_career["career_id"]
+    grant_money(career_id, 10000)
+    set_attribute(career_id, "confidence", 60.0)   # exactly level 6
+
+    resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "medya-egitimi"})
+    assert resp.status_code == 200
+    assert {"key": "charisma", "before": 74.0, "after": 74.8} in resp.json()["attribute_changes"]
+
+
+def test_post_action_gate_is_checked_before_the_budget(api_client, created_career):
+    """Both would refuse this call; the contract's order table (§5.5) says
+    the requirement wins, so the message tells the player what to fix."""
+    career_id = created_career["career_id"]
+    api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "ev-uyku"})  # 540 of 720
+    api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "ev-oyun"})  # 180 -> 0 left
+
+    resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "medya-egitimi"})
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "requirement_not_met"
+
+
+def test_post_action_social_activity_grows_a_kişi_attribute(api_client, created_career):
+    career_id = created_career["career_id"]
+    grant_money(career_id, 10000)
+    resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "sos-arkadas"})
+    assert resp.status_code == 200
+    assert resp.json()["attribute_changes"] == [
+        {"key": "charisma", "before": 74.0, "after": 74.3}
+    ]
+
+
+def test_post_action_satisfied_threshold_reads_as_no_gate(api_client, created_career):
+    """sos-taraftar requires charisma 7 and a fresh career is exactly there
+    — a met threshold must be as invisible as an absent one."""
+    career_id = created_career["career_id"]
+    resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "sos-taraftar"})
+    assert resp.status_code == 200
+    changed = {c["key"] for c in resp.json()["attribute_changes"]}
+    assert changed == {"charisma", "confidence"}
+
+
+def test_post_purchase_has_the_gate_wired_too(api_client, created_career, monkeypatch):
+    """No shop item carries `requires` today (D42 is a mechanism, its use is
+    a content decision) — so patch one in to prove the wiring is real."""
+    from catalog import shop
+
+    career_id = created_career["career_id"]
+    grant_money(career_id, 100000)
+    item = next(i for i in shop.SHOP_ITEMS if i["catalog_id"] == "personal-boots")
+    monkeypatch.setitem(item, "requires", {"charisma": 9})
+
+    resp = api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "personal-boots"})
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "requirement_not_met"
+    assert api_client.get(f"/careers/{career_id}/player").json()["career_state"]["money"] == (
+        config.STARTING_MONEY + 100000
+    )
