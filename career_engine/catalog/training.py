@@ -66,12 +66,17 @@ TRAINING_ITEMS = [
         "effects": {"attribute:tackling": 1.0},
     },
     # --- kişi: D31, her nitelik için bir yol ---
+    # D42: the one gated training path, and the chain it anchors —
+    # ozguven-koclugu raises confidence to 6, which unlocks this, which
+    # raises charisma to 8, which unlocks media_01's interview reply.
+    # A fresh career sits at confidence 5, so the lock is visible on day one.
     {
         "catalog_id": "medya-egitimi", "title": "Medya Eğitimi",
         "description": "Röportaj ve kamera karşısında durmayı öğren.",
         "family": "kişi", "drill": None,
         "costs": {"time": 60, "energy": 5},
         "effects": {"attribute:charisma": 0.8, "money": -1500},
+        "requires": {"confidence": 6},
     },
     {
         "catalog_id": "gorgu-dersleri", "title": "Görgü Dersleri",

@@ -5,6 +5,11 @@ reading of each label, e.g. '1 saat' → 60, 'Yarım gün' → 360. `cost` (₺)
 becomes effects.money as a negative; `conditionDelta` becomes
 effects.condition unchanged. Every number here is ⟦AÇIK-5⟧ — placeholder
 until the budget's actual scale is decided.
+
+D42/D31: the five SOSYAL items also move kişi attributes now. They are
+deliberately an order of magnitude below a kişi training session (0.1-0.5
+vs 0.8): time spent among people grows you, but it is not a substitute for
+actually working on it.
 """
 
 LIFESTYLE_ITEMS = [
@@ -67,29 +72,41 @@ LIFESTYLE_ITEMS = [
      "description": "Eski dostlarınla bir araya gel. Moralini yükseltir, "
                      "sosyal çevrenle bağını canlı tutar.",
      "duration_label": "3 saat",
-     "costs": {"time": 180}, "effects": {"condition": -3, "money": -400}},
+     "costs": {"time": 180},
+     "effects": {"condition": -3, "money": -400, "attribute:charisma": 0.3}},
     {"catalog_id": "sos-kafe", "title": "Kafe", "group": "SOSYAL AKTİVİTELER",
      "description": "Sakin bir kafede kahve iç. Kısa ve zararsız bir mola, "
                      "kafan dinlenir.",
      "duration_label": "1 saat",
-     "costs": {"time": 60}, "effects": {"condition": 1, "money": -150}},
+     "costs": {"time": 60},
+     "effects": {"condition": 1, "money": -150, "attribute:politeness": 0.1}},
     {"catalog_id": "sos-aile", "title": "Aile Ziyareti", "group": "SOSYAL AKTİVİTELER",
      "description": "Ailenle vakit geçir. Kariyerin baskısını hafifletir, "
                      "aile ilişkini güçlendirir.",
      "duration_label": "Yarım gün",
-     "costs": {"time": 360}, "effects": {"condition": 4, "relationship:family": 3}},
+     "costs": {"time": 360},
+     "effects": {"condition": 4, "relationship:family": 3, "attribute:politeness": 0.3}},
     {"catalog_id": "sos-konser", "title": "Konser", "group": "SOSYAL AKTİVİTELER",
      "description": "Gece boyu sahne önünde ol. Eğlencesi bol, ertesi günkü "
                      "antrenmana bedeli ağır.",
      "duration_label": "Tüm gece",
-     "costs": {"time": 540}, "effects": {"condition": -12, "money": -1200}},
+     "costs": {"time": 540},
+     "effects": {"condition": -12, "money": -1200, "attribute:confidence": 0.4}},
     # D35 - "Tribünün gözünde değerin artar" vaadi burada ilk kez karşılığını
     # buluyor: fame:overall AÇIK-9 kapanana kadar null (§3.2 notu).
+    # D42: charisma 7 taze bir kariyerin seviyesinin TAM karşılığıdır, yani
+    # bu kapı ilk günden açıktır — ve INV-22 (nitelik kendiliğinden azalmaz)
+    # yüzünden bir daha da kapanmaz. Engellemek için değil, `requires`
+    # şeklini bir lifestyle kaleminde sabitlemek ve FE'ye "eşik var ve
+    # karşılanıyor" durumunu çizecek bir örnek vermek için burada.
     {"catalog_id": "sos-taraftar", "title": "Taraftar Etkinliği", "group": "SOSYAL AKTİVİTELER",
      "description": "Kulübün taraftar buluşmasına katıl. Tribünün gözünde "
                      "değerin artar.",
      "duration_label": "2 saat",
-     "costs": {"time": 120}, "effects": {"condition": -2, "fame:overall": None}},
+     "costs": {"time": 120},
+     "effects": {"condition": -2, "fame:overall": None,
+                 "attribute:charisma": 0.5, "attribute:confidence": 0.3},
+     "requires": {"charisma": 7}},
 ]
 
 assert len(LIFESTYLE_ITEMS) == 15
