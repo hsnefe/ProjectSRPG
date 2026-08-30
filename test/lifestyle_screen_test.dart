@@ -139,14 +139,78 @@ CareerSession _lifestyleSession({
   return CareerSession(client: CareerApiClient(httpClient: mock, baseUrl: 'http://test'));
 }
 
+/// D42 · `sos-taraftar`'a bir eşik takar ve oyuncunun cazibe seviyesini
+/// [charismaLevel] yapar. Kilitli/açık kartın aynı ekranda nasıl göründüğünü
+/// test etmenin tek yolu bu ikisini birlikte kurmak.
+CareerSession _gatedLifestyleSession({
+  required int charismaLevel,
+  List<Map<String, dynamic>> actionAttributeChanges = const [],
+}) {
+  final items = [
+    for (final item in _lifestyleItems)
+      if (item['catalog_id'] == 'sos-taraftar')
+        {...item, 'requires': const {'charisma': 8}}
+      else
+        item,
+  ];
+  final mock = MockClient((request) async {
+    if (request.url.path == '/catalog/lifestyle') {
+      return _json({'items': items});
+    }
+    if (request.url.path == '/careers') {
+      return _json({
+        'careers': [
+          {
+            'career_id': 'car_test', 'player_name': 'Efe Kaan',
+            'season_id': '25/26', 'current_date': '2026-08-05',
+          }
+        ],
+      });
+    }
+    if (request.url.path == '/careers/car_test/actions') {
+      return _json({
+        'career_state': _careerState(condition: 72, money: 48200),
+        'applied_costs': const {},
+        'applied_effects': const {},
+        'attribute_changes': actionAttributeChanges,
+        'relationship_changes': const [],
+        'ledger_entries': const [],
+      });
+    }
+    if (request.url.path == '/careers/car_test/player') {
+      return _json({
+        'player_id': 'p_user', 'name': 'Efe Kaan', 'position': 'Orta saha',
+        'birth_date': '2004-08-19', 'age': 21,
+        'team': {
+          'team_id': 't_ykz', 'name': 'FK Yıldız', 'short_name': 'YKZ',
+          'color_primary': '#1E6FD9', 'color_secondary': '#FFFFFF',
+        },
+        'career_state': _careerState(condition: 72, money: 48200),
+        'attributes': [
+          {
+            'key': 'charisma', 'family': 'kişi',
+            'value': charismaLevel * 10.0, 'level': charismaLevel,
+          },
+        ],
+        'fame': const [], 'market_value': null,
+      });
+    }
+    return http.Response('unexpected ${request.url}', 404);
+  });
+  return CareerSession(client: CareerApiClient(httpClient: mock, baseUrl: 'http://test'));
+}
+
 Map<String, dynamic> _careerState({required int condition, required int money}) => {
       'current_date': '2026-08-05', 'season_id': '25/26',
       'money': money, 'condition': condition,
       'day_budget': {'time': 720.0},
     };
 
-Widget _wrap(Widget home) {
+Widget _wrap(Widget home, {CareerSession? session}) {
   return PlayerScope(
+    // Nitelik seviyeleri P1'den gelir; kilitli kartı test edebilmek için
+    // PlayerState'in de sahte oturumu görmesi gerekiyor.
+    session: session,
     child: MaterialApp(
       theme: ThemeData(brightness: Brightness.dark, useMaterial3: true),
       home: home,
@@ -295,5 +359,138 @@ void main() {
     await tester.scrollUntilVisible(find.text('%80'), -200);
     expect(find.text('%80'), findsOneWidget);
     expect(find.text('₺48.020'), findsOneWidget);
+  });
+
+  testWidgets('eşiği tutulmayan aktivite kilitli görünür ve yapılamaz',
+      (tester) async {
+    final session = _gatedLifestyleSession(charismaLevel: 7);
+    await tester.pumpWidget(
+      _wrap(LifestyleScreen(session: session), session: session),
+    );
+    await tester.pumpAndSettle();
+
+    // SOSYAL sırası dikey listede aşağıda; ayrıca 'Taraftar Etkinliği' o
+    // sıranın yatay listesinde sonda duruyor.
+    await tester.scrollUntilVisible(
+      find.text('SOSYAL AKTİVİTELER'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.scrollUntilVisible(
+      find.text('Taraftar Etkinliği'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+
+    final card = tester.widget<ActivityCard>(_card('Taraftar Etkinliği'));
+    expect(card.activity.locked, isTrue);
+    expect(card.activity.unmetRequirements, {'charisma': 8});
+
+    // Kart yine de açılır — gerekçe detayda okunur, dokunup hiçbir şey
+    // olmaması kartı bozuk gösterirdi.
+    await tester.tap(_card('Taraftar Etkinliği'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('lifestyle_requirement_badge')), findsOneWidget);
+    expect(find.text('Cazibe 8 gerekli'), findsOneWidget);
+    expect(find.text('Kilitli'), findsOneWidget);
+    expect(find.text('Yap'), findsNothing);
+
+    final button = tester.widget<FilledButton>(find.byType(FilledButton));
+    expect(button.onPressed, isNull);
+  });
+
+  testWidgets('eşik karşılanınca aynı aktivite açılır', (tester) async {
+    final session = _gatedLifestyleSession(charismaLevel: 8);
+    await tester.pumpWidget(
+      _wrap(LifestyleScreen(session: session), session: session),
+    );
+    await tester.pumpAndSettle();
+
+    // SOSYAL sırası dikey listede aşağıda; ayrıca 'Taraftar Etkinliği' o
+    // sıranın yatay listesinde sonda duruyor.
+    await tester.scrollUntilVisible(
+      find.text('SOSYAL AKTİVİTELER'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.scrollUntilVisible(
+      find.text('Taraftar Etkinliği'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+
+    final card = tester.widget<ActivityCard>(_card('Taraftar Etkinliği'));
+    expect(card.activity.locked, isFalse);
+
+    await tester.tap(_card('Taraftar Etkinliği'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Yap'), findsOneWidget);
+    expect(find.byKey(const Key('lifestyle_requirement_badge')), findsNothing);
+  });
+
+  testWidgets('bir aktivite kilidi açınca kart aynı karede çözülür',
+      (tester) async {
+    // §5.5 · T2 yanıtındaki `level_after` tam olarak bunun için var: FE
+    // ham değerden seviye türetmediği için, kapının açıldığını ancak
+    // sunucu söylerse bilir — ve P1'i yeniden çekmeden bilmelidir.
+    final session = _gatedLifestyleSession(
+      charismaLevel: 7,
+      actionAttributeChanges: const [
+        {
+          'key': 'charisma', 'before': 79.7, 'after': 80.0,
+          'level_before': 7, 'level_after': 8,
+        },
+      ],
+    );
+    await tester.pumpWidget(
+      _wrap(LifestyleScreen(session: session), session: session),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('SOSYAL AKTİVİTELER'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.scrollUntilVisible(
+      find.text('Taraftar Etkinliği'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<ActivityCard>(_card('Taraftar Etkinliği')).activity.locked,
+      isTrue,
+    );
+
+    // Cazibeyi yükselten başka bir sosyal aktiviteyi yap. Yatay sıra az önce
+    // sonuna kaydırıldığı için başa dönmek gerekiyor.
+    await tester.scrollUntilVisible(
+      find.text('Arkadaş Buluşması'),
+      -200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(_card('Arkadaş Buluşması'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Yap'));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('Taraftar Etkinliği'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<ActivityCard>(_card('Taraftar Etkinliği')).activity.locked,
+      isFalse,
+      reason: 'level_after 8 geldi, kart P1 tazelenmeden açılmalı',
+    );
   });
 }

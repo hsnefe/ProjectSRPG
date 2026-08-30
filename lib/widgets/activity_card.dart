@@ -15,6 +15,7 @@ class LifestyleActivity {
     required this.duration,
     this.conditionDelta = 0,
     this.cost = 0,
+    this.unmetRequirements = const {},
   });
 
   final String id;
@@ -33,6 +34,12 @@ class LifestyleActivity {
 
   /// ₺ cinsinden maliyet.
   final int cost;
+
+  /// D42 · karşılanmayan nitelik eşikleri (`attribute_key` -> gereken
+  /// seviye). Boşsa aktivite açıktır.
+  final Map<String, int> unmetRequirements;
+
+  bool get locked => unmetRequirements.isNotEmpty;
 }
 
 /// Buzlu cam aktivite kartı: renkli gradient gövde, köşede filigran ikon ve
@@ -102,6 +109,33 @@ class ActivityCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                // D42 · kilitli aktivite sönükleşir ve sağ üstte bir kilit
+                // rozeti taşır. Karta dokunmak yine de detayı açar: eşiği
+                // orada okunur biçimde yazıyoruz, dokunup hiçbir şey olmaması
+                // oyuncuya kartın bozuk olduğunu düşündürürdü.
+                if (activity.locked)
+                  Positioned.fill(
+                    child: ColoredBox(
+                      color: AppColors.surface0.withValues(alpha: 0.55),
+                    ),
+                  ),
+                if (activity.locked)
+                  Positioned(
+                    right: 10,
+                    top: 10,
+                    child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.lock_outline,
+                        size: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
                 // Üst kenardaki ışık çizgisi.
                 Positioned(
                   top: 0,

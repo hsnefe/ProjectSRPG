@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/game/attribute_labels.dart';
 import 'package:project_srpg/game/shot_game.dart' show ShotMode;
 import 'package:project_srpg/game/training_result.dart';
 import 'package:project_srpg/net/career_api_client.dart';
@@ -23,6 +24,7 @@ class _TrainingItem {
     required this.icon,
     required this.barColor,
     this.drill,
+    this.unmetRequirements = const {},
   });
 
   final String catalogId;
@@ -40,6 +42,13 @@ class _TrainingItem {
   /// Hangi mini-oyunu açtığı. null olan kartların henüz oyunu yok; butonları
   /// 'Yakında' olarak pasif görünür.
   final TrainingDrill? drill;
+
+  /// D42 · karşılanmayan nitelik eşikleri. Boşsa kart açıktır. 'Yakında'dan
+  /// ayrı bir durum: o kartın mini-oyunu **yok**, bu kartın oyunu var ama
+  /// oyuncu henüz yeterli değil.
+  final Map<String, int> unmetRequirements;
+
+  bool get locked => unmetRequirements.isNotEmpty;
 }
 
 /// N3 `drill` string'i → [TrainingDrill]. Yalnızca gerçek bir mini-oyunu
@@ -94,6 +103,7 @@ _TrainingItem _toTrainingItem(api.CatalogItem item, PlayerState player) {
     icon: _iconByCatalogId[item.catalogId] ?? Icons.fitness_center,
     barColor: _barColorFor(progress),
     drill: _drillByKey[item.drill],
+    unmetRequirements: unmetRequirements(item.requires, player.attributeLevel),
   );
 }
 
@@ -292,9 +302,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
                                         final item = items[index];
                                         return _TrainingCard(
                                           item: item,
-                                          onStart: item.drill == null
-                                              ? null
-                                              : () => _start(item),
+                                          onStart:
+                                              (item.drill == null || item.locked)
+                                                  ? null
+                                                  : () => _start(item),
                                         );
                                       },
                                     ),
@@ -548,12 +559,42 @@ class _TrainingCard extends StatelessWidget {
                     item.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
+                    style: TextStyle(
+                      color: item.locked
+                          ? AppColors.textMuted
+                          : AppColors.textPrimary,
                       fontWeight: FontWeight.w700,
                       fontSize: 15,
                     ),
                   ),
+                  // D42 · butondaki 'Kilitli' neyin eksik olduğunu söylemez;
+                  // eşiği başlığın altında yazıyoruz.
+                  if (item.locked) ...[
+                    const SizedBox(height: 3),
+                    Row(
+                      key: const Key('training_requirement_row'),
+                      children: [
+                        const Icon(
+                          Icons.lock_outline,
+                          size: 12,
+                          color: AppColors.textMuted,
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            requirementLabel(item.unmetRequirements),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   const Spacer(),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(3),
@@ -604,7 +645,11 @@ class _TrainingCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: Text(onStart == null ? 'Yakında' : 'Başla'),
+                        child: Text(
+                          item.locked
+                              ? 'Kilitli'
+                              : (onStart == null ? 'Yakında' : 'Başla'),
+                        ),
                       ),
                     ],
                   ),

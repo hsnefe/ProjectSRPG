@@ -101,7 +101,58 @@ CareerSession _trainingSession() {
   return CareerSession(client: CareerApiClient(httpClient: mock, baseUrl: 'http://test'));
 }
 
-Widget _wrap(Widget home) => PlayerScope(
+/// D42 · `medya-egitimi`'ne bir eşik takar ve oyuncunun özgüven seviyesini
+/// [confidenceLevel] yapar.
+CareerSession _gatedTrainingSession({required int confidenceLevel}) {
+  final items = [
+    for (final item in _trainingItems)
+      if (item['catalog_id'] == 'medya-egitimi')
+        {...item, 'requires': const {'confidence': 6}}
+      else
+        item,
+  ];
+  final mock = MockClient((request) async {
+    if (request.url.path == '/catalog/training') {
+      return _json({'items': items});
+    }
+    if (request.url.path == '/careers') {
+      return _json({
+        'careers': [
+          {
+            'career_id': 'car_test', 'player_name': 'Efe Kaan',
+            'season_id': '25/26', 'current_date': '2026-08-05',
+          }
+        ],
+      });
+    }
+    if (request.url.path == '/careers/car_test/player') {
+      return _json({
+        'player_id': 'p_user', 'name': 'Efe Kaan', 'position': 'Orta saha',
+        'birth_date': '2004-08-19', 'age': 21,
+        'team': {
+          'team_id': 't_ykz', 'name': 'FK Yıldız', 'short_name': 'YKZ',
+          'color_primary': '#1E6FD9', 'color_secondary': '#FFFFFF',
+        },
+        'career_state': {
+          'current_date': '2026-08-05', 'season_id': '25/26',
+          'money': 48200, 'condition': 72, 'day_budget': {'time': 720.0},
+        },
+        'attributes': [
+          {
+            'key': 'confidence', 'family': 'kişi',
+            'value': confidenceLevel * 10.0, 'level': confidenceLevel,
+          },
+        ],
+        'fame': const [], 'market_value': null,
+      });
+    }
+    return http.Response('unexpected ${request.url}', 404);
+  });
+  return CareerSession(client: CareerApiClient(httpClient: mock, baseUrl: 'http://test'));
+}
+
+Widget _wrap(Widget home, {CareerSession? session}) => PlayerScope(
+      session: session,
       child: MaterialApp(
         theme: ThemeData(brightness: Brightness.dark, useMaterial3: true),
         home: home,
@@ -238,5 +289,41 @@ void main() {
         await tester.pumpWidget(const SizedBox.shrink());
       }
     });
+  });
+
+  testWidgets('eşiği tutulmayan antrenman Kilitli yazar, gerekçesi görünür',
+      (tester) async {
+    final session = _gatedTrainingSession(confidenceLevel: 5);
+    await tester.pumpWidget(
+      _wrap(TrainingScreen(session: session), session: session),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Kişisel'));
+    await tester.pumpAndSettle();
+    await _scrollTo(tester, 'Medya Eğitimi');
+
+    // 'Kilitli' ile 'Yakında' ayrı durumlar: ikincisinde mini-oyun yok,
+    // birincisinde oyuncu yeterli değil.
+    expect(_button(tester, 'Medya Eğitimi').onPressed, isNull);
+    expect(find.byKey(const Key('training_requirement_row')), findsOneWidget);
+    expect(find.text('Özgüven 6 gerekli'), findsOneWidget);
+    expect(find.text('Kilitli'), findsOneWidget);
+  });
+
+  testWidgets('eşik karşılanınca kilit satırı kaybolur', (tester) async {
+    final session = _gatedTrainingSession(confidenceLevel: 6);
+    await tester.pumpWidget(
+      _wrap(TrainingScreen(session: session), session: session),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Kişisel'));
+    await tester.pumpAndSettle();
+    await _scrollTo(tester, 'Medya Eğitimi');
+
+    expect(find.byKey(const Key('training_requirement_row')), findsNothing);
+    expect(find.text('Kilitli'), findsNothing);
+    // Mini-oyunu olmadığı için hâlâ 'Yakında' — kilit kalkınca kartın
+    // kendi eksiği geri görünür, ikisi karışmaz.
+    expect(find.text('Yakında'), findsWidgets);
   });
 }

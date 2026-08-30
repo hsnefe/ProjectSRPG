@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/game/attribute_labels.dart';
 import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/shop_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
+import 'package:project_srpg/state/player_state.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/activity_card.dart';
 
@@ -63,7 +65,7 @@ const _tintByCatalogId = {
 
 const _defaultTint = AppColors.textMuted;
 
-LifestyleActivity _toActivity(api.CatalogItem item) {
+LifestyleActivity _toActivity(api.CatalogItem item, PlayerState player) {
   return LifestyleActivity(
     id: item.catalogId,
     title: item.title,
@@ -75,16 +77,22 @@ LifestyleActivity _toActivity(api.CatalogItem item) {
     // Para bir `cost` değil, negatif bir `effect`'tir (§6.2) — kart burada
     // pozitif bir ₺ etiketi gösterdiği için işareti çeviriyoruz.
     cost: -((item.effects['money'] as num?)?.toInt() ?? 0),
+    // D42 · eşiği FE karşılaştırır, BE tekrar doğrular (INV-30). Seviyeler
+    // P1'den geldiği gibi okunur; FE `value`'dan seviye türetmez.
+    unmetRequirements: unmetRequirements(item.requires, player.attributeLevel),
   );
 }
 
 /// N3'ün `group` alanı §5.7'de FE'nin bugünkü üç bölüm başlığıyla birebir
 /// aynı ('EV AKTİVİTELERİ' vb.) — sabit üç bölüm yerine kataloğun kendi
 /// gruplamasından türetilir.
-List<_ActivitySectionData> _sectionsFrom(List<api.CatalogItem> items) {
+List<_ActivitySectionData> _sectionsFrom(
+  List<api.CatalogItem> items,
+  PlayerState player,
+) {
   final byGroup = <String, List<LifestyleActivity>>{};
   for (final item in items) {
-    (byGroup[item.group ?? ''] ??= []).add(_toActivity(item));
+    (byGroup[item.group ?? ''] ??= []).add(_toActivity(item, player));
   }
   return [
     for (final entry in byGroup.entries)
@@ -214,8 +222,14 @@ class _LifestyleScreenState extends State<LifestyleScreen> {
                                       );
                                     }
 
-                                    final sections =
-                                        _sectionsFrom(snapshot.data!.items);
+                                    // PlayerScope.of() burada okunuyor:
+                                    // seviyeler değişince (bir aktivite bir
+                                    // kapı açtığında) liste kendiliğinden
+                                    // yeniden çizilir.
+                                    final sections = _sectionsFrom(
+                                      snapshot.data!.items,
+                                      PlayerScope.of(context),
+                                    );
                                     return ListView.separated(
                                       padding: const EdgeInsets.fromLTRB(
                                           0, 16, 0, 20),
@@ -643,7 +657,9 @@ class _ActivityDetailPageState extends State<_ActivityDetailPage> {
                         opacity: details,
                         child: _ActivityDetails(
                           activity: activity,
-                          onPerform: _busy ? null : () => _perform(context),
+                          onPerform: (_busy || activity.locked)
+                              ? null
+                              : () => _perform(context),
                           busy: _busy,
                         ),
                       ),
@@ -713,6 +729,15 @@ class _ActivityDetails extends StatelessWidget {
                   label: '₺${activity.cost}',
                   color: AppColors.warning,
                 ),
+              // D42 · kartta yalnızca bir kilit ikonu var; gerekçeyi burada,
+              // diğer rozetlerin yanında okunur biçimde yazıyoruz.
+              if (activity.locked)
+                _Badge(
+                  key: const Key('lifestyle_requirement_badge'),
+                  icon: Icons.lock_outline,
+                  label: requirementLabel(activity.unmetRequirements),
+                  color: AppColors.textMuted,
+                ),
             ],
           ),
           const SizedBox(height: 20),
@@ -741,7 +766,7 @@ class _ActivityDetails extends StatelessWidget {
                         color: AppColors.textPrimary,
                       ),
                     )
-                  : const Text('Yap'),
+                  : Text(activity.locked ? 'Kilitli' : 'Yap'),
             ),
           ),
         ],
@@ -752,6 +777,7 @@ class _ActivityDetails extends StatelessWidget {
 
 class _Badge extends StatelessWidget {
   const _Badge({
+    super.key,
     required this.icon,
     required this.label,
     required this.color,
