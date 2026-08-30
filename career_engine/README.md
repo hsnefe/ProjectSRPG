@@ -2,8 +2,8 @@
 
 Career/world back-end for ProjectSRPG — careers, players, competitions,
 relationships, and the day-by-day time loop. See [CONTRACT.md](CONTRACT.md)
-for the full API contract, schema, and decision record (D1-D41, INV-1
-through INV-29, and the remaining open items in §10).
+for the full API contract, schema, and decision record (D1-D43, INV-1
+through INV-32, and the remaining open items in §10).
 
 `match_engine` (sibling directory) remains the stateless single-match
 simulator; this service owns everything that persists between matches —

@@ -14,8 +14,8 @@
 | **Back-end** | ✅ imzalandı — `career_engine` §4'teki 25 ucun tamamını uyguluyor, test paketi geçiyor |
 | **Front-end** | ✅ imzalandı — `ProjectSRPG` okundu, kabul edildi; W1/W2 bağlı, kalan uçların bağlanması sürüyor |
 
-**Dayandığı bağlayıcı kararlar:** §0'da **41 karar** (D1-D41), üç ayrı tur.
-**Garantiler:** §8'de **29 invariant** (INV-1 … INV-29).
+**Dayandığı bağlayıcı kararlar:** §0'da **43 karar** (D1-D43), dokuz ayrı tur.
+**Garantiler:** §8'de **32 invariant** (INV-1 … INV-32).
 
 > **Kaynak kuralı:** `API_CONTRACT.md`'deki disiplinin hafif hâli. Her alanın
 > yanında ya bir FE `dosya:satır` referansı (alanın *neden* var olduğunu
@@ -123,6 +123,19 @@ Sekizinci turda (kullanıcı ↔ maç bağı) alınanlar — **AÇIK-1 kapandı*
 > kalibrasyon hiç etkilenmez. Değişen tek imzalı madde **[İ-23]**: maç
 > ekranındaki çubuk artık zarfa eklenen yeni `player.condition` alanını
 > gösterir. Kapsam §7.3'tedir; **FE'nin teyidi gerekir ama dardır.**
+
+Dokuzuncu turda (sosyal yeterlilik kapısı) alınanlar — **kişi ailesi ilk kez okunuyor**:
+
+| # | Karar | Seçilen | Gerekçe |
+|---|---|---|---|
+| D42 | Nitelik yeterliliği | **`requires` haritası — sunucu-otoriter, BE hem servis eder hem doğrular** | §3.2'nin "diyalog seçeneği kilidi" vaadinin karşılığı. Eşiği FE'ye vermek kilidi önceden göstermeyi (gri seçenek) mümkün kılar; çağrıda yeniden doğrulamak istemcinin kilidi atlamasını imkânsız kılar. İkisi birden gerekir: biri UX, diğeri güvenlik |
+| D43 | Yeterlilik ölçeği | **Seviye = `floor(value/10)`, 0-10** | Eşik "cazibe 60" değil "cazibe 6" diye yazılır — içerik yazarı için okunur, oyuncu için anlaşılır. Türetme kuralının tek sahibi BE'dir; P1 ham `value` ile birlikte `level`'ı da gönderdiği için FE formülü kopyalamaz |
+
+> **`requires` üçüncü haritadır — `costs`/`effects`'in kardeşi, ikizi
+> değil.** `costs` günü kapatır (§6.2), `effects` dünyayı değiştirir,
+> `requires` **kapıyı açar** — hiçbir şey harcamaz, hiçbir şey değiştirmez,
+> yalnızca okur. Bu yüzden kontrolü her zaman en başta, hiçbir kaynak
+> düşülmeden yapılır (INV-30).
 
 **Varsayılan olarak alınan küçük kararlar (itiraza açık):**
 Klasör `career_engine/`, `match_engine` ile kardeş · ayrı git deposu · port **8001** ·
@@ -348,7 +361,7 @@ FE'de kalır** (§1.3).
 | Aile | Kim tüketiyor | Nereye gider |
 |---|---|---|
 | **saha** | `compute_team_rating()` (AÇIK-1), minigame zorluğu | Maça |
-| **kişi** | İlişki deltaları, diyalog seçeneği kilidi, medya tepkisi, sözleşme pazarlığı | Kariyere |
+| **kişi** | **Yeterlilik kapısı (D42)** — diyalog seçeneği kilidi, katalog kalemi kilidi; ileride medya tepkisi ve sözleşme pazarlığı | Kariyere |
 
 `family` veritabanında **saklanmaz** — anahtar listesi sabit olduğu için kod
 içindeki katalogdan okunur (INV-21).
@@ -365,6 +378,26 @@ uzmanlaşabildiği dört saha yeteneğinden** biridir (§5.1 C1).
 > "Radar = model" kararının bilinçli bedeli budur; eklemek için önce radar bir
 > eksen kazanmalıdır — o da bir FE kararıdır ve şemayı bozmaz
 > (`player_attribute` anahtar-değer olduğu için yeni anahtar migrasyon istemez).
+
+#### Seviye — ham değerin okunur yüzü (D43)
+
+Nitelikler 0-100 aralığında **REAL** saklanır; bu ölçek antrenmanın 0.8'lik
+kazancını taşıyabilmek için gereklidir. Ama bir eşik yazarken "cazibe 60"
+değil **"cazibe 6"** okunur. İkisini bağlayan tek kural:
+
+```
+level = floor(value / 10)          # 0-100  ->  0-10
+```
+
+Denklik tektir ve tersine çevrilebilir: **seviye N ⇔ `value >= 10 * N`**.
+74.0 → 7 · 100.0 → 10 · 4.0 → 0. On birinci kova (seviye 0) kasıtlıdır:
+0..9 aralığını seviye 1'e sıkıştırmak, eşik karşılaştırmasını bu denklikten
+koparırdı.
+
+**Formülün tek sahibi BE'dir.** FE kuralı kopyalamaz — P1 her nitelikte ham
+`value` ile birlikte türetilmiş `level`'ı da gönderir (§5.2), FE yalnızca
+tam sayı karşılaştırması yapar. Ölçek bir gün değişirse (0-20, 0-5…)
+değişen tek yer bu satır olur, FE'de hiçbir şey.
 
 #### Şöhret (D35 — anlamı AÇIK-9)
 
@@ -928,7 +961,7 @@ Taban: `http://127.0.0.1:8001`
 | **İçerik** ||||
 | N1 | `GET` | `/careers/{cid}/news` | `?limit=&before=` |
 | N2 | `GET` | `/careers/{cid}/news/{nid}` | Tam gövde |
-| N3 | `GET` | `/catalog/{kind}` | `training` \| `lifestyle` \| `shop` — kariyerden bağımsız |
+| N3 | `GET` | `/catalog/{kind}` | `training` \| `lifestyle` \| `shop` \| `dialogue` — kariyerden bağımsız |
 
 **Her ucun istek ve yanıt gövdesi §5'tedir.** Ortak nesneler (`CareerState`,
 `TeamRef`, `CompetitionRef`, `LedgerEntry`), kimlik biçimleri, sayfalama ve
@@ -1173,18 +1206,18 @@ sınav varsa **hiçbiri** uygulanmaz. Güç ve Esneklik sınavlardan etkilenmez.
   "career_state": { /* CareerState */ },
 
   "attributes": [                        // D30 · tüm anahtarlar, eksiksiz
-    { "key": "condition",       "family": "saha", "value": 100.0 },
-    { "key": "strength",        "family": "saha", "value": 30.0 },
-    { "key": "flexibility",     "family": "saha", "value": 30.0 },
-    { "key": "shooting",        "family": "saha", "value": 20.0 },
-    { "key": "passing",         "family": "saha", "value": 24.0 },
-    { "key": "dribbling",       "family": "saha", "value": 20.0 },
-    { "key": "tackling",        "family": "saha", "value": 20.0 },
-    { "key": "charisma",        "family": "kişi", "value": 74.0 },
-    { "key": "politeness",      "family": "kişi", "value": 58.0 },
-    { "key": "confidence",      "family": "kişi", "value": 51.0 },
-    { "key": "intelligence",    "family": "kişi", "value": 63.0 },
-    { "key": "resourcefulness", "family": "kişi", "value": 29.0 }
+    { "key": "condition",       "family": "saha", "value": 100.0, "level": 10 },
+    { "key": "strength",        "family": "saha", "value": 30.0,  "level": 3  },
+    { "key": "flexibility",     "family": "saha", "value": 30.0,  "level": 3  },
+    { "key": "shooting",        "family": "saha", "value": 20.0,  "level": 2  },
+    { "key": "passing",         "family": "saha", "value": 24.0,  "level": 2  },
+    { "key": "dribbling",       "family": "saha", "value": 20.0,  "level": 2  },
+    { "key": "tackling",        "family": "saha", "value": 20.0,  "level": 2  },
+    { "key": "charisma",        "family": "kişi", "value": 74.0,  "level": 7  },
+    { "key": "politeness",      "family": "kişi", "value": 58.0,  "level": 5  },
+    { "key": "confidence",      "family": "kişi", "value": 51.0,  "level": 5  },
+    { "key": "intelligence",    "family": "kişi", "value": 63.0,  "level": 6  },
+    { "key": "resourcefulness", "family": "kişi", "value": 29.0,  "level": 2  }
   ],
 
   "fame": [ { "scope": "overall", "value": 0.0 } ],   // D35 · anlamı ⟦AÇIK-9⟧
@@ -1200,6 +1233,11 @@ gelir. Yukarıdaki örnek `regista` rolüyle (iki yuva da `passing`) açılmış
 sınava girmemiş bir kariyerin başlangıcıdır: taban 20, rol bonusu pas'a 2x2.
 `condition` anahtarı **tavanı**, `career_state.condition` **bugünkü değeri**
 taşır (D15) — ikisi aynı kavramın iki yüzüdür.
+
+`level` **türetilmiştir** — `floor(value / 10)`, §3.2'nin tek kuralı (D43).
+Gönderilmesinin tek sebebi FE'nin o kuralı kopyalamak zorunda kalmamasıdır:
+kilitli bir seçeneği veya katalog kartını göstermek için gereken karşılaştırma
+(`level >= requires[key]`) böylece iki tam sayı arasında kalır.
 
 #### P2 · `GET /careers/{cid}/player/stats`
 
@@ -1399,6 +1437,31 @@ Diyalog **ağacı** BE'de tutulmaz — o katalog içeriğidir (§3.4). BE yalnı
 `dialogue_id` + `choice_path` çiftini tanır ve karşılığındaki etkiyi uygular.
 Skor ve olay günlüğü tek fonksiyondan yazılır (INV-15).
 
+**Kilitli seçenek (D42).** Bir yaprağın `requires` eşiği varsa, oyuncunun o
+niteliklerdeki seviyesi (§3.2) yetmediğinde çağrı **hiçbir şey yazmadan**
+reddedilir:
+
+```jsonc
+// POST … {"dialogue_id": "media_01", "choice_path": ["r0"]}
+// media_01:r0 -> requires { "charisma": 8 }, oyuncunun charisma'sı 74.0 (seviye 7)
+
+// 409
+{ "code": "requirement_not_met",
+  "message": "'charisma' level 7, needs 8" }
+```
+
+`relationship.score` değişmez, `relationship_event`'e satır düşmez, hiçbir
+nitelik oynamaz (INV-30). Kontrol `choice_path` çözümlendikten **sonra**,
+`apply_delta()`'dan **önce** yapılır.
+
+Eşiklerin kendisi FE'ye **N3 üzerinden önceden** verilir (`GET /catalog/dialogue`,
+§5.7) — bu yüzden 409 normal akışta görülmez, istemcinin kilidi atlamasına karşı
+sunucu-otoriter emniyet kilididir. Kullanıcının gördüğü şey gri bir seçenektir,
+bir hata değil.
+
+Her ağaçta gereksinimsiz **en az bir yaprak** bulunur (INV-32): bir konuşma
+tamamen kilitlenip oyuncuyu çıkmaza sokamaz.
+
 ---
 
 ### 5.5 Zaman
@@ -1438,6 +1501,21 @@ ile kendi metnini kurar (§1.3).
 belirler. Bütçe yetmezse `409 insufficient_budget`, para yetmezse
 `409 insufficient_funds`; her iki durumda da **hiçbir maliyet düşülmez ve
 hiçbir etki uygulanmaz** (INV-3, INV-4).
+
+**Kontrol sırası — yeterlilik en başta (D42).** Kalemin `requires` eşiği (§5.7)
+bütçeden **önce** bakılır ve karşılanmıyorsa `409 requirement_not_met` döner:
+
+| Sıra | Kontrol | Hata |
+|---|---|---|
+| 1 | `catalog_id` tanınıyor mu | `422 invalid_request` |
+| 2 | **`requires` eşiği** | `409 requirement_not_met` |
+| 3 | Günün bütçesi | `409 insufficient_budget` |
+| 4 | Bakiye (`effects.money` negatifse) | `409 insufficient_funds` |
+
+Sıra keyfi değil: yeterlilik kontrolü hiçbir şey okumaz-yazmaz, en ucuz ve en
+erken reddedebilendir. Böylece "eşiği tutmayan aksiyon zamanımı yedi" durumu
+şemaca imkânsızdır (INV-30). Aynı sıra T4'te de geçerlidir — orada 2. adımdan
+sonra `already_owned` gelir.
 
 #### T3 · `POST /careers/{cid}/advance`
 
@@ -1629,7 +1707,9 @@ Sorgu: `?limit=20&before=<published_at>&category=`
 
 #### N3 · `GET /catalog/{kind}` — katalog (D16, D41)
 
-`kind`: `training` | `lifestyle` | `shop`. **Kariyerden bağımsız**, salt okunur.
+`kind`: `training` | `lifestyle` | `shop` | `dialogue`. **Kariyerden bağımsız**,
+salt okunur — kariyere göre değişen tek şey eşiğin karşılanıp karşılanmadığıdır ve
+onu FE, P1'in `level` alanıyla kendisi hesaplar (D42).
 
 ```jsonc
 // GET /catalog/training
@@ -1641,8 +1721,9 @@ Sorgu: `?limit=20&before=<published_at>&category=`
 
     { "catalog_id": "medya-egitimi", "title": "Medya Eğitimi",
       "family": "kişi", "drill": null,
-      "costs":   { "time": 60, "energy": 5 },
-      "effects": { "attribute:charisma": 0.8, "money": -1500 } }
+      "costs":    { "time": 60, "energy": 5 },
+      "effects":  { "attribute:charisma": 0.8, "money": -1500 },
+      "requires": { "confidence": 6 } }              // D42 · seviye eşiği
 ] }
 
 // GET /catalog/lifestyle
@@ -1654,8 +1735,10 @@ Sorgu: `?limit=20&before=<published_at>&category=`
 
     { "catalog_id": "sos-taraftar", "title": "Taraftar Etkinliği",
       "duration_label": "2 saat", "group": "SOSYAL",
-      "costs":   { "time": 120 },
-      "effects": { "condition": -2, "fame:overall": null } }   // ⟦AÇIK-9⟧
+      "costs":    { "time": 120 },
+      "effects":  { "condition": -2, "attribute:charisma": 0.5,
+                    "fame:overall": null },                    // ⟦AÇIK-9⟧
+      "requires": { "charisma": 7 } }
 ] }
 
 // GET /catalog/shop
@@ -1664,6 +1747,14 @@ Sorgu: `?limit=20&before=<published_at>&category=`
       "category": "housing", "price": 250000,
       "upkeep_weekly": 1800,                    // D27
       "note": "3+1, 120 m²" } ] }
+
+// GET /catalog/dialogue — yalnızca kilitler, ödüller DEĞİL
+{ "items": [
+    { "dialogue_id": "coach_01", "relationship_id": "coach",
+      "leaves": [
+        { "leaf_id": "r0", "requires": { "politeness": 6 } },
+        { "leaf_id": "r1", "requires": {} },
+        { "leaf_id": "r2", "requires": { "intelligence": 6 } } ] } ] }
 ```
 
 **`costs` günü kapatır, `effects` dünyayı değiştirir** (§6.2). Para bir `cost`
@@ -1673,6 +1764,26 @@ değil, negatif bir `effect`'tir.
 `fame:<scope>` · `relationship:<rid>`. Tanınmayan anahtar taşıyan katalog kalemi
 **yüklenmez** (INV-28) — serbest haritanın bedeli yazım hatasının sessizce
 geçmesidir, bu doğrulama onu kapatır.
+
+#### `requires` — üçüncü harita (D42)
+
+Her `kind` için **isteğe bağlıdır**; yokluğu boş sözlükle eşdeğerdir. Anahtarı
+§3.2'nin nitelik kataloğundan bir `attribute_key`, değeri **0-10 arası bir tam
+sayı** (seviye, D43). Anahtarı veya değeri geçersiz olan kalem, `costs`/`effects`
+ile aynı sertlikte **yüklenmez** (INV-31, INV-28'in kardeşi).
+
+```jsonc
+"requires": { "charisma": 8, "confidence": 6 }   // hepsi birden sağlanmalı
+```
+
+Eşiği karşılanmayan kalem T2/T4'te `409 requirement_not_met` ile reddedilir ve
+**hiçbir maliyet düşülmez** (INV-30) — `insufficient_budget`'la aynı "ya hep ya
+hiç" okuması, sırası ondan da öncedir.
+
+**`dialogue` kataloğu `relationship_delta` ve `attribute_effects` göndermez.**
+FE'nin bir seçeneği kilitli göstermek için ihtiyacı olan tek şey `requires`'tır;
+ödül tablosunu yayınlamak hem konuşmanın sürprizini bozar hem de sunucu-otoriter
+olmasının sebebini (D23: istemci kendine puan yazdıramaz) anlamsızlaştırır.
 
 `drill` alanı [`training_screen.dart:22`](../lib/screens/training_screen.dart)'deki
 `TrainingDrill?` enum'ının string karşılığıdır; `null` olan kart FE'de "Yakında"
@@ -2051,6 +2162,9 @@ bile olmaz; API katmanı kendi sayacını tutar.
 | INV-27 | Kullanıcının kondisyonu hiçbir maç olasılığını değiştirmez; motorun `Team.stamina`'sına yazılmaz (D39) |
 | INV-28 | Katalogdaki her `costs` / `effects` anahtarı tanınan kataloğa aittir; bilinmeyen anahtar taşıyan kalem yüklenmez (D41) |
 | INV-29 | `day_budget` her gün başında yeniden doldurulur ve hiçbir kaynak negatife düşmez (D41) |
+| INV-30 | `requires` eşiği karşılanmayan hiçbir aksiyon, satın alma veya diyalog seçimi **hiçbir** maliyet düşmez ve **hiçbir** etki uygulamaz → `409 requirement_not_met` (D42) |
+| INV-31 | Her `requires` anahtarı §3.2'nin nitelik kataloğundan, her değeri 0-10 aralığında bir tam sayıdır; ihlal eden kalem yüklenmez (D42/D43) |
+| INV-32 | Her diyalog ağacında gereksinimsiz **en az bir** yaprak bulunur — hiçbir konuşma tamamen kilitlenemez (D42) |
 
 **Garanti EDİLMEYEN:** kullanıcının maçı ile `simulate/batch` sonuçlarının
 istatistiksel olarak birebir aynı dağılımdan geldiği — ikisi de aynı motoru
@@ -2066,6 +2180,7 @@ kullanır ama kullanıcının maçı müdahalelerle sapar.
 | 404 | `fixture_not_found` | Bilinmeyen `fixture_id` |
 | 409 | `insufficient_budget` | Günün bütçesi (zaman/enerji…) aksiyona yetmiyor (D41) |
 | 409 | `insufficient_funds` | Bakiye yetersiz |
+| 409 | `requirement_not_met` | Kalemin/yaprağın `requires` eşiği karşılanmıyor (D42); mesaj hangi nitelik, mevcut ve gereken seviyeyi taşır |
 | 409 | `already_owned` | Ürün zaten alınmış |
 | 409 | `skill_exam_already_taken` | Yetenek sınavı bu kariyerde zaten verilmiş (C5) |
 | 409 | `match_in_progress` | Yarım kalan maç var (§6.4) |
