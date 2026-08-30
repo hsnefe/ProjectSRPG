@@ -8,7 +8,7 @@ from api import config, errors, serializers
 from api.deps import get_db
 from api.schemas.relationship import InteractRequest
 from catalog.dialogue import DIALOGUE_RELATIONSHIP, resolve_outcome
-from domain import attributes, relationships as relationships_domain
+from domain import attributes, relationships as relationships_domain, requirements
 
 router = APIRouter(prefix="/careers/{career_id}/relationships", tags=["relationships"])
 
@@ -87,6 +87,11 @@ def interact(
         )
 
     outcome = resolve_outcome(body.dialogue_id, body.choice_path)
+
+    # D42: after the leaf is resolved (we need to know WHICH reply) and
+    # before anything is written. Raises 409 requirement_not_met, leaving
+    # relationship.score and relationship_event untouched (INV-30).
+    requirements.check(conn, career_id, config.USER_PLAYER_ID, outcome.get("requires"))
 
     current_date = conn.execute(
         # game_date, not current_date — SQLite's CURRENT_DATE keyword.

@@ -12,7 +12,7 @@ from api.schemas.time import ActionRequest, AdvanceRequest, PurchaseRequest
 from catalog.lifestyle import LIFESTYLE_ITEMS
 from catalog.shop import SHOP_ITEMS
 from catalog.training import TRAINING_ITEMS
-from domain import attributes, condition, day_budget, daytime, fame
+from domain import attributes, condition, day_budget, daytime, fame, requirements
 from domain import relationships as relationships_domain
 from domain import wallet
 
@@ -55,6 +55,11 @@ def post_action(career_id: str, body: ActionRequest, conn: sqlite3.Connection = 
     item, source = _find_action_item(body.catalog_id)
     if item is None:
         raise errors.invalid_request(f"unknown catalog_id {body.catalog_id!r}")
+
+    # D42/INV-30: the gate comes before the budget. It reads and never
+    # writes, so it is the cheapest possible rejection — an item whose
+    # threshold isn't met can't have cost the player a minute of the day.
+    requirements.check(conn, career_id, config.USER_PLAYER_ID, item.get("requires"))
 
     happened_at = f"{_current_date(conn, career_id)}T00:00:00+03:00"
 
@@ -117,6 +122,8 @@ def post_purchase(career_id: str, body: PurchaseRequest, conn: sqlite3.Connectio
     item = _find_shop_item(body.catalog_id)
     if item is None:
         raise errors.invalid_request(f"unknown catalog_id {body.catalog_id!r}")
+
+    requirements.check(conn, career_id, config.USER_PLAYER_ID, item.get("requires"))
 
     owned = conn.execute(
         "SELECT 1 FROM inventory WHERE career_id = ? AND item_id = ?", (career_id, body.catalog_id)

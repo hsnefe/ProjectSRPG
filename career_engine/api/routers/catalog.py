@@ -2,13 +2,21 @@
 from fastapi import APIRouter
 
 from api import errors
+from catalog.dialogue import public_catalog as dialogue_catalog
 from catalog.lifestyle import LIFESTYLE_ITEMS
 from catalog.shop import SHOP_ITEMS
 from catalog.training import TRAINING_ITEMS
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
 
-_CATALOGS = {"training": TRAINING_ITEMS, "lifestyle": LIFESTYLE_ITEMS, "shop": SHOP_ITEMS}
+# 'dialogue' is a projection, not a data file: catalog.dialogue owns the
+# outcome table and hands out only the `requires` half of it (D42).
+_CATALOGS = {
+    "training": TRAINING_ITEMS,
+    "lifestyle": LIFESTYLE_ITEMS,
+    "shop": SHOP_ITEMS,
+    "dialogue": dialogue_catalog(),
+}
 
 
 @router.get("/{kind}")

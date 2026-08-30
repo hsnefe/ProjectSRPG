@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query
 
 from api import config, serializers
 from api.deps import get_db
-from domain import formulas
+from domain import attributes as attributes_domain, formulas
 
 router = APIRouter(prefix="/careers/{career_id}/player", tags=["player"])
 
@@ -31,8 +31,15 @@ def get_player(career_id: str, conn: sqlite3.Connection = Depends(get_db)):
         ).fetchall()
     }
     # INV-21: always 11 rows, even for a key nothing has ever written to.
+    # `level` is derived (D43) and ships alongside the raw value so FE can
+    # test a `requires` threshold without re-implementing the scale.
     attributes = [
-        {"key": key, "family": family, "value": attr_rows.get(key, 0.0)}
+        {
+            "key": key,
+            "family": family,
+            "value": attr_rows.get(key, 0.0),
+            "level": attributes_domain.level(attr_rows.get(key, 0.0)),
+        }
         for key, family in config.ATTRIBUTE_KEYS.items()
     ]
 
