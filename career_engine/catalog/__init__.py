@@ -23,6 +23,12 @@ _SIMPLE_EFFECT_KEYS = {"condition", "energy", "money"}
 # third dimension is added later without a code change here.
 KNOWN_COST_KEYS = {"time", "energy"}
 
+# D43 - `requires` values are attribute LEVELS, not raw values. The bounds
+# mirror domain.attributes.level()'s range exactly; a threshold of 11 could
+# never be cleared, so it is a typo, not a very hard gate.
+MIN_REQUIREMENT_LEVEL = 0
+MAX_REQUIREMENT_LEVEL = 10
+
 
 def _is_known_effect_key(key: str) -> bool:
     if key in _SIMPLE_EFFECT_KEYS:
@@ -33,6 +39,23 @@ def _is_known_effect_key(key: str) -> bool:
     return bool(_FAME_KEY.match(key) or _RELATIONSHIP_KEY.match(key))
 
 
+def validate_requires(requires: dict, where: str) -> None:
+    """INV-31, INV-28's sibling - a `requires` map's keys are attribute keys
+    and its values are integer levels in range. Shared with catalog/dialogue.py,
+    whose leaves carry the same map but aren't catalog items."""
+    for key, level in (requires or {}).items():
+        if key not in ATTRIBUTE_KEYS:
+            raise ValueError(f"{where} requires unknown attribute {key!r}")
+        # bool is an int subclass; True would silently read as level 1.
+        if not isinstance(level, int) or isinstance(level, bool):
+            raise ValueError(f"{where} requires {key!r} at a non-integer level {level!r}")
+        if not MIN_REQUIREMENT_LEVEL <= level <= MAX_REQUIREMENT_LEVEL:
+            raise ValueError(
+                f"{where} requires {key!r} at level {level}, outside "
+                f"{MIN_REQUIREMENT_LEVEL}-{MAX_REQUIREMENT_LEVEL}"
+            )
+
+
 def validate_catalog(items: list, source: str) -> None:
     for item in items:
         for key in item.get("costs", {}):
@@ -41,3 +64,4 @@ def validate_catalog(items: list, source: str) -> None:
         for key in item.get("effects", {}):
             if not _is_known_effect_key(key):
                 raise ValueError(f"{source}:{item['catalog_id']!r} has unknown effect key {key!r}")
+        validate_requires(item.get("requires"), f"{source}:{item['catalog_id']!r}")
