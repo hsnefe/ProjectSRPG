@@ -35,6 +35,22 @@ def insufficient_funds() -> ApiError:
     return ApiError(409, "insufficient_funds", "balance is too low")
 
 
+def requirement_not_met(attribute_key: str, required: int, current: int) -> ApiError:
+    """§5.7 D42 - the item's/leaf's `requires` threshold isn't cleared. 409
+    rather than 422, same reading as already_owned and
+    skill_exam_already_taken: the request is well-formed, it's the career's
+    state that rejects it.
+
+    The two levels travel in the message because FE writes the sentence
+    (§1.3). In the normal flow this error is never seen — FE greys the
+    option out from N3's `requires` and P1's `level` — so it is the
+    server-authoritative backstop, not a user-facing state."""
+    return ApiError(
+        409, "requirement_not_met",
+        f"{attribute_key!r} level {current}, needs {required}",
+    )
+
+
 def already_owned(item_id: str) -> ApiError:
     return ApiError(409, "already_owned", f"{item_id!r} is already owned")
 
