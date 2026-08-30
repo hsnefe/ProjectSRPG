@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/game/attribute_labels.dart';
 import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/state/player_scope.dart';
@@ -94,6 +95,36 @@ class _DialogScreenState extends State<DialogScreen> {
   /// (örn. geri/yeniden tetikleme) düşülürse bakiye/skor iki kez yazılmasın.
   bool _reported = false;
 
+  /// N3 `GET /catalog/dialogue` · `leaf_id` -> `requires` (D42). Eşikler
+  /// BE'nin, ağacın metni FE'nin (D23) — bu harita ikisini `nextId` üzerinden
+  /// birleştirir.
+  Map<String, Map<String, int>> _requiresByLeaf = const {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRequirements();
+  }
+
+  /// Eşikler gelmezse **hiçbir seçenek kilitlenmez**. Bilinçli: gösterim
+  /// tarafında açık kalmak, kilidi yanlışlıkla göstermekten iyidir ve
+  /// güvenliği zayıflatmaz — R3 aynı kontrolü sunucuda tekrarlar (INV-30),
+  /// kullanıcı kilitli bir seçeneği seçerse 409 döner ve `_reportOutcome`
+  /// zaten mesajı gösterir.
+  Future<void> _loadRequirements() async {
+    try {
+      final catalog = await _session.client.dialogueCatalog();
+      final entry = catalog.byId(widget.dialogueId);
+      if (!mounted || entry == null) return;
+      setState(() => _requiresByLeaf = entry.requiresByLeaf);
+    } catch (_) {
+      // Yukarıdaki nota bak — sessizce açık kal. Yalnızca CareerApiException
+      // değil: sunucuya hiç ulaşılamadığında (`_get` ağ hatasını sarmalamaz)
+      // gelen istisna da buraya düşmeli, yoksa yakalanmayan bir async hata
+      // konuşmayı hiç ilgilendirmediği halde ekranı düşürür.
+    }
+  }
+
   void _onTypewriterComplete() {
     if (!mounted) return;
     final hasOptions = _currentNode.options.isNotEmpty;
@@ -147,6 +178,7 @@ class _DialogScreenState extends State<DialogScreen> {
   }
 
   void _selectOption(DialogueOption option) {
+    if (_unmetFor(option).isNotEmpty) return;
     _revealGen++;
     _choicePath.add(option.nextId);
     setState(() {
@@ -155,6 +187,16 @@ class _DialogScreenState extends State<DialogScreen> {
       _advanceVisible = false;
       _choiceVisible = const [];
     });
+  }
+
+  /// Bu seçeneğin karşılanmayan eşikleri; boşsa seçenek açıktır. Seviyeler
+  /// [PlayerState]'ten, yani BE'nin gönderdiği `level` alanından okunur —
+  /// bir aktivite az önce bir kapı açtıysa burası da açılır.
+  Map<String, int> _unmetFor(DialogueOption option) {
+    final requires = _requiresByLeaf[option.nextId];
+    if (requires == null || requires.isEmpty) return const {};
+    final player = PlayerScope.of(context);
+    return unmetRequirements(requires, player.attributeLevel);
   }
 
   /// Karşı tarafın diyalog kutusuna dokununca: yazı hâlâ yazılıyorsa anında
@@ -220,6 +262,7 @@ class _DialogScreenState extends State<DialogScreen> {
                               : _ChoicesSection(
                                   options: _currentNode.options,
                                   visible: _choiceVisible,
+                                  unmetFor: _unmetFor,
                                   onSelect: _selectOption,
                                 ),
                         ),
@@ -398,11 +441,13 @@ class _ChoicesSection extends StatelessWidget {
   const _ChoicesSection({
     required this.options,
     required this.visible,
+    required this.unmetFor,
     required this.onSelect,
   });
 
   final List<DialogueOption> options;
   final List<bool> visible;
+  final Map<String, int> Function(DialogueOption) unmetFor;
   final ValueChanged<DialogueOption> onSelect;
 
   @override
@@ -416,6 +461,7 @@ class _ChoicesSection extends StatelessWidget {
             _ChoiceButton(
               option: options[i],
               visible: i < visible.length && visible[i],
+              unmet: unmetFor(options[i]),
               onTap: () => onSelect(options[i]),
             ),
           ],
@@ -425,19 +471,28 @@ class _ChoicesSection extends StatelessWidget {
   }
 }
 
+/// Kilitli seçenek **gizlenmez, griye çekilir** (§5.4): oyuncu neyi
+/// söyleyemediğini ve hangi niteliği geliştirirse söyleyebileceğini görür.
+/// Gizlemek, konuşmayı kısaltmaktan başka bir şey öğretmezdi.
 class _ChoiceButton extends StatelessWidget {
   const _ChoiceButton({
     required this.option,
     required this.visible,
+    required this.unmet,
     required this.onTap,
   });
 
   final DialogueOption option;
   final bool visible;
+
+  /// D42 · karşılanmayan eşikler; boşsa seçenek açıktır.
+  final Map<String, int> unmet;
+
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final locked = unmet.isNotEmpty;
     return AnimatedSlide(
       duration: const Duration(milliseconds: 260),
       curve: Curves.easeOutCubic,
@@ -448,10 +503,17 @@ class _ChoiceButton extends StatelessWidget {
         child: SizedBox(
           width: double.infinity,
           child: OutlinedButton(
-            onPressed: visible ? onTap : null,
+            key: locked ? Key('locked_choice_${option.nextId}') : null,
+            onPressed: (visible && !locked) ? onTap : null,
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.textPrimary,
-              side: const BorderSide(color: AppColors.border),
+              foregroundColor:
+                  locked ? AppColors.textMuted : AppColors.textPrimary,
+              disabledForegroundColor: AppColors.textMuted,
+              side: BorderSide(
+                color: locked
+                    ? AppColors.border.withValues(alpha: 0.5)
+                    : AppColors.border,
+              ),
               padding: const EdgeInsets.symmetric(
                 horizontal: 14,
                 vertical: 12,
@@ -459,7 +521,33 @@ class _ChoiceButton extends StatelessWidget {
               alignment: Alignment.centerLeft,
               textStyle: const TextStyle(fontSize: 13, height: 1.4),
             ),
-            child: Text(option.text),
+            child: locked
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(option.text),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.lock_outline, size: 12),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              requirementLabel(unmet),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                height: 1.2,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+                : Text(option.text),
           ),
         ),
       ),
