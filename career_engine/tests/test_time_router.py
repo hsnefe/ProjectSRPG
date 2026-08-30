@@ -38,7 +38,8 @@ def test_post_action_training_spends_budget_and_applies_effects(api_client, crea
     assert body["applied_costs"] == {"time": 60, "energy": 18}
     base = BASE_SKILL_VALUE  # merkez_orta_saha spends no slot on shooting
     assert body["attribute_changes"] == [
-        {"key": "shooting", "before": base, "after": base + 1.2}
+        {"key": "shooting", "before": base, "after": base + 1.2,
+         "level_before": 2, "level_after": 2}
     ]
     assert body["career_state"]["day_budget"]["time"] == 720 - 60
     assert body["career_state"]["day_budget"]["energy"] == 100 - 18
@@ -296,7 +297,8 @@ def test_post_action_gated_item_runs_once_the_level_is_reached(api_client, creat
 
     resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "medya-egitimi"})
     assert resp.status_code == 200
-    assert {"key": "charisma", "before": 74.0, "after": 74.8} in resp.json()["attribute_changes"]
+    assert {"key": "charisma", "before": 74.0, "after": 74.8,
+            "level_before": 7, "level_after": 7} in resp.json()["attribute_changes"]
 
 
 def test_post_action_gate_is_checked_before_the_budget(api_client, created_career):
@@ -317,7 +319,8 @@ def test_post_action_social_activity_grows_a_kişi_attribute(api_client, created
     resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "sos-arkadas"})
     assert resp.status_code == 200
     assert resp.json()["attribute_changes"] == [
-        {"key": "charisma", "before": 74.0, "after": 74.3}
+        {"key": "charisma", "before": 74.0, "after": 74.3,
+         "level_before": 7, "level_after": 7}
     ]
 
 
@@ -347,3 +350,17 @@ def test_post_purchase_has_the_gate_wired_too(api_client, created_career, monkey
     assert api_client.get(f"/careers/{career_id}/player").json()["career_state"]["money"] == (
         config.STARTING_MONEY + 100000
     )
+
+
+def test_attribute_change_reports_the_level_it_crossed(api_client, created_career):
+    """The point of shipping levels on a change (D43): a client updating its
+    local copy sees the gate open without re-deriving anything."""
+    career_id = created_career["career_id"]
+    grant_money(career_id, 10000)
+    set_attribute(career_id, "confidence", 59.6)   # level 5
+
+    resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "ozguven-koclugu"})
+    assert resp.status_code == 200
+    change = next(c for c in resp.json()["attribute_changes"] if c["key"] == "confidence")
+    assert (change["before"], change["after"]) == (59.6, 60.4)
+    assert (change["level_before"], change["level_after"]) == (5, 6)

@@ -39,4 +39,15 @@ def apply_delta(
         "WHERE career_id = ? AND player_id = ? AND attribute_key = ?",
         (new_value, career_id, player_id, attribute_key),
     )
-    return {"key": attribute_key, "before": current, "after": new_value}
+    # The levels ride along for the same reason P1 ships one (D43): a client
+    # that updates its local copy from this response would otherwise have to
+    # re-derive the scale, and then FE would own a copy of the rule after all.
+    # Most deltas move a value without moving its level; the caller sees that
+    # for free instead of guessing.
+    return {
+        "key": attribute_key,
+        "before": current,
+        "after": new_value,
+        "level_before": level(current),
+        "level_after": level(new_value),
+    }

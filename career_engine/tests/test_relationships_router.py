@@ -62,7 +62,10 @@ def test_interact_applies_relationship_and_attribute_deltas(api_client, created_
         }
     ]
     assert body["attribute_changes"] == [
-        {"key": "charisma", "before": 80.0, "after": 80.2}
+        # D43: the levels ride along so a client never re-derives the scale.
+        # 80.0 -> 80.2 doesn't cross a decade, so both stay 8.
+        {"key": "charisma", "before": 80.0, "after": 80.2,
+         "level_before": 8, "level_after": 8}
     ]
 
     detail = api_client.get(f"/careers/{career_id}/relationships/media").json()

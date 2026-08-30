@@ -1429,7 +1429,8 @@ kaynağı `score` kolonudur (D24).
   "relationship_changes": [
     { "relationship_id": "coach", "before": 71, "after": 74, "delta": 3 } ],
   "attribute_changes": [
-    { "key": "politeness", "before": 58.0, "after": 58.6 } ],
+    { "key": "politeness", "before": 58.0, "after": 58.6,
+      "level_before": 5, "level_after": 5 } ],       // D43 · türetilmiş
   "ledger_entries": [] }
 ```
 
@@ -1492,7 +1493,8 @@ ile kendi metnini kurar (§1.3).
 { "career_state": { /* CareerState */ },
   "applied_costs":   { "time": 60, "energy": 18 },
   "applied_effects": { "attribute:shooting": 1.4 },
-  "attribute_changes": [ { "key": "shooting", "before": 50.0, "after": 51.4 } ],
+  "attribute_changes": [ { "key": "shooting", "before": 50.0, "after": 51.4,
+                           "level_before": 5, "level_after": 5 } ],
   "relationship_changes": [],
   "ledger_entries": [] }
 ```
@@ -1516,6 +1518,17 @@ Sıra keyfi değil: yeterlilik kontrolü hiçbir şey okumaz-yazmaz, en ucuz ve 
 erken reddedebilendir. Böylece "eşiği tutmayan aksiyon zamanımı yedi" durumu
 şemaca imkânsızdır (INV-30). Aynı sıra T4'te de geçerlidir — orada 2. adımdan
 sonra `already_owned` gelir.
+
+**`attribute_changes` seviyeyi de taşır (D43).** `level_before`/`level_after`
+ham değerlerden türetilmiştir ve aynı sebeple gönderilir: FE bu yanıtla yerel
+kopyasını güncellediğinde bir kapının açılıp açılmadığını **kendi hesaplamadan**
+görür. Aksi halde P1 formülü BE'de, aksiyon sonrası tazeleme FE'de olurdu ve
+kural iki yere dağılırdı. Deltaların çoğu seviyeyi değiştirmez; çağıran bunu da
+bedavaya öğrenir. Aynı alanlar R3'te de vardır (§5.4).
+
+> C5'in (`skill_exam_results`) gövdesi **değişmez** — orası `before`/`after`
+> alanlarını tek tek seçer ve yetenek sınavının kendi `level` alanı (1-5 not)
+> D43'ün seviyesiyle aynı kavram değildir.
 
 #### T3 · `POST /careers/{cid}/advance`
 
@@ -2305,3 +2318,492 @@ değişirse** artar.
 | AÇIK-10 | **D39** ile düştü — kondisyon motorun `stamina`'sına girmediği için kalibrasyon hiç etkilenmiyor (§7.3) |
 | AÇIK-11 | **D39** ile düştü — eşleme sorusu yok: kondisyon motora hiç eşlenmiyor. Rakip kondisyonu diye bir kavram da yoktur |
 | AÇIK-7 | **Ölçüldü:** ham motor 1,86 ms/maç (200 maçlık koşu), varsayımın 140× altında. Sonuç D19'u kaldırdı → **D40** (§6.7, §7) |
+
+---
+
+## 11. SEZON DEVRİ
+
+> Bu bölüm **v1.0 imzalandıktan sonra** eklendi. Yukarıdaki metne dokunulmadı;
+> çelişen noktalar §11.0'da tek tek sayıldı. Çelişki gördüğün her yerde
+> **§11 kazanır**.
+>
+> Kapatılan boşluk: servis bugüne kadar sezonu **başlatabiliyor ama
+> bitiremiyordu**. `POST /advance` sezon sınırında `409 season_finished` atıp
+> kariyeri kilitliyordu — terfi/düşme, yeni sezon, sözleşme devri hiç yoktu.
+
+### 11.0 Geçersiz kılınanlar
+
+| Nerede | v1.0'da | §11'de |
+|---|---|---|
+| §5.5 T3 | "terfi/düşme **o çağrının içinde** hesaplanır" | `advance` devir **yapmaz**; devir ayrı bir uçtur (S1 · D46) |
+| §9 | `409 season_finished` | **Emekli.** Yerine `409 season_rollover_required` (§11.9) |
+| §3.3 D20 | Süper Lig'den 2 düşer, 1. Lig'den 2 çıkar | **3 düşer / 3 çıkar** (§11.4) |
+| §5.2 P3 | Sözleşme süresi gün cinsinden (730) | Süre **sezon** cinsinden; bitiş daima sezon sınırı (§11.7 · D50) |
+| §3.3 | Sezon `2026-08-01 → 2027-05-31`, devre arası yok | §11.1'in takvimi — **1. sezon dahil** |
+
+`match_engine` eki (§7) **etkilenmez**: devir hiçbir maç simülasyonu tetiklemez,
+yalnızca oynanmış fikstürleri okur.
+
+---
+
+### 11.1 Sezon takvimi (D44)
+
+Sezon **Ağustos sonu – Haziran başı**. İki tatil dönemi vardır; ikisi de birer
+transfer penceresidir.
+
+| Dönem | Lig maçı | Transfer |
+|---|---|---|
+| Ağustos sonu – Aralık (ilk yarı) | **var** | yok |
+| Ocak (devre arası) | yok | **var** |
+| Şubat – Haziran başı (ikinci yarı) | **var** | yok |
+| Haziran başı – Ağustos sonu (sezonlar arası) | yok | **var** |
+
+Sınırlar **türetilir**; `Y` sezonun açıldığı takvim yılıdır:
+
+| Sabit | Kural | 26/27 |
+|---|---|---|
+| `league_starts_on` | `Y` Ağustos'unun **son Cumartesi**si | `2026-08-29` |
+| `starts_on` | `league_starts_on − 7 gün` (hazırlık haftası) | `2026-08-22` |
+| `cup_starts_on` | `league_starts_on + 4 gün` (Çarşamba) | `2026-09-02` |
+| `winter_break_from` | `Y+1` 1 Ocak | `2027-01-01` |
+| `winter_break_to` | `Y+1` 31 Ocak | `2027-01-31` |
+| `ends_on` | `Y+1` Haziran'ının **ilk Cumartesi**si | `2027-06-05` |
+
+`season_id` `starts_on`'un yılından türer: `2026-08-22` → `"26/27"`.
+
+> ⚠️ v1.0'ın `SEASON_ID = "25/26"` sabiti `2026-08-01` başlangıcıyla **zaten
+> tutarsızdı** (25/26 sezonu Ağustos 2025'te açılırdı). Türetme bunu düzeltir;
+> `"25/26"` bekleyen mevcut testler güncellenir.
+
+#### Fikstür yerleşimi
+
+- Lig turları haftalık, Cumartesi. Bir tur tatil aralığına düşerse **bir sonraki
+  uygun haftaya kayar** — tatile lig maçı konmaz (INV-33).
+- Kupa turları 14 günde bir, Çarşamba: lig Cumartesilerine çakışmaz (v1.0'ın
+  `CUP_STARTS_ON` gerekçesi aynen geçerli — bir takım aynı güne iki fikstüre
+  düşerse M1'in "bugünkü maç" sorgusunun seçme yolu yoktur).
+- Bir takım **3'ten fazla** arka arkaya iç saha veya deplasman oynamaz.
+
+**Sığma denetimi (18 takım · 34 tur):** r1 = 29 Ağu · r18 = 26 Ara · Ocak boş ·
+r19 = 6 Şub · r34 = **22 May** → `ends_on`'dan (5 Haz) önce biter. 14 takımlı
+1. Lig 26 turla rahat sığar.
+
+---
+
+### 11.2 Sezon durumu (D45)
+
+```text
+PRE_SEASON → FIRST_HALF → WINTER_BREAK → SECOND_HALF → SEASON_END
+     ↑                                                      ↓
+     └───────────── SUMMER_TRANSFER_WINDOW ←──────── S1 (devir)
+```
+
+API'de küçük harf taşınır: `pre_season` · `first_half` · `winter_break` ·
+`second_half` · `season_end` · `summer_transfer_window`.
+
+**Faz SAKLANMAZ — türetilir.** `career_state`'e kolon eklenmez. Gerekçe D43'ün
+kurduğu örüntüdür: nitelik `level`'ı da saklanmaz, ham değerden türetilir ve
+yanıta türetilmiş hâliyle konur. Faz da aynı cinstendir — `game_date` ile
+`season` satırından tek okumada çıkar. Saklamak, "kolon ile takvim ayrışmasın"
+diye bir senkron invariant'ı borçlanmak olurdu; türetmenin bedeli ise bir satır
+`SELECT`'tir.
+
+Türetme üç adımdır:
+
+| Adım | Koşul | Sonuç |
+|---|---|---|
+| 1 | `game_date` bir sezonun `[starts_on, ends_on]` aralığında | aşağıdaki iç tablo |
+| 2 | Değilse, `starts_on > game_date` olan bir sezon **var** | `summer_transfer_window` |
+| 3 | Değilse (sonraki sezon yok) | `season_end` |
+
+2. ve 3. adımın ayrımı bu bölümün mantığını taşır: **devir yapılmışsa** ileride
+duran bir sezon satırı vardır ve oyuncu yazdadır; **yapılmamışsa** yoktur ve
+kariyer sezon sonunda bekler. Ayrı bir bayrağa gerek kalmaz.
+
+Sezonun içi:
+
+| Koşul | Faz |
+|---|---|
+| `starts_on ≤ d < league_starts_on` | `pre_season` |
+| `league_starts_on ≤ d < winter_break_from` | `first_half` |
+| `winter_break_from ≤ d ≤ winter_break_to` | `winter_break` |
+| `winter_break_to < d ≤ ends_on` | `second_half` |
+| `d ≤ ends_on` ama sezonun **tüm** fikstürleri `played` | `season_end` |
+
+`league_starts_on` sabitten değil **veriden** okunur: o sezonun `kind='league'`
+turlarının `MIN(scheduled_on)`'u. Böylece takvim kuralı bir gün değişse bile faz
+türetmesi fikstürle uyumlu kalır.
+
+Son satır sezonu **erken** bitirebilir: takvim Haziran'ı gösterse de son maç
+Mayıs'ta oynandıysa faz `season_end`'dir ve devir hemen yapılabilir.
+
+Faz her değiştiğinde T1/T3 bir `season_phase_change` olayı üretir ve bu olay
+**durdurucudur**: `advance` devre arasına ve sezon sonuna kendiliğinden park eder.
+
+---
+
+### 11.3 Şema eki — `007_season_rollover.sql`
+
+```sql
+-- Devre arası sezonun kendi verisidir, kod sabiti değil: season tablosu zaten
+-- starts_on/ends_on'u türetmek yerine SAKLIYOR, tatil sınırı da aynı cinsten.
+-- Eski kariyerlerin satırları NULL kalır ve "devre arası yok" diye okunur.
+ALTER TABLE season ADD COLUMN winter_break_from TEXT;
+ALTER TABLE season ADD COLUMN winter_break_to   TEXT;
+
+-- Ligin kıta turnuvası kontenjanını belirleyen puan. kind='league' dışında NULL.
+ALTER TABLE competition ADD COLUMN international_score INTEGER;   -- ⟦AÇIK-12⟧
+
+-- Sezon sonu defteri. Nihai sıralama fixture'dan yeniden TÜRETİLEBİLİR (INV-2),
+-- ama sonuçlar türetilemez: kontenjan sayısı ve terfi/düşme kuralı zamanla
+-- değişebilir, geçmiş sezonun kararı ise değişmemelidir.
+--
+-- Dört bayrak, tek 'outcome' enum'u değil: 1. sıradaki takım aynı anda HEM
+-- şampiyon HEM kıta katılımcısıdır; tek kolon ikisini taşıyamaz.
+CREATE TABLE season_result (
+  career_id      TEXT NOT NULL REFERENCES career(career_id) ON DELETE CASCADE,
+  season_id      TEXT NOT NULL,
+  competition_id TEXT NOT NULL,
+  team_id        TEXT NOT NULL,
+  final_rank     INTEGER NOT NULL,
+  is_champion    INTEGER NOT NULL DEFAULT 0,
+  continental    INTEGER NOT NULL DEFAULT 0,
+  promoted       INTEGER NOT NULL DEFAULT 0,
+  relegated      INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (career_id, season_id, competition_id, team_id)
+);
+
+-- Kullanıcıya açılan sözleşme teklifleri (§11.7). Kadro yoktur (D4 korunur) —
+-- bu tablonun tek öznesi kullanıcının kendisidir.
+CREATE TABLE transfer_offer (
+  career_id        TEXT NOT NULL REFERENCES career(career_id) ON DELETE CASCADE,
+  offer_id         TEXT NOT NULL,            -- 'o_' + 12 hex
+  opened_on        TEXT NOT NULL,
+  window           TEXT NOT NULL,            -- 'winter' | 'summer'
+  team_id          TEXT NOT NULL,
+  weekly_wage      INTEGER NOT NULL,
+  appearance_bonus INTEGER NOT NULL,
+  goal_bonus       INTEGER NOT NULL,
+  release_clause   INTEGER NOT NULL,
+  length_seasons   INTEGER NOT NULL,
+  expires_at       TEXT NOT NULL,            -- kabul edilirse sözleşmenin bitişi
+  status           TEXT NOT NULL,            -- 'open' | 'accepted' | 'expired'
+  PRIMARY KEY (career_id, offer_id)
+);
+```
+
+`career_state`'e **dokunulmaz** (D45). `fixture.status` da değişmez: şartname iki
+durum sayıyor ama §6.4'ün yarım kalan maç kurtarması `in_progress`'e muhtaç.
+Sezon tamamlanma koşulu ikisini birden kapsar — `scheduled` **ve** `in_progress`
+satır kalmamalıdır.
+
+`o_` ön eki §5.0'ın kimlik tablosuna eklenir.
+
+---
+
+### 11.4 Sıralama, şampiyonluk, kontenjan, terfi/düşme
+
+#### Puanlama
+Galibiyet **3** · beraberlik **1** · mağlubiyet **0**. `standing` VIEW bunu zaten
+uyguluyor; değişiklik yok, INV-2 geçerli.
+
+#### Eşitlik bozma (W2'nin sıralaması)
+**puan → averaj → atılan gol → yenilen gol → ikili averaj → galibiyet sayısı**.
+Hepsi eşitse `team_id` (kararlılık için; anlamlı değil).
+
+> **Ölü ölçüt — 4. sıra hiçbir zaman ayırt etmez.** Averaj = atılan − yenilen
+> olduğundan, puan + averaj + atılan golü eşit iki takımın yenilen golü
+> **zorunlu olarak** eşittir. Ölçüt sırada tutulur (şartnamenin niyetini
+> belgeler, zararı yok) ama ayırıcı gücü sıfırdır; sıralamayı fiilen **ikili
+> averaj** kırar.
+
+**İkili averaj tek SQL'de çıkmaz.** `standing` satır başına toplar; ikili averaj
+yalnız eşit puanlı **alt grubun kendi arasındaki** fikstürlerden hesaplanır.
+Sıralama bu yüzden iki aşamalıdır: SQL ilk dört ölçütü verir, eşit kalan grup
+API katmanında kendi mini tablosuyla ayrıştırılır.
+
+#### Şampiyonluk
+Nihai sıralamada 1. olan takım şampiyondur. Ayrı hesap yoktur.
+
+#### Kıta turnuvası kontenjanı (D49)
+**v1'de yalnızca kontenjan hesaplanır.** Fikstür üretilmez, maç oynanmaz,
+`kind='continental'` satırı açılmaz. "Şu takımlar gitti" bilgisi
+`season_result.continental`'e yazılır ve özette/haberde döner.
+
+Kontenjan ligin `international_score`'undan gelir — ⟦AÇIK-12⟧:
+
+| `international_score` | Kontenjan |
+|---|---|
+| `< 20` | 0 |
+| `20-39` | 1 |
+| `40-59` | 2 |
+| `60-79` | 3 |
+| `≥ 80` | 4 |
+
+v1 dünyası: Süper Lig **45** → 2 · 1. Lig **5** → 0. İkisi de placeholder;
+gerçek ölçek ⟦AÇIK-12⟧ ile gelir ve **sürüm numarasını değiştirmez** (§10 kuralı).
+
+#### Terfi ve küme düşme
+- **3 çıkar, 3 düşer.** `competition_rule`'un sayıları 2'den 3'e çekilir.
+- En üst kademede (`promotes_to_competition_id IS NULL`) terfi **yok**; en alt
+  kademede (`relegates_to_competition_id IS NULL`) düşme **yok**.
+- Terfi sayısı = düşme sayısı olduğundan mevcut korunur (INV-34): Süper Lig 18,
+  1. Lig 14 sabit.
+- Hareket `competition_entry`'de yaşar. Eski sezonun satırları **silinmez** —
+  `season_id` ile ayrışırlar, geçmiş sezonun tablosu okunabilir kalır.
+
+---
+
+### 11.5 S1 · `POST /careers/{cid}/season/rollover` (D46, D47)
+
+Sezon devrinin **tek** giriş noktası.
+
+**Ön koşul sırası** (§5.5 T2'nin kontrol tablosuyla aynı disiplin — en ucuz ret
+en başta, hiçbir şey yazılmadan):
+
+| Sıra | Kontrol | Hata |
+|---|---|---|
+| 1 | Kariyer tanınıyor mu | `404 career_not_found` |
+| 2 | Faz `season_end` mi | `409 season_not_finished` |
+| 3 | `scheduled`/`in_progress` fikstür kaldı mı (INV-13) | `409 season_not_finished` |
+
+2. ve 3. aynı kodu döner çünkü kullanıcı için tek durumdur ("sezon daha bitmedi");
+mesaj kaç maçın kaldığını taşır.
+
+**Tek transaction** (INV-36), sırayla:
+
+1. Nihai sıralama → her lig için `season_result` (şampiyon · kontenjan · terfi ·
+   düşme bayrakları)
+2. Terfi/düşme uygulanır → **yeni sezonun** `competition_entry` satırları
+3. Sözleşme kontrolü (§11.7): `expires_at` bu sezonun `ends_on`'u olan sözleşme
+   kapanır, kullanıcı serbest kalır, teklifler üretilir
+4. Yeni `season` satırı + her lig için tam fikstür + kupa takvimi (§11.1)
+5. Şampiyonluk / terfi / düşme haberleri
+
+**`game_date` DEĞİŞMEZ** (D47). Kullanıcı Haziran–Ağustos günlerini normal
+`advance` ile yaşar: antrenman yapar, para harcar, ilişki yürütür, teklif
+değerlendirir. Faz o anda kendiliğinden `summer_transfer_window`'a düşer —
+§11.2'nin 2. adımı artık ileride bir sezon satırı bulur.
+
+```jsonc
+// İstek — gövde yok
+
+// Yanıt
+{ "career_state": { /* CareerState — season_phase: "summer_transfer_window" */ },
+  "previous_season_id": "26/27",
+  "new_season_id":      "27/28",
+  "summary": { /* §11.6'nın SeasonSummary bloğu */ },
+  "user": {
+    "team":            { /* TeamRef */ },
+    "competition":     { /* CompetitionRef — YENİ sezondaki ligi */ },
+    "final_rank":      7,
+    "outcomes":        [],            // 'champion'|'continental'|'promoted'|'relegated'
+    "contract_status": "expired",     // 'active' | 'expired'
+    "moved_with_team": false          // takımı düştü/çıktı mı
+  },
+  "offers":       [ /* TransferOffer[] — §11.7 */ ],
+  "news_created": ["n_0210", "n_0211"] }
+```
+
+---
+
+### 11.6 S2 · `GET /careers/{cid}/season/summary`
+
+Sorgu: `?season=26/27` (varsayılan: **en son tamamlanmış** sezon). Devri kaçıran
+ya da geçmişe bakan FE için. Tamamlanmamış sezon istenirse
+`409 season_not_finished`.
+
+```jsonc
+// SeasonSummary
+{ "season_id": "26/27",
+  "leagues": [
+    { "competition": { /* CompetitionRef */ },
+      "champion":    { /* TeamRef */ },
+      "rows": [
+        { "team": { /* TeamRef */ }, "final_rank": 1,
+          "outcomes": ["champion", "continental"],
+          "played": 34, "won": 24, "drawn": 6, "lost": 4,
+          "goals_for": 71, "goals_against": 30,
+          "goal_difference": 41, "points": 78 }
+      ] }
+  ],
+  "continental_slots": { "c_lig1": 2, "c_lig2": 0 } }
+```
+
+**Cümle yok** (§1.3): `outcomes` bir enum dizisidir, "Şampiyon oldu!" metnini FE
+kurar. Kupa (`kind='cup'`) `leagues` dizisinde **yer almaz** — eleme usulünde
+tablo yoktur (`409 no_standings`'in aynı gerekçesi).
+
+---
+
+### 11.7 Transfer ve sözleşme (D48, D50)
+
+**Kadro yoktur.** D4 korunur: bir kariyerde hâlâ tam olarak bir oyuncu satırı
+vardır (`is_user = 1`). Şartname §12'nin "oyuncular başka takımlara transfer
+olabilir" maddesi v1'de **yalnızca kullanıcı** için geçerlidir; NPC transferi ve
+kadro derinliği bu sürümde yoktur.
+
+#### Pencereler
+Pencere = `winter_break` **veya** `summer_transfer_window` fazı. Başka fazda
+kabul denemesi `409 no_transfer_window`.
+
+#### Sözleşme bitişi (D50)
+Bir sözleşme **yalnızca iki tarihten birinde** biter (INV-35):
+1. Devre arasının ilk günü (`winter_break_from`)
+2. Sezonun son günü (`ends_on`)
+
+Süre bu yüzden **gün değil sezon** cinsindendir (`length_seasons`); v1.0'ın
+`CONTRACT_LENGTH_DAYS = 730` sabiti emekli olur — 730 gün rastgele bir Salı'ya
+düşer ve iki bitiş tarihinin hiçbirini tutturamaz.
+
+Sözleşme kapandığında kullanıcı **serbest oyuncu** olur: `player.team_id` mevcut
+kulüpte kalır ama aktif `player_contract` satırı yoktur → maaş ödenmez (§6.5'in
+`wage` satırı düşmez). Mevcut kulüp de teklif verenler arasındadır.
+
+#### Teklif üretimi
+Girdiler: **saha** niteliklerinin ortalaması, `player_fame`, geçen sezonun
+`player_season_stat`'ı. **Kişi ailesi bu sürümde okunmaz** — §3.2'nin "sözleşme
+pazarlığı" vaadi ayrı bir sürümün işidir. Ücret ölçeği `STARTING_WEEKLY_WAGE`
+üzerinden kademe çarpanıyla kurulur; gerçek formül **⟦AÇIK-8⟧**'e (piyasa değeri)
+bağlıdır ve o kapanana kadar placeholder çalışır. Değer değişimi sürüm numarasını
+değiştirmez.
+
+#### S3 · `GET /careers/{cid}/transfer/offers`
+
+```jsonc
+{ "window":    "summer",         // 'winter' | 'summer' | null (pencere kapalı)
+  "closes_on": "2027-08-28",     // pencerenin son günü; kapalıysa null
+  "offers": [
+    { "offer_id":         "o_3f9a01bc22de",
+      "team":             { /* TeamRef */ },
+      "competition":      { /* CompetitionRef */ },
+      "weekly_wage":        5200,
+      "appearance_bonus":    700,
+      "goal_bonus":         1400,
+      "release_clause":   400000,
+      "length_seasons":        2,
+      "expires_at":       "2029-06-02",   // kabul edilirse sözleşme bu gün biter
+      "status":           "open" }
+  ] }
+```
+
+Pencere kapalıyken `offers` **boş dizidir** — hata değil.
+
+#### S4 · `POST /careers/{cid}/transfer/offers/{oid}/accept`
+
+Gövde yok. Tek transaction'da: `player.team_id` güncellenir, yeni
+`player_contract` satırı yazılır, teklif `accepted`, **diğer bütün açık teklifler
+`expired`** olur.
+
+```jsonc
+{ "career_state": { /* CareerState */ },
+  "team":         { /* TeamRef — yeni kulüp */ },
+  "competition":  { /* CompetitionRef — yeni kulübün ligi */ },
+  "contract": { "signed_at": "2027-07-04", "expires_at": "2029-06-02",
+                "weekly_wage": 5200, "appearance_bonus": 700,
+                "goal_bonus": 1400, "release_clause": 400000 } }
+```
+
+Bilinmeyen `offer_id` → `404 offer_not_found`. Zaten `accepted`/`expired` teklif
+→ `409 offer_not_open`.
+
+---
+
+### 11.8 Mevcut uçlardaki değişiklikler (FE'yi ilgilendiren kısım)
+
+| Uç | Değişiklik | Kırıcı mı |
+|---|---|---|
+| §5.0 `CareerState` | **`season_phase`** alanı eklenir (türetilmiş, D45) | Hayır — §5.0'ın "alan eklemek kırıcı değildir" kuralı |
+| §5.0 kimlikler | `o_` teklif ön eki | Hayır |
+| §4 tablosu | S1–S4 eklenir | Hayır |
+| T1 `events[].kind` | `season_phase_change` · `contract_expired` · `transfer_offer` | Hayır — FE tanımadığı `kind`'ı yok sayar |
+| T3 `stop_reason` | aynı küme genişler | Hayır |
+| T3 davranış | `season_end` fazında `409 season_rollover_required` (eski: `season_finished`) | **Evet** — FE'nin yakaladığı kod değişir |
+| W2 sıralama | ölçüt sırası §11.4'e genişler | Hayır — alanlar aynı |
+
+`season_phase_change`'in `ref_id`'si **yeni fazın adıdır** (`"winter_break"`,
+`"season_end"`, …); `transfer_offer`'ınki `offer_id`, `contract_expired`'ınki
+`null`.
+
+`CareerState`'in yeni hâli — `season_phase` `level` ile aynı cinsten, **türetilmiş
+ve saklanmayan** bir alandır (D43/D45):
+
+```jsonc
+{ "current_date":  "2027-06-05",
+  "season_id":     "26/27",
+  "season_phase":  "season_end",        // §11.2 · YENİ · türetilmiş
+  "money":         48200,
+  "condition":     72,
+  "day_budget":    { "time": 330, "energy": 62 } }
+```
+
+---
+
+### 11.9 Yeni hata kodları
+
+| HTTP | `code` | Ne zaman |
+|---|---|---|
+| 409 | `season_rollover_required` | Faz `season_end`; devir yapılmadan `advance` çağrıldı |
+| 409 | `season_not_finished` | S1/S2 çağrıldı ama sezonun oynanmamış maçı var (INV-13) |
+| 409 | `no_transfer_window` | S4 çağrıldı ama faz bir transfer penceresi değil |
+| 409 | `offer_not_open` | Teklif zaten kabul edilmiş ya da süresi geçmiş |
+| 404 | `offer_not_found` | Bilinmeyen `offer_id` |
+
+**Emekli:** `409 season_finished`.
+
+---
+
+### 11.10 Yeni kararlar
+
+Onuncu turda (sezon devri) alınanlar:
+
+| # | Karar | Seçilen | Gerekçe |
+|---|---|---|---|
+| D44 | Sezon takvimi | **Global ve sabit; sınırlar tarihten türetilir** | Şartname v1'i tek takvime bağlıyor. Türetme "Ağustos'un son Cumartesi'si" kuralını her sezon için elle yazmaktan kurtarır ve devir ile onboarding'in aynı fonksiyonu çağırmasını sağlar |
+| D45 | Sezon fazı | **Türetilir, saklanmaz** | D43'ün `level` örüntüsünün aynısı: türetilmiş değerin sahibi BE'dir, yanıta konur ama kolona yazılmaz. Kolon, takvimle ayrışmasın diye bir senkron invariant'ı borçlanmak olurdu; türetmenin bedeli bir `SELECT` |
+| D46 | Devrin tetiği | **Ayrı uç (S1)**, `advance` içinde değil | FE'ye sezon sonu ekranı imkânı verir: kullanıcı nihai tabloyu görür, devri kendisi başlatır. `advance`'ın içine gizlenen bir devir, kullanıcının göremediği bir sezon sonu demekti |
+| D47 | Devrin kapsamı | **Tek çağrı; `game_date` ilerlemez** | Yaz günleri normal oynanır — antrenman, para ve ilişki döngüsü üç ay boşluk vermez. İki uca bölmek FE'ye ikinci bir ekran borcu yazardı |
+| D48 | Transfer öznesi | **Yalnızca kullanıcı** | D4 (kadro yok) korunur. NPC transferi 32 takımlık kadro modeli ister; o, sezon mantığından büyük ayrı bir iştir |
+| D49 | Kıta turnuvası | **v1'de yalnızca kontenjan** | Tek ülke (`TR`) var; 32 Türk takımıyla "Avrupa" turnuvası kurmak dünyayı bozardı. Kontenjan bilgisi bugünden doğru saklanır, turnuva sonra gelir |
+| D50 | Sözleşme süresi | **Sezon cinsinden; bitiş daima sezon sınırı** | Şartname iki bitiş tarihi tanımlıyor (1 Ocak / sezon sonu); gün cinsinden süre bunu tutturamaz |
+
+---
+
+### 11.11 Yeni invariant'lar
+
+| # | Garanti |
+|---|---|
+| INV-33 | Hiçbir `kind='league'` fikstürü bir tatil aralığına (devre arası veya sezonlar arası) düşmez |
+| INV-34 | Bir ligin `competition_entry` mevcudu sezondan sezona **değişmez** — terfi sayısı düşme sayısına eşittir |
+| INV-35 | `player_contract.expires_at` daima ya bir sezonun `ends_on`'u ya da bir `winter_break_from` tarihidir (D50) |
+| INV-36 | Devir tek transaction'dır; kısmen uygulanmış bir devir (girişler yazılmış ama fikstür üretilmemiş gibi) oluşamaz |
+| INV-37 | Devir sonrası her takım yeni sezonda **tam olarak bir** lige girer — INV-14'ün ("birden fazlasına giremez") tamamlayıcısı |
+
+**Garanti EDİLMEYEN:** sezonların fikstür sırasının birbirinden bağımsızlığı —
+devir kariyerin kendi `seed`'ini kullanmayı sürdürür, dolayısıyla INV-7 (aynı
+seed + aynı karar dizisi → aynı dünya) sezonlar boyunca geçerlidir.
+
+---
+
+### 11.12 Yeni açık madde
+
+| # | Nerede | Ne kararlaştırılacak |
+|---|---|---|
+| ⟦AÇIK-12⟧ | §11.4 `competition.international_score` | Uluslararası puanın gerçek ölçeği ve kontenjan eşiği. v1: Süper Lig 45 → 2, 1. Lig 5 → 0 (placeholder) |
+
+⟦AÇIK-8⟧ (piyasa değeri) §11.7'de **ikinci bir müşteri** kazandı: teklif ücret
+ölçeği o formüle bağlanacak. §10'un kuralı geçerli — bu noktalar dolduğunda sürüm
+numarası **artmaz**.
+
+---
+
+### 11.13 Bu sürümün dışında kalanlar
+
+- **Kadro modeli ve NPC transferleri** — D4/D48 korunuyor
+- **Oynanabilir kıta turnuvası** — D49; yalnızca kontenjan hesaplanıyor
+- **Teklifin kişi ailesine bağlanması** — §3.2'nin "sözleşme pazarlığı" vaadi;
+  bu sürümde teklif yalnızca saha tarafına bakar
+- **Play-off, lig bazında farklı kural/puanlama/sezon uzunluğu** — şartnamenin
+  kendi "ilerleyen versiyonlarda" listesi
+- **Flutter FE kodu** — bu bölüm FE'yi yalnızca **sözleşme** düzeyinde bağlar
+  (§11.8); ekran ve istemci değişiklikleri ayrı bir sürümün işidir
