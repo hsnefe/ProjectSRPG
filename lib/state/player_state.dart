@@ -64,6 +64,16 @@ class PlayerState extends ChangeNotifier {
     return 0;
   }
 
+  /// D43 · niteliğin 0-10 seviyesi, **BE'den geldiği gibi**. Bir `requires`
+  /// eşiği (D42) daima bununla karşılaştırılır; `value`'dan seviye türeten
+  /// bir satır bu dosyada bilinçli olarak yoktur.
+  int attributeLevel(String key) {
+    for (final a in _attributes) {
+      if (a.key == key) return a.level;
+    }
+    return 0;
+  }
+
   /// P1'i çeker ve alanları doldurur. Hata durumunda sessizce vazgeçer —
   /// ekranlar boş/varsayılan değerlerle kalır, kritik bir akışı bloklamaz;
   /// [PlayerScope] uygulama açılışında bir kez, sihirbaz da yeni kariyeri
@@ -113,6 +123,10 @@ class PlayerState extends ChangeNotifier {
             key: change.key,
             family: updated[index].family,
             value: change.after,
+            // Seviye de yanıtta geliyor (§5.5), o yüzden burada
+            // hesaplanmıyor: bir aktivite bir kapıyı açtıysa kilitli kartlar
+            // P1 tazelenmeden, aynı karede açılır.
+            level: change.levelAfter,
           );
         }
       }

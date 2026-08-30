@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/state/player_state.dart';
 
 /// [PlayerState]'i ağaca yayar. Uygulamanın en üstünde, [MaterialApp]'in
 /// üzerinde bir kez kurulur.
 class PlayerScope extends StatefulWidget {
-  const PlayerScope({super.key, required this.child});
+  const PlayerScope({super.key, required this.child, this.session});
 
   final Widget child;
+
+  /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
+  /// Ekranların kendi `session` parametresiyle aynı amaç — nitelik
+  /// **seviyeleri** (D43) buradan geldiği için, bir kilidin açık mı kapalı mı
+  /// göründüğünü test edebilmenin tek yolu bu.
+  final CareerSession? session;
 
   /// Çağıran widget'ı state değişimlerine abone eder.
   static PlayerState of(BuildContext context) {
@@ -21,7 +28,7 @@ class PlayerScope extends StatefulWidget {
 }
 
 class _PlayerScopeState extends State<PlayerScope> {
-  final PlayerState _state = PlayerState();
+  late final PlayerState _state = PlayerState(session: widget.session);
 
   @override
   void initState() {

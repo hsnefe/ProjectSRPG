@@ -386,5 +386,13 @@ class CareerApiClient {
     return Catalog.fromJson(body);
   }
 
+  /// N3 · `GET /catalog/dialogue` — diyalog yapraklarının **eşikleri**
+  /// (D42). Ağacın metni FE'nin (D23), ödülü BE'nin; bu uç ikisinin arasında
+  /// kalan tek şeyi, kilidi taşır.
+  Future<DialogueCatalog> dialogueCatalog() async {
+    final body = await _get('/catalog/dialogue');
+    return DialogueCatalog.fromJson(body);
+  }
+
   void close() => _client.close();
 }

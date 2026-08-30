@@ -733,6 +733,7 @@ class PlayerAttribute {
     required this.key,
     required this.family,
     required this.value,
+    required this.level,
   });
 
   factory PlayerAttribute.fromJson(Map<String, dynamic> json) {
@@ -740,6 +741,7 @@ class PlayerAttribute {
       key: json['key'] as String,
       family: json['family'] as String,
       value: (json['value'] as num).toDouble(),
+      level: (json['level'] as num).toInt(),
     );
   }
 
@@ -748,6 +750,10 @@ class PlayerAttribute {
   /// 'saha' | 'kişi'.
   final String family;
   final double value;
+
+  /// D43 · 0-10, `value`'dan **BE'de** türetilir. FE bu kuralın bir kopyasını
+  /// tutmaz: bir `requires` eşiği daima bu sayıyla karşılaştırılır.
+  final int level;
 }
 
 /// P1 `fame[]` satırı — D35, anlamı ⟦AÇIK-9⟧.
@@ -830,7 +836,7 @@ class PlayerProfile {
 
   double attribute(String key) =>
       attributes.firstWhere((a) => a.key == key, orElse: () =>
-          const PlayerAttribute(key: '', family: '', value: 0)).value;
+          const PlayerAttribute(key: '', family: '', value: 0, level: 0)).value;
 }
 
 /// P2 `rows[]` satırı — bir (sezon, müsabaka) kesiti.
@@ -1261,6 +1267,8 @@ class AttributeChange {
     required this.key,
     required this.before,
     required this.after,
+    required this.levelBefore,
+    required this.levelAfter,
   });
 
   factory AttributeChange.fromJson(Map<String, dynamic> json) {
@@ -1268,12 +1276,20 @@ class AttributeChange {
       key: json['key'] as String,
       before: (json['before'] as num).toDouble(),
       after: (json['after'] as num).toDouble(),
+      levelBefore: (json['level_before'] as num).toInt(),
+      levelAfter: (json['level_after'] as num).toInt(),
     );
   }
 
   final String key;
   final double before;
   final double after;
+
+  /// D43 · deltanın iki yakasındaki seviye. Yerel kopyayı bu yanıtla
+  /// güncelleyen ekran, bir kilidin açılıp açılmadığını kendi hesaplamadan
+  /// görür (§5.5 notu).
+  final int levelBefore;
+  final int levelAfter;
 }
 
 /// R3 · `POST /careers/{cid}/relationships/{rid}/interact`.
@@ -1772,6 +1788,12 @@ class CatalogItem {
   /// `lifestyle`/`shop` kataloğu — grup/kategori başlığı.
   String? get group => raw['group'] as String? ?? raw['category'] as String?;
 
+  /// D42 · `attribute_key` -> gereken seviye (0-10). Boşsa kapı yok.
+  /// Eşiği FE **karşılaştırır**, ama son sözü BE söyler: T2/T4 çağrısı aynı
+  /// kontrolü tekrarlar (INV-30), buradaki gri kart yalnızca kullanıcıyı
+  /// boşuna dokunmaktan kurtarır.
+  Map<String, int> get requires => _requiresOf(raw);
+
   /// `shop` kataloğu.
   int? get price => raw['price'] as int?;
   int? get upkeepWeekly => raw['upkeep_weekly'] as int?;
@@ -1779,6 +1801,80 @@ class CatalogItem {
 }
 
 /// N3 · `GET /catalog/{kind}`.
+Map<String, int> _requiresOf(Map<String, dynamic> json) {
+  final raw = json['requires'] as Map<String, dynamic>?;
+  if (raw == null || raw.isEmpty) return const {};
+  return raw.map((key, value) => MapEntry(key, (value as num).toInt()));
+}
+
+/// N3 `GET /catalog/dialogue` · bir ağacın tek yaprağı. **Yalnızca eşik**
+/// taşır — `relationship_delta`/`attribute_effects` bu uçtan hiç gelmez
+/// (§5.7): ödül tablosu sunucuda kalır.
+class DialogueLeaf {
+  const DialogueLeaf({required this.leafId, required this.requires});
+
+  factory DialogueLeaf.fromJson(Map<String, dynamic> json) {
+    return DialogueLeaf(
+      leafId: json['leaf_id'] as String,
+      requires: _requiresOf(json),
+    );
+  }
+
+  final String leafId;
+  final Map<String, int> requires;
+}
+
+/// N3 `GET /catalog/dialogue` · bir diyalog ağacının eşik künyesi.
+class DialogueCatalogEntry {
+  const DialogueCatalogEntry({
+    required this.dialogueId,
+    required this.relationshipId,
+    required this.leaves,
+  });
+
+  factory DialogueCatalogEntry.fromJson(Map<String, dynamic> json) {
+    return DialogueCatalogEntry(
+      dialogueId: json['dialogue_id'] as String,
+      relationshipId: json['relationship_id'] as String,
+      leaves: ((json['leaves'] as List<dynamic>?) ?? const [])
+          .map((e) => DialogueLeaf.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+    );
+  }
+
+  final String dialogueId;
+  final String relationshipId;
+  final List<DialogueLeaf> leaves;
+
+  /// `leaf_id` -> `requires`; eşiği olmayan yaprak da haritada yer alır
+  /// (boş sözlükle), böylece "bilinmeyen yaprak" ile "kapısız yaprak"
+  /// karışmaz.
+  Map<String, Map<String, int>> get requiresByLeaf => {
+        for (final leaf in leaves) leaf.leafId: leaf.requires,
+      };
+}
+
+class DialogueCatalog {
+  const DialogueCatalog({required this.items});
+
+  factory DialogueCatalog.fromJson(Map<String, dynamic> json) {
+    return DialogueCatalog(
+      items: (json['items'] as List<dynamic>)
+          .map((e) => DialogueCatalogEntry.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+    );
+  }
+
+  final List<DialogueCatalogEntry> items;
+
+  DialogueCatalogEntry? byId(String dialogueId) {
+    for (final item in items) {
+      if (item.dialogueId == dialogueId) return item;
+    }
+    return null;
+  }
+}
+
 class Catalog {
   const Catalog({required this.items});
 

@@ -45,8 +45,8 @@ void main() {
             'day_budget': {'time': 330, 'energy': 62},
           },
           'attributes': [
-            {'key': 'condition', 'family': 'saha', 'value': 64.0},
-            {'key': 'shooting', 'family': 'saha', 'value': 50.0},
+            {'key': 'condition', 'family': 'saha', 'value': 64.0, 'level': 6},
+            {'key': 'shooting', 'family': 'saha', 'value': 50.0, 'level': 5},
           ],
           'fame': [
             {'scope': 'overall', 'value': 0.0}
@@ -61,6 +61,15 @@ void main() {
       expect(profile.careerState.money, 48200);
       expect(profile.careerState.moneyLabel, '₺48.200');
       expect(profile.attribute('shooting'), 50.0);
+      // D43 · seviye BE'de türetilir; FE onu okur, hesaplamaz.
+      expect(
+        profile.attributes.firstWhere((a) => a.key == 'shooting').level,
+        5,
+      );
+      expect(
+        profile.attributes.firstWhere((a) => a.key == 'condition').level,
+        6,
+      );
       expect(profile.marketValue?.current, 4200000);
     });
 
@@ -250,7 +259,10 @@ void main() {
             {'relationship_id': 'coach', 'before': 71, 'after': 74, 'delta': 3}
           ],
           'attribute_changes': [
-            {'key': 'politeness', 'before': 58.0, 'after': 58.6}
+            {
+              'key': 'politeness', 'before': 58.0, 'after': 58.6,
+              'level_before': 5, 'level_after': 5,
+            }
           ],
           'ledger_entries': const [],
         });
@@ -264,6 +276,10 @@ void main() {
 
       expect(result.relationshipChanges.single.after, 74);
       expect(result.attributeChanges.single.after, 58.6);
+      // §5.5 · seviye deltayla birlikte gelir: 58.0 -> 58.6 bir on'luğu
+      // geçmediği için ikisi de 5, ve FE bunu kendisi hesaplamaz.
+      expect(result.attributeChanges.single.levelBefore, 5);
+      expect(result.attributeChanges.single.levelAfter, 5);
     });
   });
 
@@ -303,7 +319,10 @@ void main() {
           'applied_costs': {'time': 60, 'energy': 18},
           'applied_effects': {'attribute:shooting': 1.4},
           'attribute_changes': [
-            {'key': 'shooting', 'before': 50.0, 'after': 51.4}
+            {
+              'key': 'shooting', 'before': 50.0, 'after': 51.4,
+              'level_before': 5, 'level_after': 5,
+            }
           ],
           'relationship_changes': const [],
           'ledger_entries': const [],
@@ -547,6 +566,7 @@ void main() {
               'family': 'kişi', 'drill': null,
               'costs': {'time': 60, 'energy': 5},
               'effects': {'attribute:charisma': 0.8, 'money': -1500},
+              'requires': {'confidence': 6},
             },
           ],
         });
@@ -558,6 +578,46 @@ void main() {
       expect(catalog.items[0].costs['time'], 90.0);
       expect(catalog.items[1].drill, isNull);
       expect(catalog.items[1].effects['money'], -1500);
+      // D42 · eşiği olmayan kalem boş sözlük döner, null değil — çağıran
+      // her yerde `requires.isEmpty` diye bakabilsin.
+      expect(catalog.items[0].requires, isEmpty);
+      expect(catalog.items[1].requires, {'confidence': 6});
+    });
+
+    test('dialogueCatalog() parses thresholds and carries no rewards',
+        () async {
+      final client = _clientWith((request) {
+        expect(request.url.path, '/catalog/dialogue');
+        return _json({
+          'items': [
+            {
+              'dialogue_id': 'media_01', 'relationship_id': 'media',
+              'leaves': [
+                {'leaf_id': 'r0', 'requires': {'charisma': 8}},
+                {'leaf_id': 'r1', 'requires': <String, dynamic>{}},
+                {'leaf_id': 'r2', 'requires': <String, dynamic>{}},
+              ],
+            },
+            {
+              'dialogue_id': 'coach_01', 'relationship_id': 'coach',
+              'leaves': [
+                {'leaf_id': 'r0', 'requires': {'politeness': 6}},
+              ],
+            },
+          ],
+        });
+      });
+
+      final catalog = await client.dialogueCatalog();
+      final media = catalog.byId('media_01')!;
+
+      expect(media.relationshipId, 'media');
+      expect(media.requiresByLeaf, {
+        'r0': {'charisma': 8},
+        'r1': <String, int>{},
+        'r2': <String, int>{},
+      });
+      expect(catalog.byId('family_01'), isNull);
     });
 
     test('shop catalog exposes price/upkeep/note via raw fallbacks', () async {
