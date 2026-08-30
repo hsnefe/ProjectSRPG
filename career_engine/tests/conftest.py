@@ -156,6 +156,27 @@ def grant_money(career_id, amount, reason="test:top-up") -> None:
         conn.close()
 
 
+def set_attribute(career_id, attribute_key, value) -> None:
+    """Puts one of the user player's attributes at an exact value, through
+    attributes.apply_delta() so INV-8's clamp still governs it. Tests that
+    exercise a `requires` gate (D42) have to stand on a specific level;
+    walking there through the real training loop would cost dozens of
+    advances and prove nothing the gate test is actually about."""
+    from api import config
+    from db.connection import get_connection
+    from domain import attributes
+
+    conn = get_connection(config.DB_PATH)
+    try:
+        current = attributes.get_value(conn, career_id, config.USER_PLAYER_ID, attribute_key)
+        attributes.apply_delta(
+            conn, career_id, config.USER_PLAYER_ID, attribute_key, value - current
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def advance_to_match_day(api_client, career_id, max_calls=10) -> dict:
     """Walks the day loop until the user's own fixture is today, the way a
     player does. A new career opens on a preparation week

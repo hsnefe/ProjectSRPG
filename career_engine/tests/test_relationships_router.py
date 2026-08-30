@@ -1,6 +1,6 @@
 import pytest
 
-from tests.conftest import create_career
+from tests.conftest import create_career, set_attribute
 from worlddata.relationships import STARTING_SCORES
 
 
@@ -43,6 +43,10 @@ def test_get_relationship_detail_unknown_id_errors(api_client, created_career):
 
 def test_interact_applies_relationship_and_attribute_deltas(api_client, created_career):
     career_id = created_career["career_id"]
+    # media_01:r0 is the only leaf with attribute_effects, and D42 gates it
+    # at charisma 8. This test is about the deltas; the gate itself is
+    # covered separately below.
+    set_attribute(career_id, "charisma", 80.0)
     resp = api_client.post(
         f"/careers/{career_id}/relationships/media/interact",
         json={"dialogue_id": "media_01", "choice_path": ["start", "r0"]},
@@ -58,7 +62,7 @@ def test_interact_applies_relationship_and_attribute_deltas(api_client, created_
         }
     ]
     assert body["attribute_changes"] == [
-        {"key": "charisma", "before": 74.0, "after": 74.2}
+        {"key": "charisma", "before": 80.0, "after": 80.2}
     ]
 
     detail = api_client.get(f"/careers/{career_id}/relationships/media").json()
@@ -94,3 +98,4 @@ def test_interact_negative_delta_clamps_at_zero(api_client, created_career):
         )
     assert resp.status_code == 200
     assert resp.json()["relationship_changes"][0]["after"] == 0
+
