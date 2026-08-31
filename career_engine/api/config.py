@@ -114,6 +114,12 @@ MAX_CONDITION_RECOVERY_PER_DAY = 12
 # caps the worst case regardless.
 SOCIAL_OFFER_DAILY_CHANCE = 0.12
 
+# §5.3 W5 - the widest calendar range one request may ask for. Two months
+# plus a couple of days: enough that a caller paging month by month never
+# hits it, small enough that "give me the whole season" can't be a single
+# query. Same spirit as MAX_PAGE_SIZE, different unit.
+MAX_CALENDAR_DAYS = 62
+
 # §5.5 T3 - safety cap so `to: "next_event"` can't loop forever if no
 # event condition is ever met (not a documented behavior, defensive only).
 MAX_ADVANCE_DAYS = 400

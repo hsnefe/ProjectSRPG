@@ -945,6 +945,7 @@ Taban: `http://127.0.0.1:8001`
 | W2 | `GET` | `/careers/{cid}/standings` | `?competition=&season=` → puan durumu (D18) |
 | W3 | `GET` | `/careers/{cid}/fixtures` | `?competition=&round=&team_id=&status=` |
 | W4 | `GET` | `/careers/{cid}/teams/{tid}` | Takım künyesi + renkler |
+| W5 | `GET` | `/careers/{cid}/calendar` | `?from=&to=` → takvim sayfası: fikstür + önemli günler |
 | **İlişki** ||||
 | R1 | `GET` | `/careers/{cid}/relationships` | Beş kart |
 | R2 | `GET` | `/careers/{cid}/relationships/{rid}` | Profil künyesi + son etkileşimler |
@@ -1378,6 +1379,59 @@ için gönderilir. `competition`, `competition_entry`'den o sezona göre çözü
 takım geçen sezon başka kademede olabilir (§3.3).
 
 ---
+
+#### W5 · `GET /careers/{cid}/calendar`
+
+```jsonc
+// GET …/calendar?from=2026-08-01&to=2026-08-31   (ikisi de opsiyonel)
+{ "from": "2026-08-01", "to": "2026-08-31", "today": "2026-08-19",
+  "season": { "season_id": "25/26", "starts_on": "2026-08-01", "ends_on": "2027-05-31" },
+  "days": [
+    { "date": "2026-08-08", "marks": [
+        { "kind": "match", "ref_id": "f_2526_lig1_r1_ykz_gal",
+          "competition": { /* CompetitionRef */ }, "round_no": 1,
+          "kickoff_at": "2026-08-08T20:00:00+03:00",
+          "home": { /* TeamRef */ }, "away": { /* TeamRef */ },
+          "status": "scheduled", "score": null, "is_user_match": true } ] },
+    { "date": "2026-08-10", "marks": [ { "kind": "wage", "ref_id": null } ] },
+    { "date": "2026-08-19", "marks": [
+        { "kind": "cup_round", "ref_id": "c_kupa", "round_no": 1,
+          "stage": "r32", "drawn": false } ] }
+  ] }
+```
+
+Varsayılan aralık `game_date`'in içinde bulunduğu **aydır** — sık kullanım
+çıplak bir GET olsun diye. Aralık `MAX_CALENDAR_DAYS`'i (62) aşarsa
+`422 invalid_request`.
+
+**Yalnız işaretli günler döner.** 31 günlük bir ayın beş işaretli günü varsa
+beş satır gelir; boş grid FE'nin işidir, zaten hafta başlangıcı kaymasını
+hesaplamak için `from`/`to`'yu bilmek zorunda.
+
+**`marks[].kind`, T1'in `events[].kind`'ından ayrı bir sözlüktür** ve olması
+gereken de budur:
+
+| | Soru | Kapsam |
+|---|---|---|
+| T1 `events[]` | "Bugün ne **doğru**?" | `upkeep_warning`, `relationship_low`, `social_offer` … |
+| W5 `marks[]` | "Bu güne ne **planlanmış**?" | `match` · `wage` · `cup_round` · `contract_expiry` · `season_start` · `season_end` |
+
+`upkeep_warning` gelecekteki bir bakiyenin projeksiyonudur — bir ay sonrası
+için hesaplanamaz. `relationship_low` ise hiç tarihi olmayan bir durumdur.
+Buna karşılık `wage` ve `cup_round`, T1'de karşılığı olmayan takvim
+gerçekleridir: maaş günü `WAGE_WEEKDAY`'den türetilir (aynı sabit §6.5'te
+ödemeyi yapar, böylece grid ile defter payday konusunda ayrışamaz) ve kupa
+turları **kura çekilmeden önce de** tarihlidir, yani "3 Kasım'da kupa maçın
+var" rakip belli olmadan çizilebilir. Kurası çekilmiş tur artık bir fikstürdür
+ve `match` olarak görünür.
+
+Takım renkleri `home`/`away`'in `TeamRef`'lerinin içinde zaten gelir; günü
+boyayacak FE'nin ayrıca bir alan istemesine gerek yok.
+
+**v1 yalnızca kullanıcının kendi maçlarını gösterir.** Her kulübün her maçını
+taşıyan bir grid takvim değil fikstür listesidir; oyuncunun sorusu "ben ne
+zaman oynuyorum". İleride `competition=` parametresiyle genişletilebilir,
+şekli değişmeden.
 
 ### 5.4 İlişki
 
@@ -2888,6 +2942,7 @@ Onuncu turda (sezon devri) alınanlar:
 | D49 | Kıta turnuvası | **v1'de yalnızca kontenjan** | Tek ülke (`TR`) var; 32 Türk takımıyla "Avrupa" turnuvası kurmak dünyayı bozardı. Kontenjan bilgisi bugünden doğru saklanır, turnuva sonra gelir |
 | D50 | Sözleşme süresi | **Sezon cinsinden; bitiş daima sezon sınırı** | Şartname iki bitiş tarihi tanımlıyor (1 Ocak / sezon sonu); gün cinsinden süre bunu tutturamaz |
 | D51 | Eşyanın günlük etkisi | **Ayrı `daily_effects` haritası, `effects` değil** | `effects` T2'nin haritası: bir kez, bir aksiyonla uygulanır. Eşyanın etkisi pasiftir — kimse koşu bandını "kullanmaz", sahip olmak mekaniğin tamamıdır. İkisini tek alana sıkıştırmak "bu satır ne zaman uygulanır" sorusunu okunamaz hâle getirirdi |
+| D55 | Takvim görünümünün verisi | **Kendi ucu (W5), FE'de birleştirme değil** | Fikstür + sözleşme + sezondan istemcide kurmak, `WAGE_WEEKDAY`'i Dart'ta yeniden yazdırırdı (§1.3) ve sezon sınırlarını **hiçbir uç** döndürmüyor. Üstelik sayfa başına 3-4 çağrı ve 20'şerlik fikstür sayfalaması gerekirdi |
 | D53 | Sosyal teklife cevap | **Zorunlu — açık teklif `advance`'ı kapıda reddeder** | "Sonra bakarım" seçeneği teklifi bir bildirime çevirirdi; ilişkinin karşı taraftan bir şey isteyebilmesi mekaniğin tamamı. Kapıda reddetmek, döngü içinde her gün durmaktan da açıktır: sıfır gün ilerleyip "none" diyen bir çağrı, hata gibi görünmeyen bir hatadır |
 | D54 | Teklifin ömrü | **Süre yok; geldiği gün cevaplanır** | D53 açık teklifle zamanı durdurduğu için "süresi doldu" ancak cevap vermeyi reddederek ulaşılabilirdi — cevap vermemek imkânsızken. Ulaşılamayan durum, test edilemeyen durumdur |
 | D52 | Günlük toparlanma tavanı | **Taban + eşya toplamı, sabit tavanla kesilir (INV-41)** | Tavansız, dükkânın yeterince büyük bir kısmını alan oyuncu bir maçı iki sakin günde geri öder ve kondisyon yönetilen bir kaynak olmaktan çıkar — §6.6'nın tüm varlık sebebi bu |
