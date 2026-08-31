@@ -12,7 +12,7 @@ from api.schemas.time import ActionRequest, AdvanceRequest, PurchaseRequest
 from catalog.lifestyle import LIFESTYLE_ITEMS
 from catalog.shop import SHOP_ITEMS
 from catalog.training import TRAINING_ITEMS
-from domain import attributes, condition, day_budget, daytime, fame, requirements
+from domain import attributes, condition, day_budget, daytime, fame, requirements, social
 from domain import relationships as relationships_domain
 from domain import wallet
 
@@ -173,6 +173,14 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
     if season and current_date >= season["ends_on"]:
         raise errors.season_finished()
 
+    # §6.3 D53: an open offer blocks time outright rather than being stopped
+    # on again each day. Refusing at the door is a clearer failure than a
+    # loop that advances zero days and reports "none" — and it makes the
+    # mandatory answer recoverable if the app dies with the modal on screen.
+    pending_offers = social.list_open(conn, career_id)
+    if pending_offers:
+        raise errors.social_offer_pending(pending_offers[0]["offer_id"])
+
     days_advanced = 0
     fixtures_total = 0
     competitions_total = set()
@@ -214,7 +222,7 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
         fixtures_total += day_result["fixtures_simulated"]
         competitions_total |= day_result["competitions_touched"]
 
-        stoppers = daytime.stop_worthy(day_result["events"])
+        stoppers = daytime.stop_worthy(day_result["events"], next_date)
         if stoppers:
             stop_reason = stoppers[0]["kind"]
             stopped_events = day_result["events"]

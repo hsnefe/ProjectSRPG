@@ -1474,7 +1474,9 @@ tamamen kilitlenip oyuncuyu çıkmaza sokamaz.
   "is_match_day": false,
   "events": [
     { "kind": "cup_draw",        "ref_id": "c_kupa",  "round_no": 5 },
-    { "kind": "upkeep_warning",  "ref_id": null,      "shortfall": 800 }
+    { "kind": "upkeep_warning",  "ref_id": null,      "shortfall": 800 },
+    { "kind": "social_offer",    "ref_id": "so_9f21", "relationship_id": "coach",
+      "opened_on": "2026-08-19" }                // §6.3 D53
   ],
   "condition_recovery": {                      // §6.6 · bir sonraki günün değeri
     "base": 5, "bonus": 2, "total": 7, "capped": false,
@@ -1482,7 +1484,7 @@ tamamen kilitlenip oyuncuyu çıkmaza sokamaz.
 ```
 
 `events[].kind`: `match` · `cup_draw` · `contract_expiring` · `upkeep_warning` ·
-`relationship_low` · `season_end`. **Cümle gönderilmez** — FE `kind` ve `ref_id`
+`relationship_low` · `season_end` · `social_offer`. **Cümle gönderilmez** — FE `kind` ve `ref_id`
 ile kendi metnini kurar (§1.3).
 
 `condition_recovery`, `advance`'ın **bir sonraki** günü için uygulayacağı
@@ -1575,6 +1577,10 @@ bütün müsabakalarda anında koşar (§6.7, D40).
 
 Sezon bittiyse `409 season_finished`; terfi/düşme o çağrının içinde hesaplanır
 ve `stop_reason: "season_end"` döner.
+
+Cevaplanmamış bir sosyal teklif varsa çağrı **hiç ilerlemeden**
+`409 social_offer_pending` döner ve mesajda `offer_id`'yi taşır (D53). Doğru
+tepki teklifi açmaktır, tekrar denemek değil.
 
 #### T4 · `POST /careers/{cid}/purchases`
 
@@ -1927,6 +1933,19 @@ bir daha asla sonraki maça ulaşamaz. Bu yüzden `relationship_low` durdurmaz
 gün durdurur. Yukarıdaki cümlenin kendi ifadesi de zaten böyleydi: "eşiğin
 altına **düştüğünde**", "30 gün **kala**".
 
+**Sosyal teklif de kenar-tetiklidir (D53).** T3 teklifin *geldiği* gün durur;
+sonraki günlerde T1 onu bildirmeye devam eder ama durma ölçütü sayılmaz —
+sayılsaydı takvim, `relationship_low` için anlatılan tuzağın aynısına düşerdi.
+Cevap zorunluluğunu sağlayan şey durma değil, çağrının **kapıdaki** reddidir:
+açık teklif varken `POST /advance` `409 social_offer_pending` atar. Böylece
+"sıfır gün ilerledi, sebep yok" gibi sessiz bir durum hiç oluşmaz, ve
+uygulama teklif ekrandayken kapansa bile durum kurtarılabilir kalır.
+
+Teklif üretimi günlük bir zar atışıdır (`SOCIAL_OFFER_DAILY_CHANCE`), kariyerin
+kendi seed'inden türetilir (INV-7) ve aynı anda en fazla bir teklif açık olabilir
+(INV-39). Havuz `content/social_offers.py`'dir; yeni bir şablon eklemek yalnız o
+dosyayı düzenlemektir.
+
 ### 6.4 Yarım kalan maç (D3 riskinin telafisi)
 
 `fixture.status = 'in_progress'` iken yeni bir `GET /matches/next` gelirse BE
@@ -2233,6 +2252,9 @@ kullanır ama kullanıcının maçı müdahalelerle sapar.
 | 409 | `not_match_day` | M1 çağrıldı ama bugün kullanıcının maçı yok (§6.1); mesaj sonraki kickoff tarihini ve kaç gün kaldığını taşır |
 | 409 | `fixture_already_played` | Sonuç ikinci kez yazılmak isteniyor |
 | 409 | `season_finished` | Sezon bitti, ilerletilemez |
+| 409 | `social_offer_pending` | Cevaplanmamış sosyal teklif varken `advance` çağrıldı (D53); mesaj `offer_id` taşır |
+| 409 | `social_offer_not_open` | Teklif zaten cevaplanmış |
+| 404 | `social_offer_not_found` | Bilinmeyen `offer_id` |
 | 409 | `fixture_not_in_progress` | M3 çağrıldı ama fikstür yarım kalmış değil |
 | 409 | `no_standings` | Puan durumu istenen müsabaka `kind='cup'` — eleme usulünde tablo yoktur |
 | 422 | `invalid_request` | Şema doğrulaması |
@@ -2782,6 +2804,12 @@ ve saklanmayan** bir alandır (D43/D45):
 | 409 | `offer_not_open` | Teklif zaten kabul edilmiş ya da süresi geçmiş |
 | 404 | `offer_not_found` | Bilinmeyen `offer_id` |
 
+> **Bu iki kod sosyal tekliflerinkiyle karıştırılmamalıdır.** §5.4'ün
+> `social_offer_not_found` / `social_offer_not_open` kodları ayrı tutuldu ki
+> transfer teklifleri geldiğinde buradaki `offer_*` ailesi serbest kalsın —
+> tek bir kod ailesini iki farklı ömre sahip iki mekaniğin paylaşması, ikisi
+> birden var olduğu gün sözleşmenin birini yalancı çıkarırdı.
+
 **Emekli:** `409 season_finished`.
 
 ---
@@ -2800,6 +2828,8 @@ Onuncu turda (sezon devri) alınanlar:
 | D49 | Kıta turnuvası | **v1'de yalnızca kontenjan** | Tek ülke (`TR`) var; 32 Türk takımıyla "Avrupa" turnuvası kurmak dünyayı bozardı. Kontenjan bilgisi bugünden doğru saklanır, turnuva sonra gelir |
 | D50 | Sözleşme süresi | **Sezon cinsinden; bitiş daima sezon sınırı** | Şartname iki bitiş tarihi tanımlıyor (1 Ocak / sezon sonu); gün cinsinden süre bunu tutturamaz |
 | D51 | Eşyanın günlük etkisi | **Ayrı `daily_effects` haritası, `effects` değil** | `effects` T2'nin haritası: bir kez, bir aksiyonla uygulanır. Eşyanın etkisi pasiftir — kimse koşu bandını "kullanmaz", sahip olmak mekaniğin tamamıdır. İkisini tek alana sıkıştırmak "bu satır ne zaman uygulanır" sorusunu okunamaz hâle getirirdi |
+| D53 | Sosyal teklife cevap | **Zorunlu — açık teklif `advance`'ı kapıda reddeder** | "Sonra bakarım" seçeneği teklifi bir bildirime çevirirdi; ilişkinin karşı taraftan bir şey isteyebilmesi mekaniğin tamamı. Kapıda reddetmek, döngü içinde her gün durmaktan da açıktır: sıfır gün ilerleyip "none" diyen bir çağrı, hata gibi görünmeyen bir hatadır |
+| D54 | Teklifin ömrü | **Süre yok; geldiği gün cevaplanır** | D53 açık teklifle zamanı durdurduğu için "süresi doldu" ancak cevap vermeyi reddederek ulaşılabilirdi — cevap vermemek imkânsızken. Ulaşılamayan durum, test edilemeyen durumdur |
 | D52 | Günlük toparlanma tavanı | **Taban + eşya toplamı, sabit tavanla kesilir (INV-41)** | Tavansız, dükkânın yeterince büyük bir kısmını alan oyuncu bir maçı iki sakin günde geri öder ve kondisyon yönetilen bir kaynak olmaktan çıkar — §6.6'nın tüm varlık sebebi bu |
 
 ---
@@ -2813,6 +2843,8 @@ Onuncu turda (sezon devri) alınanlar:
 | INV-35 | `player_contract.expires_at` daima ya bir sezonun `ends_on`'u ya da bir `winter_break_from` tarihidir (D50) |
 | INV-36 | Devir tek transaction'dır; kısmen uygulanmış bir devir (girişler yazılmış ama fikstür üretilmemiş gibi) oluşamaz |
 | INV-37 | Devir sonrası her takım yeni sezonda **tam olarak bir** lige girer — INV-14'ün ("birden fazlasına giremez") tamamlayıcısı |
+| INV-39 | Bir kariyerde aynı anda `status='open'` olan **en fazla bir** `social_offer` satırı bulunur (D53) |
+| INV-40 | Bir sosyal teklifi **reddetmek** hiçbir gereksinim kontrol etmez, hiçbir bütçe/para harcamaz ve başarısız olamaz — zorunlu cevabın çıkış kapısı budur |
 | INV-41 | Bir günün doğal kondisyon toparlanması (taban + sahip olunan eşyaların `daily_effects.condition` toplamı) `MAX_CONDITION_RECOVERY_PER_DAY`'i aşmaz; aşsa da INV-10'un tavanı ayrıca geçerlidir (D52) |
 
 **Garanti EDİLMEYEN:** sezonların fikstür sırasının birbirinden bağımsızlığı —

@@ -55,6 +55,26 @@ def already_owned(item_id: str) -> ApiError:
     return ApiError(409, "already_owned", f"{item_id!r} is already owned")
 
 
+# §9 - social offers get their OWN codes rather than a generic offer_*
+# family. §11.9 reserves `offer_not_found` / `offer_not_open` for transfer
+# offers (S3/S4), a different mechanic with a different lifetime; sharing the
+# codes would make one of the two contracts a lie the day both exist.
+
+def social_offer_not_found(offer_id: str) -> ApiError:
+    return ApiError(404, "social_offer_not_found", f"no social offer {offer_id!r}")
+
+
+def social_offer_not_open(offer_id: str) -> ApiError:
+    return ApiError(409, "social_offer_not_open", f"social offer {offer_id!r} is already answered")
+
+
+def social_offer_pending(offer_id: str) -> ApiError:
+    """§6.3 D53 - the answer is mandatory, so time cannot move while an offer
+    is open. The id travels in the message because the caller's correct
+    reaction is to open that offer, not to retry."""
+    return ApiError(409, "social_offer_pending", f"social offer {offer_id!r} is waiting for an answer")
+
+
 def match_in_progress(fixture_id: str) -> ApiError:
     return ApiError(409, "match_in_progress", f"fixture {fixture_id!r} has an unfinished match")
 

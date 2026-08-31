@@ -254,3 +254,58 @@ def test_an_offer_from_a_since_deleted_template_still_reads(db_conn, offer_caree
     offer = social.get(db_conn, offer_career, "so_gone")
     assert offer["title"] == ""
     assert offer["relationship_id"] == "coach"
+
+
+# --- the day loop (§6.3) --------------------------------------------------
+
+@pytest.fixture
+def offers_on(monkeypatch):
+    """Turns the conftest-wide off switch back on for the router tests
+    below, so an offer lands on the first advanced day."""
+    monkeypatch.setattr(config, "SOCIAL_OFFER_DAILY_CHANCE", 1.0)
+
+
+def _first_offer(api_client, career_id):
+    day = api_client.get(f"/careers/{career_id}/day").json()
+    events = [e for e in day["events"] if e["kind"] == "social_offer"]
+    return events[0] if events else None
+
+
+def test_an_arriving_offer_stops_the_advance(api_client, mock_engine, offers_on):
+    from tests.conftest import new_career
+
+    career_id, _ = new_career(api_client)
+    body = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_event"}).json()
+
+    assert body["stop_reason"] == "social_offer"
+    stopper = next(e for e in body["stopped_events"] if e["kind"] == "social_offer")
+    assert stopper["ref_id"].startswith("so_")
+    assert stopper["opened_on"] == body["stopped_on"]
+
+
+def test_time_cannot_move_while_an_offer_waits(api_client, mock_engine, offers_on):
+    """D53 - the answer is mandatory, and the refusal names the offer so the
+    caller's correct reaction is to open it rather than retry."""
+    from tests.conftest import new_career
+
+    career_id, _ = new_career(api_client)
+    first = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_event"}).json()
+    offer_id = next(e["ref_id"] for e in first["stopped_events"] if e["kind"] == "social_offer")
+
+    blocked = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"})
+    assert blocked.status_code == 409
+    assert blocked.json()["code"] == "social_offer_pending"
+    assert offer_id in blocked.json()["message"]
+
+    frozen = api_client.get(f"/careers/{career_id}/day").json()
+    assert frozen["career_state"]["current_date"] == first["stopped_on"]
+
+
+def test_t1_keeps_reporting_an_open_offer(api_client, mock_engine, offers_on):
+    """The stop is edge-triggered but the STATE is not: the player should
+    keep seeing the offer on the hub for as long as it is unanswered."""
+    from tests.conftest import new_career
+
+    career_id, _ = new_career(api_client)
+    api_client.post(f"/careers/{career_id}/advance", json={"to": "next_event"})
+    assert _first_offer(api_client, career_id) is not None
