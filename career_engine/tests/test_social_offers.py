@@ -309,3 +309,172 @@ def test_t1_keeps_reporting_an_open_offer(api_client, mock_engine, offers_on):
     career_id, _ = new_career(api_client)
     api_client.post(f"/careers/{career_id}/advance", json={"to": "next_event"})
     assert _first_offer(api_client, career_id) is not None
+
+
+# --- R4-R6 (§5.4) ---------------------------------------------------------
+
+def _open_offer(api_client, mock_engine=None):
+    """A career sitting on one open offer, plus that offer's body."""
+    from tests.conftest import new_career
+
+    career_id, _ = new_career(api_client)
+    advanced = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_event"}).json()
+    assert advanced["stop_reason"] == "social_offer"
+
+    offers = api_client.get(f"/careers/{career_id}/social/offers").json()["offers"]
+    assert len(offers) == 1
+    return career_id, offers[0]
+
+
+def test_r4_serves_the_text_and_the_gate_but_never_the_payoff(
+    api_client, mock_engine, offers_on
+):
+    career_id, offer = _open_offer(api_client)
+
+    assert offer["offer_id"].startswith("so_")
+    assert offer["status"] == "open"
+    assert offer["title"] and offer["body"]
+    assert offer["accept_label"] and offer["decline_label"]
+    assert offer["relationship"]["relationship_id"] == offer["relationship_id"]
+    assert "person_name" in offer["relationship"]
+    # The gate is served (D42 — FE greys the choice out); the reward is not.
+    assert "requires" in offer and "costs" in offer
+    assert "accept" not in offer and "decline" not in offer
+
+
+def test_accepting_moves_the_relationship_and_frees_the_calendar(
+    api_client, mock_engine, offers_on
+):
+    career_id, offer = _open_offer(api_client)
+    before = api_client.get(f"/careers/{career_id}/relationships").json()["relationships"]
+    before_score = next(
+        r["score"] for r in before if r["relationship_id"] == offer["relationship_id"]
+    )
+
+    resp = api_client.post(f"/careers/{career_id}/social/offers/{offer['offer_id']}/accept")
+    assert resp.status_code == 200, resp.json()
+    body = resp.json()
+
+    assert body["offer"]["status"] == "accepted"
+    assert len(body["relationship_changes"]) == 1
+    change = body["relationship_changes"][0]
+    assert change["relationship_id"] == offer["relationship_id"]
+    assert change["after"] == before_score + change["delta"]
+    assert change["delta"] > 0  # accepting is what the other side wanted
+
+    # THE FREEZE TEST: an answered offer must let time move again.
+    resumed = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_event"})
+    assert resumed.status_code == 200
+    assert resumed.json()["days_advanced"] >= 1
+
+
+def test_declining_costs_the_relationship_but_nothing_else(
+    api_client, mock_engine, offers_on
+):
+    career_id, offer = _open_offer(api_client)
+    budget_before = api_client.get(f"/careers/{career_id}/day").json()["career_state"]["day_budget"]
+    money_before = api_client.get(f"/careers/{career_id}/day").json()["career_state"]["money"]
+
+    body = api_client.post(
+        f"/careers/{career_id}/social/offers/{offer['offer_id']}/decline"
+    ).json()
+
+    assert body["offer"]["status"] == "declined"
+    assert body["relationship_changes"][0]["delta"] < 0
+    assert body["ledger_entries"] == []
+    assert body["career_state"]["day_budget"] == budget_before
+    assert body["career_state"]["money"] == money_before
+
+
+def test_accepting_spends_the_template_s_costs(api_client, mock_engine, offers_on):
+    career_id, offer = _open_offer(api_client)
+    before = api_client.get(f"/careers/{career_id}/day").json()["career_state"]["day_budget"]
+
+    body = api_client.post(
+        f"/careers/{career_id}/social/offers/{offer['offer_id']}/accept"
+    ).json()
+
+    for resource, amount in offer["costs"].items():
+        assert body["career_state"]["day_budget"][resource] == before[resource] - amount
+
+
+def test_declining_works_with_no_budget_and_no_money(api_client, mock_engine, offers_on):
+    """INV-40 - the answer is mandatory, so the way out can never fail. A
+    player with an empty day and an empty wallet must still be able to clear
+    the offer, or a shortfall would wedge the career for good."""
+    import sqlite3
+
+    career_id, offer = _open_offer(api_client)
+    conn = sqlite3.connect(config.DB_PATH)
+    conn.execute("UPDATE day_budget SET remaining = 0 WHERE career_id = ?", (career_id,))
+    conn.commit()
+    conn.close()
+
+    resp = api_client.post(f"/careers/{career_id}/social/offers/{offer['offer_id']}/decline")
+    assert resp.status_code == 200
+    assert api_client.post(
+        f"/careers/{career_id}/advance", json={"to": "next_day"}
+    ).status_code == 200
+
+
+def test_accepting_without_the_budget_changes_nothing(api_client, mock_engine, offers_on):
+    """INV-4/INV-30 - a refused accept leaves the offer open and every
+    counter untouched, so the player can still decline it."""
+    import sqlite3
+
+    career_id, offer = _open_offer(api_client)
+    if not offer["costs"]:
+        pytest.skip("this offer is free; the budget path is not exercised by it")
+
+    conn = sqlite3.connect(config.DB_PATH)
+    conn.execute("UPDATE day_budget SET remaining = 0 WHERE career_id = ?", (career_id,))
+    conn.commit()
+    conn.close()
+    before = api_client.get(f"/careers/{career_id}/relationships").json()["relationships"]
+
+    resp = api_client.post(f"/careers/{career_id}/social/offers/{offer['offer_id']}/accept")
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "insufficient_budget"
+
+    after = api_client.get(f"/careers/{career_id}/relationships").json()["relationships"]
+    assert after == before
+    assert len(api_client.get(f"/careers/{career_id}/social/offers").json()["offers"]) == 1
+
+
+def test_answering_twice_is_refused(api_client, mock_engine, offers_on):
+    career_id, offer = _open_offer(api_client)
+    assert api_client.post(
+        f"/careers/{career_id}/social/offers/{offer['offer_id']}/accept"
+    ).status_code == 200
+
+    second = api_client.post(f"/careers/{career_id}/social/offers/{offer['offer_id']}/decline")
+    assert second.status_code == 409
+    assert second.json()["code"] == "social_offer_not_open"
+
+
+def test_an_unknown_offer_is_a_404(api_client, mock_engine, offers_on):
+    from tests.conftest import new_career
+
+    career_id, _ = new_career(api_client)
+    resp = api_client.post(f"/careers/{career_id}/social/offers/so_nope/accept")
+    assert resp.status_code == 404
+    assert resp.json()["code"] == "social_offer_not_found"
+
+
+def test_r1_flags_exactly_the_card_with_an_offer_waiting(api_client, mock_engine, offers_on):
+    career_id, offer = _open_offer(api_client)
+    cards = api_client.get(f"/careers/{career_id}/relationships").json()["relationships"]
+
+    flagged = [c["relationship_id"] for c in cards if c["has_pending_request"]]
+    assert flagged == [offer["relationship_id"]]
+
+    api_client.post(f"/careers/{career_id}/social/offers/{offer['offer_id']}/decline")
+    cards = api_client.get(f"/careers/{career_id}/relationships").json()["relationships"]
+    assert not any(c["has_pending_request"] for c in cards)
+
+
+def test_r4_is_empty_on_a_career_that_has_never_been_offered_anything(api_client):
+    from tests.conftest import new_career
+
+    career_id, _ = new_career(api_client)
+    assert api_client.get(f"/careers/{career_id}/social/offers").json() == {"offers": []}

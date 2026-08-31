@@ -949,6 +949,9 @@ Taban: `http://127.0.0.1:8001`
 | R1 | `GET` | `/careers/{cid}/relationships` | Beş kart |
 | R2 | `GET` | `/careers/{cid}/relationships/{rid}` | Profil künyesi + son etkileşimler |
 | R3 | `POST` | `/careers/{cid}/relationships/{rid}/interact` | Diyalog sonucunu uygular |
+| R4 | `GET` | `/careers/{cid}/social/offers` | Cevap bekleyen sosyal teklifler (§6.3 D53) |
+| R5 | `POST` | `/careers/{cid}/social/offers/{oid}/accept` | Teklifi kabul eder |
+| R6 | `POST` | `/careers/{cid}/social/offers/{oid}/decline` | Teklifi reddeder |
 | **Zaman** ||||
 | T1 | `GET` | `/careers/{cid}/day` | Bugün: tarih, kalan aksiyon, bugünkü olaylar |
 | T2 | `POST` | `/careers/{cid}/actions` | Antrenman / yaşam aktivitesi uygular |
@@ -1389,7 +1392,7 @@ takım geçen sezon başka kademede olabilir (§3.3).
       "person_name":     "Mert Aydın",
       "contact_name":    "Mert Hoca",
       "last_contact_at": "2026-03-12",
-      "has_pending_request": false,
+      "has_pending_request": false,       // R4 · bu ilişkiden açık teklif var mı
       "traits": { "trust": 74, "promised_minutes": 60, "tactical_fit": 0.8 } }
 ] }
 ```
@@ -1450,6 +1453,63 @@ reddedilir:
 { "code": "requirement_not_met",
   "message": "'charisma' level 7, needs 8" }
 ```
+
+#### R4 · `GET /careers/{cid}/social/offers`
+
+```jsonc
+{ "offers": [
+    { "offer_id":        "so_9f21c3",
+      "template_id":     "coach_extra_session",
+      "relationship_id": "coach",
+      "relationship": { "relationship_id": "coach", "kind": "coach",
+                        "category": "Antrenör", "score": 74,
+                        "person_name": "Mert Çalışkan", "contact_name": "Antrenör Mert" },
+      "title": "Fazladan idman",
+      "body":  "Antrenör Mert, yarın sabah antrenmandan önce seninle bire bir çalışmak istiyor.",
+      "accept_label": "Sahada olurum",
+      "decline_label": "Bu hafta olmaz",
+      "costs":    { "time": 120, "energy": 20 },
+      "requires": {},
+      "opened_on": "2026-08-19",
+      "status":    "open",
+      "resolved_on": null } ] }
+```
+
+**Metin BE'de yazarlanır, cümle BE'de kurulmaz.** İkisi aynı şey değil: §1.3'ün
+yasakladığı şey verinin cümleye çevrilmesidir ("3 gün kaldı"), yazarlanmış
+içeriğin kendisi değil — `news`'in `title`/`body`'si de aynı şekilde gelir.
+Teklifin bir dalı olmadığı için (bir paragraf, iki buton) metni FE'de tutmak,
+yeni bir şablon eklemeyi iki depoda düzenleme yapmaya çevirirdi; diyalog
+**ağaçları** FE'de kalmaya devam ediyor (D23), çünkü onların dallanması bir
+arayüz yapısıdır.
+
+`costs` ve `requires` gönderilir — oyuncu seçmeden **önce** kapıyı görmeye
+hak kazanır (D42). `accept`/`decline` ödülleri gönderilmez, aynı gerekçeyle
+`GET /catalog/dialogue`'un yalnızca kilitleri servis etmesi gibi.
+
+#### R5/R6 · `POST /careers/{cid}/social/offers/{oid}/accept` · `…/decline`
+
+Gövdesiz. Yanıt R3'ün şeklidir, artı çözümlenmiş `offer`:
+
+```jsonc
+{ "career_state": { /* CareerState */ },
+  "offer": { "offer_id": "so_9f21c3", "status": "accepted",
+             "resolved_on": "2026-08-19", /* … R4'ün alanları */ },
+  "relationship_changes": [
+    { "relationship_id": "coach", "before": 70, "after": 75, "delta": 5 } ],
+  "attribute_changes": [ /* şablonun `attribute:*` etkileri */ ],
+  "ledger_entries":    [ /* şablonun `money` etkisi */ ] }
+```
+
+**Kabulün kontrol sırası T2'nin tablosunun aynısıdır** (§5.5): teklif var mı
+(`404 social_offer_not_found`) → açık mı (`409 social_offer_not_open`) →
+`requires` (`409 requirement_not_met`) → bütçe (`409 insufficient_budget`) →
+bakiye (`409 insufficient_funds`). Reddedilen bir kabul **hiçbir şey yazmaz**
+ve teklif açık kalır — oyuncu hâlâ reddedebilir.
+
+**Reddetme bu sıranın hiçbir adımını çalıştırmaz ve başarısız olamaz (INV-40).**
+Cevap zorunlu olduğu için (D53) çıkış kapısının koşulsuz olması gerekir: parası
+ve günü bitmiş bir oyuncu teklifi temizleyemezse kariyer kilitlenir.
 
 `relationship.score` değişmez, `relationship_event`'e satır düşmez, hiçbir
 nitelik oynamaz (INV-30). Kontrol `choice_path` çözümlendikten **sonra**,
