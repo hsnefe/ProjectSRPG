@@ -1475,12 +1475,22 @@ tamamen kilitlenip oyuncuyu çıkmaza sokamaz.
   "events": [
     { "kind": "cup_draw",        "ref_id": "c_kupa",  "round_no": 5 },
     { "kind": "upkeep_warning",  "ref_id": null,      "shortfall": 800 }
-  ] }
+  ],
+  "condition_recovery": {                      // §6.6 · bir sonraki günün değeri
+    "base": 5, "bonus": 2, "total": 7, "capped": false,
+    "sources": [ { "item_id": "home-treadmill", "title": "Koşu bandı", "amount": 2 } ] } }
 ```
 
 `events[].kind`: `match` · `cup_draw` · `contract_expiring` · `upkeep_warning` ·
 `relationship_low` · `season_end`. **Cümle gönderilmez** — FE `kind` ve `ref_id`
 ile kendi metnini kurar (§1.3).
+
+`condition_recovery`, `advance`'ın **bir sonraki** günü için uygulayacağı
+toparlanmanın önizlemesidir (§6.6). `sources[]` sahip olunan eşyalardan gelen
+payı ayrıştırır ki FE "+7 (koşu bandı +2)" diyebilsin; `title` yazarlanmış
+katalog metnidir, kurulmuş bir cümle değil. Sayıyı hesaplayan tek yer
+`domain/condition.daily_recovery()`'dir — önizleme ile uygulama iki ayrı yerde
+hesaplansaydı ayrışabilirlerdi.
 
 #### T2 · `POST /careers/{cid}/actions`
 
@@ -1759,6 +1769,7 @@ onu FE, P1'in `level` alanıyla kendisi hesaplar (D42).
     { "catalog_id": "daire-merkez", "title": "…", "description": "…",
       "category": "housing", "price": 250000,
       "upkeep_weekly": 1800,                    // D27
+      "daily_effects": { "condition": 1 },      // D51 · opsiyonel, pasif
       "note": "3+1, 120 m²" } ] }
 
 // GET /catalog/dialogue — yalnızca kilitler, ödüller DEĞİL
@@ -1966,6 +1977,17 @@ seçebilir.
 
 ### 6.6 Kondisyon döngüsü (D38)
 
+**Günlük toparlanma taban + eşya bonusudur (D51/D52).** Atlanan her gün
+`NATURAL_CONDITION_RECOVERY_PER_DAY` tabanını, artı sahip olunan her eşyanın
+`daily_effects.condition` payını öder; toplam `MAX_CONDITION_RECOVERY_PER_DAY`
+ile kesilir (INV-41) ve sonra her zamanki gibi nitelik tavanına sıkışır
+(INV-10). Bonus **delta'nın boyunu** değiştirir, tavanı değil: tavandaki bir
+oyuncu bütün rafı almış olsa da tavanda kalır.
+
+Bonus tablosu `catalog/shop.py`'ın kendi satırlarından türetilir; yeni bir kalem
+eklemek yalnız o dosyayı düzenlemek demektir — toplama, tavan ve önizleme
+zaten veriden okur.
+
 Kondisyon **tek bir kaynaktır** ve kariyer ile maç arasında dolaşır. "Takım
 kondisyonu" diye ayrı bir kavram yoktur — maç ekranındaki çubuk oyuncunun kendi
 kondisyonudur.
@@ -1997,7 +2019,7 @@ career_state.condition ──► POST /matches gövdesi: user_condition   (maç 
 | Maç içi erime | **API katmanı**, `effort`'a bağlı hızla | §7.3 |
 | Ekranda gösterim | Tick zarfının yeni `player.condition` alanı | §7.3 |
 | Geri yazma | FE `final_condition` raporlar → kariyer BE yazar | §5.6 |
-| Toparlanma | Yaşam aktiviteleri ve atlanan günler | §6.2, §6.3 |
+| Toparlanma | Yaşam aktiviteleri, atlanan günler ve sahip olunan eşyalar | §6.2, §6.3 |
 
 **Erime hızı yalnızca `effort`'a bağlıdır (D39).** Formül yeni değil: imzalı
 contract'ın §6.4'ündeki `EFFORT_STAMINA_SWING` eğrisi ve
@@ -2766,6 +2788,8 @@ Onuncu turda (sezon devri) alınanlar:
 | D48 | Transfer öznesi | **Yalnızca kullanıcı** | D4 (kadro yok) korunur. NPC transferi 32 takımlık kadro modeli ister; o, sezon mantığından büyük ayrı bir iştir |
 | D49 | Kıta turnuvası | **v1'de yalnızca kontenjan** | Tek ülke (`TR`) var; 32 Türk takımıyla "Avrupa" turnuvası kurmak dünyayı bozardı. Kontenjan bilgisi bugünden doğru saklanır, turnuva sonra gelir |
 | D50 | Sözleşme süresi | **Sezon cinsinden; bitiş daima sezon sınırı** | Şartname iki bitiş tarihi tanımlıyor (1 Ocak / sezon sonu); gün cinsinden süre bunu tutturamaz |
+| D51 | Eşyanın günlük etkisi | **Ayrı `daily_effects` haritası, `effects` değil** | `effects` T2'nin haritası: bir kez, bir aksiyonla uygulanır. Eşyanın etkisi pasiftir — kimse koşu bandını "kullanmaz", sahip olmak mekaniğin tamamıdır. İkisini tek alana sıkıştırmak "bu satır ne zaman uygulanır" sorusunu okunamaz hâle getirirdi |
+| D52 | Günlük toparlanma tavanı | **Taban + eşya toplamı, sabit tavanla kesilir (INV-41)** | Tavansız, dükkânın yeterince büyük bir kısmını alan oyuncu bir maçı iki sakin günde geri öder ve kondisyon yönetilen bir kaynak olmaktan çıkar — §6.6'nın tüm varlık sebebi bu |
 
 ---
 
@@ -2778,6 +2802,7 @@ Onuncu turda (sezon devri) alınanlar:
 | INV-35 | `player_contract.expires_at` daima ya bir sezonun `ends_on`'u ya da bir `winter_break_from` tarihidir (D50) |
 | INV-36 | Devir tek transaction'dır; kısmen uygulanmış bir devir (girişler yazılmış ama fikstür üretilmemiş gibi) oluşamaz |
 | INV-37 | Devir sonrası her takım yeni sezonda **tam olarak bir** lige girer — INV-14'ün ("birden fazlasına giremez") tamamlayıcısı |
+| INV-41 | Bir günün doğal kondisyon toparlanması (taban + sahip olunan eşyaların `daily_effects.condition` toplamı) `MAX_CONDITION_RECOVERY_PER_DAY`'i aşmaz; aşsa da INV-10'un tavanı ayrıca geçerlidir (D52) |
 
 **Garanti EDİLMEYEN:** sezonların fikstür sırasının birbirinden bağımsızlığı —
 devir kariyerin kendi `seed`'ini kullanmayı sürdürür, dolayısıyla INV-7 (aynı

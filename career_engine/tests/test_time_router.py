@@ -154,6 +154,61 @@ def test_advance_recovers_condition_every_day(api_client, created_career, mock_e
     assert body["career_state"]["condition"] == 20 + config.NATURAL_CONDITION_RECOVERY_PER_DAY
 
 
+def test_get_day_reports_what_the_next_day_is_worth(api_client, created_career):
+    """§6.6 - T1 previews the same number process_day() will apply, so the
+    hub can say "+5 bugün" without guessing at the rule."""
+    body = api_client.get(f"/careers/{created_career['career_id']}/day").json()
+    assert body["condition_recovery"] == {
+        "base": config.NATURAL_CONDITION_RECOVERY_PER_DAY,
+        "bonus": 0,
+        "total": config.NATURAL_CONDITION_RECOVERY_PER_DAY,
+        "capped": False,
+        "sources": [],
+    }
+
+
+def test_owning_an_item_raises_both_the_preview_and_the_actual_gain(
+    api_client, created_career, mock_engine
+):
+    """§6.6 end to end: buy the treadmill, and the SAME bigger number shows
+    up in T1's preview and in the condition the next advanced day pays."""
+    career_id = created_career["career_id"]
+    grant_money(career_id, 100_000)
+    assert api_client.post(
+        f"/careers/{career_id}/purchases", json={"catalog_id": "home-treadmill"}
+    ).status_code == 200
+
+    preview = api_client.get(f"/careers/{career_id}/day").json()["condition_recovery"]
+    assert preview["bonus"] == 2
+    assert preview["total"] == config.NATURAL_CONDITION_RECOVERY_PER_DAY + 2
+    assert [s["item_id"] for s in preview["sources"]] == ["home-treadmill"]
+
+    conn = sqlite3.connect(config.DB_PATH)
+    conn.execute("UPDATE career_state SET condition = 20 WHERE career_id = ?", (career_id,))
+    conn.commit()
+    conn.close()
+
+    body = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"}).json()
+    assert body["career_state"]["condition"] == 20 + preview["total"]
+
+
+def test_the_item_bonus_still_stops_at_the_attribute_ceiling(
+    api_client, created_career, mock_engine
+):
+    """INV-10 - the bonus changes the delta, never the clamp. A career
+    starts at condition 100 with a ceiling of 100, so owning the whole
+    recovery shelf must still leave it at 100, not 103."""
+    career_id = created_career["career_id"]
+    grant_money(career_id, 20_000_000)
+    for catalog_id in ("home-treadmill", "estate-villa"):
+        assert api_client.post(
+            f"/careers/{career_id}/purchases", json={"catalog_id": catalog_id}
+        ).status_code == 200
+
+    body = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"}).json()
+    assert body["career_state"]["condition"] == 100
+
+
 def test_advance_walks_a_full_week_between_matches(api_client, created_career, mock_engine):
     """The whole point of the day loop: a match, then a week of days the
     user actually plays, then the next match."""

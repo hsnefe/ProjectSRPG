@@ -430,8 +430,12 @@ def process_day(conn: sqlite3.Connection, career_id: str, on_date: str, seed: in
             repossessed += sold
 
     # §6.3: every advanced day gets natural condition recovery, not just
-    # ones with a lifestyle activity applied via T2.
-    condition.apply_delta(conn, career_id, config.NATURAL_CONDITION_RECOVERY_PER_DAY)
+    # ones with a lifestyle activity applied via T2. §6.6: the rate is no
+    # longer flat — owned items raise it — but the number is computed in
+    # exactly one place (condition.daily_recovery) so T1's preview and this
+    # application can't disagree.
+    recovery = condition.daily_recovery(conn, career_id)
+    condition.apply_delta(conn, career_id, recovery["total"])
 
     sim = _simulate_day_fixtures(conn, career_id, on_date, seed)
 
@@ -441,6 +445,7 @@ def process_day(conn: sqlite3.Connection, career_id: str, on_date: str, seed: in
 
     return {
         "events": events,
+        "condition_recovery": recovery,
         "ledger_entries": ledger_entries,
         "news_created": news_created,
         "repossessed": repossessed,

@@ -23,6 +23,14 @@ _SIMPLE_EFFECT_KEYS = {"condition", "energy", "money"}
 # third dimension is added later without a code change here.
 KNOWN_COST_KEYS = {"time", "energy"}
 
+# §6.3/§6.6 - the keys the DAY LOOP applies once per advanced day, as opposed
+# to `effects`, which a single action applies once. Deliberately NARROWER than
+# _is_known_effect_key's space: `condition` is the only one domain/daytime.py
+# actually reads, and a `money` key sitting in a shop item doing nothing every
+# day is exactly the dead row INV-28 exists to reject. Widen this set only in
+# the same commit that teaches the day loop to apply the new key.
+KNOWN_DAILY_EFFECT_KEYS = {"condition"}
+
 # D43 - `requires` values are attribute LEVELS, not raw values. The bounds
 # mirror domain.attributes.level()'s range exactly; a threshold of 11 could
 # never be cleared, so it is a typo, not a very hard gate.
@@ -56,6 +64,23 @@ def validate_requires(requires: dict, where: str) -> None:
             )
 
 
+def validate_daily_effects(daily: dict, where: str) -> None:
+    """INV-28's sibling for the passive, per-day effect map an owned item may
+    carry. Negative values are rejected on purpose: a daily condition DRAIN
+    fights INV-10's clamp in a way no UI can explain (the bar would sink
+    toward zero with nothing the player did), so if that mechanic is ever
+    wanted it should arrive as its own deliberate widening, not by someone
+    typing a minus sign."""
+    for key, value in (daily or {}).items():
+        if key not in KNOWN_DAILY_EFFECT_KEYS:
+            raise ValueError(f"{where} has unknown daily effect key {key!r}")
+        # bool is an int subclass; True would silently read as +1 a day.
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            raise ValueError(f"{where} daily effect {key!r} is not a number: {value!r}")
+        if value < 0:
+            raise ValueError(f"{where} daily effect {key!r} is negative: {value!r}")
+
+
 def validate_catalog(items: list, source: str) -> None:
     for item in items:
         for key in item.get("costs", {}):
@@ -64,4 +89,5 @@ def validate_catalog(items: list, source: str) -> None:
         for key in item.get("effects", {}):
             if not _is_known_effect_key(key):
                 raise ValueError(f"{source}:{item['catalog_id']!r} has unknown effect key {key!r}")
+        validate_daily_effects(item.get("daily_effects"), f"{source}:{item['catalog_id']!r}")
         validate_requires(item.get("requires"), f"{source}:{item['catalog_id']!r}")

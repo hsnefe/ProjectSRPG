@@ -46,7 +46,15 @@ def get_day(career_id: str, conn: sqlite3.Connection = Depends(get_db)):
     career_state = serializers.fetch_career_state(conn, career_id)
     events = daytime.list_events(conn, career_id, career_state["current_date"])
     is_match_day = any(e["kind"] == "match" for e in events)
-    return {"career_state": career_state, "is_match_day": is_match_day, "events": events}
+    return {
+        "career_state": career_state,
+        "is_match_day": is_match_day,
+        "events": events,
+        # §6.6 - what the NEXT advanced day is worth in condition, base and
+        # owned-item bonus split out so FE can show where it came from
+        # without fetching the shop catalog (§5.0: additive field).
+        "condition_recovery": condition.daily_recovery(conn, career_id),
+    }
 
 
 @router.post("/actions")

@@ -7,6 +7,17 @@ D27: only the three real-estate items carry upkeep_weekly > 0 — the other
 categories are one-off purchases with no ongoing cost. Amounts are
 authored, not derived from price by a fixed formula; ⟦AÇIK-5⟧ still covers
 whether this scale is right.
+
+§6.6 `daily_effects`: an owned item may raise the natural per-day condition
+recovery the day loop applies. It is a PASSIVE map — nobody "uses" a
+treadmill, owning it is the whole mechanic — which is why it lives here and
+not in `effects` (that map belongs to T2 actions and fires once). The day
+loop reads only `condition`; catalog/__init__.KNOWN_DAILY_EFFECT_KEYS is the
+authority on what else may appear.
+
+Adding, removing or re-pricing a bonus is an edit to THIS FILE ONLY: nothing
+downstream names an item id, the sum is derived below and the cap lives in
+api/config.py.
 """
 
 SHOP_ITEMS = [
@@ -22,9 +33,14 @@ SHOP_ITEMS = [
      "description": "Boş günlerin standart eğlencesi. Takım arkadaşlarıyla online "
                      "turnuvalar için de iyi bahane.",
      "price": 18900, "upkeep_weekly": 0, "note": "İki kollu"},
+    # ⟦PLACEHOLDER⟧ §6.6 - the real bonus table is authored later; these two
+    # rows exist so the mechanic ships exercised rather than untested. Their
+    # own descriptions already justify them ("kondisyonu evde korumak",
+    # "bahçesinde kendi antrenman alanı").
     {"catalog_id": "home-treadmill", "title": "Koşu bandı", "category": "home",
      "description": "Kamp dışı günlerde kondisyonu evde korumanın en kolay yolu.",
-     "price": 41000, "upkeep_weekly": 0, "note": "Eğimli, 20 km/s"},
+     "price": 41000, "upkeep_weekly": 0, "note": "Eğimli, 20 km/s",
+     "daily_effects": {"condition": 2}},
 
     # --- personal ---
     {"catalog_id": "personal-watch", "title": "Kol saati", "category": "personal",
@@ -51,7 +67,8 @@ SHOP_ITEMS = [
     {"catalog_id": "estate-villa", "title": "Deniz manzaralı villa", "category": "realEstate",
      "description": "Sezon arasında kaçılacak yer. Bahçesinde kendi antrenman alanı "
                      "kurulabilir.",
-     "price": 12750000, "upkeep_weekly": 4500, "note": "Havuzlu, 380 m²"},
+     "price": 12750000, "upkeep_weekly": 4500, "note": "Havuzlu, 380 m²",
+     "daily_effects": {"condition": 1}},  # ⟦PLACEHOLDER⟧
 
     # --- investment ---
     {"catalog_id": "invest-bond", "title": "Devlet tahvili", "category": "investment",
@@ -67,3 +84,24 @@ SHOP_ITEMS = [
 
 assert len(SHOP_ITEMS) == 14
 assert len({i["catalog_id"] for i in SHOP_ITEMS}) == len(SHOP_ITEMS)
+
+# D45 says derived values aren't stored; this one is derived at IMPORT from the
+# rows above, so it can't drift from them — it's an index, not a second source.
+DAILY_CONDITION_BONUS = {
+    item["catalog_id"]: item["daily_effects"]["condition"]
+    for item in SHOP_ITEMS
+    if "condition" in item.get("daily_effects", {})
+}
+
+
+def daily_condition_bonus(item_ids) -> float:
+    """The per-day condition bonus an inventory of `item_ids` is worth.
+    Unknown ids contribute nothing: an item can be dropped from the catalog
+    while an old career still has its inventory row, and a KeyError there
+    would break the day loop rather than the shop."""
+    return sum(DAILY_CONDITION_BONUS.get(item_id, 0) for item_id in item_ids)
+
+
+from catalog import validate_catalog  # noqa: E402 (after data, INV-28)
+
+validate_catalog(SHOP_ITEMS, "shop")
