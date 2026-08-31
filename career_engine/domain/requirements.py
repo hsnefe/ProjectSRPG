@@ -24,6 +24,22 @@ def unmet(levels: dict, requires: dict) -> dict:
     }
 
 
+def met(
+    conn: sqlite3.Connection, career_id: str, player_id: str, requires: dict = None
+) -> bool:
+    """Whether a career clears `requires`, as a boolean rather than an
+    exception. Content generation needs to ASK the question (is this offer
+    eligible for this player) where an endpoint needs to ENFORCE it; check()
+    is written in terms of this one so the two can never drift into
+    disagreeing about what "cleared" means."""
+    if not requires:
+        return True
+    for key, required in requires.items():
+        if attributes.level(attributes.get_value(conn, career_id, player_id, key)) < required:
+            return False
+    return True
+
+
 def check(
     conn: sqlite3.Connection, career_id: str, player_id: str, requires: dict = None
 ) -> None:

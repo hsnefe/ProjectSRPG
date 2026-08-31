@@ -106,6 +106,14 @@ NATURAL_CONDITION_RECOVERY_PER_DAY = 5
 # a match (~30) in three days instead of seven, not in one.
 MAX_CONDITION_RECOVERY_PER_DAY = 12
 
+# §6.3 D53 - the chance that any one advanced day brings a social offer.
+# Rolled before any query, the way news' TRIGGER_CHANCE is. Sized against the
+# week: at 0.12 a quiet seven-day stretch between matches carries roughly a
+# 60% chance of one offer, so offers are a thing that happens rather than a
+# thing that happens every day — and INV-39 (at most one open at a time)
+# caps the worst case regardless.
+SOCIAL_OFFER_DAILY_CHANCE = 0.12
+
 # §5.5 T3 - safety cap so `to: "next_event"` can't loop forever if no
 # event condition is ever met (not a documented behavior, defensive only).
 MAX_ADVANCE_DAYS = 400
