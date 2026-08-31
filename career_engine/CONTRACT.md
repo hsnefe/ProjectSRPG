@@ -1555,8 +1555,19 @@ bedavaya öğrenir. Aynı alanlar R3'te de vardır (§5.4).
   "ledger_entries": [ /* geçilen Pazartesilerin maaş ve gider satırları */ ],
   "news_created":  ["n_0143", "n_0144"],
   "repossessed":   [],                     // D29 · elden çıkan eşyalar
-  "missed_matches": [] }                   // §6.1 · oynanmadan geçilen kendi maçları
+  "missed_matches": [],                    // §6.1 · oynanmadan geçilen kendi maçları
+  "stopped_events": [ /* durulan günün T1 events[] listesi */ ],
+  "condition_before": 72,                  // §6.6 · çağrı öncesi
+  "condition_after":  80 }                 // §6.6 · = career_state.condition
 ```
+
+`stopped_events`, durulan günün **T1 listesinin aynısıdır** — durdurucuların
+süzülmüş hâli değil. `stop_reason` bir etikettir; bir şey açması gereken çağıran
+(fikstür, teklif) onun `ref_id`'sine muhtaçtır ve bunu öğrenmek için T1'i ikinci
+kez çağırmak, bu çağrının zaten elinde olan veriyi tekrar istemek olurdu.
+
+`condition_before`/`after`, gün gün ilerleyen bir istemcinin çubuğu kendi kopya
+durumunu tutmadan canlandırabilmesi içindir (D55).
 
 Atlanan **her** Pazartesi için ayrı maaş ve gider satırı yazılır — tek toplu
 satır değil, geçmiş okunabilir kalsın diye (§6.5). Geçilen her günün fikstürleri

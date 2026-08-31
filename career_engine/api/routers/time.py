@@ -178,6 +178,10 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
     competitions_total = set()
     ledger_entries, news_created, repossessed = [], [], []
     stop_reason = "none"
+    stopped_events = []
+    condition_before = conn.execute(
+        "SELECT condition FROM career_state WHERE career_id = ?", (career_id,)
+    ).fetchone()["condition"]
 
     # A Monday left unpaid by a previous upkeep_warning stop gets forced
     # through now, before advancing any further (D29).
@@ -213,19 +217,32 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
         stoppers = daytime.stop_worthy(day_result["events"])
         if stoppers:
             stop_reason = stoppers[0]["kind"]
+            stopped_events = day_result["events"]
             break
         if body.to == "next_day":
+            stopped_events = day_result["events"]
             break
     else:
         stop_reason = "none"  # MAX_ADVANCE_DAYS safety cap hit
 
     conn.commit()
 
+    career_state = serializers.fetch_career_state(conn, career_id)
     return {
-        "career_state": serializers.fetch_career_state(conn, career_id),
+        "career_state": career_state,
         "days_advanced": days_advanced,
         "stopped_on": current_date,
         "stop_reason": stop_reason,
+        # §5.5 T3 - the full event list for the day the loop stopped on, not
+        # just the winning kind. `stop_reason` alone is a label; the caller
+        # that has to open something (a fixture, an offer) needs the ref_id
+        # that comes with it, and fetching T1 again to get it would be a
+        # second round trip for data this call already had in hand.
+        "stopped_events": stopped_events,
+        # §6.6 - what the run cost or paid in condition. FE animates the bar
+        # per call without keeping its own copy of the previous value.
+        "condition_before": condition_before,
+        "condition_after": career_state["condition"],
         "simulated": {"fixtures": fixtures_total, "competitions": len(competitions_total)},
         "ledger_entries": ledger_entries,
         "news_created": news_created,
