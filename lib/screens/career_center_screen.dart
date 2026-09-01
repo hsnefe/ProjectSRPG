@@ -16,6 +16,8 @@ import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/date_labels.dart';
 import 'package:project_srpg/widgets/expand_page_route.dart';
 import 'package:project_srpg/widgets/lit_card.dart';
+import 'package:project_srpg/widgets/month_calendar.dart';
+import 'package:project_srpg/widgets/panel_states.dart';
 import 'package:project_srpg/widgets/news_style.dart';
 
 class CareerCenterScreen extends StatefulWidget {
@@ -39,6 +41,16 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
   late Future<api.DayInfo> _dayFuture;
   bool _advancing = false;
 
+  /// Akan takvimde şu an gösterilen tarih ve kaç gün ilerlendiği.
+  String? _overlayDate;
+  int _overlayDays = 0;
+
+  /// Döngüyü iptal etmenin tek yolu: `await`ten dönen tur jetonun
+  /// değiştiğini görür ve çıkar. Bayrak yerine jeton, çünkü kullanıcı
+  /// durdurup hemen yeniden başlatabilir ve eski turun yeni koşuya
+  /// karışmaması gerekir.
+  int _advanceToken = 0;
+
   @override
   void initState() {
     super.initState();
@@ -60,36 +72,88 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
     return _session.client.day(careerId);
   }
 
-  /// T3 · `POST /careers/{cid}/advance` — bir sonraki olaylı güne kadar
-  /// ilerler (§6.3). Gün ve hub verisi bu yüzden birlikte tazelenir: yeni
-  /// fikstürler koşmuş, haberler oluşmuş olabilir.
+  /// T3 · `POST /careers/{cid}/advance` — günleri **tek tek** ilerletir ve
+  /// arada küçük bir takvim gösterir (§6.3, D56).
+  ///
+  /// **Neden tek bir `next_event` çağrısı değil.** Sunucu bir çağrıda kırk
+  /// gün ileri gidebilir; ekran üçüncü günü oynatırken "Durdur"a basıldığında
+  /// takvim yalan söylerdi — durum çoktan ilerlemiş olurdu. Gün gün gidince
+  /// ekrandaki tarih ile `career_state.game_date` her karede aynı sayıdır.
+  /// Durma ölçütü yine sunucuda kalır: döngünün çıkış testi yalnızca
+  /// `stopReason != 'none'`, hangi olayın durdurucu olduğuna Dart karar
+  /// vermez (§6.3).
+  ///
+  /// İptal edildiğinde uçuştaki gün yine de commit olur; bu doğru davranış —
+  /// o gün gerçekten yaşandı.
   Future<void> _advance() async {
-    setState(() => _advancing = true);
     final player = PlayerScope.of(context);
     final messenger = ScaffoldMessenger.of(context);
+
+    final token = ++_advanceToken;
+    setState(() {
+      _advancing = true;
+      _overlayDays = 0;
+      _overlayDate = null;
+    });
+
+    api.AdvanceResult? last;
     try {
       final careerId = await _session.resolve();
-      final result =
-          await _session.client.advance(careerId, to: 'next_event');
-      player.applyServerUpdate(careerState: result.careerState);
-      if (!mounted) return;
-      setState(() {
-        _hubFuture = _loadHub();
-        _dayFuture = _loadDay();
-        _advancing = false;
-      });
-      messenger.showSnackBar(SnackBar(content: Text(_advanceSummary(result))));
+      while (mounted && token == _advanceToken && _overlayDays < _maxLoopDays) {
+        final result = await _session.client.advance(careerId, to: 'next_day');
+        if (!mounted || token != _advanceToken) break;
+
+        // Her gün ayrı ayrı yansıtılır — PlayerState bir ChangeNotifier,
+        // yani para ve kondisyon çubuğu takvimle birlikte akar.
+        player.applyServerUpdate(careerState: result.careerState);
+        last = result;
+        setState(() {
+          _overlayDate = result.stoppedOn;
+          _overlayDays++;
+        });
+
+        if (result.stopReason != 'none') break;
+        await Future<void>.delayed(_advanceTick);
+      }
     } on CareerApiException catch (e) {
-      if (!mounted) return;
-      setState(() => _advancing = false);
-      messenger.showSnackBar(
-        SnackBar(content: Text(e.message ?? 'Gün ilerletilemedi.')),
-      );
+      // Sezon sonu (ya da bekleyen bir teklif) döngünün ortasında gelebilir;
+      // o âna kadar ilerlenen günler gerçekten yaşandı, geri alınmaz.
+      if (mounted && token == _advanceToken) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(e.message ?? 'Gün ilerletilemedi.')),
+        );
+      }
+    } finally {
+      if (mounted && token == _advanceToken) {
+        _finishAdvance();
+      }
     }
+
+    if (!mounted || token != _advanceToken || last == null) return;
+    messenger.showSnackBar(SnackBar(content: Text(_advanceSummary(last))));
+  }
+
+  /// Kullanıcı akan takvimi durdurur. Döngü `await`ten döndüğünde jetonun
+  /// değiştiğini görür ve çıkar; uçuştaki gün yine de commit olur.
+  void _stopAdvance() {
+    _advanceToken++;
+    _finishAdvance();
+  }
+
+  /// Overlay'i kapatıp hub/gün verisini bir kez tazeler. Döngünün **içinde**
+  /// tazelemek gün başına iki fazla çağrı demekti; geçilen günlerin toplam
+  /// etkisi zaten sonda okunuyor.
+  void _finishAdvance() {
+    setState(() {
+      _advancing = false;
+      _overlayDate = null;
+      _hubFuture = _loadHub();
+      _dayFuture = _loadDay();
+    });
   }
 
   String _advanceSummary(api.AdvanceResult result) {
-    final base = '${result.daysAdvanced} gün ilerledi';
+    final base = '$_overlayDays gün ilerledi';
     final reason = _dayEventLabels[result.stopReason];
     return reason == null ? '$base.' : '$base — $reason.';
   }
@@ -115,25 +179,41 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: ListView(
+                  child: Stack(
                     children: [
-                      const _HeaderSection(),
-                      const _ProgressSection(),
-                      FutureBuilder<api.DayInfo>(
-                        future: _dayFuture,
-                        builder: (context, snapshot) => _DaySection(
-                          snapshot: snapshot,
-                          busy: _advancing,
-                          onAdvance: _advance,
-                        ),
+                      ListView(
+                        children: [
+                          const _HeaderSection(),
+                          const _ProgressSection(),
+                          FutureBuilder<api.DayInfo>(
+                            future: _dayFuture,
+                            builder: (context, snapshot) => _DaySection(
+                              snapshot: snapshot,
+                              busy: _advancing,
+                              onAdvance: _advancing ? _stopAdvance : _advance,
+                            ),
+                          ),
+                          FutureBuilder<api.CareerHub>(
+                            future: _hubFuture,
+                            builder: (context, snapshot) => Column(
+                              children: _hubDependentSections(snapshot),
+                            ),
+                          ),
+                          const _ActionsSection(),
+                        ],
                       ),
-                      FutureBuilder<api.CareerHub>(
-                        future: _hubFuture,
-                        builder: (context, snapshot) => Column(
-                          children: _hubDependentSections(snapshot),
+                      // Akan takvim, `showDialog` yerine aynı ağaçta bir
+                      // katman: diyalog route'u olsaydı durdurma butonu ayrı
+                      // bir yüzeyde kalırdı ve hub'ın kendi butonunu ele
+                      // geçirirdi. Burada tek bir setState kapsamı var.
+                      if (_advancing)
+                        Positioned.fill(
+                          child: _AdvanceOverlay(
+                            date: _overlayDate,
+                            days: _overlayDays,
+                            onStop: _stopAdvance,
+                          ),
                         ),
-                      ),
-                      const _ActionsSection(),
                     ],
                   ),
                 ),
@@ -402,6 +482,14 @@ class _ProgressSection extends StatelessWidget {
 /// T1 `events[].kind` / T3 `stop_reason` — cümle gönderilmez, ekran kendi
 /// metnini kurar (§1.3, §5.5). `'none'` (T3'ün "hiçbir olay yok" durumu)
 /// bilinçli olarak haritada yok — çağıran taraf onu null'a eşler.
+/// İki gün arasındaki bekleme — takvimin akışı okunacak kadar yavaş,
+/// bir haftayı beklemek can sıkacak kadar hızlı.
+const _advanceTick = Duration(milliseconds: 220);
+
+/// Güvenlik tavanı, BE'nin `MAX_ADVANCE_DAYS`'inin FE aynası: sunucu hiç
+/// durmasa bile döngü sonsuza kadar koşmaz.
+const _maxLoopDays = 60;
+
 const _dayEventLabels = {
   'match': 'maç günü',
   'cup_draw': 'kupa kurası',
@@ -409,6 +497,7 @@ const _dayEventLabels = {
   'upkeep_warning': 'gider uyarısı',
   'relationship_low': 'ilişki düşük',
   'season_end': 'sezon sonu',
+  'social_offer': 'sosyal teklif',
 };
 
 /// T1 (bugünün durumu, salt gösterim) + T3 (`İlerle` butonu) — kariyerin
@@ -424,6 +513,106 @@ List<String> _otherEventLabels(api.DayInfo? day) {
     if (label != null) labels.add(label);
   }
   return labels.toList(growable: false);
+}
+
+/// Akan takvim: "İlerle"ye basıldığında hub'ın üstüne binen küçük ay
+/// görünümü. Günler tek tek geçtikçe vurgulanan hücre ilerler.
+///
+/// İşaret taşımaz — hangi günün maç olduğunu göstermek burada gereksiz;
+/// akış zaten o günde duracak. Boş grid, geçen zamanın kendisini gösterir.
+class _AdvanceOverlay extends StatelessWidget {
+  const _AdvanceOverlay({
+    required this.date,
+    required this.days,
+    required this.onStop,
+  });
+
+  /// Şu an işlenen gün ('YYYY-MM-DD'); ilk çağrı dönene kadar null.
+  final String? date;
+  final int days;
+  final VoidCallback onStop;
+
+  @override
+  Widget build(BuildContext context) {
+    final parsed = date == null ? null : DateTime.tryParse(date!);
+
+    return ColoredBox(
+      color: Colors.black.withValues(alpha: 0.72),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 28),
+          child: LitCard(
+            borderRadius: 14,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    parsed == null ? 'Günler ilerliyor' : monthYearLabel(parsed),
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (parsed != null)
+                    MonthCalendar(
+                      month: parsed,
+                      marksByDate: const {},
+                      today: date,
+                      compact: true,
+                    )
+                  else
+                    const SizedBox(
+                      height: 90,
+                      child: CenteredSpinner(),
+                    ),
+                  const SizedBox(height: 12),
+                  Text(
+                    date == null ? '' : fullDateLabel(date!),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    days == 1 ? '1 gün' : '$days gün',
+                    style: const TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 11,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  OutlinedButton(
+                    onPressed: onStop,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textPrimary,
+                      side: const BorderSide(color: AppColors.border),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 18, vertical: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      textStyle: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text('Durdur'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _DaySection extends StatelessWidget {
@@ -489,7 +678,10 @@ class _DaySection extends StatelessWidget {
                 ),
               ),
               OutlinedButton(
-                onPressed: busy ? null : onAdvance,
+                // Koşarken devre dışı DEĞİL: aynı buton durdurma butonudur
+                // (§6.3 D56). Kullanıcının akan takvimi kesmesinin iki yolu
+                // var, biri burası, diğeri overlay'in kendi butonu.
+                onPressed: onAdvance,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.textPrimary,
                   disabledForegroundColor: AppColors.textMuted,
@@ -506,14 +698,7 @@ class _DaySection extends StatelessWidget {
                       RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 child: busy
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.textMuted,
-                        ),
-                      )
+                    ? const Text('Durdur')
                     : const Text('İlerle'),
               ),
             ],
