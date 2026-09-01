@@ -1325,8 +1325,18 @@ class InteractResult {
 // §5.5 Zaman — T1-T4
 // ---------------------------------------------------------------------------
 
+/// İlk eşleşen olayın `ref_id`'si, yoksa null. `firstOrNull` package:collection
+/// içinde; iki çağrı için bağımlılık eklemek yerine açıkça yazıldı.
+String? _firstRefId(List<DayEvent> events, String kind) {
+  for (final event in events) {
+    if (event.kind == kind) return event.refId;
+  }
+  return null;
+}
+
 /// T1 `events[]` satırı. `kind`: match · cup_draw · contract_expiring ·
-/// upkeep_warning · relationship_low · season_end. Cümle gönderilmez — ekran
+/// upkeep_warning · relationship_low · season_end · social_offer.
+/// Cümle gönderilmez — ekran
 /// `kind`/`refId` ve `extra`'dan kendi metnini kurar (§1.3).
 class DayEvent {
   const DayEvent({required this.kind, this.refId, required this.extra});
@@ -1355,9 +1365,11 @@ class DayInfo {
     required this.careerState,
     required this.isMatchDay,
     required this.events,
+    this.conditionRecovery,
   });
 
   factory DayInfo.fromJson(Map<String, dynamic> json) {
+    final recovery = json['condition_recovery'] as Map<String, dynamic>?;
     return DayInfo(
       careerState:
           CareerState.fromJson(json['career_state'] as Map<String, dynamic>),
@@ -1365,12 +1377,78 @@ class DayInfo {
       events: (json['events'] as List<dynamic>)
           .map((e) => DayEvent.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
+      conditionRecovery:
+          recovery == null ? null : ConditionRecovery.fromJson(recovery),
     );
   }
 
   final CareerState careerState;
   final bool isMatchDay;
   final List<DayEvent> events;
+
+  /// §6.6 · bir sonraki günün kondisyon kazancı. §5.0 gereği null olabilir
+  /// (alanı tanımayan bir backend).
+  final ConditionRecovery? conditionRecovery;
+
+  /// Cevap bekleyen sosyal teklifin kimliği, yoksa null (§6.3 D53).
+  String? get pendingOfferId => _firstRefId(events, 'social_offer');
+}
+
+/// T1 `condition_recovery` — §6.6.
+class ConditionRecovery {
+  const ConditionRecovery({
+    required this.base,
+    required this.bonus,
+    required this.total,
+    required this.capped,
+    required this.sources,
+  });
+
+  factory ConditionRecovery.fromJson(Map<String, dynamic> json) {
+    return ConditionRecovery(
+      base: (json['base'] as num).toInt(),
+      bonus: (json['bonus'] as num).toInt(),
+      total: (json['total'] as num).toInt(),
+      capped: json['capped'] as bool? ?? false,
+      sources: ((json['sources'] as List<dynamic>?) ?? const [])
+          .map((e) => ConditionRecoverySource.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+    );
+  }
+
+  final int base;
+
+  /// Sahip olunan eşyalardan gelen pay — tavan uygulanmadan ÖNCEki toplam,
+  /// yani `base + bonus` her zaman `total`'a eşit değildir.
+  final int bonus;
+  final int total;
+
+  /// Tavana takıldıysa true; ekran "daha fazlası bir işe yaramıyor" diyebilir.
+  final bool capped;
+  final List<ConditionRecoverySource> sources;
+}
+
+/// T1 `condition_recovery.sources[]` — bonusu veren tek bir eşya.
+class ConditionRecoverySource {
+  const ConditionRecoverySource({
+    required this.itemId,
+    required this.title,
+    required this.amount,
+  });
+
+  factory ConditionRecoverySource.fromJson(Map<String, dynamic> json) {
+    return ConditionRecoverySource(
+      itemId: json['item_id'] as String,
+      title: json['title'] as String? ?? json['item_id'] as String,
+      amount: (json['amount'] as num).toInt(),
+    );
+  }
+
+  final String itemId;
+
+  /// Katalogda yazan ad — kurulmuş bir cümle değil (§1.3).
+  final String title;
+  final int amount;
 }
 
 /// T2 · `POST /careers/{cid}/actions`.
@@ -1422,6 +1500,9 @@ class AdvanceResult {
     required this.ledgerEntries,
     required this.newsCreated,
     required this.repossessed,
+    required this.stoppedEvents,
+    this.conditionBefore,
+    this.conditionAfter,
   });
 
   factory AdvanceResult.fromJson(Map<String, dynamic> json) {
@@ -1440,6 +1521,13 @@ class AdvanceResult {
           .map((e) => e as String)
           .toList(growable: false),
       repossessed: (json['repossessed'] as List<dynamic>?) ?? const [],
+      // §5.0 · sonradan eklenen alanlar; eski bir backend bunları
+      // göndermezse ekran yine çalışır (boş liste / null).
+      stoppedEvents: ((json['stopped_events'] as List<dynamic>?) ?? const [])
+          .map((e) => DayEvent.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+      conditionBefore: (json['condition_before'] as num?)?.toInt(),
+      conditionAfter: (json['condition_after'] as num?)?.toInt(),
     );
   }
 
@@ -1454,6 +1542,18 @@ class AdvanceResult {
 
   /// D29 · elden çıkan eşyalar — henüz belgelenmiş bir şekli yok, ham liste.
   final List<dynamic> repossessed;
+
+  /// Durulan günün T1 olay listesi. `stopReason` yalnız türü söyler; açılacak
+  /// şeyin kimliği (fikstür, teklif) burada.
+  final List<DayEvent> stoppedEvents;
+
+  /// §6.6 · çağrının iki yakasındaki kondisyon. Gün gün ilerleyen ekran
+  /// çubuğu kendi önceki kopyasını tutmadan canlandırır.
+  final int? conditionBefore;
+  final int? conditionAfter;
+
+  /// Durulan günde bekleyen sosyal teklifin kimliği, yoksa null.
+  String? get stoppedOfferId => _firstRefId(stoppedEvents, 'social_offer');
 }
 
 /// T4 `item` alanı.
@@ -1897,4 +1997,282 @@ Color _parseHex(String? hex) {
   final value = int.tryParse(cleaned, radix: 16);
   if (value == null || cleaned.length != 6) return const Color(0xFF6B7280);
   return Color(0xFF000000 | value);
+}
+
+// ---------------------------------------------------------------------------
+// §5.3 W5 — takvim
+// ---------------------------------------------------------------------------
+
+/// W5 `days[].marks[]` satırı.
+///
+/// `kind`, T1'in `events[].kind`'ından **ayrı** bir sözlüktür: T1 "bugün ne
+/// doğru", W5 "bu güne ne planlanmış" sorusunu cevaplar. Bilinen türler:
+/// `match` · `wage` · `cup_round` · `contract_expiry` · `season_start` ·
+/// `season_end`. Tanınmayan bir tür sessizce yok sayılır (§5.0).
+class CalendarMark {
+  const CalendarMark({
+    required this.kind,
+    this.refId,
+    this.home,
+    this.away,
+    this.competition,
+    this.kickoffAt,
+    this.status,
+    this.homeScore,
+    this.awayScore,
+    this.isUserMatch = false,
+    this.roundNo,
+    this.stage,
+    this.drawn,
+  });
+
+  factory CalendarMark.fromJson(Map<String, dynamic> json) {
+    final home = json['home'] as Map<String, dynamic>?;
+    final away = json['away'] as Map<String, dynamic>?;
+    final competition = json['competition'] as Map<String, dynamic>?;
+    final score = json['score'] as Map<String, dynamic>?;
+    return CalendarMark(
+      kind: json['kind'] as String,
+      refId: json['ref_id'] as String?,
+      home: home == null ? null : TeamRef.fromJson(home),
+      away: away == null ? null : TeamRef.fromJson(away),
+      competition:
+          competition == null ? null : CompetitionRef.fromJson(competition),
+      kickoffAt: json['kickoff_at'] as String?,
+      status: json['status'] as String?,
+      homeScore: (score?['home'] as num?)?.toInt(),
+      awayScore: (score?['away'] as num?)?.toInt(),
+      isUserMatch: json['is_user_match'] as bool? ?? false,
+      roundNo: (json['round_no'] as num?)?.toInt(),
+      stage: json['stage'] as String?,
+      drawn: json['drawn'] as bool?,
+    );
+  }
+
+  final String kind;
+  final String? refId;
+
+  // kind == 'match'
+  final TeamRef? home;
+  final TeamRef? away;
+  final CompetitionRef? competition;
+  final String? kickoffAt;
+  final String? status;
+  final int? homeScore;
+  final int? awayScore;
+  final bool isUserMatch;
+
+  // kind == 'cup_round' — kura çekilmeden önce de dolu (§5.3).
+  final int? roundNo;
+  final String? stage;
+  final bool? drawn;
+
+  bool get isMatch => kind == 'match';
+  bool get isPlayed => status == 'played';
+}
+
+/// W5 `days[]` satırı — yalnızca en az bir işareti olan günler döner.
+class CalendarDay {
+  const CalendarDay({required this.date, required this.marks});
+
+  factory CalendarDay.fromJson(Map<String, dynamic> json) {
+    return CalendarDay(
+      date: json['date'] as String,
+      marks: (json['marks'] as List<dynamic>)
+          .map((e) => CalendarMark.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+    );
+  }
+
+  final String date;
+  final List<CalendarMark> marks;
+}
+
+/// W5 `season` alt nesnesi — sezon sınırlarını döndüren tek uç burasıdır.
+class CalendarSeason {
+  const CalendarSeason({
+    required this.seasonId,
+    required this.startsOn,
+    required this.endsOn,
+  });
+
+  factory CalendarSeason.fromJson(Map<String, dynamic> json) {
+    return CalendarSeason(
+      seasonId: json['season_id'] as String,
+      startsOn: json['starts_on'] as String,
+      endsOn: json['ends_on'] as String,
+    );
+  }
+
+  final String seasonId;
+  final String startsOn;
+  final String endsOn;
+}
+
+/// W5 · `GET /careers/{cid}/calendar`.
+class CalendarPage {
+  const CalendarPage({
+    required this.from,
+    required this.to,
+    required this.today,
+    required this.days,
+    this.season,
+  });
+
+  factory CalendarPage.fromJson(Map<String, dynamic> json) {
+    final season = json['season'] as Map<String, dynamic>?;
+    return CalendarPage(
+      from: json['from'] as String,
+      to: json['to'] as String,
+      today: json['today'] as String,
+      season: season == null ? null : CalendarSeason.fromJson(season),
+      days: (json['days'] as List<dynamic>)
+          .map((e) => CalendarDay.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+    );
+  }
+
+  final String from;
+  final String to;
+  final String today;
+  final CalendarSeason? season;
+  final List<CalendarDay> days;
+
+  /// Tarihe göre işaretler — grid her hücre için tek bir arama yapar.
+  Map<String, List<CalendarMark>> get marksByDate => {
+        for (final day in days) day.date: day.marks,
+      };
+}
+
+// ---------------------------------------------------------------------------
+// §5.4 R4-R6 — sosyal teklifler
+// ---------------------------------------------------------------------------
+
+/// R4 `offers[]` satırı. Metin BE'de yazarlanır (§5.4); `accept`/`decline`
+/// ödülleri **gönderilmez**, yalnız kapı (`costs`/`requires`) gelir.
+class SocialOffer {
+  const SocialOffer({
+    required this.offerId,
+    required this.templateId,
+    required this.relationshipId,
+    required this.title,
+    required this.body,
+    required this.acceptLabel,
+    required this.declineLabel,
+    required this.openedOn,
+    required this.status,
+    required this.costs,
+    required this.requires,
+    this.relationship,
+    this.resolvedOn,
+  });
+
+  factory SocialOffer.fromJson(Map<String, dynamic> json) {
+    final relationship = json['relationship'] as Map<String, dynamic>?;
+    return SocialOffer(
+      offerId: json['offer_id'] as String,
+      templateId: json['template_id'] as String,
+      relationshipId: json['relationship_id'] as String,
+      title: json['title'] as String? ?? '',
+      body: json['body'] as String? ?? '',
+      acceptLabel: json['accept_label'] as String? ?? 'Kabul et',
+      declineLabel: json['decline_label'] as String? ?? 'Reddet',
+      openedOn: json['opened_on'] as String,
+      status: json['status'] as String,
+      resolvedOn: json['resolved_on'] as String?,
+      costs: ((json['costs'] as Map<String, dynamic>?) ?? const {}).map(
+        (key, value) => MapEntry(key, (value as num).toDouble()),
+      ),
+      requires: ((json['requires'] as Map<String, dynamic>?) ?? const {}).map(
+        (key, value) => MapEntry(key, (value as num).toInt()),
+      ),
+      relationship: relationship == null
+          ? null
+          : SocialOfferContact.fromJson(relationship),
+    );
+  }
+
+  final String offerId;
+  final String templateId;
+  final String relationshipId;
+  final String title;
+  final String body;
+  final String acceptLabel;
+  final String declineLabel;
+  final String openedOn;
+  final String status;
+  final String? resolvedOn;
+
+  /// Kabulün günden götüreceği kaynaklar; reddetmek hiçbir şey harcamaz.
+  final Map<String, double> costs;
+
+  /// D42 · kabul için gereken nitelik seviyeleri. Boşsa kapı yok.
+  final Map<String, int> requires;
+
+  final SocialOfferContact? relationship;
+
+  bool get isOpen => status == 'open';
+}
+
+/// R4 `offers[].relationship` — teklifi yapan kişinin kartı.
+class SocialOfferContact {
+  const SocialOfferContact({
+    required this.relationshipId,
+    required this.kind,
+    required this.category,
+    required this.score,
+    required this.personName,
+    required this.contactName,
+  });
+
+  factory SocialOfferContact.fromJson(Map<String, dynamic> json) {
+    return SocialOfferContact(
+      relationshipId: json['relationship_id'] as String,
+      kind: json['kind'] as String,
+      category: json['category'] as String,
+      score: (json['score'] as num).toInt(),
+      personName: json['person_name'] as String? ?? '',
+      contactName: json['contact_name'] as String? ?? '',
+    );
+  }
+
+  final String relationshipId;
+  final String kind;
+  final String category;
+  final int score;
+  final String personName;
+  final String contactName;
+}
+
+/// R5/R6 · teklif yanıtı. R3'ün şekli, artı çözümlenmiş `offer`.
+class SocialOfferResult {
+  const SocialOfferResult({
+    required this.careerState,
+    required this.offer,
+    required this.relationshipChanges,
+    required this.attributeChanges,
+    required this.ledgerEntries,
+  });
+
+  factory SocialOfferResult.fromJson(Map<String, dynamic> json) {
+    return SocialOfferResult(
+      careerState:
+          CareerState.fromJson(json['career_state'] as Map<String, dynamic>),
+      offer: SocialOffer.fromJson(json['offer'] as Map<String, dynamic>),
+      relationshipChanges:
+          ((json['relationship_changes'] as List<dynamic>?) ?? const [])
+              .map((e) => RelationshipChange.fromJson(e as Map<String, dynamic>))
+              .toList(growable: false),
+      attributeChanges: ((json['attribute_changes'] as List<dynamic>?) ?? const [])
+          .map((e) => AttributeChange.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+      ledgerEntries: _parseLedgerEntries(json['ledger_entries']),
+    );
+  }
+
+  final CareerState careerState;
+  final SocialOffer offer;
+  final List<RelationshipChange> relationshipChanges;
+  final List<AttributeChange> attributeChanges;
+  final List<LedgerEntry> ledgerEntries;
 }
