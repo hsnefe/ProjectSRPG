@@ -12,6 +12,8 @@
 /// [`date_labels.dart`](date_labels.dart)'ta anlatılan **+3 saat düzeltmesi
 /// burada gerekmez ve kopyalanmamalıdır.** O düzeltme yalnız ofset taşıyan
 /// `kickoff_at` dizeleri içindir.
+library;
+
 import 'package:flutter/material.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/date_labels.dart';
