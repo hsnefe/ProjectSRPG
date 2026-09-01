@@ -74,11 +74,21 @@ const _careersListBody = {
 
 CareerSession _relationshipsSession({
   http.Response Function(http.Request)? onInteract,
+  String? pendingFor,
 }) {
   final mock = MockClient((request) async {
     if (request.url.path == '/careers') return _json(_careersListBody);
     if (request.url.path == '/careers/car_test/relationships') {
-      return _json({'relationships': _relationshipCards});
+      return _json({
+        'relationships': [
+          for (final card in _relationshipCards)
+            {
+              ...card,
+              'has_pending_request':
+                  card['relationship_id'] == pendingFor,
+            }
+        ],
+      });
     }
     final profileMatch =
         RegExp(r'^/careers/car_test/relationships/([^/]+)$').firstMatch(request.url.path);
@@ -235,5 +245,23 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('İlişki Haritası'), findsOneWidget);
+  });
+
+  testWidgets('bekleyen teklifi olan kartta nokta çıkar', (tester) async {
+    // R1 `has_pending_request` artık gerçek (§5.4); tam bir kart işaretli
+    // olmalı — INV-39 aynı anda tek açık teklife izin veriyor.
+    final session = _relationshipsSession(pendingFor: 'coach');
+    await tester.pumpWidget(_wrap(RelationshipsScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('pendingRequestDot')), findsOneWidget);
+  });
+
+  testWidgets('bekleyen teklif yoksa hiçbir kartta nokta yok', (tester) async {
+    final session = _relationshipsSession();
+    await tester.pumpWidget(_wrap(RelationshipsScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('pendingRequestDot')), findsNothing);
   });
 }
