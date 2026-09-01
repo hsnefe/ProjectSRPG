@@ -8,33 +8,7 @@ import 'package:project_srpg/screens/match_screen.dart';
 import 'package:project_srpg/state/match_controller.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/theme/app_colors.dart';
-
-const _weekdayLabels = [
-  'Pazartesi',
-  'Salı',
-  'Çarşamba',
-  'Perşembe',
-  'Cuma',
-  'Cumartesi',
-  'Pazar',
-];
-
-/// `DateTime.parse` bir ofset gördüğünde UTC'ye çevirir (`isUtc = true`);
-/// `.hour`/`.weekday` o zaman dizedeki saat değil UTC saatini okur. Kariyer
-/// dünyası tek saat dilimi kullandığı için (+03:00, career_engine CONTRACT.md
-/// §5.0) `.toLocal()` cihazın kendi dilimine göre yanlış saat üretebilirdi —
-/// bunun yerine UTC'den +3 saat geri eklemek dizedeki gerçek duvar saatini
-/// verir, career_center_screen.dart'ın aynı sorunla aynı çözümü (bkz.
-/// `_matchDayLabel`).
-String _kickoffLabel(DateTime kickoffAt) {
-  final local = kickoffAt.isUtc
-      ? kickoffAt.add(const Duration(hours: 3))
-      : kickoffAt;
-  final weekday = _weekdayLabels[local.weekday - 1];
-  final hh = local.hour.toString().padLeft(2, '0');
-  final mm = local.minute.toString().padLeft(2, '0');
-  return '$weekday, $hh:$mm';
-}
+import 'package:project_srpg/widgets/date_labels.dart';
 
 class PreMatchScreen extends StatefulWidget {
   PreMatchScreen({super.key, this.session, MatchApiClient? matchApiClient})
@@ -244,7 +218,7 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
         _HeaderSection(
           home: next.teams.home.name,
           away: next.teams.away.name,
-          kickoffLabel: _kickoffLabel(next.kickoffAt),
+          kickoffLabel: kickoffDayLabel(next.kickoffAt),
         ),
         const _FieldPlaceholder(),
         _TacticsRow(tacticLabel: next.teamTactic.label),

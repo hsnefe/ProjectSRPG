@@ -12,7 +12,9 @@ import 'package:project_srpg/screens/settings_screen.dart';
 import 'package:project_srpg/screens/training_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/theme/app_colors.dart';
+import 'package:project_srpg/widgets/date_labels.dart';
 import 'package:project_srpg/widgets/expand_page_route.dart';
+import 'package:project_srpg/widgets/lit_card.dart';
 import 'package:project_srpg/widgets/news_style.dart';
 
 class CareerCenterScreen extends StatefulWidget {
@@ -330,7 +332,7 @@ class _ProgressSection extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: _LitCard(
+      child: LitCard(
         borderRadius: 12,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -387,20 +389,6 @@ const _dayEventLabels = {
   'season_end': 'sezon sonu',
 };
 
-const _dayMonths = [
-  'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-  'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
-];
-
-/// 'YYYY-MM-DD' → '19 Ağustos 2026' — tarih bileşeni yalnız (saat yok), bu
-/// yüzden `career_center_screen.dart`'ın kickoff yardımcısındaki UTC
-/// dönüşümü sorunu burada yok (§1.3).
-String _fullDateLabel(String isoDate) {
-  final date = DateTime.tryParse(isoDate);
-  if (date == null) return isoDate;
-  return '${date.day} ${_dayMonths[date.month - 1]} ${date.year}';
-}
-
 /// T1 (bugünün durumu, salt gösterim) + T3 (`İlerle` butonu) — kariyerin
 /// tek zaman kaynağı burada ilerler (§6.1). Uçlar arasındaki fark: T1 hiçbir
 /// şeyi değiştirmez, yalnızca okur; ilerlemeyi tek başına T3 yapar.
@@ -433,7 +421,7 @@ class _DaySection extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: _LitCard(
+      child: LitCard(
         borderRadius: 12,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -446,7 +434,7 @@ class _DaySection extends StatelessWidget {
                     Text(
                       day == null
                           ? 'Bugün'
-                          : _fullDateLabel(day.careerState.currentDate),
+                          : fullDateLabel(day.careerState.currentDate),
                       style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 13,
@@ -514,170 +502,6 @@ class _DaySection extends StatelessWidget {
   }
 }
 
-class _LitCard extends StatelessWidget {
-  const _LitCard({
-    super.key,
-    required this.child,
-    this.onTap,
-    this.minHeight,
-    this.borderRadius = 16,
-  });
-
-  final Widget child;
-  final VoidCallback? onTap;
-  final double? minHeight;
-  final double borderRadius;
-
-  @override
-  Widget build(BuildContext context) {
-    final innerRadius = borderRadius - 1;
-
-    final card = DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(borderRadius),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.6),
-            blurRadius: 32,
-            offset: const Offset(0, 16),
-            spreadRadius: -8,
-          ),
-          BoxShadow(
-            color: AppColors.accent.withValues(alpha: 0.22),
-            blurRadius: 48,
-            spreadRadius: -10,
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.4),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(borderRadius),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.white.withValues(alpha: 0.22),
-              Colors.white.withValues(alpha: 0.06),
-              Colors.black.withValues(alpha: 0.35),
-            ],
-          ),
-        ),
-        padding: const EdgeInsets.all(1),
-        child: Container(
-          constraints:
-              minHeight != null ? BoxConstraints(minHeight: minHeight!) : null,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(innerRadius),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [AppColors.cardTop, AppColors.cardMid, AppColors.cardBottom],
-              stops: [0.0, 0.42, 1.0],
-            ),
-          ),
-          child: Stack(
-            children: [
-              Positioned(
-                top: 0,
-                left: 20,
-                right: 20,
-                child: Container(
-                  height: 1,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.transparent,
-                        Colors.white.withValues(alpha: 0.42),
-                        Colors.white.withValues(alpha: 0.42),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 14,
-                bottom: 14,
-                left: 0,
-                child: Container(
-                  width: 1,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        Colors.white.withValues(alpha: 0.14),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  height: 48,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.vertical(
-                      bottom: Radius.circular(innerRadius),
-                    ),
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        Colors.black.withValues(alpha: 0.28),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              child,
-            ],
-          ),
-        ),
-      ),
-    );
-
-    if (onTap == null) return card;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: card,
-    );
-  }
-}
-
-const _matchWeekdays = [
-  'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar',
-];
-
-/// '2026-03-16T20:00:00+03:00' → 'Pazartesi, 20:00' — §1.3: BE `kickoff_at`
-/// verir, gösterime hazır cümleyi ekran kurar.
-///
-/// `DateTime.parse` bir ofset gördüğünde UTC'ye çevirir ve `isUtc = true`
-/// işaretler (§9.2 `.hour`/`.weekday` artık UTC alanlarıdır, dizedeki saat
-/// değil). Sözleşme tek saat dilimi kullandığı için (+03:00, §5.0) UTC'den
-/// geri +3 saat eklemek dizedeki gerçek duvar saatini verir — cihazın kendi
-/// yerel dilimi hiç devreye girmez.
-String _matchDayLabel(String isoDateTime) {
-  final parsed = DateTime.tryParse(isoDateTime);
-  if (parsed == null) return isoDateTime;
-  final kickoff = parsed.isUtc ? parsed.add(const Duration(hours: 3)) : parsed;
-  final weekday = _matchWeekdays[kickoff.weekday - 1];
-  final hh = kickoff.hour.toString().padLeft(2, '0');
-  final mm = kickoff.minute.toString().padLeft(2, '0');
-  return '$weekday, $hh:$mm';
-}
-
 /// C3 `next_fixture.days_until` — sayı BE'den, cümle FE'den (§1.3).
 String _countdownLabel(int daysUntil) {
   if (daysUntil <= 0) return 'bugün';
@@ -732,7 +556,7 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
     if (fixture == null) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-        child: _LitCard(
+        child: LitCard(
           minHeight: 96,
           child: Center(
             child: Text(
@@ -749,7 +573,7 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-      child: _LitCard(
+      child: LitCard(
         key: _cardKey,
         onTap: _onCardTap,
         minHeight: 210,
@@ -772,7 +596,7 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    _matchDayLabel(fixture.kickoffAt),
+                    kickoffDayLabelFrom(fixture.kickoffAt),
                     style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontWeight: FontWeight.w600,
@@ -900,7 +724,7 @@ class _NewsSection extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      child: _LitCard(
+      child: LitCard(
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute<void>(
@@ -1090,7 +914,7 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _LitCard(
+    return LitCard(
       onTap: onPressed,
       borderRadius: 12,
       child: Padding(
