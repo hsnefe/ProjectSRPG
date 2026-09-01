@@ -18,6 +18,7 @@ import 'package:project_srpg/widgets/expand_page_route.dart';
 import 'package:project_srpg/widgets/lit_card.dart';
 import 'package:project_srpg/widgets/month_calendar.dart';
 import 'package:project_srpg/widgets/panel_states.dart';
+import 'package:project_srpg/widgets/social_offer_modal.dart';
 import 'package:project_srpg/widgets/news_style.dart';
 
 class CareerCenterScreen extends StatefulWidget {
@@ -51,6 +52,9 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
   /// karışmaması gerekir.
   int _advanceToken = 0;
 
+  /// T1'in bildirdiği, cevap bekleyen teklifin kimliği (§6.3 D53).
+  String? _pendingOfferId;
+
   @override
   void initState() {
     super.initState();
@@ -69,7 +73,11 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
   /// olaylar.
   Future<api.DayInfo> _loadDay() async {
     final careerId = await _session.resolve();
-    return _session.client.day(careerId);
+    final day = await _session.client.day(careerId);
+    // T1 zaten bekleyen teklifi bildiriyor (§6.3); saklamak, "İlerle"nin
+    // sunucunun 409'una yürümek yerine doğrudan teklifi açmasını sağlıyor.
+    _pendingOfferId = day.pendingOfferId;
+    return day;
   }
 
   /// T3 · `POST /careers/{cid}/advance` — günleri **tek tek** ilerletir ve
@@ -89,6 +97,15 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
     final player = PlayerScope.of(context);
     final messenger = ScaffoldMessenger.of(context);
 
+    // (a) Açık bir teklif varken zaman ilerlemez. BE kapıda 409 atıyor
+    // zaten; buradan bakmak kullanıcıya hata yerine teklifin kendisini
+    // göstermek için (§6.3 D53).
+    final pending = _pendingOfferId;
+    if (pending != null) {
+      await _openOffer(pending);
+      return;
+    }
+
     final token = ++_advanceToken;
     setState(() {
       _advancing = true;
@@ -97,6 +114,7 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
     });
 
     api.AdvanceResult? last;
+    var serverPendingOffer = false;
     try {
       final careerId = await _session.resolve();
       while (mounted && token == _advanceToken && _overlayDays < _maxLoopDays) {
@@ -116,12 +134,19 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
         await Future<void>.delayed(_advanceTick);
       }
     } on CareerApiException catch (e) {
-      // Sezon sonu (ya da bekleyen bir teklif) döngünün ortasında gelebilir;
-      // o âna kadar ilerlenen günler gerçekten yaşandı, geri alınmaz.
+      // Sezon sonu döngünün ortasında gelebilir; o âna kadar ilerlenen
+      // günler gerçekten yaşandı, geri alınmaz.
+      //
+      // (c) `social_offer_pending` sunucunun arka kapısıdır: uygulama teklif
+      // ekrandayken kapanmışsa T1 önbelleği bilmiyordur, ama BE bilir.
       if (mounted && token == _advanceToken) {
-        messenger.showSnackBar(
-          SnackBar(content: Text(e.message ?? 'Gün ilerletilemedi.')),
-        );
+        if (e.code == 'social_offer_pending') {
+          serverPendingOffer = true;
+        } else {
+          messenger.showSnackBar(
+            SnackBar(content: Text(e.message ?? 'Gün ilerletilemedi.')),
+          );
+        }
       }
     } finally {
       if (mounted && token == _advanceToken) {
@@ -129,8 +154,84 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
       }
     }
 
-    if (!mounted || token != _advanceToken || last == null) return;
+    if (!mounted || token != _advanceToken) return;
+    if (serverPendingOffer) {
+      await _openOffer();
+      return;
+    }
+    if (last == null) return;
+
+    // (b) Döngü bir teklifte durdu; `stopped_events` kimliği taşıyor, yani
+    // hangi teklifin açılacağını öğrenmek için T1'i yeniden çağırmak gerekmez.
+    final offerId = last.stopReason == 'social_offer' ? last.stoppedOfferId : null;
+    if (offerId != null) {
+      await _openOffer(offerId);
+      return;
+    }
     messenger.showSnackBar(SnackBar(content: Text(_advanceSummary(last))));
+  }
+
+  /// R4 ile teklifi çeker ve kapatılamayan modalı açar (§5.4, D53).
+  ///
+  /// [offerId] null ise **açık olan** teklif alınır. Sunucunun
+  /// `social_offer_pending` arka kapısı bu biçimi kullanır: orada elimizde
+  /// bir kimlik yok, yalnızca "bir teklif var" bilgisi.
+  ///
+  /// Kayıt bulunamazsa (teklif başka bir yerde cevaplanmış olabilir) sessizce
+  /// gün verisi tazelenir — açılamayan bir modalın hatası kullanıcının
+  /// çözebileceği bir şey değil.
+  Future<void> _openOffer([String? offerId]) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final player = PlayerScope.of(context);
+    try {
+      final careerId = await _session.resolve();
+      final offers = await _session.client.socialOffers(careerId);
+      final matching = offerId == null
+          ? offers
+          : offers.where((o) => o.offerId == offerId).toList(growable: false);
+      final offer = matching.isEmpty ? null : matching.first;
+      if (!mounted) return;
+      if (offer == null) {
+        setState(() {
+          _pendingOfferId = null;
+          _dayFuture = _loadDay();
+        });
+        return;
+      }
+
+      final result = await showSocialOfferModal(
+        context,
+        session: _session,
+        offer: offer,
+      );
+      if (!mounted || result == null) return;
+
+      player.applyServerUpdate(
+        careerState: result.careerState,
+        attributeChanges: result.attributeChanges,
+      );
+      setState(() {
+        _pendingOfferId = null;
+        _hubFuture = _loadHub();
+        _dayFuture = _loadDay();
+      });
+      messenger.showSnackBar(SnackBar(content: Text(_offerSummary(result))));
+    } on CareerApiException catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Teklif açılamadı.')),
+      );
+    }
+  }
+
+  /// 'Antrenör +5' — BE `delta` gönderir, cümleyi ekran kurar (§1.3).
+  String _offerSummary(api.SocialOfferResult result) {
+    final changes = result.relationshipChanges;
+    final change = changes.isEmpty ? null : changes.first;
+    final name = result.offer.relationship?.category ?? 'İlişki';
+    if (change == null) return 'Teklif yanıtlandı.';
+    final sign = change.delta >= 0 ? '+' : '';
+    return '$name $sign${change.delta}';
   }
 
   /// Kullanıcı akan takvimi durdurur. Döngü `await`ten döndüğünde jetonun
@@ -187,10 +288,11 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
                           const _ProgressSection(),
                           FutureBuilder<api.DayInfo>(
                             future: _dayFuture,
-                            builder: (context, snapshot) => _DaySection(
+                              builder: (context, snapshot) => _DaySection(
                               snapshot: snapshot,
                               busy: _advancing,
                               onAdvance: _advancing ? _stopAdvance : _advance,
+                              onOpenOffer: _openOffer,
                             ),
                           ),
                           FutureBuilder<api.CareerHub>(
@@ -482,6 +584,8 @@ class _ProgressSection extends StatelessWidget {
 /// T1 `events[].kind` / T3 `stop_reason` — cümle gönderilmez, ekran kendi
 /// metnini kurar (§1.3, §5.5). `'none'` (T3'ün "hiçbir olay yok" durumu)
 /// bilinçli olarak haritada yok — çağıran taraf onu null'a eşler.
+/// `social_offer` de yok: onun kendi dokunulabilir satırı var (§6.3 D53),
+/// buradan da yazılsaydı aynı şey iki kez görünürdü.
 /// İki gün arasındaki bekleme — takvimin akışı okunacak kadar yavaş,
 /// bir haftayı beklemek can sıkacak kadar hızlı.
 const _advanceTick = Duration(milliseconds: 220);
@@ -497,7 +601,6 @@ const _dayEventLabels = {
   'upkeep_warning': 'gider uyarısı',
   'relationship_low': 'ilişki düşük',
   'season_end': 'sezon sonu',
-  'social_offer': 'sosyal teklif',
 };
 
 /// T1 (bugünün durumu, salt gösterim) + T3 (`İlerle` butonu) — kariyerin
@@ -620,11 +723,16 @@ class _DaySection extends StatelessWidget {
     required this.snapshot,
     required this.busy,
     required this.onAdvance,
+    required this.onOpenOffer,
   });
 
   final AsyncSnapshot<api.DayInfo> snapshot;
   final bool busy;
   final VoidCallback onAdvance;
+
+  /// Bekleyen teklifi yeniden açar — modal kapatılamaz ama kullanıcı
+  /// uygulamayı kapatıp dönmüş olabilir (§6.3 D53).
+  final ValueChanged<String> onOpenOffer;
 
   @override
   Widget build(BuildContext context) {
@@ -671,6 +779,21 @@ class _DaySection extends StatelessWidget {
                         style: const TextStyle(
                           color: AppColors.textMuted,
                           fontSize: 11,
+                        ),
+                      ),
+                    ],
+                    if (day?.pendingOfferId case final offerId?) ...[
+                      const SizedBox(height: 4),
+                      GestureDetector(
+                        key: const ValueKey('daySocialOffer'),
+                        onTap: () => onOpenOffer(offerId),
+                        child: const Text(
+                          'Sosyal teklif bekliyor →',
+                          style: TextStyle(
+                            color: AppColors.success,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ],

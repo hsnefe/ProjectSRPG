@@ -11,6 +11,7 @@ import 'package:project_srpg/screens/calendar_screen.dart';
 import 'package:project_srpg/screens/career_center_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/widgets/month_calendar.dart';
+import 'package:project_srpg/widgets/social_offer_modal.dart';
 
 http.Response _json(Object body, {int status = 200}) => http.Response(
       jsonEncode(body),
@@ -76,14 +77,24 @@ const _newsPreview = [
   },
 ];
 
-Map<String, dynamic> _dayBody({bool isMatchDay = false, String? currentDate}) {
+Map<String, dynamic> _dayBody({
+  bool isMatchDay = false,
+  String? currentDate,
+  String? pendingOfferId,
+}) {
   return {
     'career_state': {
       'current_date': currentDate ?? '2026-08-19', 'season_id': '25/26',
       'money': 48200, 'condition': 72, 'day_budget': {'time': 720.0},
     },
     'is_match_day': isMatchDay,
-    'events': const [],
+    'events': [
+      if (pendingOfferId != null)
+        {
+          'kind': 'social_offer', 'ref_id': pendingOfferId,
+          'relationship_id': 'coach', 'opened_on': '2026-08-19',
+        },
+    ],
   };
 }
 
@@ -112,16 +123,56 @@ Map<String, dynamic> _advanceBody({
   };
 }
 
+const _offerContact = {
+  'relationship_id': 'coach', 'kind': 'coach', 'category': 'Antrenör',
+  'score': 70, 'person_name': 'Mert Çalışkan', 'contact_name': 'Antrenör Mert',
+};
+
+const _openOfferBody = {
+  'offer_id': 'so_1', 'template_id': 'coach_extra_session',
+  'relationship_id': 'coach', 'relationship': _offerContact,
+  'title': 'Fazladan idman',
+  'body': 'Antrenör yarın sabah bire bir çalışmak istiyor.',
+  'accept_label': 'Sahada olurum', 'decline_label': 'Bu hafta olmaz',
+  'costs': <String, dynamic>{}, 'requires': <String, dynamic>{},
+  'opened_on': '2026-08-19', 'status': 'open', 'resolved_on': null,
+};
+
 CareerSession _hubSession(
   Map<String, dynamic> hubBody, {
   Map<String, dynamic>? dayBody,
   http.Response Function(http.Request)? onAdvance,
+  List<Map<String, dynamic>>? socialOffers,
 }) {
   final mock = MockClient((request) async {
     if (request.url.path == '/careers') return _json(_careersListBody);
     if (request.url.path == '/careers/car_test') return _json(hubBody);
     if (request.url.path == '/careers/car_test/day') {
       return _json(dayBody ?? _dayBody());
+    }
+    if (request.url.path == '/careers/car_test/social/offers') {
+      return _json({'offers': socialOffers ?? const <dynamic>[]});
+    }
+    if (request.url.path.startsWith('/careers/car_test/social/offers/')) {
+      return _json({
+        'career_state': (dayBody ?? _dayBody())['career_state'],
+        'offer': {
+          'offer_id': 'so_1', 'template_id': 'coach_extra_session',
+          'relationship_id': 'coach',
+          'relationship': _offerContact,
+          'title': 'Fazladan idman', 'body': '...',
+          'accept_label': 'E', 'decline_label': 'H',
+          'costs': const <String, dynamic>{},
+          'requires': const <String, dynamic>{},
+          'opened_on': '2026-08-19', 'status': 'accepted',
+          'resolved_on': '2026-08-19',
+        },
+        'relationship_changes': const [
+          {'relationship_id': 'coach', 'before': 70, 'after': 75, 'delta': 5}
+        ],
+        'attribute_changes': const <dynamic>[],
+        'ledger_entries': const <dynamic>[],
+      });
     }
     if (request.url.path == '/careers/car_test/calendar') {
       return _json({
@@ -383,6 +434,142 @@ void main() {
 
     expect(find.text('the season has ended'), findsOneWidget);
   });
+testWidgets('döngü bir teklifte durunca modal açılır', (tester) async {
+    // (b) · `stopped_events` kimliği taşır, yani hangi teklifin açılacağını
+    // öğrenmek için T1 yeniden çağrılmaz.
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      socialOffers: const [_openOfferBody],
+      onAdvance: (request) => _json(_advanceBody(
+        date: '2026-08-20',
+        stopReason: 'social_offer',
+        stoppedEvents: const [
+          {
+            'kind': 'social_offer', 'ref_id': 'so_1',
+            'relationship_id': 'coach', 'opened_on': '2026-08-20',
+          }
+        ],
+      )),
+    );
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('İlerle'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SocialOfferModal), findsOneWidget);
+    expect(find.text('Fazladan idman'), findsOneWidget);
+  });
+
+  testWidgets('teklif cevaplanınca modal kapanır ve delta SnackBar\'a düşer',
+      (tester) async {
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      socialOffers: const [_openOfferBody],
+      onAdvance: (request) => _json(_advanceBody(
+        date: '2026-08-20',
+        stopReason: 'social_offer',
+        stoppedEvents: const [
+          {
+            'kind': 'social_offer', 'ref_id': 'so_1',
+            'relationship_id': 'coach', 'opened_on': '2026-08-20',
+          }
+        ],
+      )),
+    );
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('İlerle'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('offerAccept')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SocialOfferModal), findsNothing);
+    expect(find.text('Antrenör +5'), findsOneWidget);
+  });
+
+  testWidgets('bekleyen teklif varken İlerle ilerlemez, teklifi açar',
+      (tester) async {
+    // (a) · BE zaten kapıda 409 atıyor; buradan bakmak kullanıcıya hata
+    // yerine teklifin kendisini göstermek için (§6.3 D53).
+    var advanceCalls = 0;
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      dayBody: _dayBody(pendingOfferId: 'so_1'),
+      socialOffers: const [_openOfferBody],
+      onAdvance: (request) {
+        advanceCalls++;
+        return _json(_advanceBody(date: '2026-08-20', stopReason: 'none'));
+      },
+    );
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('İlerle'));
+    await tester.pumpAndSettle();
+
+    expect(advanceCalls, 0);
+    expect(find.byType(SocialOfferModal), findsOneWidget);
+  });
+
+  testWidgets('gün satırındaki teklif rozeti modalı yeniden açar',
+      (tester) async {
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      dayBody: _dayBody(pendingOfferId: 'so_1'),
+      socialOffers: const [_openOfferBody],
+    );
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sosyal teklif bekliyor →'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('daySocialOffer')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SocialOfferModal), findsOneWidget);
+  });
+
+  testWidgets('sunucu social_offer_pending derse teklif açılır', (tester) async {
+    // (c) · uygulama teklif ekrandayken kapanmışsa T1 önbelleği bilmiyordur,
+    // ama BE bilir.
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      socialOffers: const [_openOfferBody],
+      onAdvance: (request) => _json(
+        {'code': 'social_offer_pending', 'message': "so_1 is waiting"},
+        status: 409,
+      ),
+    );
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('İlerle'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SocialOfferModal), findsOneWidget);
+    // 409'un ham metni gösterilmez — kullanıcıya teklifin kendisi gösterilir.
+    expect(find.text('so_1 is waiting'), findsNothing);
+  });
+
+  testWidgets('teklif başka bir yerde cevaplanmışsa sessizce tazelenir',
+      (tester) async {
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      dayBody: _dayBody(pendingOfferId: 'so_1'),
+      socialOffers: const [],
+    );
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('daySocialOffer')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SocialOfferModal), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('takvim ikonu takvim ekranını açar', (tester) async {
     final session = _hubSession(_hubBody(nextFixture: _fixture));
     await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
