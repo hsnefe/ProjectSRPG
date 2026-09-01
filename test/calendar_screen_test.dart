@@ -78,10 +78,10 @@ Map<String, Object?> _september() => {
 /// Her test kendi isteklerini biriktirir; sorgu parametrelerini doğrulamak
 /// çizilen metni doğrulamaktan daha güçlü bir iddiadır.
 class _Backend {
-  _Backend({this.status = 200, Map<String, Object?>? body}) : _body = body;
+  _Backend({this.status = 200, this.body});
 
   final int status;
-  final Map<String, Object?>? _body;
+  final Map<String, Object?>? body;
   final List<Map<String, String>> requests = [];
   int calls = 0;
 
@@ -105,7 +105,7 @@ class _Backend {
         if (from != null && from.startsWith('2026-09')) {
           return _json(_september());
         }
-        return _json(_body ?? _august());
+        return _json(body ?? _august());
       }
       return http.Response('unexpected ${request.url}', 404);
     });
