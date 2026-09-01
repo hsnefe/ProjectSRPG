@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
+import 'package:project_srpg/screens/calendar_screen.dart';
 import 'package:project_srpg/screens/league_table_screen.dart';
 import 'package:project_srpg/screens/lifestyle_screen.dart';
 import 'package:project_srpg/screens/news_detail_screen.dart';
@@ -280,6 +281,27 @@ class _HeaderSection extends StatelessWidget {
               ),
             ),
           ),
+          IconButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const CalendarScreen(),
+                ),
+              );
+            },
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            style: IconButton.styleFrom(
+              side: const BorderSide(color: AppColors.border),
+              shape: const CircleBorder(),
+            ),
+            icon: const Icon(
+              Icons.calendar_month_outlined,
+              size: 18,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(width: 4),
           IconButton(
             onPressed: () {
               Navigator.of(context).push(

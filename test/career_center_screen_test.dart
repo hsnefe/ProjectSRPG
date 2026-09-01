@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 
 import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_session.dart';
+import 'package:project_srpg/screens/calendar_screen.dart';
 import 'package:project_srpg/screens/career_center_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 
@@ -95,6 +96,12 @@ CareerSession _hubSession(
     if (request.url.path == '/careers/car_test') return _json(hubBody);
     if (request.url.path == '/careers/car_test/day') {
       return _json(dayBody ?? _dayBody());
+    }
+    if (request.url.path == '/careers/car_test/calendar') {
+      return _json({
+        'from': '2026-08-01', 'to': '2026-08-31', 'today': '2026-08-19',
+        'season': null, 'days': const <dynamic>[],
+      });
     }
     if (request.url.path == '/careers/car_test/advance') {
       return onAdvance?.call(request) ??
@@ -244,6 +251,18 @@ void main() {
 
     expect(find.text('the season has ended'), findsOneWidget);
   });
+  testWidgets('takvim ikonu takvim ekranını açar', (tester) async {
+    final session = _hubSession(_hubBody(nextFixture: _fixture));
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.calendar_month_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CalendarScreen), findsOneWidget);
+    expect(find.text('Takvim'), findsOneWidget);
+  });
+
   testWidgets('maç günü olmayan kartta dokunuş maç ekranını açmaz',
       (tester) async {
     final session =
