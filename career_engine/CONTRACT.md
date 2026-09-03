@@ -1939,7 +1939,7 @@ FE'nin bir seçeneği kilitli göstermek için ihtiyacı olan tek şey `requires
 ödül tablosunu yayınlamak hem konuşmanın sürprizini bozar hem de sunucu-otoriter
 olmasının sebebini (D23: istemci kendine puan yazdıramaz) anlamsızlaştırır.
 
-`drill` alanı [`training_screen.dart:22`](../lib/screens/training_screen.dart)'deki
+`drill` alanı [`training_result.dart:23`](../lib/game/training_result.dart)'teki
 `TrainingDrill?` enum'ının string karşılığıdır; `null` olan kart FE'de "Yakında"
 görünür.
 

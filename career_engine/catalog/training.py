@@ -33,7 +33,7 @@ TRAINING_ITEMS = [
     {
         "catalog_id": "esneklik-toparlanma", "title": "Esneklik & Toparlanma",
         "description": "Germe ve toparlanma çalışmasıyla sakatlık riskini azalt.",
-        "family": "saha", "drill": None,
+        "family": "saha", "drill": "flexibility",
         "costs": {"time": 45, "energy": 8},
         "effects": {"attribute:flexibility": 1.0, "condition": 4},
     },

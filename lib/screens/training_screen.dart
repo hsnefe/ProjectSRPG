@@ -7,6 +7,7 @@ import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/ball_training_screen.dart';
 import 'package:project_srpg/screens/conditioning_training_screen.dart';
+import 'package:project_srpg/screens/flexibility_training_screen.dart';
 import 'package:project_srpg/screens/strength_training_screen.dart';
 import 'package:project_srpg/screens/training_radar_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
@@ -52,13 +53,14 @@ class _TrainingItem {
 }
 
 /// N3 `drill` string'i → [TrainingDrill]. Yalnızca gerçek bir mini-oyunu
-/// olan dört değer eşlenir; kalanı (esneklik, dribling, bütün kişi kalemleri)
-/// backend zaten `null` gönderiyor.
+/// olan beş değer eşlenir; kalanı (dribling, bütün kişi kalemleri) backend
+/// zaten `null` gönderiyor.
 const _drillByKey = {
   'conditioning': TrainingDrill.conditioning,
   'strength': TrainingDrill.strength,
   'shot': TrainingDrill.shot,
   'pass': TrainingDrill.pass,
+  'flexibility': TrainingDrill.flexibility,
 };
 
 /// §5.8 — ikon ve renk BE'den gelmez, FE'nin sunum kararı. `catalog_id`
@@ -147,7 +149,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
       TrainingDrill.pass => MaterialPageRoute<TrainingResult>(
           builder: (_) => const BallTrainingScreen(mode: ShotMode.pass),
         ),
-      TrainingDrill.flexibility || TrainingDrill.dribble => null,
+      TrainingDrill.flexibility => MaterialPageRoute<TrainingResult>(
+          builder: (_) => const FlexibilityTrainingScreen(),
+        ),
+      TrainingDrill.dribble => null,
     };
     if (route == null) return;
 

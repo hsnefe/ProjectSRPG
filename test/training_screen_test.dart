@@ -10,6 +10,7 @@ import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/ball_training_screen.dart';
 import 'package:project_srpg/screens/conditioning_training_screen.dart';
+import 'package:project_srpg/screens/flexibility_training_screen.dart';
 import 'package:project_srpg/screens/strength_training_screen.dart';
 import 'package:project_srpg/screens/training_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
@@ -31,7 +32,7 @@ const _trainingItems = [
   },
   {
     'catalog_id': 'esneklik-toparlanma', 'title': 'Esneklik & Toparlanma',
-    'description': '…', 'family': 'saha', 'drill': null,
+    'description': '…', 'family': 'saha', 'drill': 'flexibility',
     'costs': {'time': 45, 'energy': 8},
     'effects': {'attribute:flexibility': 1.0, 'condition': 4},
   },
@@ -188,28 +189,30 @@ Future<void> _scrollTo(WidgetTester tester, String title) async {
 
 void main() {
   group('mini-oyunu olmayan kartlar', () {
-    testWidgets('Esneklik ve Dribling Yakında yazar ve pasiftir',
-        (tester) async {
+    testWidgets('Dribling Yakında yazar ve pasiftir', (tester) async {
       await tester.pumpWidget(
         _wrap(TrainingScreen(session: _trainingSession())),
       );
       await tester.pumpAndSettle();
 
-      for (final title in ['Esneklik & Toparlanma', 'Dribling']) {
-        await _scrollTo(tester, title);
-        expect(_button(tester, title).onPressed, isNull, reason: title);
-      }
-
-      expect(find.text('Yakında'), findsNWidgets(2));
+      await _scrollTo(tester, 'Dribling');
+      expect(_button(tester, 'Dribling').onPressed, isNull);
+      expect(find.text('Yakında'), findsOneWidget);
     });
 
-    testWidgets('diğer dördü Başla yazar ve tıklanabilir', (tester) async {
+    testWidgets('diğer beşi Başla yazar ve tıklanabilir', (tester) async {
       await tester.pumpWidget(
         _wrap(TrainingScreen(session: _trainingSession())),
       );
       await tester.pumpAndSettle();
 
-      for (final title in ['Kondisyon Koşusu', 'Güç Antrenmanı', 'Şut', 'Pas']) {
+      for (final title in [
+        'Kondisyon Koşusu',
+        'Güç Antrenmanı',
+        'Esneklik & Toparlanma',
+        'Şut',
+        'Pas',
+      ]) {
         await _scrollTo(tester, title);
         expect(_button(tester, title).onPressed, isNotNull, reason: title);
       }
@@ -262,6 +265,22 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
 
       expect(find.byType(StrengthTrainingScreen), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('Esneklik desen ekranını açar', (tester) async {
+      await tester.pumpWidget(
+        _wrap(TrainingScreen(session: _trainingSession())),
+      );
+      await tester.pumpAndSettle();
+      await _scrollTo(tester, 'Esneklik & Toparlanma');
+
+      await tester.tap(_startButton('Esneklik & Toparlanma'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.byType(FlexibilityTrainingScreen), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
     });
