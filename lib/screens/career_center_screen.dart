@@ -115,6 +115,7 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
 
     api.AdvanceResult? last;
     var serverPendingOffer = false;
+    var serverMatchUnplayed = false;
     try {
       final careerId = await _session.resolve();
       while (mounted && token == _advanceToken && _overlayDays < _maxLoopDays) {
@@ -139,9 +140,16 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
       //
       // (c) `social_offer_pending` sunucunun arka kapısıdır: uygulama teklif
       // ekrandayken kapanmışsa T1 önbelleği bilmiyordur, ama BE bilir.
+      //
+      // (d) `match_day_unplayed` (§6.1 D57) aynı arka kapı: hub gün verisi
+      // bayatsa (maç günü olduğunu henüz bilmiyorsa) "İlerle" yine de
+      // basılabilir olur — sunucu reddeder, ham hata metni yerine doğrudan
+      // maç ekranı açılır.
       if (mounted && token == _advanceToken) {
         if (e.code == 'social_offer_pending') {
           serverPendingOffer = true;
+        } else if (e.code == 'match_day_unplayed') {
+          serverMatchUnplayed = true;
         } else {
           messenger.showSnackBar(
             SnackBar(content: Text(e.message ?? 'Gün ilerletilemedi.')),
@@ -155,6 +163,10 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
     }
 
     if (!mounted || token != _advanceToken) return;
+    if (serverMatchUnplayed) {
+      _pushPreMatch(context);
+      return;
+    }
     if (serverPendingOffer) {
       await _openOffer();
       return;
@@ -586,9 +598,10 @@ class _ProgressSection extends StatelessWidget {
 /// bilinçli olarak haritada yok — çağıran taraf onu null'a eşler.
 /// `social_offer` de yok: onun kendi dokunulabilir satırı var (§6.3 D53),
 /// buradan da yazılsaydı aynı şey iki kez görünürdü.
-/// İki gün arasındaki bekleme — takvimin akışı okunacak kadar yavaş,
-/// bir haftayı beklemek can sıkacak kadar hızlı.
-const _advanceTick = Duration(milliseconds: 220);
+/// İki gün arasındaki bekleme — takvimin akışı gözle takip edilecek kadar
+/// yavaş, bir haftayı beklemek can sıkacak kadar hızlı. 220ms'de günler göz
+/// alışamadan geçiyordu; geri bildirimle 550ms'ye çıkarıldı.
+const _advanceTick = Duration(milliseconds: 550);
 
 /// Güvenlik tavanı, BE'nin `MAX_ADVANCE_DAYS`'inin FE aynası: sunucu hiç
 /// durmasa bile döngü sonsuza kadar koşmaz.
@@ -718,6 +731,16 @@ class _AdvanceOverlay extends StatelessWidget {
   }
 }
 
+/// §6.1 D57 — maç günü hem gün satırından hem tekrar denenen bir
+/// `advance` çağrısından bu tek yere yönlenir. Karta bağlı olmadığı için
+/// (`_MatchPreviewSection`'ın `ExpandPageRoute`'unun aksine) düz bir
+/// `MaterialPageRoute` yeterli.
+void _pushPreMatch(BuildContext context) {
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(builder: (_) => PreMatchScreen()),
+  );
+}
+
 class _DaySection extends StatelessWidget {
   const _DaySection({
     required this.snapshot,
@@ -737,6 +760,9 @@ class _DaySection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final day = snapshot.data;
+    // §6.1 D57 — koşarken (busy) buton zaten "Durdur"a döner; maç günü
+    // kilidi yalnızca durgunken devreye girer, çakışma olmaz.
+    final matchLocked = !busy && (day?.isMatchDay ?? false);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -767,6 +793,21 @@ class _DaySection extends StatelessWidget {
                         style: TextStyle(
                           color: AppColors.success,
                           fontSize: 11,
+                        ),
+                      ),
+                    ],
+                    if (matchLocked) ...[
+                      const SizedBox(height: 4),
+                      GestureDetector(
+                        key: const ValueKey('dayGoToMatch'),
+                        onTap: () => _pushPreMatch(context),
+                        child: const Text(
+                          'Maça çık →',
+                          style: TextStyle(
+                            color: AppColors.success,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ],
@@ -804,7 +845,11 @@ class _DaySection extends StatelessWidget {
                 // Koşarken devre dışı DEĞİL: aynı buton durdurma butonudur
                 // (§6.3 D56). Kullanıcının akan takvimi kesmesinin iki yolu
                 // var, biri burası, diğeri overlay'in kendi butonu.
-                onPressed: onAdvance,
+                //
+                // Maç günü kilidiyse (§6.1 D57) buton pasif — dialog_screen.
+                // dart'taki kilitli seçeneklerle aynı kural: yapılamayan şey
+                // griye döner, ayrı bir "Maça çık →" bağlantısı gösterilir.
+                onPressed: matchLocked ? null : onAdvance,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.textPrimary,
                   disabledForegroundColor: AppColors.textMuted,
