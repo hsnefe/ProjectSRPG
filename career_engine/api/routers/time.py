@@ -173,6 +173,15 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
     if season and current_date >= season["ends_on"]:
         raise errors.season_finished()
 
+    # §6.1 D57: the user's own match today must be played, not skipped.
+    # Checked before the social-offer gate — a scheduled match is the more
+    # fundamental blocker of the two, and matches are pre-scheduled well in
+    # advance while an offer is a same-day roll, so a same-day collision of
+    # both is rare and match wins the message when it happens.
+    unplayed_fixture_id = daytime.user_match_today(conn, career_id, current_date)
+    if unplayed_fixture_id:
+        raise errors.match_day_unplayed(unplayed_fixture_id)
+
     # §6.3 D53: an open offer blocks time outright rather than being stopped
     # on again each day. Refusing at the door is a clearer failure than a
     # loop that advances zero days and reports "none" — and it makes the
@@ -205,7 +214,6 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
     fixtures_total += today_catchup["fixtures_simulated"]
     competitions_total |= today_catchup["competitions_touched"]
     news_created += today_catchup["news_created"]
-    missed_matches = today_catchup["missed_matches"]
 
     for _ in range(config.MAX_ADVANCE_DAYS):
         next_date = (_dt.date.fromisoformat(current_date) + _dt.timedelta(days=1)).isoformat()
@@ -255,8 +263,4 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
         "ledger_entries": ledger_entries,
         "news_created": news_created,
         "repossessed": repossessed,
-        # §6.1 - the user's own fixtures that were played without them
-        # because they advanced off their match day (§5.0: adding a field
-        # is not a breaking change).
-        "missed_matches": missed_matches,
     }

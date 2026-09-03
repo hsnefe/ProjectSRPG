@@ -120,18 +120,27 @@ def stop_worthy(events: List[dict], on_date: str = None) -> List[dict]:
     return out
 
 
-def list_events(conn: sqlite3.Connection, career_id: str, on_date: str) -> List[dict]:
-    """Every event condition true for on_date, read-only."""
-    events = []
+def user_match_today(conn: sqlite3.Connection, career_id: str, on_date: str) -> Optional[str]:
+    """The user's own fixture kicking off on_date, if it's still
+    'scheduled' — None otherwise. The single query behind both
+    list_events()'s 'match' event and T3's match-day gate (§6.1 D57), so the
+    two can never disagree about what counts as "today's match"."""
     user_team_id = _user_team_id(conn, career_id)
-
-    match_row = conn.execute(
+    row = conn.execute(
         "SELECT fixture_id FROM fixture WHERE career_id = ? AND status = 'scheduled' "
         "AND kickoff_at LIKE ? AND (home_team_id = ? OR away_team_id = ?)",
         (career_id, f"{on_date}%", user_team_id, user_team_id),
     ).fetchone()
-    if match_row:
-        events.append({"kind": "match", "ref_id": match_row["fixture_id"]})
+    return row["fixture_id"] if row else None
+
+
+def list_events(conn: sqlite3.Connection, career_id: str, on_date: str) -> List[dict]:
+    """Every event condition true for on_date, read-only."""
+    events = []
+
+    fixture_id = user_match_today(conn, career_id, on_date)
+    if fixture_id:
+        events.append({"kind": "match", "ref_id": fixture_id})
 
     cup_round = _next_drawable_cup_round(conn, career_id, on_date)
     if cup_round:
@@ -241,26 +250,18 @@ def _fixture_rng(seed: int, *parts) -> random.Random:
     return random.Random(f"{seed}:" + ":".join(str(p) for p in parts))
 
 
-def _simulate_day_fixtures(
-    conn: sqlite3.Connection, career_id: str, on_date: str, seed: int, include_user: bool = False,
-) -> dict:
-    """§6.7 D40: every scheduled fixture kicking off on_date, in every
-    competition. The user's own is normally excluded (it stays 'scheduled'
-    and is played interactively via M1-M3); `include_user` is for the one
-    case where it isn't — the user advancing off their own match day
-    without playing it (§6.1's missed match, see resolve_pending_today)."""
+def _simulate_day_fixtures(conn: sqlite3.Connection, career_id: str, on_date: str, seed: int) -> dict:
+    """§6.7 D40: every OTHER team's scheduled fixture kicking off on_date, in
+    every competition. The user's own fixture is always excluded — it stays
+    'scheduled' and is played interactively via M1-M3, and (§6.1 D57) time
+    cannot advance past it while it is, so there is no longer a second case
+    where the user's own fixture needs simulating here."""
     user_team_id = _user_team_id(conn, career_id)
-    if include_user:
-        rows = conn.execute(
-            "SELECT * FROM fixture WHERE career_id = ? AND status = 'scheduled' AND kickoff_at LIKE ?",
-            (career_id, f"{on_date}%"),
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            "SELECT * FROM fixture WHERE career_id = ? AND status = 'scheduled' AND kickoff_at LIKE ? "
-            "AND home_team_id != ? AND away_team_id != ?",
-            (career_id, f"{on_date}%", user_team_id, user_team_id),
-        ).fetchall()
+    rows = conn.execute(
+        "SELECT * FROM fixture WHERE career_id = ? AND status = 'scheduled' AND kickoff_at LIKE ? "
+        "AND home_team_id != ? AND away_team_id != ?",
+        (career_id, f"{on_date}%", user_team_id, user_team_id),
+    ).fetchall()
     if not rows:
         return {"count": 0, "competitions": set(), "results": []}
 
@@ -380,36 +381,21 @@ def resolve_pending_monday(conn: sqlite3.Connection, career_id: str, on_date: st
 
 def resolve_pending_today(conn: sqlite3.Connection, career_id: str, on_date: str, seed: int) -> dict:
     """Closes out the day the career is currently sitting on, which T3 is
-    about to leave. Two things land here:
+    about to leave: a freshly-created career already sits ON its
+    season-opening date without ever having 'advanced into' it (onboarding
+    doesn't call match_engine — career creation shouldn't depend on a live
+    engine connection), so that date's OTHER fixtures never got
+    background-simulated, and any cup round due today hasn't been drawn.
 
-    1. A freshly-created career already sits ON its season-opening date
-       without ever having 'advanced into' it (onboarding doesn't call
-       match_engine — career creation shouldn't depend on a live engine
-       connection), so that date's fixtures never got background-simulated.
-    2. §6.1's missed match: if the user's own fixture is still 'scheduled'
-       today, they chose to advance instead of playing it. The match is
-       played in the background like any other — the result counts for the
-       table, but no appearance, bonus or goal is credited (they weren't
-       there). The alternative, refusing to advance, would soft-lock the
-       career whenever match_engine can't be reached.
+    The user's own fixture is never touched here (§6.1 D57): if it's still
+    'scheduled' on on_date, the door at the top of T3
+    (`api/routers/time.py`'s `match_day_unplayed` gate) has already refused
+    to let the caller reach this function at all — there is no "missed
+    match" case left to handle.
 
     Idempotent: _simulate_day_fixtures only touches still-'scheduled' rows,
     so calling this again for an already-resolved date is a no-op."""
-    user_team_id = _user_team_id(conn, career_id)
-    missed = conn.execute(
-        "SELECT fixture_id FROM fixture WHERE career_id = ? AND status = 'scheduled' "
-        "AND kickoff_at LIKE ? AND (home_team_id = ? OR away_team_id = ?)",
-        (career_id, f"{on_date}%", user_team_id, user_team_id),
-    ).fetchall()
-
-    sim = _simulate_day_fixtures(conn, career_id, on_date, seed, include_user=bool(missed))
-
-    news_created = []
-    for row in missed:
-        news_created.append(_create_news(
-            conn, career_id, "Maç", "Kadroda yoktun",
-            "Maç sen sahada olmadan oynandı; sonuç puan durumuna işlendi.", on_date,
-        ))
+    sim = _simulate_day_fixtures(conn, career_id, on_date, seed)
 
     cup_round = _next_drawable_cup_round(conn, career_id, on_date)
     if cup_round:
@@ -417,8 +403,7 @@ def resolve_pending_today(conn: sqlite3.Connection, career_id: str, on_date: str
     return {
         "fixtures_simulated": sim["count"],
         "competitions_touched": sim["competitions"],
-        "missed_matches": [row["fixture_id"] for row in missed],
-        "news_created": news_created,
+        "news_created": [],
     }
 
 

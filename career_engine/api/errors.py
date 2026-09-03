@@ -75,6 +75,14 @@ def social_offer_pending(offer_id: str) -> ApiError:
     return ApiError(409, "social_offer_pending", f"social offer {offer_id!r} is waiting for an answer")
 
 
+def match_day_unplayed(fixture_id: str) -> ApiError:
+    """§6.1 D57 - time cannot advance while the user's own match today is
+    still 'scheduled'. Replaces the earlier "missed match" auto-play: the
+    fixture id travels in the message because the caller's correct reaction
+    is to play it (M1 -> M2), not to retry advancing."""
+    return ApiError(409, "match_day_unplayed", f"fixture {fixture_id!r} must be played before time can advance")
+
+
 def match_in_progress(fixture_id: str) -> ApiError:
     return ApiError(409, "match_in_progress", f"fixture {fixture_id!r} has an unfinished match")
 
