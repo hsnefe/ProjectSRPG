@@ -5,6 +5,7 @@
 literally "earlier than" — for W3's ascending kickoff_at order, `before`
 filters to rows *after* that cursor, continuing the list forward.
 """
+import datetime as _dt
 import sqlite3
 from typing import Optional
 
@@ -12,6 +13,7 @@ from fastapi import APIRouter, Depends, Query
 
 from api import config, errors, serializers
 from api.deps import get_db
+from domain import calendar as calendar_domain
 
 router = APIRouter(prefix="/careers/{career_id}", tags=["world"])
 
@@ -155,6 +157,41 @@ def get_fixtures(
     ]
 
     return {"fixtures": fixtures, "rounds": rounds, "next_before": next_before}
+
+
+@router.get("/calendar")
+def get_calendar(
+    career_id: str,
+    from_: Optional[str] = Query(None, alias="from"),
+    to: Optional[str] = Query(None),
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    """W5 - a month of the career's calendar. Both bounds default to the
+    month `game_date` falls in, so the common case is a bare GET."""
+    serializers.require_career(conn, career_id)
+    today = conn.execute(
+        # game_date, not current_date — SQLite's CURRENT_DATE keyword.
+        "SELECT game_date FROM career_state WHERE career_id = ?", (career_id,)
+    ).fetchone()["game_date"]
+
+    default_from, default_to = calendar_domain.month_bounds(today)
+    from_date = from_ or default_from
+    to_date = to or default_to
+
+    try:
+        span = (
+            _dt.date.fromisoformat(to_date) - _dt.date.fromisoformat(from_date)
+        ).days
+    except ValueError:
+        raise errors.invalid_request("from/to must be ISO dates (YYYY-MM-DD)")
+    if span < 0:
+        raise errors.invalid_request(f"to {to_date!r} is before from {from_date!r}")
+    if span + 1 > config.MAX_CALENDAR_DAYS:
+        raise errors.invalid_request(
+            f"calendar range of {span + 1} days exceeds {config.MAX_CALENDAR_DAYS}"
+        )
+
+    return calendar_domain.build_calendar(conn, career_id, from_date, to_date)
 
 
 @router.get("/teams/{team_id}")

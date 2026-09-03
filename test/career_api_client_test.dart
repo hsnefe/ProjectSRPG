@@ -25,6 +25,8 @@ CareerApiClient _clientWith(
 }
 
 void main() {
+  _timePassEndpointTests();
+
   group('player (P1-P3)', () {
     test('player() parses attributes/fame/market_value', () async {
       final client = _clientWith((request) {
@@ -1060,4 +1062,315 @@ const _optionsBody = <String, dynamic>{
     },
     'base_skill_value': 20.0, 'role_bonus_per_slot': 2.0,
   },
+};
+
+void _timePassEndpointTests() {
+  group('calendar (W5)', () {
+    test('calendar() sends from/to and parses marks', () async {
+      late Map<String, String> params;
+      final client = _clientWith((request) {
+        expect(request.url.path, '/careers/car_1/calendar');
+        params = request.url.queryParameters;
+        return _json({
+          'from': '2026-08-01',
+          'to': '2026-08-31',
+          'today': '2026-08-19',
+          'season': {
+            'season_id': '25/26',
+            'starts_on': '2026-08-01',
+            'ends_on': '2027-05-31',
+          },
+          'days': [
+            {
+              'date': '2026-08-08',
+              'marks': [
+                {
+                  'kind': 'match',
+                  'ref_id': 'f_1',
+                  'competition': {
+                    'competition_id': 'c_lig2', 'kind': 'league', 'name': '1. Lig',
+                  },
+                  'round_no': 1,
+                  'kickoff_at': '2026-08-08T20:00:00+03:00',
+                  'home': {
+                    'team_id': 't_ykz', 'name': 'FK Yıldız', 'short_name': 'YKZ',
+                    'color_primary': '#1E6FD9', 'color_secondary': '#FFFFFF',
+                  },
+                  'away': {
+                    'team_id': 't_dnz', 'name': 'Deniz SK', 'short_name': 'DNZ',
+                    'color_primary': '#0B2E5B', 'color_secondary': '#E8EAED',
+                  },
+                  'status': 'scheduled', 'score': null, 'is_user_match': true,
+                }
+              ],
+            },
+            {
+              'date': '2026-08-10',
+              'marks': [
+                {'kind': 'wage', 'ref_id': null},
+                {
+                  'kind': 'cup_round', 'ref_id': 'c_kupa',
+                  'round_no': 1, 'stage': 'r32', 'drawn': false,
+                },
+              ],
+            },
+          ],
+        });
+      });
+
+      final page = await client.calendar(
+        'car_1',
+        from: '2026-08-01',
+        to: '2026-08-31',
+      );
+
+      expect(params, {'from': '2026-08-01', 'to': '2026-08-31'});
+      expect(page.season!.endsOn, '2027-05-31');
+      expect(page.marksByDate.keys, ['2026-08-08', '2026-08-10']);
+
+      final match = page.days.first.marks.single;
+      expect(match.isMatch, isTrue);
+      expect(match.isPlayed, isFalse);
+      expect(match.away!.shortName, 'DNZ');
+      expect(match.competition!.name, '1. Lig');
+
+      expect(page.days.last.marks.map((m) => m.kind), ['wage', 'cup_round']);
+      expect(page.days.last.marks.last.drawn, isFalse);
+    });
+
+    test('calendar() omits both bounds when not given', () async {
+      final client = _clientWith((request) {
+        expect(request.url.queryParameters, isEmpty);
+        return _json({
+          'from': '2026-08-01', 'to': '2026-08-31', 'today': '2026-08-19',
+          'season': null, 'days': <dynamic>[],
+        });
+      });
+
+      final page = await client.calendar('car_1');
+      expect(page.season, isNull);
+      expect(page.days, isEmpty);
+    });
+
+    test('an unknown mark kind parses without losing its neighbours', () async {
+      // §5.0: adding a mark kind is not a breaking change.
+      final client = _clientWith((request) {
+        return _json({
+          'from': '2026-08-01', 'to': '2026-08-31', 'today': '2026-08-19',
+          'season': null,
+          'days': [
+            {
+              'date': '2026-08-10',
+              'marks': [
+                {'kind': 'transfer_window', 'ref_id': null},
+                {'kind': 'wage', 'ref_id': null},
+              ],
+            }
+          ],
+        });
+      });
+
+      final page = await client.calendar('car_1');
+      expect(page.days.single.marks.map((m) => m.kind),
+          ['transfer_window', 'wage']);
+    });
+  });
+
+  group('social offers (R4-R6)', () {
+    final offerBody = {
+      'offer_id': 'so_9f21c3',
+      'template_id': 'coach_extra_session',
+      'relationship_id': 'coach',
+      'relationship': {
+        'relationship_id': 'coach', 'kind': 'coach', 'category': 'Antrenör',
+        'score': 74, 'person_name': 'Mert Çalışkan', 'contact_name': 'Antrenör Mert',
+      },
+      'title': 'Fazladan idman',
+      'body': 'Antrenör yarın sabah bire bir çalışmak istiyor.',
+      'accept_label': 'Sahada olurum',
+      'decline_label': 'Bu hafta olmaz',
+      'costs': {'time': 120, 'energy': 20},
+      'requires': <String, dynamic>{},
+      'opened_on': '2026-08-19',
+      'status': 'open',
+      'resolved_on': null,
+    };
+
+    test('socialOffers() parses the text and the gate', () async {
+      final client = _clientWith((request) {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/careers/car_1/social/offers');
+        return _json({'offers': [offerBody]});
+      });
+
+      final offers = await client.socialOffers('car_1');
+      final offer = offers.single;
+
+      expect(offer.offerId, 'so_9f21c3');
+      expect(offer.isOpen, isTrue);
+      expect(offer.title, 'Fazladan idman');
+      expect(offer.acceptLabel, 'Sahada olurum');
+      expect(offer.costs, {'time': 120.0, 'energy': 20.0});
+      expect(offer.requires, isEmpty);
+      expect(offer.relationship!.personName, 'Mert Çalışkan');
+    });
+
+    test('acceptSocialOffer() POSTs to /accept and parses the deltas', () async {
+      final client = _clientWith((request) {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/careers/car_1/social/offers/so_9f21c3/accept');
+        return _json({
+          'career_state': _careerStateBody,
+          'offer': {...offerBody, 'status': 'accepted', 'resolved_on': '2026-08-19'},
+          'relationship_changes': [
+            {'relationship_id': 'coach', 'before': 70, 'after': 75, 'delta': 5}
+          ],
+          'attribute_changes': [
+            {
+              'key': 'shooting', 'before': 50.0, 'after': 50.6,
+              'level_before': 5, 'level_after': 5,
+            }
+          ],
+          'ledger_entries': <dynamic>[],
+        });
+      });
+
+      final result = await client.acceptSocialOffer('car_1', 'so_9f21c3');
+
+      expect(result.offer.status, 'accepted');
+      expect(result.offer.isOpen, isFalse);
+      expect(result.relationshipChanges.single.delta, 5);
+      expect(result.attributeChanges.single.key, 'shooting');
+    });
+
+    test('declineSocialOffer() POSTs to /decline', () async {
+      final client = _clientWith((request) {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/careers/car_1/social/offers/so_9f21c3/decline');
+        return _json({
+          'career_state': _careerStateBody,
+          'offer': {...offerBody, 'status': 'declined', 'resolved_on': '2026-08-19'},
+          'relationship_changes': [
+            {'relationship_id': 'coach', 'before': 70, 'after': 67, 'delta': -3}
+          ],
+          'attribute_changes': <dynamic>[],
+          'ledger_entries': <dynamic>[],
+        });
+      });
+
+      final result = await client.declineSocialOffer('car_1', 'so_9f21c3');
+      expect(result.offer.status, 'declined');
+      expect(result.relationshipChanges.single.delta, -3);
+    });
+  });
+
+  group('advance (T3) additive fields', () {
+    Map<String, Object?> advanceBody({bool withNewFields = true}) => {
+          'career_state': _careerStateBody,
+          'days_advanced': 3,
+          'stopped_on': '2026-08-08',
+          'stop_reason': 'social_offer',
+          'simulated': {'fixtures': 12, 'competitions': 2},
+          'ledger_entries': <dynamic>[],
+          'news_created': <dynamic>[],
+          'repossessed': <dynamic>[],
+          if (withNewFields) ...{
+            'stopped_events': [
+              {
+                'kind': 'social_offer', 'ref_id': 'so_9f21c3',
+                'relationship_id': 'coach', 'opened_on': '2026-08-08',
+              },
+              {'kind': 'relationship_low', 'ref_id': 'partner'},
+            ],
+            'condition_before': 72,
+            'condition_after': 80,
+          },
+        };
+
+    test('advance() parses stopped_events and the condition pair', () async {
+      final client = _clientWith((request) {
+        expect(request.url.path, '/careers/car_1/advance');
+        expect(jsonDecode(request.body), {'to': 'next_day'});
+        return _json(advanceBody());
+      });
+
+      final result = await client.advance('car_1', to: 'next_day');
+
+      expect(result.conditionBefore, 72);
+      expect(result.conditionAfter, 80);
+      expect(result.stoppedEvents.map((e) => e.kind),
+          ['social_offer', 'relationship_low']);
+      expect(result.stoppedOfferId, 'so_9f21c3');
+      // Event-specific fields survive in `extra` (§1.3).
+      expect(result.stoppedEvents.first.extra['relationship_id'], 'coach');
+    });
+
+    test('advance() still parses a body without the new fields', () async {
+      // §5.0 additivity runs both ways: an older backend must not crash FE.
+      final client = _clientWith(
+        (request) => _json(advanceBody(withNewFields: false)),
+      );
+
+      final result = await client.advance('car_1', to: 'next_event');
+
+      expect(result.daysAdvanced, 3);
+      expect(result.stoppedEvents, isEmpty);
+      expect(result.conditionBefore, isNull);
+      expect(result.stoppedOfferId, isNull);
+    });
+  });
+
+  group('day (T1) condition_recovery', () {
+    test('day() parses the recovery preview and its sources', () async {
+      final client = _clientWith((request) {
+        expect(request.url.path, '/careers/car_1/day');
+        return _json({
+          'career_state': _careerStateBody,
+          'is_match_day': false,
+          'events': [
+            {
+              'kind': 'social_offer', 'ref_id': 'so_1',
+              'relationship_id': 'family', 'opened_on': '2026-08-19',
+            }
+          ],
+          'condition_recovery': {
+            'base': 5, 'bonus': 2, 'total': 7, 'capped': false,
+            'sources': [
+              {'item_id': 'home-treadmill', 'title': 'Koşu bandı', 'amount': 2}
+            ],
+          },
+        });
+      });
+
+      final day = await client.day('car_1');
+
+      expect(day.conditionRecovery!.total, 7);
+      expect(day.conditionRecovery!.capped, isFalse);
+      expect(day.conditionRecovery!.sources.single.title, 'Koşu bandı');
+      expect(day.pendingOfferId, 'so_1');
+    });
+
+    test('day() survives a body with no condition_recovery', () async {
+      final client = _clientWith(
+        (request) => _json({
+          'career_state': _careerStateBody,
+          'is_match_day': false,
+          'events': <dynamic>[],
+        }),
+      );
+
+      final day = await client.day('car_1');
+      expect(day.conditionRecovery, isNull);
+      expect(day.pendingOfferId, isNull);
+    });
+  });
+}
+
+const _careerStateBody = {
+  'career_id': 'car_1',
+  'current_date': '2026-08-19',
+  'season_id': '25/26',
+  'money': 48200,
+  'condition': 80,
+  'day_budget': {'time': 720.0, 'energy': 100.0},
 };

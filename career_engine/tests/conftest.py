@@ -10,6 +10,26 @@ from db.connection import get_connection
 from db.migrate import apply_migrations
 
 
+@pytest.fixture(autouse=True)
+def social_offers_off(monkeypatch):
+    """Social offers are OFF for the whole suite by default (§6.3 D53).
+
+    They are deliberately a random, day-by-day event, and an open one stops
+    the advance loop — so left on, every test that walks the calendar would
+    be silently testing "does an offer happen to land this week" alongside
+    whatever it is actually about, and the answer would change the moment a
+    template, a weight or a starting score moved.
+
+    Tests that ARE about offers turn them back on themselves (see
+    tests/test_social_offers.py::always_offer). Because the fixture only
+    moves a config constant, the code path under test is the real one either
+    way — nothing is stubbed out.
+    """
+    from api import config
+
+    monkeypatch.setattr(config, "SOCIAL_OFFER_DAILY_CHANCE", 0.0)
+
+
 @pytest.fixture
 def db_conn():
     """A fresh, fully-migrated in-memory database, isolated per test."""

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/theme/app_colors.dart';
+import 'package:project_srpg/widgets/date_labels.dart';
 
 /// Sözleşmedeki tek bir kalem.
 class _ContractTerm {
@@ -132,11 +133,11 @@ class _ContractScreenState extends State<ContractScreen> {
                               ),
                               _ContractTerm(
                                 label: 'İmza tarihi',
-                                value: _ddmmyyyy(contract.signedAt),
+                                value: ddmmyyyy(contract.signedAt),
                               ),
                               _ContractTerm(
                                 label: 'Sözleşme bitişi',
-                                value: _ddmmyyyy(contract.expiresAt),
+                                value: ddmmyyyy(contract.expiresAt),
                               ),
                             ];
                             final earnings = [
@@ -213,15 +214,6 @@ class _ContractScreenState extends State<ContractScreen> {
       ),
     );
   }
-}
-
-/// 'YYYY-MM-DD' → 'DD.MM.YYYY'. BE ISO-8601 verir, biçimlendirme FE'nin işi
-/// (§1.3).
-String _ddmmyyyy(String isoDate) {
-  final date = DateTime.tryParse(isoDate);
-  if (date == null) return isoDate;
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${two(date.day)}.${two(date.month)}.${date.year}';
 }
 
 /// '₺180.000' — binlik ayracı nokta, BE tam sayı verir (§1.3).

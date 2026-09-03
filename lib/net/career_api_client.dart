@@ -237,6 +237,20 @@ class CareerApiClient {
     return FixturesPage.fromJson(body);
   }
 
+  /// W5 · `GET /careers/{cid}/calendar` — bir takvim sayfası. İki sınır da
+  /// opsiyonel; boş bırakılırsa BE `current_date`'in ayını döner.
+  Future<CalendarPage> calendar(
+    String careerId, {
+    String? from,
+    String? to,
+  }) async {
+    final body = await _get('/careers/$careerId/calendar', {
+      'from': ?from,
+      'to': ?to,
+    });
+    return CalendarPage.fromJson(body);
+  }
+
   /// W4 · `GET /careers/{cid}/teams/{tid}` — takım künyesi + renkler.
   Future<TeamDetail> team(String careerId, String teamId) async {
     final body = await _get('/careers/$careerId/teams/$teamId');
@@ -279,6 +293,43 @@ class CareerApiClient {
       body: {'dialogue_id': dialogueId, 'choice_path': choicePath},
     );
     return InteractResult.fromJson(body);
+  }
+
+  // ---------------------------------------------------------------------
+  // §5.4 Sosyal teklifler — R4-R6
+  // ---------------------------------------------------------------------
+
+  /// R4 · `GET /careers/{cid}/social/offers` — cevap bekleyen teklifler.
+  /// Aynı anda en fazla biri açık olabilir (INV-39), yine de liste dönüyor:
+  /// tekil bir uç, kural gevşediği gün kırıcı bir değişiklik olurdu.
+  Future<List<SocialOffer>> socialOffers(String careerId) async {
+    final body = await _get('/careers/$careerId/social/offers');
+    return (body['offers'] as List<dynamic>)
+        .map((e) => SocialOffer.fromJson(e as Map<String, dynamic>))
+        .toList(growable: false);
+  }
+
+  /// R5 · `POST /careers/{cid}/social/offers/{oid}/accept`. Gövdesiz.
+  /// Bütçe/gereksinim yetmezse 409 atar ve teklif **açık kalır** — kullanıcı
+  /// hâlâ reddedebilir.
+  Future<SocialOfferResult> acceptSocialOffer(
+    String careerId,
+    String offerId,
+  ) async {
+    final body =
+        await _post('/careers/$careerId/social/offers/$offerId/accept');
+    return SocialOfferResult.fromJson(body);
+  }
+
+  /// R6 · `POST /careers/{cid}/social/offers/{oid}/decline`. Hiçbir şey
+  /// harcamaz ve başarısız olamaz (INV-40) — zorunlu cevabın çıkış kapısı.
+  Future<SocialOfferResult> declineSocialOffer(
+    String careerId,
+    String offerId,
+  ) async {
+    final body =
+        await _post('/careers/$careerId/social/offers/$offerId/decline');
+    return SocialOfferResult.fromJson(body);
   }
 
   // ---------------------------------------------------------------------

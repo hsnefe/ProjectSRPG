@@ -99,6 +99,27 @@ RELATIONSHIP_LOW_THRESHOLD = 20
 # actually manage.
 NATURAL_CONDITION_RECOVERY_PER_DAY = 5
 
+# §6.6 - the ceiling on ONE day's natural recovery, base + owned-item bonus
+# included (INV-41). Without it, owning enough of the shop pays a match back
+# in two quiet days and condition stops being a resource the player manages,
+# which is the whole point of §6.6. Sized so a fully-equipped player recovers
+# a match (~30) in three days instead of seven, not in one.
+MAX_CONDITION_RECOVERY_PER_DAY = 12
+
+# §6.3 D53 - the chance that any one advanced day brings a social offer.
+# Rolled before any query, the way news' TRIGGER_CHANCE is. Sized against the
+# week: at 0.12 a quiet seven-day stretch between matches carries roughly a
+# 60% chance of one offer, so offers are a thing that happens rather than a
+# thing that happens every day — and INV-39 (at most one open at a time)
+# caps the worst case regardless.
+SOCIAL_OFFER_DAILY_CHANCE = 0.12
+
+# §5.3 W5 - the widest calendar range one request may ask for. Two months
+# plus a couple of days: enough that a caller paging month by month never
+# hits it, small enough that "give me the whole season" can't be a single
+# query. Same spirit as MAX_PAGE_SIZE, different unit.
+MAX_CALENDAR_DAYS = 62
+
 # §5.5 T3 - safety cap so `to: "next_event"` can't loop forever if no
 # event condition is ever met (not a documented behavior, defensive only).
 MAX_ADVANCE_DAYS = 400

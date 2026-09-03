@@ -18,6 +18,7 @@ class CharacterCardData {
     this.rightTag,
     required this.dateLabel,
     this.imageAsset,
+    this.hasPendingRequest = false,
   });
 
   final String id;
@@ -52,6 +53,10 @@ class CharacterCardData {
 
   /// Gerçek karakter render'ı. Null ise prosedürel siluet çizilir.
   final String? imageAsset;
+
+  /// R1 `has_pending_request` — bu ilişkiden cevap bekleyen bir teklif
+  /// var (§5.4). Rozetin üstüne küçük bir nokta düşer.
+  final bool hasPendingRequest;
 }
 
 /// Neon ışıklı karakter kartı: koyu gövde, karakterin arkasında karta özel
@@ -185,23 +190,47 @@ class CharacterCard extends StatelessWidget {
                       ),
                     ),
                     const Spacer(),
-                    Container(
-                      width: 26,
-                      height: 26,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: tint.withValues(alpha: 0.18),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: tint.withValues(alpha: 0.55)),
-                      ),
-                      child: Text(
-                        data.badgeCode,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: tint,
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Container(
+                          width: 26,
+                          height: 26,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: tint.withValues(alpha: 0.18),
+                            shape: BoxShape.circle,
+                            border:
+                                Border.all(color: tint.withValues(alpha: 0.55)),
+                          ),
+                          child: Text(
+                            data.badgeCode,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: tint,
+                            ),
+                          ),
                         ),
-                      ),
+                        if (data.hasPendingRequest)
+                          Positioned(
+                            top: -2,
+                            right: -2,
+                            child: Container(
+                              key: const ValueKey('pendingRequestDot'),
+                              width: 9,
+                              height: 9,
+                              decoration: BoxDecoration(
+                                color: AppColors.success,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: AppColors.surface0,
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ],
                 ),

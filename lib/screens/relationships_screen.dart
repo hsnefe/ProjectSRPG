@@ -240,6 +240,7 @@ CharacterCardData _toCardData(api.RelationshipCard card) {
     badgeCode: presentation.badgeCode,
     leftTag: presentation.leftTag,
     dateLabel: _lastContactLabel(card.lastContactAt),
+    hasPendingRequest: card.hasPendingRequest,
   );
 }
 

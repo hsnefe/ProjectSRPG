@@ -54,9 +54,62 @@ def test_validate_catalog_accepts_all_documented_anchor_shapes():
     )
 
 
-@pytest.mark.parametrize("items,name", [(TRAINING_ITEMS, "training"), (LIFESTYLE_ITEMS, "lifestyle")])
+@pytest.mark.parametrize(
+    "items,name",
+    [(TRAINING_ITEMS, "training"), (LIFESTYLE_ITEMS, "lifestyle"), (SHOP_ITEMS, "shop")],
+)
 def test_real_catalogs_pass_validation(items, name):
     validate_catalog(items, name)  # would already have raised at import time
+
+
+# --- §6.6: `daily_effects` on shop items ---------------------------------
+
+def test_validate_catalog_rejects_unknown_daily_effect_key():
+    """Narrower than `effects` on purpose: the day loop applies `condition`
+    and nothing else, so a `money` key here would be a row that silently
+    does nothing every day (INV-28)."""
+    with pytest.raises(ValueError):
+        validate_catalog([{"catalog_id": "x", "daily_effects": {"money": 10}}], "test")
+
+
+def test_validate_catalog_rejects_non_numeric_daily_effect():
+    with pytest.raises(ValueError):
+        validate_catalog([{"catalog_id": "x", "daily_effects": {"condition": "iki"}}], "test")
+
+
+def test_validate_catalog_rejects_a_boolean_daily_effect():
+    # bool is an int subclass; True would otherwise read as +1 a day.
+    with pytest.raises(ValueError):
+        validate_catalog([{"catalog_id": "x", "daily_effects": {"condition": True}}], "test")
+
+
+def test_validate_catalog_rejects_a_negative_daily_effect():
+    with pytest.raises(ValueError):
+        validate_catalog([{"catalog_id": "x", "daily_effects": {"condition": -3}}], "test")
+
+
+def test_validate_catalog_accepts_an_item_with_no_daily_effects_at_all():
+    validate_catalog([{"catalog_id": "x", "costs": {}, "effects": {}}], "test")
+
+
+def test_daily_condition_bonus_sums_only_the_items_that_carry_one():
+    from catalog.shop import DAILY_CONDITION_BONUS, daily_condition_bonus
+
+    assert set(DAILY_CONDITION_BONUS) <= {i["catalog_id"] for i in SHOP_ITEMS}
+    assert daily_condition_bonus([]) == 0
+    assert daily_condition_bonus(["home-tv"]) == 0
+    assert daily_condition_bonus(list(DAILY_CONDITION_BONUS)) == sum(DAILY_CONDITION_BONUS.values())
+
+
+def test_every_daily_effect_bonus_is_reachable_from_the_shop():
+    """The bonus table is derived from SHOP_ITEMS at import, so a typo'd id
+    can't hide in it — this asserts the derivation, which is what makes
+    "adding an item is a one-file edit" true."""
+    from catalog.shop import DAILY_CONDITION_BONUS
+
+    for item in SHOP_ITEMS:
+        expected = item.get("daily_effects", {}).get("condition")
+        assert DAILY_CONDITION_BONUS.get(item["catalog_id"]) == expected or expected in (None, 0)
 
 
 # --- D42: `requires` on catalog items ------------------------------------

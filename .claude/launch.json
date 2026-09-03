@@ -4,8 +4,14 @@
     {
       "name": "web",
       "runtimeExecutable": "C:\\Users\\Hasan Efe\\Desktop\\Workspace\\ProjectSRPG\\flutter\\bin\\flutter.bat",
-      "runtimeArgs": ["run", "-d", "web-server", "--web-port", "8080"],
-      "port": 8080
+      "runtimeArgs": [
+        "run",
+        "-d",
+        "web-server",
+        "--web-port",
+        "5050"
+      ],
+      "port": 5050
     }
   ]
 }

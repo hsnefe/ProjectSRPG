@@ -18,7 +18,7 @@ from typing import List, Optional, Set
 
 from api import config
 from api.ids import new_news_id
-from domain import condition, engine_client, formulas, scheduling, wallet
+from domain import condition, engine_client, formulas, scheduling, social, wallet
 from worlddata.competitions import ULUSAL_KUPA
 
 
@@ -98,13 +98,24 @@ def _next_drawable_cup_round(conn: sqlite3.Connection, career_id: str, on_date: 
 STOP_EVENT_KINDS = {"match", "cup_draw", "upkeep_warning", "season_end"}
 
 
-def stop_worthy(events: List[dict]) -> List[dict]:
-    """The subset of list_events() output that T3 may stop on."""
+def stop_worthy(events: List[dict], on_date: str = None) -> List[dict]:
+    """The subset of list_events() output that T3 may stop on.
+
+    `social_offer` is edge-triggered like contract_expiring, for the same
+    reason spelled out above: an unanswered offer is a STATE that persists
+    until the player deals with it, so stopping on it every day would freeze
+    the calendar. It stops on the day it arrives; from then on T1 keeps
+    reporting it (the player should still see it) and the answer is enforced
+    by T3 refusing to start at all (D53), which is a clearer failure than a
+    loop that advances zero days and says nothing.
+    """
     out = []
     for event in events:
         if event["kind"] in STOP_EVENT_KINDS:
             out.append(event)
         elif event["kind"] == "contract_expiring" and event["days_left"] == config.CONTRACT_EXPIRING_DAYS:
+            out.append(event)
+        elif event["kind"] == "social_offer" and event["opened_on"] == on_date:
             out.append(event)
     return out
 
@@ -136,6 +147,14 @@ def list_events(conn: sqlite3.Connection, career_id: str, on_date: str) -> List[
         shortfall = _projected_upkeep_shortfall(conn, career_id)
         if shortfall > 0:
             events.append({"kind": "upkeep_warning", "ref_id": None, "shortfall": shortfall})
+
+    for offer in social.list_open(conn, career_id):
+        events.append({
+            "kind": "social_offer",
+            "ref_id": offer["offer_id"],
+            "relationship_id": offer["relationship_id"],
+            "opened_on": offer["opened_on"],
+        })
 
     low_rows = conn.execute(
         "SELECT relationship_id FROM relationship WHERE career_id = ? AND score < ?",
@@ -430,8 +449,26 @@ def process_day(conn: sqlite3.Connection, career_id: str, on_date: str, seed: in
             repossessed += sold
 
     # §6.3: every advanced day gets natural condition recovery, not just
-    # ones with a lifestyle activity applied via T2.
-    condition.apply_delta(conn, career_id, config.NATURAL_CONDITION_RECOVERY_PER_DAY)
+    # ones with a lifestyle activity applied via T2. §6.6: the rate is no
+    # longer flat — owned items raise it — but the number is computed in
+    # exactly one place (condition.daily_recovery) so T1's preview and this
+    # application can't disagree.
+    recovery = condition.daily_recovery(conn, career_id)
+    condition.apply_delta(conn, career_id, recovery["total"])
+
+    # §6.3 D53: the day's chance of a social offer. After the recovery so a
+    # template whose accept branch costs condition is priced against the
+    # condition the player will actually have, and BEFORE list_events is
+    # re-read below — a freshly opened offer has to be in the events the
+    # caller stops on, or the day it arrived would pass unremarked.
+    offer = social.maybe_generate(conn, career_id, on_date, seed)
+    if offer:
+        events.append({
+            "kind": "social_offer",
+            "ref_id": offer["offer_id"],
+            "relationship_id": offer["relationship_id"],
+            "opened_on": offer["opened_on"],
+        })
 
     sim = _simulate_day_fixtures(conn, career_id, on_date, seed)
 
@@ -441,6 +478,8 @@ def process_day(conn: sqlite3.Connection, career_id: str, on_date: str, seed: in
 
     return {
         "events": events,
+        "social_offer": offer,
+        "condition_recovery": recovery,
         "ledger_entries": ledger_entries,
         "news_created": news_created,
         "repossessed": repossessed,

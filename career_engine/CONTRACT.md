@@ -945,10 +945,14 @@ Taban: `http://127.0.0.1:8001`
 | W2 | `GET` | `/careers/{cid}/standings` | `?competition=&season=` → puan durumu (D18) |
 | W3 | `GET` | `/careers/{cid}/fixtures` | `?competition=&round=&team_id=&status=` |
 | W4 | `GET` | `/careers/{cid}/teams/{tid}` | Takım künyesi + renkler |
+| W5 | `GET` | `/careers/{cid}/calendar` | `?from=&to=` → takvim sayfası: fikstür + önemli günler |
 | **İlişki** ||||
 | R1 | `GET` | `/careers/{cid}/relationships` | Beş kart |
 | R2 | `GET` | `/careers/{cid}/relationships/{rid}` | Profil künyesi + son etkileşimler |
 | R3 | `POST` | `/careers/{cid}/relationships/{rid}/interact` | Diyalog sonucunu uygular |
+| R4 | `GET` | `/careers/{cid}/social/offers` | Cevap bekleyen sosyal teklifler (§6.3 D53) |
+| R5 | `POST` | `/careers/{cid}/social/offers/{oid}/accept` | Teklifi kabul eder |
+| R6 | `POST` | `/careers/{cid}/social/offers/{oid}/decline` | Teklifi reddeder |
 | **Zaman** ||||
 | T1 | `GET` | `/careers/{cid}/day` | Bugün: tarih, kalan aksiyon, bugünkü olaylar |
 | T2 | `POST` | `/careers/{cid}/actions` | Antrenman / yaşam aktivitesi uygular |
@@ -1376,6 +1380,59 @@ takım geçen sezon başka kademede olabilir (§3.3).
 
 ---
 
+#### W5 · `GET /careers/{cid}/calendar`
+
+```jsonc
+// GET …/calendar?from=2026-08-01&to=2026-08-31   (ikisi de opsiyonel)
+{ "from": "2026-08-01", "to": "2026-08-31", "today": "2026-08-19",
+  "season": { "season_id": "25/26", "starts_on": "2026-08-01", "ends_on": "2027-05-31" },
+  "days": [
+    { "date": "2026-08-08", "marks": [
+        { "kind": "match", "ref_id": "f_2526_lig1_r1_ykz_gal",
+          "competition": { /* CompetitionRef */ }, "round_no": 1,
+          "kickoff_at": "2026-08-08T20:00:00+03:00",
+          "home": { /* TeamRef */ }, "away": { /* TeamRef */ },
+          "status": "scheduled", "score": null, "is_user_match": true } ] },
+    { "date": "2026-08-10", "marks": [ { "kind": "wage", "ref_id": null } ] },
+    { "date": "2026-08-19", "marks": [
+        { "kind": "cup_round", "ref_id": "c_kupa", "round_no": 1,
+          "stage": "r32", "drawn": false } ] }
+  ] }
+```
+
+Varsayılan aralık `game_date`'in içinde bulunduğu **aydır** — sık kullanım
+çıplak bir GET olsun diye. Aralık `MAX_CALENDAR_DAYS`'i (62) aşarsa
+`422 invalid_request`.
+
+**Yalnız işaretli günler döner.** 31 günlük bir ayın beş işaretli günü varsa
+beş satır gelir; boş grid FE'nin işidir, zaten hafta başlangıcı kaymasını
+hesaplamak için `from`/`to`'yu bilmek zorunda.
+
+**`marks[].kind`, T1'in `events[].kind`'ından ayrı bir sözlüktür** ve olması
+gereken de budur:
+
+| | Soru | Kapsam |
+|---|---|---|
+| T1 `events[]` | "Bugün ne **doğru**?" | `upkeep_warning`, `relationship_low`, `social_offer` … |
+| W5 `marks[]` | "Bu güne ne **planlanmış**?" | `match` · `wage` · `cup_round` · `contract_expiry` · `season_start` · `season_end` |
+
+`upkeep_warning` gelecekteki bir bakiyenin projeksiyonudur — bir ay sonrası
+için hesaplanamaz. `relationship_low` ise hiç tarihi olmayan bir durumdur.
+Buna karşılık `wage` ve `cup_round`, T1'de karşılığı olmayan takvim
+gerçekleridir: maaş günü `WAGE_WEEKDAY`'den türetilir (aynı sabit §6.5'te
+ödemeyi yapar, böylece grid ile defter payday konusunda ayrışamaz) ve kupa
+turları **kura çekilmeden önce de** tarihlidir, yani "3 Kasım'da kupa maçın
+var" rakip belli olmadan çizilebilir. Kurası çekilmiş tur artık bir fikstürdür
+ve `match` olarak görünür.
+
+Takım renkleri `home`/`away`'in `TeamRef`'lerinin içinde zaten gelir; günü
+boyayacak FE'nin ayrıca bir alan istemesine gerek yok.
+
+**v1 yalnızca kullanıcının kendi maçlarını gösterir.** Her kulübün her maçını
+taşıyan bir grid takvim değil fikstür listesidir; oyuncunun sorusu "ben ne
+zaman oynuyorum". İleride `competition=` parametresiyle genişletilebilir,
+şekli değişmeden.
+
 ### 5.4 İlişki
 
 #### R1 · `GET /careers/{cid}/relationships`
@@ -1389,7 +1446,7 @@ takım geçen sezon başka kademede olabilir (§3.3).
       "person_name":     "Mert Aydın",
       "contact_name":    "Mert Hoca",
       "last_contact_at": "2026-03-12",
-      "has_pending_request": false,
+      "has_pending_request": false,       // R4 · bu ilişkiden açık teklif var mı
       "traits": { "trust": 74, "promised_minutes": 60, "tactical_fit": 0.8 } }
 ] }
 ```
@@ -1451,6 +1508,63 @@ reddedilir:
   "message": "'charisma' level 7, needs 8" }
 ```
 
+#### R4 · `GET /careers/{cid}/social/offers`
+
+```jsonc
+{ "offers": [
+    { "offer_id":        "so_9f21c3",
+      "template_id":     "coach_extra_session",
+      "relationship_id": "coach",
+      "relationship": { "relationship_id": "coach", "kind": "coach",
+                        "category": "Antrenör", "score": 74,
+                        "person_name": "Mert Çalışkan", "contact_name": "Antrenör Mert" },
+      "title": "Fazladan idman",
+      "body":  "Antrenör Mert, yarın sabah antrenmandan önce seninle bire bir çalışmak istiyor.",
+      "accept_label": "Sahada olurum",
+      "decline_label": "Bu hafta olmaz",
+      "costs":    { "time": 120, "energy": 20 },
+      "requires": {},
+      "opened_on": "2026-08-19",
+      "status":    "open",
+      "resolved_on": null } ] }
+```
+
+**Metin BE'de yazarlanır, cümle BE'de kurulmaz.** İkisi aynı şey değil: §1.3'ün
+yasakladığı şey verinin cümleye çevrilmesidir ("3 gün kaldı"), yazarlanmış
+içeriğin kendisi değil — `news`'in `title`/`body`'si de aynı şekilde gelir.
+Teklifin bir dalı olmadığı için (bir paragraf, iki buton) metni FE'de tutmak,
+yeni bir şablon eklemeyi iki depoda düzenleme yapmaya çevirirdi; diyalog
+**ağaçları** FE'de kalmaya devam ediyor (D23), çünkü onların dallanması bir
+arayüz yapısıdır.
+
+`costs` ve `requires` gönderilir — oyuncu seçmeden **önce** kapıyı görmeye
+hak kazanır (D42). `accept`/`decline` ödülleri gönderilmez, aynı gerekçeyle
+`GET /catalog/dialogue`'un yalnızca kilitleri servis etmesi gibi.
+
+#### R5/R6 · `POST /careers/{cid}/social/offers/{oid}/accept` · `…/decline`
+
+Gövdesiz. Yanıt R3'ün şeklidir, artı çözümlenmiş `offer`:
+
+```jsonc
+{ "career_state": { /* CareerState */ },
+  "offer": { "offer_id": "so_9f21c3", "status": "accepted",
+             "resolved_on": "2026-08-19", /* … R4'ün alanları */ },
+  "relationship_changes": [
+    { "relationship_id": "coach", "before": 70, "after": 75, "delta": 5 } ],
+  "attribute_changes": [ /* şablonun `attribute:*` etkileri */ ],
+  "ledger_entries":    [ /* şablonun `money` etkisi */ ] }
+```
+
+**Kabulün kontrol sırası T2'nin tablosunun aynısıdır** (§5.5): teklif var mı
+(`404 social_offer_not_found`) → açık mı (`409 social_offer_not_open`) →
+`requires` (`409 requirement_not_met`) → bütçe (`409 insufficient_budget`) →
+bakiye (`409 insufficient_funds`). Reddedilen bir kabul **hiçbir şey yazmaz**
+ve teklif açık kalır — oyuncu hâlâ reddedebilir.
+
+**Reddetme bu sıranın hiçbir adımını çalıştırmaz ve başarısız olamaz (INV-40).**
+Cevap zorunlu olduğu için (D53) çıkış kapısının koşulsuz olması gerekir: parası
+ve günü bitmiş bir oyuncu teklifi temizleyemezse kariyer kilitlenir.
+
 `relationship.score` değişmez, `relationship_event`'e satır düşmez, hiçbir
 nitelik oynamaz (INV-30). Kontrol `choice_path` çözümlendikten **sonra**,
 `apply_delta()`'dan **önce** yapılır.
@@ -1474,13 +1588,25 @@ tamamen kilitlenip oyuncuyu çıkmaza sokamaz.
   "is_match_day": false,
   "events": [
     { "kind": "cup_draw",        "ref_id": "c_kupa",  "round_no": 5 },
-    { "kind": "upkeep_warning",  "ref_id": null,      "shortfall": 800 }
-  ] }
+    { "kind": "upkeep_warning",  "ref_id": null,      "shortfall": 800 },
+    { "kind": "social_offer",    "ref_id": "so_9f21", "relationship_id": "coach",
+      "opened_on": "2026-08-19" }                // §6.3 D53
+  ],
+  "condition_recovery": {                      // §6.6 · bir sonraki günün değeri
+    "base": 5, "bonus": 2, "total": 7, "capped": false,
+    "sources": [ { "item_id": "home-treadmill", "title": "Koşu bandı", "amount": 2 } ] } }
 ```
 
 `events[].kind`: `match` · `cup_draw` · `contract_expiring` · `upkeep_warning` ·
-`relationship_low` · `season_end`. **Cümle gönderilmez** — FE `kind` ve `ref_id`
+`relationship_low` · `season_end` · `social_offer`. **Cümle gönderilmez** — FE `kind` ve `ref_id`
 ile kendi metnini kurar (§1.3).
+
+`condition_recovery`, `advance`'ın **bir sonraki** günü için uygulayacağı
+toparlanmanın önizlemesidir (§6.6). `sources[]` sahip olunan eşyalardan gelen
+payı ayrıştırır ki FE "+7 (koşu bandı +2)" diyebilsin; `title` yazarlanmış
+katalog metnidir, kurulmuş bir cümle değil. Sayıyı hesaplayan tek yer
+`domain/condition.daily_recovery()`'dir — önizleme ile uygulama iki ayrı yerde
+hesaplansaydı ayrışabilirlerdi.
 
 #### T2 · `POST /careers/{cid}/actions`
 
@@ -1545,8 +1671,19 @@ bedavaya öğrenir. Aynı alanlar R3'te de vardır (§5.4).
   "ledger_entries": [ /* geçilen Pazartesilerin maaş ve gider satırları */ ],
   "news_created":  ["n_0143", "n_0144"],
   "repossessed":   [],                     // D29 · elden çıkan eşyalar
-  "missed_matches": [] }                   // §6.1 · oynanmadan geçilen kendi maçları
+  "missed_matches": [],                    // §6.1 · oynanmadan geçilen kendi maçları
+  "stopped_events": [ /* durulan günün T1 events[] listesi */ ],
+  "condition_before": 72,                  // §6.6 · çağrı öncesi
+  "condition_after":  80 }                 // §6.6 · = career_state.condition
 ```
+
+`stopped_events`, durulan günün **T1 listesinin aynısıdır** — durdurucuların
+süzülmüş hâli değil. `stop_reason` bir etikettir; bir şey açması gereken çağıran
+(fikstür, teklif) onun `ref_id`'sine muhtaçtır ve bunu öğrenmek için T1'i ikinci
+kez çağırmak, bu çağrının zaten elinde olan veriyi tekrar istemek olurdu.
+
+`condition_before`/`after`, gün gün ilerleyen bir istemcinin çubuğu kendi kopya
+durumunu tutmadan canlandırabilmesi içindir (D55).
 
 Atlanan **her** Pazartesi için ayrı maaş ve gider satırı yazılır — tek toplu
 satır değil, geçmiş okunabilir kalsın diye (§6.5). Geçilen her günün fikstürleri
@@ -1554,6 +1691,10 @@ bütün müsabakalarda anında koşar (§6.7, D40).
 
 Sezon bittiyse `409 season_finished`; terfi/düşme o çağrının içinde hesaplanır
 ve `stop_reason: "season_end"` döner.
+
+Cevaplanmamış bir sosyal teklif varsa çağrı **hiç ilerlemeden**
+`409 social_offer_pending` döner ve mesajda `offer_id`'yi taşır (D53). Doğru
+tepki teklifi açmaktır, tekrar denemek değil.
 
 #### T4 · `POST /careers/{cid}/purchases`
 
@@ -1759,6 +1900,7 @@ onu FE, P1'in `level` alanıyla kendisi hesaplar (D42).
     { "catalog_id": "daire-merkez", "title": "…", "description": "…",
       "category": "housing", "price": 250000,
       "upkeep_weekly": 1800,                    // D27
+      "daily_effects": { "condition": 1 },      // D51 · opsiyonel, pasif
       "note": "3+1, 120 m²" } ] }
 
 // GET /catalog/dialogue — yalnızca kilitler, ödüller DEĞİL
@@ -1905,6 +2047,19 @@ bir daha asla sonraki maça ulaşamaz. Bu yüzden `relationship_low` durdurmaz
 gün durdurur. Yukarıdaki cümlenin kendi ifadesi de zaten böyleydi: "eşiğin
 altına **düştüğünde**", "30 gün **kala**".
 
+**Sosyal teklif de kenar-tetiklidir (D53).** T3 teklifin *geldiği* gün durur;
+sonraki günlerde T1 onu bildirmeye devam eder ama durma ölçütü sayılmaz —
+sayılsaydı takvim, `relationship_low` için anlatılan tuzağın aynısına düşerdi.
+Cevap zorunluluğunu sağlayan şey durma değil, çağrının **kapıdaki** reddidir:
+açık teklif varken `POST /advance` `409 social_offer_pending` atar. Böylece
+"sıfır gün ilerledi, sebep yok" gibi sessiz bir durum hiç oluşmaz, ve
+uygulama teklif ekrandayken kapansa bile durum kurtarılabilir kalır.
+
+Teklif üretimi günlük bir zar atışıdır (`SOCIAL_OFFER_DAILY_CHANCE`), kariyerin
+kendi seed'inden türetilir (INV-7) ve aynı anda en fazla bir teklif açık olabilir
+(INV-39). Havuz `content/social_offers.py`'dir; yeni bir şablon eklemek yalnız o
+dosyayı düzenlemektir.
+
 ### 6.4 Yarım kalan maç (D3 riskinin telafisi)
 
 `fixture.status = 'in_progress'` iken yeni bir `GET /matches/next` gelirse BE
@@ -1966,6 +2121,17 @@ seçebilir.
 
 ### 6.6 Kondisyon döngüsü (D38)
 
+**Günlük toparlanma taban + eşya bonusudur (D51/D52).** Atlanan her gün
+`NATURAL_CONDITION_RECOVERY_PER_DAY` tabanını, artı sahip olunan her eşyanın
+`daily_effects.condition` payını öder; toplam `MAX_CONDITION_RECOVERY_PER_DAY`
+ile kesilir (INV-41) ve sonra her zamanki gibi nitelik tavanına sıkışır
+(INV-10). Bonus **delta'nın boyunu** değiştirir, tavanı değil: tavandaki bir
+oyuncu bütün rafı almış olsa da tavanda kalır.
+
+Bonus tablosu `catalog/shop.py`'ın kendi satırlarından türetilir; yeni bir kalem
+eklemek yalnız o dosyayı düzenlemek demektir — toplama, tavan ve önizleme
+zaten veriden okur.
+
 Kondisyon **tek bir kaynaktır** ve kariyer ile maç arasında dolaşır. "Takım
 kondisyonu" diye ayrı bir kavram yoktur — maç ekranındaki çubuk oyuncunun kendi
 kondisyonudur.
@@ -1997,7 +2163,7 @@ career_state.condition ──► POST /matches gövdesi: user_condition   (maç 
 | Maç içi erime | **API katmanı**, `effort`'a bağlı hızla | §7.3 |
 | Ekranda gösterim | Tick zarfının yeni `player.condition` alanı | §7.3 |
 | Geri yazma | FE `final_condition` raporlar → kariyer BE yazar | §5.6 |
-| Toparlanma | Yaşam aktiviteleri ve atlanan günler | §6.2, §6.3 |
+| Toparlanma | Yaşam aktiviteleri, atlanan günler ve sahip olunan eşyalar | §6.2, §6.3 |
 
 **Erime hızı yalnızca `effort`'a bağlıdır (D39).** Formül yeni değil: imzalı
 contract'ın §6.4'ündeki `EFFORT_STAMINA_SWING` eğrisi ve
@@ -2200,6 +2366,9 @@ kullanır ama kullanıcının maçı müdahalelerle sapar.
 | 409 | `not_match_day` | M1 çağrıldı ama bugün kullanıcının maçı yok (§6.1); mesaj sonraki kickoff tarihini ve kaç gün kaldığını taşır |
 | 409 | `fixture_already_played` | Sonuç ikinci kez yazılmak isteniyor |
 | 409 | `season_finished` | Sezon bitti, ilerletilemez |
+| 409 | `social_offer_pending` | Cevaplanmamış sosyal teklif varken `advance` çağrıldı (D53); mesaj `offer_id` taşır |
+| 409 | `social_offer_not_open` | Teklif zaten cevaplanmış |
+| 404 | `social_offer_not_found` | Bilinmeyen `offer_id` |
 | 409 | `fixture_not_in_progress` | M3 çağrıldı ama fikstür yarım kalmış değil |
 | 409 | `no_standings` | Puan durumu istenen müsabaka `kind='cup'` — eleme usulünde tablo yoktur |
 | 422 | `invalid_request` | Şema doğrulaması |
@@ -2749,6 +2918,12 @@ ve saklanmayan** bir alandır (D43/D45):
 | 409 | `offer_not_open` | Teklif zaten kabul edilmiş ya da süresi geçmiş |
 | 404 | `offer_not_found` | Bilinmeyen `offer_id` |
 
+> **Bu iki kod sosyal tekliflerinkiyle karıştırılmamalıdır.** §5.4'ün
+> `social_offer_not_found` / `social_offer_not_open` kodları ayrı tutuldu ki
+> transfer teklifleri geldiğinde buradaki `offer_*` ailesi serbest kalsın —
+> tek bir kod ailesini iki farklı ömre sahip iki mekaniğin paylaşması, ikisi
+> birden var olduğu gün sözleşmenin birini yalancı çıkarırdı.
+
 **Emekli:** `409 season_finished`.
 
 ---
@@ -2766,6 +2941,12 @@ Onuncu turda (sezon devri) alınanlar:
 | D48 | Transfer öznesi | **Yalnızca kullanıcı** | D4 (kadro yok) korunur. NPC transferi 32 takımlık kadro modeli ister; o, sezon mantığından büyük ayrı bir iştir |
 | D49 | Kıta turnuvası | **v1'de yalnızca kontenjan** | Tek ülke (`TR`) var; 32 Türk takımıyla "Avrupa" turnuvası kurmak dünyayı bozardı. Kontenjan bilgisi bugünden doğru saklanır, turnuva sonra gelir |
 | D50 | Sözleşme süresi | **Sezon cinsinden; bitiş daima sezon sınırı** | Şartname iki bitiş tarihi tanımlıyor (1 Ocak / sezon sonu); gün cinsinden süre bunu tutturamaz |
+| D51 | Eşyanın günlük etkisi | **Ayrı `daily_effects` haritası, `effects` değil** | `effects` T2'nin haritası: bir kez, bir aksiyonla uygulanır. Eşyanın etkisi pasiftir — kimse koşu bandını "kullanmaz", sahip olmak mekaniğin tamamıdır. İkisini tek alana sıkıştırmak "bu satır ne zaman uygulanır" sorusunu okunamaz hâle getirirdi |
+| D56 | FE'nin ilerleme biçimi | **Tekrarlanan `next_day` döngüsü, tek `next_event` değil** | Tek çağrıda sunucu kırk gün ileri gitmişken ekran üçüncü günü oynatıyor olur; "Durdur" o noktada yalan söyler. Gün gün gidince ekranın tarihi ile `game_date` her karede aynı sayıdır ve durma ölçütü yine sunucuda kalır — döngünün çıkış testi yalnızca `stop_reason != "none"` |
+| D55 | Takvim görünümünün verisi | **Kendi ucu (W5), FE'de birleştirme değil** | Fikstür + sözleşme + sezondan istemcide kurmak, `WAGE_WEEKDAY`'i Dart'ta yeniden yazdırırdı (§1.3) ve sezon sınırlarını **hiçbir uç** döndürmüyor. Üstelik sayfa başına 3-4 çağrı ve 20'şerlik fikstür sayfalaması gerekirdi |
+| D53 | Sosyal teklife cevap | **Zorunlu — açık teklif `advance`'ı kapıda reddeder** | "Sonra bakarım" seçeneği teklifi bir bildirime çevirirdi; ilişkinin karşı taraftan bir şey isteyebilmesi mekaniğin tamamı. Kapıda reddetmek, döngü içinde her gün durmaktan da açıktır: sıfır gün ilerleyip "none" diyen bir çağrı, hata gibi görünmeyen bir hatadır |
+| D54 | Teklifin ömrü | **Süre yok; geldiği gün cevaplanır** | D53 açık teklifle zamanı durdurduğu için "süresi doldu" ancak cevap vermeyi reddederek ulaşılabilirdi — cevap vermemek imkânsızken. Ulaşılamayan durum, test edilemeyen durumdur |
+| D52 | Günlük toparlanma tavanı | **Taban + eşya toplamı, sabit tavanla kesilir (INV-41)** | Tavansız, dükkânın yeterince büyük bir kısmını alan oyuncu bir maçı iki sakin günde geri öder ve kondisyon yönetilen bir kaynak olmaktan çıkar — §6.6'nın tüm varlık sebebi bu |
 
 ---
 
@@ -2778,6 +2959,9 @@ Onuncu turda (sezon devri) alınanlar:
 | INV-35 | `player_contract.expires_at` daima ya bir sezonun `ends_on`'u ya da bir `winter_break_from` tarihidir (D50) |
 | INV-36 | Devir tek transaction'dır; kısmen uygulanmış bir devir (girişler yazılmış ama fikstür üretilmemiş gibi) oluşamaz |
 | INV-37 | Devir sonrası her takım yeni sezonda **tam olarak bir** lige girer — INV-14'ün ("birden fazlasına giremez") tamamlayıcısı |
+| INV-39 | Bir kariyerde aynı anda `status='open'` olan **en fazla bir** `social_offer` satırı bulunur (D53) |
+| INV-40 | Bir sosyal teklifi **reddetmek** hiçbir gereksinim kontrol etmez, hiçbir bütçe/para harcamaz ve başarısız olamaz — zorunlu cevabın çıkış kapısı budur |
+| INV-41 | Bir günün doğal kondisyon toparlanması (taban + sahip olunan eşyaların `daily_effects.condition` toplamı) `MAX_CONDITION_RECOVERY_PER_DAY`'i aşmaz; aşsa da INV-10'un tavanı ayrıca geçerlidir (D52) |
 
 **Garanti EDİLMEYEN:** sezonların fikstür sırasının birbirinden bağımsızlığı —
 devir kariyerin kendi `seed`'ini kullanmayı sürdürür, dolayısıyla INV-7 (aynı

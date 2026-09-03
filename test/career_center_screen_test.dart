@@ -7,8 +7,11 @@ import 'package:http/testing.dart';
 
 import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_session.dart';
+import 'package:project_srpg/screens/calendar_screen.dart';
 import 'package:project_srpg/screens/career_center_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
+import 'package:project_srpg/widgets/month_calendar.dart';
+import 'package:project_srpg/widgets/social_offer_modal.dart';
 
 http.Response _json(Object body, {int status = 200}) => http.Response(
       jsonEncode(body),
@@ -74,27 +77,108 @@ const _newsPreview = [
   },
 ];
 
-Map<String, dynamic> _dayBody({bool isMatchDay = false, String? currentDate}) {
+Map<String, dynamic> _dayBody({
+  bool isMatchDay = false,
+  String? currentDate,
+  String? pendingOfferId,
+}) {
   return {
     'career_state': {
       'current_date': currentDate ?? '2026-08-19', 'season_id': '25/26',
       'money': 48200, 'condition': 72, 'day_budget': {'time': 720.0},
     },
     'is_match_day': isMatchDay,
-    'events': const [],
+    'events': [
+      if (pendingOfferId != null)
+        {
+          'kind': 'social_offer', 'ref_id': pendingOfferId,
+          'relationship_id': 'coach', 'opened_on': '2026-08-19',
+        },
+    ],
   };
 }
+
+
+/// T3'ün bir günlük yanıtı. Döngü her tur bunun birini alır.
+Map<String, dynamic> _advanceBody({
+  required String date,
+  required String stopReason,
+  int condition = 72,
+  List<Map<String, dynamic>> stoppedEvents = const [],
+}) {
+  return {
+    'career_state': {
+      'current_date': date, 'season_id': '25/26',
+      'money': 48200, 'condition': condition, 'day_budget': {'time': 720.0},
+    },
+    'days_advanced': 1,
+    'stopped_on': date,
+    'stop_reason': stopReason,
+    'simulated': {'fixtures': 2, 'competitions': 1},
+    'ledger_entries': const [], 'news_created': const [],
+    'repossessed': const [],
+    'stopped_events': stoppedEvents,
+    'condition_before': 72,
+    'condition_after': condition,
+  };
+}
+
+const _offerContact = {
+  'relationship_id': 'coach', 'kind': 'coach', 'category': 'Antrenör',
+  'score': 70, 'person_name': 'Mert Çalışkan', 'contact_name': 'Antrenör Mert',
+};
+
+const _openOfferBody = {
+  'offer_id': 'so_1', 'template_id': 'coach_extra_session',
+  'relationship_id': 'coach', 'relationship': _offerContact,
+  'title': 'Fazladan idman',
+  'body': 'Antrenör yarın sabah bire bir çalışmak istiyor.',
+  'accept_label': 'Sahada olurum', 'decline_label': 'Bu hafta olmaz',
+  'costs': <String, dynamic>{}, 'requires': <String, dynamic>{},
+  'opened_on': '2026-08-19', 'status': 'open', 'resolved_on': null,
+};
 
 CareerSession _hubSession(
   Map<String, dynamic> hubBody, {
   Map<String, dynamic>? dayBody,
   http.Response Function(http.Request)? onAdvance,
+  List<Map<String, dynamic>>? socialOffers,
 }) {
   final mock = MockClient((request) async {
     if (request.url.path == '/careers') return _json(_careersListBody);
     if (request.url.path == '/careers/car_test') return _json(hubBody);
     if (request.url.path == '/careers/car_test/day') {
       return _json(dayBody ?? _dayBody());
+    }
+    if (request.url.path == '/careers/car_test/social/offers') {
+      return _json({'offers': socialOffers ?? const <dynamic>[]});
+    }
+    if (request.url.path.startsWith('/careers/car_test/social/offers/')) {
+      return _json({
+        'career_state': (dayBody ?? _dayBody())['career_state'],
+        'offer': {
+          'offer_id': 'so_1', 'template_id': 'coach_extra_session',
+          'relationship_id': 'coach',
+          'relationship': _offerContact,
+          'title': 'Fazladan idman', 'body': '...',
+          'accept_label': 'E', 'decline_label': 'H',
+          'costs': const <String, dynamic>{},
+          'requires': const <String, dynamic>{},
+          'opened_on': '2026-08-19', 'status': 'accepted',
+          'resolved_on': '2026-08-19',
+        },
+        'relationship_changes': const [
+          {'relationship_id': 'coach', 'before': 70, 'after': 75, 'delta': 5}
+        ],
+        'attribute_changes': const <dynamic>[],
+        'ledger_entries': const <dynamic>[],
+      });
+    }
+    if (request.url.path == '/careers/car_test/calendar') {
+      return _json({
+        'from': '2026-08-01', 'to': '2026-08-31', 'today': '2026-08-19',
+        'season': null, 'days': const <dynamic>[],
+      });
     }
     if (request.url.path == '/careers/car_test/advance') {
       return onAdvance?.call(request) ??
@@ -195,24 +279,132 @@ void main() {
     expect(find.text('İlerle'), findsOneWidget);
   });
 
-  testWidgets('İlerle T3\'ü çağırır, kondisyonu ve hub\'ı tazeler',
+  testWidgets('İlerle günü tek tek ilerletir ve olaylı günde durur',
       (tester) async {
-    var advanceCalls = 0;
+    // §6.3 D56 · her tur bir `next_day` çağrısıdır; durma kararını sunucu
+    // verir (`stop_reason`), Dart hangi olayın durdurucu olduğunu bilmez.
+    final bodies = <Map<String, String>>[];
+    var day = 19;
     final session = _hubSession(
       _hubBody(nextFixture: _fixture),
       onAdvance: (request) {
-        advanceCalls++;
-        return _json({
-          'career_state': {
-            'current_date': '2026-08-22', 'season_id': '25/26',
-            'money': 48200, 'condition': 80, 'day_budget': {'time': 720.0},
-          },
-          'days_advanced': 3, 'stopped_on': '2026-08-22',
-          'stop_reason': 'match', 'simulated': {'fixtures': 8, 'competitions': 2},
-          'ledger_entries': const [], 'news_created': const [],
-          'repossessed': const [],
-        });
+        bodies.add(
+          (jsonDecode(request.body) as Map).cast<String, String>(),
+        );
+        day++;
+        final stopping = bodies.length == 3;
+        return _json(_advanceBody(
+          date: '2026-08-$day',
+          stopReason: stopping ? 'match' : 'none',
+          condition: 72 + bodies.length,
+        ));
       },
+    );
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('İlerle'));
+    // pumpAndSettle, döngünün tekrarlayan gecikmesinde zaman aşımına uğrar —
+    // adımlar açıkça sürülür.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+
+    expect(bodies.length, 3);
+    expect(bodies.every((b) => b['to'] == 'next_day'), isTrue);
+    expect(find.textContaining('3 gün ilerledi — maç günü.'), findsOneWidget);
+  });
+
+  testWidgets('akan takvim overlay olarak görünür ve buton Durdur olur',
+      (tester) async {
+    var day = 19;
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      onAdvance: (request) {
+        day++;
+        return _json(_advanceBody(date: '2026-08-$day', stopReason: 'none'));
+      },
+    );
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('İlerle'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.byType(MonthCalendar), findsOneWidget);
+    expect(find.text('Durdur'), findsWidgets);
+    expect(find.text('20 Ağustos 2026'), findsOneWidget);
+
+    await tester.tap(find.text('Durdur').last);
+    await tester.pumpAndSettle();
+    expect(find.byType(MonthCalendar), findsNothing);
+  });
+
+  testWidgets('Durdur yeni gün çağrısı yapılmasını keser', (tester) async {
+    var calls = 0;
+    var day = 19;
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      onAdvance: (request) {
+        calls++;
+        day++;
+        return _json(_advanceBody(date: '2026-08-$day', stopReason: 'none'));
+      },
+    );
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('İlerle'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    final atStop = calls;
+
+    await tester.tap(find.text('Durdur').last);
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 600));
+
+    // Uçuştaki gün commit olur (bir gün gerçekten yaşandı), sonrası gitmez.
+    expect(calls, lessThanOrEqualTo(atStop + 1));
+    expect(find.text('İlerle'), findsOneWidget);
+  });
+
+  testWidgets('döngü ortasındaki sezon sonu hatası SnackBar gösterir',
+      (tester) async {
+    var calls = 0;
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      onAdvance: (request) {
+        calls++;
+        if (calls == 1) {
+          return _json(_advanceBody(date: '2026-08-20', stopReason: 'none'));
+        }
+        return _json(
+          {'code': 'season_finished', 'message': 'the season has ended'},
+          status: 409,
+        );
+      },
+    );
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('İlerle'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+
+    expect(find.text('the season has ended'), findsOneWidget);
+    expect(find.byType(MonthCalendar), findsNothing);
+  });
+
+  testWidgets('İlerle kondisyonu her gün PlayerState\'e yansıtır',
+      (tester) async {
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      onAdvance: (request) => _json(
+        _advanceBody(date: '2026-08-20', stopReason: 'match', condition: 80),
+      ),
     );
     await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
     await tester.pumpAndSettle();
@@ -220,14 +412,12 @@ void main() {
     await tester.tap(find.text('İlerle'));
     await tester.pumpAndSettle();
 
-    expect(advanceCalls, 1);
-    expect(find.textContaining('3 gün ilerledi — maç günü.'), findsOneWidget);
-    // career_state.condition (80) PlayerState'e yansımış olmalı.
     await tester.scrollUntilVisible(find.text('%80'), 200);
     expect(find.text('%80'), findsOneWidget);
   });
 
-  testWidgets('İlerle 409 dönerse SnackBar gösterir, condition değişmez',
+
+  testWidgets('ilk gün çağrısı 409 dönerse SnackBar gösterir',
       (tester) async {
     final session = _hubSession(
       _hubBody(nextFixture: _fixture),
@@ -244,6 +434,154 @@ void main() {
 
     expect(find.text('the season has ended'), findsOneWidget);
   });
+testWidgets('döngü bir teklifte durunca modal açılır', (tester) async {
+    // (b) · `stopped_events` kimliği taşır, yani hangi teklifin açılacağını
+    // öğrenmek için T1 yeniden çağrılmaz.
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      socialOffers: const [_openOfferBody],
+      onAdvance: (request) => _json(_advanceBody(
+        date: '2026-08-20',
+        stopReason: 'social_offer',
+        stoppedEvents: const [
+          {
+            'kind': 'social_offer', 'ref_id': 'so_1',
+            'relationship_id': 'coach', 'opened_on': '2026-08-20',
+          }
+        ],
+      )),
+    );
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('İlerle'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SocialOfferModal), findsOneWidget);
+    expect(find.text('Fazladan idman'), findsOneWidget);
+  });
+
+  testWidgets('teklif cevaplanınca modal kapanır ve delta SnackBar\'a düşer',
+      (tester) async {
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      socialOffers: const [_openOfferBody],
+      onAdvance: (request) => _json(_advanceBody(
+        date: '2026-08-20',
+        stopReason: 'social_offer',
+        stoppedEvents: const [
+          {
+            'kind': 'social_offer', 'ref_id': 'so_1',
+            'relationship_id': 'coach', 'opened_on': '2026-08-20',
+          }
+        ],
+      )),
+    );
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('İlerle'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('offerAccept')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SocialOfferModal), findsNothing);
+    expect(find.text('Antrenör +5'), findsOneWidget);
+  });
+
+  testWidgets('bekleyen teklif varken İlerle ilerlemez, teklifi açar',
+      (tester) async {
+    // (a) · BE zaten kapıda 409 atıyor; buradan bakmak kullanıcıya hata
+    // yerine teklifin kendisini göstermek için (§6.3 D53).
+    var advanceCalls = 0;
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      dayBody: _dayBody(pendingOfferId: 'so_1'),
+      socialOffers: const [_openOfferBody],
+      onAdvance: (request) {
+        advanceCalls++;
+        return _json(_advanceBody(date: '2026-08-20', stopReason: 'none'));
+      },
+    );
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('İlerle'));
+    await tester.pumpAndSettle();
+
+    expect(advanceCalls, 0);
+    expect(find.byType(SocialOfferModal), findsOneWidget);
+  });
+
+  testWidgets('gün satırındaki teklif rozeti modalı yeniden açar',
+      (tester) async {
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      dayBody: _dayBody(pendingOfferId: 'so_1'),
+      socialOffers: const [_openOfferBody],
+    );
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sosyal teklif bekliyor →'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('daySocialOffer')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SocialOfferModal), findsOneWidget);
+  });
+
+  testWidgets('sunucu social_offer_pending derse teklif açılır', (tester) async {
+    // (c) · uygulama teklif ekrandayken kapanmışsa T1 önbelleği bilmiyordur,
+    // ama BE bilir.
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      socialOffers: const [_openOfferBody],
+      onAdvance: (request) => _json(
+        {'code': 'social_offer_pending', 'message': "so_1 is waiting"},
+        status: 409,
+      ),
+    );
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('İlerle'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SocialOfferModal), findsOneWidget);
+    // 409'un ham metni gösterilmez — kullanıcıya teklifin kendisi gösterilir.
+    expect(find.text('so_1 is waiting'), findsNothing);
+  });
+
+  testWidgets('teklif başka bir yerde cevaplanmışsa sessizce tazelenir',
+      (tester) async {
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      dayBody: _dayBody(pendingOfferId: 'so_1'),
+      socialOffers: const [],
+    );
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('daySocialOffer')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SocialOfferModal), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('takvim ikonu takvim ekranını açar', (tester) async {
+    final session = _hubSession(_hubBody(nextFixture: _fixture));
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.calendar_month_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CalendarScreen), findsOneWidget);
+    expect(find.text('Takvim'), findsOneWidget);
+  });
+
   testWidgets('maç günü olmayan kartta dokunuş maç ekranını açmaz',
       (tester) async {
     final session =

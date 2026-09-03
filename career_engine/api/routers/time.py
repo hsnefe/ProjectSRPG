@@ -12,7 +12,7 @@ from api.schemas.time import ActionRequest, AdvanceRequest, PurchaseRequest
 from catalog.lifestyle import LIFESTYLE_ITEMS
 from catalog.shop import SHOP_ITEMS
 from catalog.training import TRAINING_ITEMS
-from domain import attributes, condition, day_budget, daytime, fame, requirements
+from domain import attributes, condition, day_budget, daytime, fame, requirements, social
 from domain import relationships as relationships_domain
 from domain import wallet
 
@@ -46,7 +46,15 @@ def get_day(career_id: str, conn: sqlite3.Connection = Depends(get_db)):
     career_state = serializers.fetch_career_state(conn, career_id)
     events = daytime.list_events(conn, career_id, career_state["current_date"])
     is_match_day = any(e["kind"] == "match" for e in events)
-    return {"career_state": career_state, "is_match_day": is_match_day, "events": events}
+    return {
+        "career_state": career_state,
+        "is_match_day": is_match_day,
+        "events": events,
+        # §6.6 - what the NEXT advanced day is worth in condition, base and
+        # owned-item bonus split out so FE can show where it came from
+        # without fetching the shop catalog (§5.0: additive field).
+        "condition_recovery": condition.daily_recovery(conn, career_id),
+    }
 
 
 @router.post("/actions")
@@ -165,11 +173,23 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
     if season and current_date >= season["ends_on"]:
         raise errors.season_finished()
 
+    # §6.3 D53: an open offer blocks time outright rather than being stopped
+    # on again each day. Refusing at the door is a clearer failure than a
+    # loop that advances zero days and reports "none" — and it makes the
+    # mandatory answer recoverable if the app dies with the modal on screen.
+    pending_offers = social.list_open(conn, career_id)
+    if pending_offers:
+        raise errors.social_offer_pending(pending_offers[0]["offer_id"])
+
     days_advanced = 0
     fixtures_total = 0
     competitions_total = set()
     ledger_entries, news_created, repossessed = [], [], []
     stop_reason = "none"
+    stopped_events = []
+    condition_before = conn.execute(
+        "SELECT condition FROM career_state WHERE career_id = ?", (career_id,)
+    ).fetchone()["condition"]
 
     # A Monday left unpaid by a previous upkeep_warning stop gets forced
     # through now, before advancing any further (D29).
@@ -202,22 +222,35 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
         fixtures_total += day_result["fixtures_simulated"]
         competitions_total |= day_result["competitions_touched"]
 
-        stoppers = daytime.stop_worthy(day_result["events"])
+        stoppers = daytime.stop_worthy(day_result["events"], next_date)
         if stoppers:
             stop_reason = stoppers[0]["kind"]
+            stopped_events = day_result["events"]
             break
         if body.to == "next_day":
+            stopped_events = day_result["events"]
             break
     else:
         stop_reason = "none"  # MAX_ADVANCE_DAYS safety cap hit
 
     conn.commit()
 
+    career_state = serializers.fetch_career_state(conn, career_id)
     return {
-        "career_state": serializers.fetch_career_state(conn, career_id),
+        "career_state": career_state,
         "days_advanced": days_advanced,
         "stopped_on": current_date,
         "stop_reason": stop_reason,
+        # §5.5 T3 - the full event list for the day the loop stopped on, not
+        # just the winning kind. `stop_reason` alone is a label; the caller
+        # that has to open something (a fixture, an offer) needs the ref_id
+        # that comes with it, and fetching T1 again to get it would be a
+        # second round trip for data this call already had in hand.
+        "stopped_events": stopped_events,
+        # §6.6 - what the run cost or paid in condition. FE animates the bar
+        # per call without keeping its own copy of the previous value.
+        "condition_before": condition_before,
+        "condition_after": career_state["condition"],
         "simulated": {"fixtures": fixtures_total, "competitions": len(competitions_total)},
         "ledger_entries": ledger_entries,
         "news_created": news_created,
