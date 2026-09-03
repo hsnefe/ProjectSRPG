@@ -190,7 +190,7 @@ def delete_career(career_id: str, conn: sqlite3.Connection = Depends(get_db)):
         "competition_entry", "competition_rule", "competition_round", "fixture_team_stat",
         "fixture", "season", "competition", "team",
         "relationship_event", "relationship",
-        "news", "activity_log", "inventory", "money_ledger",
+        "news", "news_story_log", "news_arc", "activity_log", "inventory", "money_ledger",
         "career_state", "career",
     ]
     for table in tables:
@@ -253,7 +253,9 @@ def _build_hub(conn: sqlite3.Connection, career_id: str) -> dict:
 
     news_rows = conn.execute(
         "SELECT news_id, category, title, source, published_at FROM news "
-        "WHERE career_id = ? ORDER BY published_at DESC LIMIT 5",
+        # Same tiebreak as N1 (api/routers/news.py): C3's preview and the
+        # feed must agree on which item is "the latest".
+        "WHERE career_id = ? ORDER BY published_at DESC, news_id DESC LIMIT 5",
         (career_id,),
     ).fetchall()
 

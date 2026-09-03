@@ -131,6 +131,13 @@ Dokuzuncu turda (sosyal yeterlilik kapısı) alınanlar — **kişi ailesi ilk k
 | D42 | Nitelik yeterliliği | **`requires` haritası — sunucu-otoriter, BE hem servis eder hem doğrular** | §3.2'nin "diyalog seçeneği kilidi" vaadinin karşılığı. Eşiği FE'ye vermek kilidi önceden göstermeyi (gri seçenek) mümkün kılar; çağrıda yeniden doğrulamak istemcinin kilidi atlamasını imkânsız kılar. İkisi birden gerekir: biri UX, diğeri güvenlik |
 | D43 | Yeterlilik ölçeği | **Seviye = `floor(value/10)`, 0-10** | Eşik "cazibe 60" değil "cazibe 6" diye yazılır — içerik yazarı için okunur, oyuncu için anlaşılır. Türetme kuralının tek sahibi BE'dir; P1 ham `value` ile birlikte `level`'ı da gönderdiği için FE formülü kopyalamaz |
 
+On birinci turda (haber katmanı) alınanlar — **D44-D50 arası §11.10'dadır**,
+sezon devri turunda alındılar:
+
+| # | Karar | Seçilen | Gerekçe |
+|---|---|---|---|
+| D51 | Haber üretimi | **Arketip kataloğu + belirlenimci seçim, tek yazma yolu** | Sabit çağrı noktalarında elle yazılmış başlık dört haber üretiyordu; katalog aynı makineyle elliden fazlasını üretir. Seçim `random.Random(seed:news:tarih:tetikleyici)` ile yapılır — INV-7'nin belirlenimciliği içeriğe de uzanır, aynı kariyer aynı gazeteyi basar. Arketipler `content/` paketindedir, `catalog/` değil: katalog FE'ye servis edilir (N3), haber şablonu ise spoiler'dır ve hiçbir zaman servis edilmez. Yazma yolu `domain/news.publish()`'te tektir (INV-38), `wallet.apply()`/`relationships.apply_delta()` kalıbının aynısı |
+
 > **`requires` üçüncü haritadır — `costs`/`effects`'in kardeşi, ikizi
 > değil.** `costs` günü kapatır (§6.2), `effects` dünyayı değiştirir,
 > `requires` **kapıyı açar** — hiçbir şey harcamaz, hiçbir şey değiştirmez,
@@ -845,7 +852,7 @@ Zamanla aşınma (uzun süre temas edilmezse skorun düşmesi) bu modelde kolayd
 CREATE TABLE news (
   career_id  TEXT NOT NULL, news_id TEXT NOT NULL,
   published_at TEXT NOT NULL,
-  category   TEXT NOT NULL,                -- 'Transfer','Maç','Röportaj','Analiz'
+  category   TEXT NOT NULL,                -- 'Transfer','Maç','Röportaj','Analiz','Magazin','Yaşam'
   title      TEXT NOT NULL,
   source     TEXT NOT NULL,                -- 'Spor Manşet','Lig Ajansı' ...
   body       TEXT NOT NULL,                -- \n\n ile ayrılmış paragraflar
@@ -920,6 +927,47 @@ Defteri baştan toplayıp bakiyeyle karşılaştıran bir test sapmayı yakalar.
 **Katalog tabloları yoktur.** Antrenman/yaşam/dükkân katalogları kod içinde veri
 dosyasıdır, kariyere kopyalanmaz — yalnızca *yapılanlar* ve *alınanlar* loglanır.
 Katalog fiyatı sonradan değişirse geçmiş kayıt `price_paid` ile korunur.
+
+#### Haber üretiminin durumu (D51 — `008_news_state.sql`)
+
+```sql
+-- Soğuma kaynağı ve denetim izi: bir arketip en son ne zaman yayımlandı?
+-- `news` bu soruyu cevaplayamaz — orada story_id kolonu yoktur ve olmamalıdır:
+-- `news` FE'ye servis edilen içeriktir, arketip kimliği ise spoiler'dır.
+CREATE TABLE news_story_log (
+  career_id    TEXT NOT NULL,
+  story_id     TEXT NOT NULL,            -- content/news_stories.py'deki arketip
+  published_at TEXT NOT NULL,
+  news_id      TEXT NOT NULL,
+  PRIMARY KEY (career_id, story_id, published_at)
+);
+
+CREATE INDEX idx_news_story_log ON news_story_log (career_id, story_id);
+
+-- Söylenti yayları: çok günlü hikâyeler durumunu burada tutar.
+CREATE TABLE news_arc (
+  career_id  TEXT NOT NULL,
+  arc_id     TEXT NOT NULL,              -- 'transfer:t_gal'
+  stage      INTEGER NOT NULL DEFAULT 0, -- basılmış aşama; geri alınmaz
+  heat       REAL NOT NULL DEFAULT 0,    -- 0-100, söylentinin sıcaklığı
+  opened_on  TEXT NOT NULL,
+  updated_on TEXT NOT NULL,
+  payload    TEXT,                       -- JSON
+  PRIMARY KEY (career_id, arc_id)
+);
+```
+
+**Doğruluk kaynağı `news` tablosu olarak kalır**; bu ikisi üretim tarafının
+defteridir. Okuma uçları (N1/N2 ve C3'ün `news_preview`'ı) buraya hiçbir zaman
+bakmaz, yalnızca `domain/news.py` bakar. `news_arc.stage`, D45'in "türetilmiş
+değer saklanmaz" kuralının bilinçli istisnasıdır: aşama yalnızca bugünkü
+`heat`'ten değil, dünkü aşamadan da etkilenir — basılmış bir manşet geri
+alınmaz, söylenti kamuoyu önünde soğuyarak biter.
+
+Dosya adı **008**'dir, 007 değil: §11.3 `007_season_rollover.sql` adını sezon
+devrine ayırdı ve o dosya henüz yazılmadı. Numara boşluğu sorun değildir,
+migration sırası yalnızca dosya adına bakar. İki tablo da INV-9'un silme
+listesindedir ([`api/routers/careers.py`](api/routers/careers.py)).
 
 ---
 
@@ -1711,6 +1759,16 @@ Sorgu: `?limit=20&before=<published_at>&category=`
 `excerpt` gövdenin ilk paragrafıdır — içerik olduğu için gönderilir (§1.3).
 `timeAgo` ("2 saat önce") **gönderilmez**, `published_at`'tan FE türetir.
 
+`category` filtresinin geçerli değerleri §3.5'in listesidir: `Transfer`,
+`Maç`, `Röportaj`, `Analiz`, `Magazin`, `Yaşam`. Tanınmayan bir değer hata
+değildir, boş liste döndürür.
+
+Sıralama `published_at DESC, news_id DESC`'tir. İkinci anahtar süs değil:
+`before` **kesin küçüktür** eşiğidir, dolayısıyla aynı `published_at`'ı
+paylaşan iki satırda sıra belirsiz kalır **ve** sayfa sınırı o grubun içine
+düşerse kalanı akıştan sessizce düşerdi. Üretim tarafı zaten kariyer-gün
+başına benzersiz damga basar (D51), okuma tarafı buna bağımlı değildir.
+
 #### N2 · `GET /careers/{cid}/news/{nid}`
 
 ```jsonc
@@ -2178,6 +2236,10 @@ bile olmaz; API katmanı kendi sayacını tutar.
 | INV-30 | `requires` eşiği karşılanmayan hiçbir aksiyon, satın alma veya diyalog seçimi **hiçbir** maliyet düşmez ve **hiçbir** etki uygulamaz → `409 requirement_not_met` (D42) |
 | INV-31 | Her `requires` anahtarı §3.2'nin nitelik kataloğundan, her değeri 0-10 aralığında bir tam sayıdır; ihlal eden kalem yüklenmez (D42/D43) |
 | INV-32 | Her diyalog ağacında gereksinimsiz **en az bir** yaprak bulunur — hiçbir konuşma tamamen kilitlenemez (D42) |
+| INV-38 | `news` satırı yalnızca `domain/news.publish()` üzerinden yazılır; arketipten geldiyse aynı transaction'da `news_story_log` satırı düşer (D51). Bir kaynak taraması testi bunu doğrular |
+
+**INV-33 … INV-37 §11.11'dedir** (sezon devri turunda eklendiler); numara
+sırası tarihsel, konu değil.
 
 **Garanti EDİLMEYEN:** kullanıcının maçı ile `simulate/batch` sonuçlarının
 istatistiksel olarak birebir aynı dağılımdan geldiği — ikisi de aynı motoru
@@ -2244,6 +2306,21 @@ cevabı gerekiyor:
 
 Şemaya etkisi yok: hangi cevap gelirse gelsin `player_fame` + `fame_event` +
 `fame.apply()` üçlüsü karşılar.
+
+> **Haber katmanı (D51) AÇIK-9'un hem tüketicisi hem üreticisidir — madde
+> yine de açıktır.** Üretici tarafı: bir arketibin `effects` haritasındaki
+> `fame:overall` deltası, katalog kaleminin deltasıyla birebir aynı yoldan,
+> `fame.apply()` üzerinden geçer (INV-24). Bugün şöhretin **başlıca kaynağı
+> budur**; katalog kalemlerinin `fame:*` etkileri hâlâ ⟦AÇIK-9⟧ yer tutucusu
+> olarak `null`'dur. Tüketici tarafı: transfer söylentisinin `heat`'i şöhreti
+> bir girdi olarak okur (§3.5 `news_arc`), ama **tavansız bir sayıya
+> güvenmez** — katkısı `min(4.0, fame * 0.06)` ile sınırlanmıştır, çünkü bu
+> katman aralığı bilmiyor. Yukarıdaki altı sorudan hiçbiri bununla
+> cevaplanmış olmuyor; özellikle **2. soru (aralık)** ve **6. soru (medya
+> ilişkisinden farkı)** doğrudan bu tavanın ve `pick_outlet`'in ikisini ayrı
+> tutmasının gerekçesidir. Karar geldiğinde dokunulacak yerler:
+> `content/news_stories.py`'deki `effects` sayıları ve
+> `domain/news.transfer_heat_delta()`'daki tavan.
 
 **AÇIK-8 — Piyasa değeri formülü.**
 `player_value_history` anlık görüntüleri saklıyor ama **güncel değeri hesaplayan

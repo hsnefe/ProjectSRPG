@@ -17,8 +17,7 @@ import sqlite3
 from typing import List, Optional, Set
 
 from api import config
-from api.ids import new_news_id
-from domain import condition, engine_client, formulas, scheduling, wallet
+from domain import condition, engine_client, formulas, news, scheduling, wallet
 from worlddata.competitions import ULUSAL_KUPA
 
 
@@ -153,14 +152,64 @@ def list_events(conn: sqlite3.Connection, career_id: str, on_date: str) -> List[
     return events
 
 
-def _create_news(conn: sqlite3.Connection, career_id: str, category: str, title: str, body: str, on_date: str) -> str:
-    news_id = new_news_id()
-    conn.execute(
-        "INSERT INTO news (career_id, news_id, published_at, category, title, source, body, fixture_id) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, NULL)",
-        (career_id, news_id, f"{on_date}T09:00:00+03:00", category, title, "Kulüp Bülteni", body),
-    )
-    return news_id
+def _item_title(item_id: str) -> str:
+    """The shop catalog's display name for an owned item, for the news
+    layer's `{item}` slot. A repossession headline that reads
+    'estate-villa satıldı' would be the generator showing its plumbing."""
+    from catalog.shop import SHOP_ITEMS
+
+    item = next((i for i in SHOP_ITEMS if i["catalog_id"] == item_id), None)
+    return item["title"] if item else item_id
+
+
+def match_facts(
+    conn: sqlite3.Connection, career_id: str, fixture_id: str, *, goals: int = 0, assists: int = 0,
+) -> dict:
+    """The `**facts` a match trigger hands the news layer, read back from
+    the fixture row after it has been marked 'played'.
+
+    Lives here rather than in domain/news.py because it is fixture
+    knowledge, not press knowledge — news.py deliberately knows nothing
+    about competitions or sides. Both match triggers use it so a missed
+    match and a played one describe the same scoreline the same way
+    (M2 in domain/matches.py, the catch-up path below).
+    """
+    from api import serializers
+
+    row = conn.execute(
+        "SELECT * FROM fixture WHERE career_id = ? AND fixture_id = ?", (career_id, fixture_id)
+    ).fetchone()
+    user_team_id = _user_team_id(conn, career_id)
+    home_ref = serializers.fetch_team_ref(conn, career_id, row["home_team_id"])
+    away_ref = serializers.fetch_team_ref(conn, career_id, row["away_team_id"])
+
+    user_is_home = row["home_team_id"] == user_team_id
+    own = row["home_score"] if user_is_home else row["away_score"]
+    other = row["away_score"] if user_is_home else row["home_score"]
+    opponent = away_ref if user_is_home else home_ref
+
+    competition = serializers.fetch_competition_ref(conn, career_id, row["competition_id"])
+    is_cup = conn.execute(
+        "SELECT 1 FROM competition WHERE career_id = ? AND competition_id = ? AND kind != 'league'",
+        (career_id, row["competition_id"]),
+    ).fetchone() is not None
+
+    return {
+        "fixture_id": fixture_id,
+        # `score` is the bare result, `scoreline` names the clubs. Both are
+        # offered because a tabloid headline wants the short one and a
+        # report headline wants the long one.
+        "score": f"{row['home_score']}-{row['away_score']}",
+        "scoreline": f"{home_ref['name']} {row['home_score']}-{row['away_score']} {away_ref['name']}",
+        "opponent_name": opponent["name"],
+        "opponent_short": opponent["short_name"],
+        "competition_name": competition["name"] if competition else row["competition_id"],
+        "is_cup": is_cup,
+        "result": "win" if own > other else "loss" if own < other else "draw",
+        "goal_diff": own - other,
+        "goals": goals,
+        "assists": assists,
+    }
 
 
 def _pay_wage(conn: sqlite3.Connection, career_id: str, on_date: str) -> Optional[dict]:
@@ -172,11 +221,18 @@ def _pay_wage(conn: sqlite3.Connection, career_id: str, on_date: str) -> Optiona
     )
 
 
-def _pay_upkeep(conn: sqlite3.Connection, career_id: str, on_date: str) -> tuple:
+def _pay_upkeep(conn: sqlite3.Connection, career_id: str, on_date: str, seed: int) -> tuple:
     """D27/D29: pays SUM(inventory.upkeep_weekly); if the balance (already
     including this Monday's wage) can't cover it, sells the highest-upkeep
     item at 50% refund and retries — repeatedly, per D29 step 3 — until
-    covered or nothing is left to sell."""
+    covered or nothing is left to sell.
+
+    Returns (ledger_entries, repossessed_item_ids, news_ids). The press is
+    told ONCE, after the loop, even when D29 had to sell three things: the
+    `money_trouble` trigger is capped at one story (MAX_STORIES_PER_TRIGGER)
+    because a fire sale is one event, not three, and three articles at the
+    same minute is precisely the collision the publishing slots exist to
+    prevent."""
     happened_at = f"{on_date}T00:00:00+03:00"
     entries, repossessed = [], []
 
@@ -205,12 +261,19 @@ def _pay_upkeep(conn: sqlite3.Connection, career_id: str, on_date: str) -> tuple
         conn.execute("DELETE FROM inventory WHERE career_id = ? AND item_id = ?", (career_id, item["item_id"]))
         entries.append(wallet.apply(conn, career_id, refund, "sale", f"sale:{item['item_id']}", happened_at))
         repossessed.append(item["item_id"])
-        _create_news(
-            conn, career_id, "Analiz", "Bütçe zorlaması",
-            f"Düzenli gideri karşılamak için {item['item_id']} elden çıkarıldı.", on_date,
+
+    news_created = []
+    if repossessed:
+        news_created = news.generate(
+            conn, career_id, trigger="money_trouble", on_date=on_date, seed=seed,
+            # The first item sold is the one the headline names: D29 sells
+            # highest-upkeep first, so it is also the biggest loss.
+            item_id=repossessed[0],
+            item_title=_item_title(repossessed[0]),
+            repossessed_count=len(repossessed),
         )
 
-    return entries, repossessed
+    return entries, repossessed, news_created
 
 
 def _team_engine_fields(row: sqlite3.Row) -> dict:
@@ -333,7 +396,9 @@ def _draw_cup_round(conn: sqlite3.Connection, career_id: str, round_no: int, on_
     )
 
 
-def resolve_pending_monday(conn: sqlite3.Connection, career_id: str, on_date: str) -> Optional[dict]:
+def resolve_pending_monday(
+    conn: sqlite3.Connection, career_id: str, on_date: str, seed: int
+) -> Optional[dict]:
     """§6.5 D29 - if on_date is a Monday whose wage was never paid (the
     advance loop stopped there last time on an upkeep_warning without
     processing it, giving the user a chance to react), force it through
@@ -354,9 +419,13 @@ def resolve_pending_monday(conn: sqlite3.Connection, career_id: str, on_date: st
     wage_entry = _pay_wage(conn, career_id, on_date)
     if wage_entry:
         ledger_entries.append(wage_entry)
-    upkeep_entries, repossessed = _pay_upkeep(conn, career_id, on_date)
+    upkeep_entries, repossessed, news_created = _pay_upkeep(conn, career_id, on_date, seed)
     ledger_entries += upkeep_entries
-    return {"ledger_entries": ledger_entries, "repossessed": repossessed}
+    return {
+        "ledger_entries": ledger_entries,
+        "repossessed": repossessed,
+        "news_created": news_created,
+    }
 
 
 def resolve_pending_today(conn: sqlite3.Connection, career_id: str, on_date: str, seed: int) -> dict:
@@ -385,12 +454,14 @@ def resolve_pending_today(conn: sqlite3.Connection, career_id: str, on_date: str
 
     sim = _simulate_day_fixtures(conn, career_id, on_date, seed, include_user=bool(missed))
 
+    # §6.1's missed match, told by the press. No goals/assists are passed
+    # because none were credited — the player wasn't there (D13).
     news_created = []
     for row in missed:
-        news_created.append(_create_news(
-            conn, career_id, "Maç", "Kadroda yoktun",
-            "Maç sen sahada olmadan oynandı; sonuç puan durumuna işlendi.", on_date,
-        ))
+        news_created += news.generate(
+            conn, career_id, trigger="match_missed", on_date=on_date, seed=seed,
+            **match_facts(conn, career_id, row["fixture_id"]),
+        )
 
     cup_round = _next_drawable_cup_round(conn, career_id, on_date)
     if cup_round:
@@ -417,17 +488,18 @@ def process_day(conn: sqlite3.Connection, career_id: str, on_date: str, seed: in
     if is_monday:
         if warned_today:
             shortfall = next(e["shortfall"] for e in events if e["kind"] == "upkeep_warning")
-            news_created.append(_create_news(
-                conn, career_id, "Analiz", "Bütçe uyarısı",
-                f"Önümüzdeki düzenli gider (₺{shortfall} açık) karşılanamayabilir.", on_date,
-            ))
+            news_created += news.generate(
+                conn, career_id, trigger="upkeep_warning", on_date=on_date, seed=seed,
+                shortfall=shortfall,
+            )
         else:
             wage_entry = _pay_wage(conn, career_id, on_date)
             if wage_entry:
                 ledger_entries.append(wage_entry)
-            upkeep_entries, sold = _pay_upkeep(conn, career_id, on_date)
+            upkeep_entries, sold, sale_news = _pay_upkeep(conn, career_id, on_date, seed)
             ledger_entries += upkeep_entries
             repossessed += sold
+            news_created += sale_news
 
     # §6.3: every advanced day gets natural condition recovery, not just
     # ones with a lifestyle activity applied via T2.
@@ -438,6 +510,14 @@ def process_day(conn: sqlite3.Connection, career_id: str, on_date: str, seed: in
     cup_round = _next_drawable_cup_round(conn, career_id, on_date)
     if cup_round:
         _draw_cup_round(conn, career_id, cup_round["round_no"], on_date, seed)
+
+    # The ambient news of the world, last: the transfer arc and the analysis
+    # archetypes read form and the table, so they must see the day's other
+    # results rather than yesterday's. Cheap on a quiet day — day_tick rolls
+    # its "is anyone even writing" chance before touching the database.
+    news_created += news.generate(
+        conn, career_id, trigger="day_tick", on_date=on_date, seed=seed,
+    )
 
     return {
         "events": events,

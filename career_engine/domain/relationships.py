@@ -152,3 +152,41 @@ def replay_score(
     for row in rows:
         score = max(0, min(100, score + row["delta"]))
     return score
+
+
+def peak_scores(conn: sqlite3.Connection, career_id: str) -> dict:
+    """The highest score every relationship in this career has ever held,
+    replayed from relationship_event the same way replay_score() does.
+
+    Why this exists: a low score means two completely different things
+    depending on history. `partner` and `family` both START at 0 (§4 — "you
+    haven't called home yet"), so a reader of the current score alone cannot
+    tell "it ended" from "it never began". The news layer needs that
+    distinction — a break-up story about a relationship that never existed
+    is the most obviously wrong thing the press can print.
+
+    One query for the whole career rather than one per relationship: this
+    runs on every day tick, and six round trips for a cosmetic subsystem is
+    a bad trade. Ordered by event_id, not happened_at, because two events
+    can share a timestamp (same day, same dialogue) and the clamp makes the
+    fold order-dependent.
+    """
+    peaks = {}
+    for row in conn.execute(
+        "SELECT relationship_id, kind, score FROM relationship WHERE career_id = ?",
+        (career_id,),
+    ).fetchall():
+        peaks[row["relationship_id"]] = STARTING_SCORES.get(row["kind"], row["score"])
+
+    running = dict(peaks)
+    for row in conn.execute(
+        "SELECT relationship_id, delta FROM relationship_event "
+        "WHERE career_id = ? ORDER BY event_id",
+        (career_id,),
+    ).fetchall():
+        rid = row["relationship_id"]
+        if rid not in running:
+            continue
+        running[rid] = max(0, min(100, running[rid] + row["delta"]))
+        peaks[rid] = max(peaks[rid], running[rid])
+    return peaks

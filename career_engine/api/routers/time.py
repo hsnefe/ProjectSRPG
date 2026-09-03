@@ -12,7 +12,7 @@ from api.schemas.time import ActionRequest, AdvanceRequest, PurchaseRequest
 from catalog.lifestyle import LIFESTYLE_ITEMS
 from catalog.shop import SHOP_ITEMS
 from catalog.training import TRAINING_ITEMS
-from domain import attributes, condition, day_budget, daytime, fame, requirements
+from domain import attributes, condition, day_budget, daytime, fame, news, requirements
 from domain import relationships as relationships_domain
 from domain import wallet
 
@@ -40,6 +40,15 @@ def _current_date(conn: sqlite3.Connection, career_id: str) -> str:
     ).fetchone()["game_date"]
 
 
+def _seed(conn: sqlite3.Connection, career_id: str) -> int:
+    """The career's own seed, which every news roll is derived from — so
+    replaying the same decisions on the same career prints the same paper
+    (INV-7's determinism, extended to content)."""
+    return conn.execute(
+        "SELECT seed FROM career WHERE career_id = ?", (career_id,)
+    ).fetchone()["seed"]
+
+
 @router.get("/day")
 def get_day(career_id: str, conn: sqlite3.Connection = Depends(get_db)):
     serializers.require_career(conn, career_id)
@@ -61,7 +70,8 @@ def post_action(career_id: str, body: ActionRequest, conn: sqlite3.Connection = 
     # threshold isn't met can't have cost the player a minute of the day.
     requirements.check(conn, career_id, config.USER_PLAYER_ID, item.get("requires"))
 
-    happened_at = f"{_current_date(conn, career_id)}T00:00:00+03:00"
+    current_date = _current_date(conn, career_id)
+    happened_at = f"{current_date}T00:00:00+03:00"
 
     # INV-4: check + deduct budget before anything else; writes nothing if
     # any resource is short. Money's own insufficient_funds check happens
@@ -104,6 +114,25 @@ def post_action(career_id: str, body: ActionRequest, conn: sqlite3.Connection = 
             json.dumps(body.result, ensure_ascii=False) if body.result is not None else None,
         ),
     )
+
+    # §1.2: `source` IS the trigger name — a training session and a night
+    # out are different events to the press, not one "action" event with a
+    # flag. The attribute jump is passed along because the scouting-report
+    # archetype hangs off a level crossing a decade (D43), which is the only
+    # training outcome worth a column inch; `attribute_changes` is already
+    # sorted by nothing in particular, so the biggest jump is picked here.
+    jump = max(
+        (c for c in attribute_changes if c["level_after"] > c["level_before"]),
+        key=lambda c: c["level_after"] - c["level_before"], default=None,
+    )
+    news.generate(
+        conn, career_id, trigger=source, on_date=current_date, seed=_seed(conn, career_id),
+        catalog_id=body.catalog_id, item_title=item["title"],
+        attribute_key=jump["key"] if jump else None,
+        attribute_label=item["title"] if jump else None,
+        level_before=jump["level_before"] if jump else 0,
+        level_after=jump["level_after"] if jump else 0,
+    )
     conn.commit()
 
     return {
@@ -141,6 +170,14 @@ def post_purchase(career_id: str, body: PurchaseRequest, conn: sqlite3.Connectio
         "VALUES (?, ?, ?, ?, ?)",
         (career_id, body.catalog_id, current_date, item["price"], item["upkeep_weekly"]),
     )
+
+    # A ₺12.750.000 villa and a ₺6.200 pair of headphones are not the same
+    # story; `price` is what the two purchase archetypes split on.
+    news.generate(
+        conn, career_id, trigger="purchase", on_date=current_date, seed=_seed(conn, career_id),
+        catalog_id=body.catalog_id, item_title=item["title"], price=item["price"],
+        upkeep_weekly=item["upkeep_weekly"],
+    )
     conn.commit()
 
     return {
@@ -173,10 +210,11 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
 
     # A Monday left unpaid by a previous upkeep_warning stop gets forced
     # through now, before advancing any further (D29).
-    pending = daytime.resolve_pending_monday(conn, career_id, current_date)
+    pending = daytime.resolve_pending_monday(conn, career_id, current_date, seed)
     if pending:
         ledger_entries += pending["ledger_entries"]
         repossessed += pending["repossessed"]
+        news_created += pending["news_created"]
 
     # The day the career currently sits on was never "advanced into" (it's
     # either day 1, fresh from onboarding, or wherever the last call left

@@ -8,7 +8,7 @@ from api import config, errors, serializers
 from api.deps import get_db
 from api.schemas.relationship import InteractRequest
 from catalog.dialogue import DIALOGUE_RELATIONSHIP, resolve_outcome
-from domain import attributes, relationships as relationships_domain, requirements
+from domain import attributes, news, relationships as relationships_domain, requirements
 
 router = APIRouter(prefix="/careers/{career_id}/relationships", tags=["relationships"])
 
@@ -109,6 +109,30 @@ def interact(
         attribute_changes.append(
             attributes.apply_delta(conn, career_id, config.USER_PLAYER_ID, key, delta)
         )
+
+    # §1.2 — talking to the press is a different event from talking to
+    # anyone else, and it is the one worlddata/relationships.py's media card
+    # explicitly promises the player: "Verdiğin her demeç ertesi sabah
+    # manşete dönüşebilir." The media trigger has no TRIGGER_CHANCE gate for
+    # exactly that reason; an interview always prints something.
+    #
+    # The delta and the chosen leaf are the facts the interview archetypes
+    # split on (praised / criticised / said nothing). They deliberately
+    # carry no `relationship:media` effect: R3 already applied this
+    # dialogue's own delta above, and charging it twice would make the
+    # number in this response disagree with the database.
+    seed = conn.execute(
+        "SELECT seed FROM career WHERE career_id = ?", (career_id,)
+    ).fetchone()["seed"]
+    news.generate(
+        conn, career_id,
+        trigger="interview" if relationship_id == "media" else "dialogue",
+        on_date=current_date, seed=seed,
+        relationship_id=relationship_id,
+        dialogue_id=body.dialogue_id,
+        choice_leaf=body.choice_path[-1],
+        delta=outcome["relationship_delta"],
+    )
 
     conn.commit()
 

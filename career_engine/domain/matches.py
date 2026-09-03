@@ -12,7 +12,7 @@ from typing import Optional
 
 from api import config, errors, serializers
 from catalog.match_actions import ACTION_SCHEMAS, OUTCOME_SETS, is_assist, is_goal
-from domain import condition, daytime, formulas, relationships, wallet
+from domain import condition, daytime, formulas, news, relationships, wallet
 
 _STATS_KEYS = {
     "goals", "shots", "shots_on_target", "corners", "dangerous_attacks",
@@ -270,12 +270,20 @@ def apply_result(conn: sqlite3.Connection, career_id: str, fixture_id: str, body
 
     rank_after = _user_rank(conn, career_id, season_id, competition_id, user_team_id) if is_league else None
 
-    home_ref = serializers.fetch_team_ref(conn, career_id, fixture["home_team_id"])
-    away_ref = serializers.fetch_team_ref(conn, career_id, fixture["away_team_id"])
-    news_id = daytime._create_news(
-        conn, career_id, "Maç",
-        f"{home_ref['name']} {body['score']['home']}-{body['score']['away']} {away_ref['name']}",
-        "Maç sonuçlandı.", on_date,
+    # The match report. Generated last so the archetypes see the finished
+    # state (season stats already incremented, table already re-ranked) and
+    # inside the same transaction as everything above — news.generate() does
+    # not commit, exactly like wallet.apply() and relationships.apply_delta().
+    #
+    # match_played is capped at one story (MAX_STORIES_PER_TRIGGER): this
+    # response hands FE a single news_id and that item IS the report. The
+    # other angles on the same match surface on the next day_tick.
+    news_created = news.generate(
+        conn, career_id, trigger="match_played", on_date=on_date, seed=seed,
+        rank_before=rank_before, rank_after=rank_after,
+        **daytime.match_facts(
+            conn, career_id, fixture_id, goals=goal_count, assists=assist_count,
+        ),
     )
 
     conn.commit()
@@ -290,7 +298,7 @@ def apply_result(conn: sqlite3.Connection, career_id: str, fixture_id: str, body
         },
         "relationship_changes": relationship_changes,
         "ledger_entries": ledger_entries,
-        "news_created": [news_id],
+        "news_created": news_created,
     }
 
 

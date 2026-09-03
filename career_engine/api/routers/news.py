@@ -45,7 +45,14 @@ def list_news(
     if category:
         sql += " AND category = ?"
         params.append(category)
-    sql += " ORDER BY published_at DESC LIMIT ?"
+    # news_id is the tiebreak, not decoration: `before` is a strictly-
+    # exclusive published_at cursor, so if two rows ever shared a timestamp
+    # the order between them would be undefined AND a page boundary landing
+    # inside that group would drop the rest of it from the feed forever.
+    # domain/news._published_at() makes timestamps unique per career-day; a
+    # hand-written publish() call (or an older career's rows) is not bound
+    # by that, so the read side does not depend on it.
+    sql += " ORDER BY published_at DESC, news_id DESC LIMIT ?"
     params.append(limit)
 
     rows = conn.execute(sql, params).fetchall()
