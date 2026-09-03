@@ -9,6 +9,7 @@ import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/calendar_screen.dart';
 import 'package:project_srpg/screens/career_center_screen.dart';
+import 'package:project_srpg/screens/pre_match_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/widgets/month_calendar.dart';
 import 'package:project_srpg/widgets/social_offer_modal.dart';
@@ -190,9 +191,48 @@ CareerSession _hubSession(
             'repossessed': const [],
           });
     }
+    if (request.url.path == '/careers/car_test/matches/next') {
+      // §6.1 D57 · PreMatchScreen'in kendi M1 çağrısı — "Maça çık" navigasyonu
+      // gerçek bir ekrana düşer, `CareerSession.instance` üzerinden (bkz.
+      // _withInstanceOverride).
+      return _json({
+        'fixture_id': 'f_1',
+        'competition': {'competition_id': 'c_lig2', 'kind': 'league', 'name': '1. Lig'},
+        'kickoff_at': '2026-08-19T20:00:00+03:00',
+        'user_side': 'home',
+        'engine_payload': {
+          'teams': {
+            'home': {'name': 'FK Yıldız', 'attack': 63.0, 'midfield': 65.0,
+                     'defense': 61.0, 'goalkeeper': 64.0, 'mentality': 'balanced'},
+            'away': {'name': 'Deniz SK', 'attack': 68.0, 'midfield': 66.0,
+                     'defense': 65.0, 'goalkeeper': 67.0, 'mentality': 'attacking'},
+          },
+          'user_side': 'home', 'user_condition': 70, 'client_seed': 1,
+        },
+      });
+    }
     return http.Response('unexpected ${request.url}', 404);
   });
   return CareerSession(client: CareerApiClient(httpClient: mock, baseUrl: 'http://test'));
+}
+
+/// `PreMatchScreen()` sessiz kalır (`session:` parametresi geçilmez) — hub'ın
+/// kendi `_MatchPreviewSection`'ıyla aynı gerekçe: karta bağlı olmayan bir
+/// navigasyonun ExpandPageRoute'a ihtiyacı yok. Bu yüzden hedef ekran
+/// `CareerSession.instance`'ı kullanır; testler onu geçici olarak [session]'a
+/// çevirir ve sonunda geri alır — sınıfın kendi doc comment'inin belirttiği
+/// sanctioned yol (`career_session.dart`).
+Future<void> _withInstanceOverride(
+  CareerSession session,
+  Future<void> Function() body,
+) async {
+  final previous = CareerSession.instance;
+  CareerSession.instance = session;
+  try {
+    await body();
+  } finally {
+    CareerSession.instance = previous;
+  }
 }
 
 Widget _wrap(Widget home) {
@@ -279,6 +319,66 @@ void main() {
     expect(find.text('İlerle'), findsOneWidget);
   });
 
+  testWidgets(
+      '§6.1 D57 · maç günü İlerle pasif, "Maça çık" maç ekranını açar',
+      (tester) async {
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      dayBody: _dayBody(isMatchDay: true),
+    );
+    await _withInstanceOverride(session, () async {
+      await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+      await tester.pumpAndSettle();
+
+      final button = tester
+          .widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'İlerle'));
+      expect(button.onPressed, isNull);
+      expect(find.text('Maça çık →'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('dayGoToMatch')));
+      await tester.pumpAndSettle();
+      expect(find.byType(PreMatchScreen), findsOneWidget);
+    });
+  });
+
+  testWidgets(
+      'maç günü değilken İlerle aktif ve "Maça çık" görünmez',
+      (tester) async {
+    final session = _hubSession(_hubBody(nextFixture: _fixture));
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    final button =
+        tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'İlerle'));
+    expect(button.onPressed, isNotNull);
+    expect(find.text('Maça çık →'), findsNothing);
+  });
+
+  testWidgets(
+      'sunucu match_day_unplayed derse maç ekranı otomatik açılır',
+      (tester) async {
+    // (d) · gün verisi bayat kalmışsa (isMatchDay henüz bilinmiyorsa) İlerle
+    // yine de basılabilir; sunucu kapıda reddeder, ham hata yerine doğrudan
+    // maç ekranı açılır.
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      onAdvance: (request) => _json(
+        {'code': 'match_day_unplayed', 'message': "fixture 'f_1' must be played"},
+        status: 409,
+      ),
+    );
+    await _withInstanceOverride(session, () async {
+      await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('İlerle'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PreMatchScreen), findsOneWidget);
+      expect(find.textContaining('must be played'), findsNothing);
+    });
+  });
+
   testWidgets('İlerle günü tek tek ilerletir ve olaylı günde durur',
       (tester) async {
     // §6.3 D56 · her tur bir `next_day` çağrısıdır; durma kararını sunucu
@@ -305,10 +405,10 @@ void main() {
 
     await tester.tap(find.text('İlerle'));
     // pumpAndSettle, döngünün tekrarlayan gecikmesinde zaman aşımına uğrar —
-    // adımlar açıkça sürülür.
+    // adımlar açıkça sürülür. Her adım _advanceTick'i (550ms) aşmalı.
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
-    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
 
     expect(bodies.length, 3);
@@ -391,7 +491,7 @@ void main() {
 
     await tester.tap(find.text('İlerle'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
 
     expect(find.text('the season has ended'), findsOneWidget);

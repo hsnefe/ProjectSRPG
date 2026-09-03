@@ -5,7 +5,7 @@ import pytest
 
 from api import config
 from domain import calendar as calendar_domain
-from tests.conftest import new_career
+from tests.conftest import new_career, play_users_match
 
 
 @pytest.fixture
@@ -101,8 +101,9 @@ def test_the_users_own_fixtures_are_marked_with_both_sides(api_client, career):
 def test_a_played_fixture_carries_its_score(api_client, career, mock_engine):
     career_id, _ = career
     api_client.post(f"/careers/{career_id}/advance", json={"to": "next_event"})
-    # Advancing off the match day plays it in the background (§6.1).
-    api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"})
+    # §6.1 D57 - the match day fixture must be played (M1 -> M2) before it
+    # shows up as 'played'; advancing without playing it no longer does this.
+    play_users_match(api_client, career_id, home_goals=1, away_goals=1)
 
     body = api_client.get(f"/careers/{career_id}/calendar").json()
     played = [
@@ -110,7 +111,7 @@ def test_a_played_fixture_carries_its_score(api_client, career, mock_engine):
         if m["kind"] == "match" and m["status"] == "played"
     ]
     assert played
-    assert played[0]["score"] == {"home": 1, "away": 1}   # the mock engine's result
+    assert played[0]["score"] == {"home": 1, "away": 1}
 
 
 def test_an_undrawn_cup_round_is_on_the_grid_before_anyone_knows_the_opponent(

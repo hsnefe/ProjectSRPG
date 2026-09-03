@@ -213,3 +213,36 @@ def advance_to_match_day(api_client, career_id, max_calls=10) -> dict:
         resp = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_event"})
         assert resp.status_code == 200, resp.json()
     raise AssertionError(f"no match day reached for {career_id} in {max_calls} advances")
+
+
+def _match_stats(goals=0) -> dict:
+    return {
+        "goals": goals, "shots": 10, "shots_on_target": 4, "corners": 5,
+        "dangerous_attacks": 8, "total_attacks": 20, "yellow_cards": 1,
+        "red_cards": 0, "penalties": 0, "penalty_goals": 0, "fouls": 6,
+        "substitutions": 2, "possession_ticks": 50,
+    }
+
+
+def play_users_match(api_client, career_id, home_goals=1, away_goals=0, condition=54) -> dict:
+    """§6.1 D57 - plays today's fixture through M1 -> M2, the only way past
+    the match-day gate now that advancing without playing is refused. Tests
+    that need to get past a match day (to reach the following week, or to
+    see a 'played' score show up elsewhere) call this rather than the old
+    missed-match shortcut, which no longer exists.
+
+    Returns M2's response body."""
+    fixture_id = api_client.get(f"/careers/{career_id}/matches/next").json()["fixture_id"]
+    resp = api_client.post(
+        f"/careers/{career_id}/matches/{fixture_id}/result",
+        json={
+            "match_id": "m_test_0001",
+            "score": {"home": home_goals, "away": away_goals},
+            "stats": {"home": _match_stats(home_goals), "away": _match_stats(away_goals)},
+            "final_possession_home": 53.1,
+            "final_condition": condition,
+            "interventions": [],
+        },
+    )
+    assert resp.status_code == 200, resp.json()
+    return resp.json()

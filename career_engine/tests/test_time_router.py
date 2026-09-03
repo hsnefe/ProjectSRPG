@@ -3,7 +3,13 @@ import sqlite3
 import pytest
 
 from api import config
-from tests.conftest import advance_to_match_day, create_career, grant_money, set_attribute
+from tests.conftest import (
+    advance_to_match_day,
+    create_career,
+    grant_money,
+    play_users_match,
+    set_attribute,
+)
 from worlddata.attributes import BASE_SKILL_VALUE
 from worlddata.relationships import STARTING_SCORES
 
@@ -257,10 +263,13 @@ def test_a_quiet_next_day_still_reports_its_events(api_client, created_career, m
 
 def test_advance_walks_a_full_week_between_matches(api_client, created_career, mock_engine):
     """The whole point of the day loop: a match, then a week of days the
-    user actually plays, then the next match."""
+    user actually plays, then the next match. §6.1 D57 - the match itself
+    has to be played (M1 -> M2) before the second advance can move at all."""
     career_id = created_career["career_id"]
     first = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_event"}).json()
     assert first["stop_reason"] == "match"
+
+    play_users_match(api_client, career_id)
 
     second = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_event"}).json()
     assert second["days_advanced"] == 7
@@ -268,23 +277,41 @@ def test_advance_walks_a_full_week_between_matches(api_client, created_career, m
     assert second["career_state"]["current_date"] == "2026-08-15"
 
 
-def test_advance_past_an_unplayed_match_plays_it_without_the_user(api_client, created_career, mock_engine):
-    """§6.1 - advancing off your own match day is allowed and is not a soft
-    lock: the fixture is simulated like any other so the table stays
-    complete, but no appearance is credited (the user wasn't there)."""
+def test_advance_refuses_while_the_users_match_is_unplayed(api_client, created_career, mock_engine):
+    """§6.1 D57 - the old "missed match" auto-play is gone. Advancing off a
+    match day without playing it is refused outright, not silently allowed
+    with a penalty."""
     career_id = created_career["career_id"]
     user_team = created_career["player"]["team"]["team_id"]
     advance_to_match_day(api_client, career_id)
     fixture_id = api_client.get(f"/careers/{career_id}/fixtures", params={
         "team_id": user_team, "limit": 1,
     }).json()["fixtures"][0]["fixture_id"]
+    date_before = api_client.get(f"/careers/{career_id}/day").json()["career_state"]["current_date"]
 
-    body = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"}).json()
-    assert body["missed_matches"] == [fixture_id]
+    for to in ("next_day", "next_event"):
+        resp = api_client.post(f"/careers/{career_id}/advance", json={"to": to})
+        assert resp.status_code == 409
+        assert resp.json()["code"] == "match_day_unplayed"
+        assert fixture_id in resp.json()["message"]
 
-    played = api_client.get(f"/careers/{career_id}/fixtures", params={"team_id": user_team, "limit": 1}).json()
-    assert played["fixtures"][0]["status"] == "played"
-    assert api_client.get(f"/careers/{career_id}/player/stats").json()["rows"] == []
+    still = api_client.get(f"/careers/{career_id}/fixtures", params={"team_id": user_team, "limit": 1}).json()
+    assert still["fixtures"][0]["status"] == "scheduled"
+    assert api_client.get(f"/careers/{career_id}/day").json()["career_state"]["current_date"] == date_before
+
+
+def test_advance_resumes_once_the_match_day_fixture_is_played(api_client, created_career, mock_engine):
+    """The one way past the gate: play it."""
+    career_id = created_career["career_id"]
+    advance_to_match_day(api_client, career_id)
+
+    blocked = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"})
+    assert blocked.status_code == 409
+
+    play_users_match(api_client, career_id)
+
+    resumed = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"})
+    assert resumed.status_code == 200
 
 
 def test_advance_does_not_stop_on_a_persistently_low_relationship(api_client, created_career, mock_engine):

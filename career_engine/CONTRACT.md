@@ -1671,7 +1671,6 @@ bedavaya öğrenir. Aynı alanlar R3'te de vardır (§5.4).
   "ledger_entries": [ /* geçilen Pazartesilerin maaş ve gider satırları */ ],
   "news_created":  ["n_0143", "n_0144"],
   "repossessed":   [],                     // D29 · elden çıkan eşyalar
-  "missed_matches": [],                    // §6.1 · oynanmadan geçilen kendi maçları
   "stopped_events": [ /* durulan günün T1 events[] listesi */ ],
   "condition_before": 72,                  // §6.6 · çağrı öncesi
   "condition_after":  80 }                 // §6.6 · = career_state.condition
@@ -1988,12 +1987,18 @@ cumartesi, kupa turları 14 gün arayla ve daima çarşamba (§3.3 v1 dünyası)
 takım aynı güne iki fikstürle düşmez. Kariyer sezon açılışından **bir hafta
 önce** başlar, yani ilk maçtan önce oynanacak tam bir hazırlık haftası vardır.
 
-**Kaçırılan maç.** Kullanıcı kendi maç gününü oynamadan ilerletirse fikstür
-diğerleri gibi arka planda koşar (sonuç puan durumuna işlenir, INV-12 korunur)
-ama **maça çıkmadığı için** ne müsabaka sayısı, ne prim, ne gol yazılır; bir
-haber düşer ve `POST /advance` yanıtı `missed_matches` alanında fikstürü
-bildirir. Alternatif — ilerlemeyi reddetmek — motor erişilemezken kariyeri
-kilitlerdi.
+**Maç günü zorunludur (D57).** Kullanıcının kendi fikstürü `current_date`'te
+hâlâ `'scheduled'`sa, `POST /advance` **hiç ilerlemeden**
+`409 match_day_unplayed` döner ve mesajda `fixture_id`'yi taşır. Tek çıkış
+yolu maçı oynamaktır (M1 → M2); `POST /matches/{fid}/abandon` (M3) yarım
+kalmış bir oturumu `'scheduled'`'a döndürüp yeniden denemeyi mümkün kılar.
+
+> **Eski "kaçırılan maç" kaldırıldı.** v1'de bu kapı yerine ilerlemeye izin
+> verilir, fikstür arka planda oynanırdı (müsabaka/prim/gol yazılmadan) —
+> gerekçe motor erişilemezken kariyeri kilitleme korkusuydu. Geri bildirim
+> bunun tam tersini istedi: maç atlanamamalı. Risk kabul edildi, çünkü
+> zaten maç oynamak motora muhtaç — bu kural motora yeni bir bağımlılık
+> eklemiyor, yalnızca "bedava atlama" yolunu kapatıyor.
 
 ### 6.2 Günün bütçesi (D41)
 
@@ -2323,7 +2328,7 @@ bile olmaz; API katmanı kendi sayacını tutar.
 | INV-9 | Kariyer silinince ona ait hiçbir satır kalmaz (`ON DELETE CASCADE`) |
 | INV-10 | `career_state.condition ≤ player_attribute['condition']` — günlük değer tavanı aşamaz (D15) |
 | INV-11 | Dayanağı olmayan istatistik kolonu **0** kalır; tahminle doldurulmaz (D13) |
-| INV-12 | Dünyanın bugününe kadarki **her** fikstür oynanmıştır — hiçbir müsabaka geride bırakılmaz (D40) |
+| INV-12 | Dünyanın bugününe kadarki **her** fikstür oynanmıştır — hiçbir müsabaka geride bırakılmaz. Diğer takımlarınki arka planda anında koşar (D40); kullanıcının kendisininki oynanana kadar `advance`'i kapıda durdurur (D57) |
 | INV-13 | Terfi/düşme hesaplanmadan önce o sezonun bütün müsabakaları tamamlanmış olur |
 | INV-14 | Bir takım aynı sezonda birden fazla lig'e (`kind='league'`) giremez |
 | INV-15 | `relationship.score` yalnızca `relationships.apply_delta()` üzerinden yazılır; aynı transaction'da olay günlüğüne satır düşer (D24) |
@@ -2366,6 +2371,7 @@ kullanır ama kullanıcının maçı müdahalelerle sapar.
 | 409 | `not_match_day` | M1 çağrıldı ama bugün kullanıcının maçı yok (§6.1); mesaj sonraki kickoff tarihini ve kaç gün kaldığını taşır |
 | 409 | `fixture_already_played` | Sonuç ikinci kez yazılmak isteniyor |
 | 409 | `season_finished` | Sezon bitti, ilerletilemez |
+| 409 | `match_day_unplayed` | Kullanıcının bugünkü maçı hâlâ `'scheduled'`ken `advance` çağrıldı (D57); mesaj `fixture_id` taşır |
 | 409 | `social_offer_pending` | Cevaplanmamış sosyal teklif varken `advance` çağrıldı (D53); mesaj `offer_id` taşır |
 | 409 | `social_offer_not_open` | Teklif zaten cevaplanmış |
 | 404 | `social_offer_not_found` | Bilinmeyen `offer_id` |
@@ -2943,6 +2949,7 @@ Onuncu turda (sezon devri) alınanlar:
 | D50 | Sözleşme süresi | **Sezon cinsinden; bitiş daima sezon sınırı** | Şartname iki bitiş tarihi tanımlıyor (1 Ocak / sezon sonu); gün cinsinden süre bunu tutturamaz |
 | D51 | Eşyanın günlük etkisi | **Ayrı `daily_effects` haritası, `effects` değil** | `effects` T2'nin haritası: bir kez, bir aksiyonla uygulanır. Eşyanın etkisi pasiftir — kimse koşu bandını "kullanmaz", sahip olmak mekaniğin tamamıdır. İkisini tek alana sıkıştırmak "bu satır ne zaman uygulanır" sorusunu okunamaz hâle getirirdi |
 | D56 | FE'nin ilerleme biçimi | **Tekrarlanan `next_day` döngüsü, tek `next_event` değil** | Tek çağrıda sunucu kırk gün ileri gitmişken ekran üçüncü günü oynatıyor olur; "Durdur" o noktada yalan söyler. Gün gün gidince ekranın tarihi ile `game_date` her karede aynı sayıdır ve durma ölçütü yine sunucuda kalır — döngünün çıkış testi yalnızca `stop_reason != "none"` |
+| D57 | Maç günü zorunluluğu | **"Kaçırılan maç" kalkar; kapıda kilit gelir** | Geri bildirim net: maç atlanamamalı. Eski tasarımın kaygısı (motor erişilemezken kilitlenme) kabul edilebilir bir risk — maç oynamak zaten motora muhtaç, bu kural yeni bir bağımlılık eklemiyor |
 | D55 | Takvim görünümünün verisi | **Kendi ucu (W5), FE'de birleştirme değil** | Fikstür + sözleşme + sezondan istemcide kurmak, `WAGE_WEEKDAY`'i Dart'ta yeniden yazdırırdı (§1.3) ve sezon sınırlarını **hiçbir uç** döndürmüyor. Üstelik sayfa başına 3-4 çağrı ve 20'şerlik fikstür sayfalaması gerekirdi |
 | D53 | Sosyal teklife cevap | **Zorunlu — açık teklif `advance`'ı kapıda reddeder** | "Sonra bakarım" seçeneği teklifi bir bildirime çevirirdi; ilişkinin karşı taraftan bir şey isteyebilmesi mekaniğin tamamı. Kapıda reddetmek, döngü içinde her gün durmaktan da açıktır: sıfır gün ilerleyip "none" diyen bir çağrı, hata gibi görünmeyen bir hatadır |
 | D54 | Teklifin ömrü | **Süre yok; geldiği gün cevaplanır** | D53 açık teklifle zamanı durdurduğu için "süresi doldu" ancak cevap vermeyi reddederek ulaşılabilirdi — cevap vermemek imkânsızken. Ulaşılamayan durum, test edilemeyen durumdur |
