@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/calendar_screen.dart';
+import 'package:project_srpg/screens/pre_match_screen.dart';
 import 'package:project_srpg/widgets/month_calendar.dart';
 
 http.Response _json(Object body, {int status = 200}) => http.Response(
@@ -78,10 +79,13 @@ Map<String, Object?> _september() => {
 /// Her test kendi isteklerini biriktirir; sorgu parametrelerini doğrulamak
 /// çizilen metni doğrulamaktan daha güçlü bir iddiadır.
 class _Backend {
-  _Backend({this.status = 200, this.body});
+  _Backend({this.status = 200, this.body, this.playerTeam = _ykz});
 
   final int status;
   final Map<String, Object?>? body;
+
+  /// P1'in döneceği takım — `_dayMarks`'ın "rakip kim" hesabının girdisi.
+  final Map<String, Object?> playerTeam;
   final List<Map<String, String>> requests = [];
   int calls = 0;
 
@@ -93,6 +97,17 @@ class _Backend {
            'season_id': '25/26', 'current_date': '2026-08-01',
            'player_name': 'Efe Kaan', 'team': _ykz}
         ]});
+      }
+      if (request.url.path == '/careers/car_1/player') {
+        return _json({
+          'player_id': 'p_user', 'name': 'Efe Kaan', 'position': 'Orta saha',
+          'birth_date': '2004-08-19', 'age': 21, 'team': playerTeam,
+          'career_state': {
+            'current_date': '2026-08-19', 'season_id': '25/26',
+            'money': 48200, 'condition': 80, 'day_budget': {'time': 720.0},
+          },
+          'attributes': const <dynamic>[], 'fame': const <dynamic>[],
+        });
       }
       if (request.url.path == '/careers/car_1/calendar') {
         calls++;
@@ -106,6 +121,22 @@ class _Backend {
           return _json(_september());
         }
         return _json(body ?? _august());
+      }
+      if (request.url.path == '/careers/car_1/matches/next') {
+        return _json({
+          'fixture_id': 'f_1',
+          'competition': {'competition_id': 'c_lig2', 'kind': 'league', 'name': '1. Lig'},
+          'kickoff_at': '2026-08-19T20:00:00+03:00', 'user_side': 'home',
+          'engine_payload': {
+            'teams': {
+              'home': {'name': 'FK Yıldız', 'attack': 63.0, 'midfield': 65.0,
+                       'defense': 61.0, 'goalkeeper': 64.0, 'mentality': 'balanced'},
+              'away': {'name': 'Deniz SK', 'attack': 68.0, 'midfield': 66.0,
+                       'defense': 65.0, 'goalkeeper': 67.0, 'mentality': 'attacking'},
+            },
+            'user_side': 'home', 'user_condition': 70, 'client_seed': 1,
+          },
+        });
       }
       return http.Response('unexpected ${request.url}', 404);
     });
@@ -267,5 +298,131 @@ void main() {
 
   test('MonthCalendar.isoDate ekranın istediği biçimi verir', () {
     expect(MonthCalendar.isoDate(DateTime(2026, 9, 5)), '2026-09-05');
+  });
+
+  testWidgets('maç günü hücresi rakip rozetiyle dolar', (tester) async {
+    final backend = _Backend(); // playerTeam varsayılan _ykz — ev sahibi
+    await tester.pumpWidget(_wrap(CalendarScreen(session: backend.session())));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('calCrest:8')), findsOneWidget);
+    // Kullanıcı ev sahibi (_ykz), rakip deplasmandaki DNZ olmalı.
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('calCrest:8')),
+        matching: find.text('DNZ'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('kullanıcı deplasmandaysa rozet ev sahibini gösterir',
+      (tester) async {
+    final backend = _Backend(playerTeam: _dnz);
+    await tester.pumpWidget(_wrap(CalendarScreen(session: backend.session())));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('calCrest:8')),
+        matching: find.text('YKZ'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('P1 çağrısı başarısız olursa takvim yine de çalışır',
+      (tester) async {
+    // _loadUserTeam sessizce vazgeçer; opponent hesaplaması ev sahibini
+    // varsayarak devam eder (eski davranış).
+    final mock = MockClient((request) async {
+      if (request.url.path == '/careers') {
+        return _json({'careers': [
+          {'career_id': 'car_1', 'created_at': '2026-08-01T00:00:00+03:00',
+           'season_id': '25/26', 'current_date': '2026-08-01',
+           'player_name': 'Efe Kaan', 'team': _ykz}
+        ]});
+      }
+      if (request.url.path == '/careers/car_1/calendar') {
+        return _json(_august());
+      }
+      return http.Response('boom', 500);
+    });
+    final session =
+        CareerSession(client: CareerApiClient(httpClient: mock, baseUrl: 'http://test'));
+
+    await tester.pumpWidget(_wrap(CalendarScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('calCrest:8')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  group('§6.1 D57 · "Maça çık" satırı', () {
+    Map<String, Object?> augustWithTodayMatch({String status = 'scheduled'}) {
+      final page = _august();
+      (page['days'] as List).add({
+        'date': '2026-08-19',
+        'marks': [
+          {
+            'kind': 'match', 'ref_id': 'f_today',
+            'competition': {'competition_id': 'c_lig2', 'kind': 'league', 'name': '1. Lig'},
+            'round_no': 2, 'kickoff_at': '2026-08-19T20:00:00+03:00',
+            'home': _ykz, 'away': _dnz,
+            'status': status,
+            'score': status == 'played' ? {'home': 1, 'away': 0} : null,
+            'is_user_match': true,
+          }
+        ],
+      });
+      return page;
+    }
+
+    testWidgets('bugünün oynanmamış maçında görünür ve maç ekranını açar',
+        (tester) async {
+      final backend = _Backend(body: augustWithTodayMatch());
+      final session = backend.session();
+      // `onGoToMatch` karta bağlı olmayan düz bir MaterialPageRoute kullanır
+      // (`_MatchPreviewSection` ile aynı gerekçe), bu yüzden `PreMatchScreen`
+      // `CareerSession.instance`'a düşer — sanctioned test geçici override'ı
+      // (`career_session.dart`'ın kendi doc comment'i).
+      final previousInstance = CareerSession.instance;
+      CareerSession.instance = session;
+      addTearDown(() => CareerSession.instance = previousInstance);
+
+      await tester.pumpWidget(_wrap(CalendarScreen(session: session)));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('calDay:19')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Maça çık →'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('calGoToMatch')));
+      await tester.pumpAndSettle();
+      expect(find.byType(PreMatchScreen), findsOneWidget);
+    });
+
+    testWidgets('bugün değilse görünmez', (tester) async {
+      final backend = _Backend(); // yalnız 8 Ağustos'ta maç, bugün 19'u
+      await tester.pumpWidget(_wrap(CalendarScreen(session: backend.session())));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('calDay:8')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Maça çık →'), findsNothing);
+    });
+
+    testWidgets('bugünün maçı zaten oynandıysa görünmez', (tester) async {
+      final backend = _Backend(body: augustWithTodayMatch(status: 'played'));
+      await tester.pumpWidget(_wrap(CalendarScreen(session: backend.session())));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('calDay:19')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Maça çık →'), findsNothing);
+    });
   });
 }

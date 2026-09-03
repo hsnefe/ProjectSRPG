@@ -1,6 +1,9 @@
-/// Bir ayın 7 sütunlu ızgarası. İki yerde kullanılır: takvim ekranının tam
-/// boy görünümü ve kariyer merkezinde "İlerle"ye basınca açılan küçük
-/// (`compact`) sürüm.
+/// Bir ayın 7 sütunlu, kare hücreli ızgarası. İki yerde kullanılır: takvim
+/// ekranının tam boy görünümü ve kariyer merkezinde "İlerle"ye basınca açılan
+/// küçük (`compact`) sürüm.
+///
+/// Yerleşim FIFA Kariyer Modu'nun takviminden alındı: gün numarası hücrenin
+/// sol üstünde, maç günlerinde hücrenin kendisi rakip rozetiyle doldurulur.
 ///
 /// **Neden `CalendarPage` almıyor.** Overlay'in elinde bir `CalendarPage`
 /// yok — yalnızca yürüdüğü günler var. Widget'ı ağa bağlı bir modele
@@ -15,22 +18,37 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:project_srpg/net/career_models.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/date_labels.dart';
+import 'package:project_srpg/widgets/team_badge.dart';
 
-/// Bir gün hücresine düşen tek işaret. `kind` yalnız erişilebilirlik ve test
-/// için taşınır; hücrenin çizdiği şey [color].
+/// Bir gün hücresine düşen tek işaret.
+///
+/// `kind == 'match'` ise [opponent] doludur ve hücre rakibin rozetiyle
+/// doldurulur — [color] bu durumda okunmaz. Diğer türlerde [opponent] null,
+/// [color] hücrenin sağ alt köşesindeki küçük noktanın rengidir.
 class CalendarDayMark {
-  const CalendarDayMark({required this.kind, required this.color, this.refId});
+  const CalendarDayMark({required this.kind, this.color, this.refId, this.opponent})
+      : assert(
+          kind == 'match' ? opponent != null : color != null,
+          "match dışı bir işaretin color'u, match'in opponent'ı olmalı",
+        );
 
   final String kind;
-  final Color color;
+  final Color? color;
   final String? refId;
+
+  /// `kind == 'match'` iken hücrenin ortasına çizilecek TAKIM — kullanıcının
+  /// kendisi değil, rakip (§6.3: "rakip takımın logosunu hücreye koy").
+  final TeamRef? opponent;
+
+  bool get isMatch => kind == 'match';
 }
 
 /// W5 `marks[].kind` → nokta rengi. Bu bir **sunum** kararıdır, model değil:
 /// BE `kind` gönderir, rengi ekran seçer (§1.3). Maç günleri bu haritayı
-/// kullanmaz — onların rengi rakibin kendi forma rengidir.
+/// kullanmaz — onların "rengi" artık rakibin rozetidir.
 const _markColors = <String, Color>{
   'wage': AppColors.warning,
   'cup_round': AppColors.accent,
@@ -104,8 +122,10 @@ class MonthCalendar extends StatelessWidget {
 
   Widget _cellAt(int index, int leadingBlanks, int daysInMonth) {
     final dayNumber = index - leadingBlanks + 1;
+    // Boş hücre de kareyi korur — aksi hâlde son satır kısa kalıp gridin
+    // satır yüksekliği bozulurdu.
     if (dayNumber < 1 || dayNumber > daysInMonth) {
-      return SizedBox(height: compact ? 30 : 44);
+      return const AspectRatio(aspectRatio: 1, child: SizedBox.shrink());
     }
     final date = isoDate(DateTime(month.year, month.month, dayNumber));
     return _DayCell(
@@ -166,60 +186,93 @@ class _DayCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = compact ? 30.0 : 44.0;
-    final dotSize = compact ? 4.0 : 5.0;
+    // `firstOrNull` package:collection içinde; tek bir çağrı için bağımlılık
+    // eklemek yerine açıkça yazıldı (career_models.dart'ın aynı kararı).
+    CalendarDayMark? match;
+    for (final mark in marks) {
+      if (mark.isMatch) {
+        match = mark;
+        break;
+      }
+    }
+    final corners = marks.where((m) => !m.isMatch).take(2).toList(growable: false);
 
-    final cell = Container(
-      height: size,
-      margin: const EdgeInsets.all(1),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        color: isSelected
-            ? AppColors.accentBg
-            : isToday
-                ? AppColors.surface1
-                : null,
-        border: isToday
-            ? Border.all(color: AppColors.accent, width: 1)
-            : isSelected
-                ? Border.all(color: AppColors.border, width: 0.5)
-                : null,
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            '$dayNumber',
-            style: TextStyle(
-              color: marks.isEmpty ? AppColors.textSecondary : AppColors.textPrimary,
-              fontSize: compact ? 11 : 13,
-              fontWeight: isToday ? FontWeight.w600 : FontWeight.w400,
-            ),
-          ),
-          if (marks.isNotEmpty) ...[
-            SizedBox(height: compact ? 2 : 3),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+    // Gerçek kare: yükseklik `Expanded`'dan gelen genişliğe eşitlenir.
+    // Eski sürüm yalnız `height` veriyordu, bu yüzden grid genişliği ne
+    // olursa olsun kare garantisi yoktu.
+    final cell = AspectRatio(
+      key: ValueKey('calCell:$dayNumber'),
+      aspectRatio: 1,
+      child: Container(
+        margin: const EdgeInsets.all(1.5),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(compact ? 6 : 9),
+          color: isSelected
+              ? AppColors.accentBg
+              : isToday
+                  ? AppColors.surface1
+                  : AppColors.surfaceDeep,
+          border: isToday
+              ? Border.all(color: AppColors.accent, width: 1.4)
+              : isSelected
+                  ? Border.all(color: AppColors.border, width: 0.5)
+                  : null,
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final side = constraints.maxWidth;
+            return Stack(
               children: [
-                // Üçten fazla işaret varsa hücre okunmaz hâle gelir; kalanı
-                // gün detayı panelinde zaten görünüyor.
-                for (final mark in marks.take(3))
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 1),
-                    child: Container(
-                      key: ValueKey('calMark:${mark.kind}:$dayNumber'),
-                      width: dotSize,
-                      height: dotSize,
-                      decoration: BoxDecoration(
-                        color: mark.color,
-                        shape: BoxShape.circle,
-                      ),
+                Positioned(
+                  left: side * 0.09,
+                  top: side * 0.06,
+                  child: Text(
+                    '$dayNumber',
+                    style: TextStyle(
+                      color: match != null || marks.isNotEmpty
+                          ? AppColors.textPrimary
+                          : AppColors.textSecondary,
+                      fontSize: compact ? side * 0.30 : side * 0.24,
+                      fontWeight: isToday ? FontWeight.w700 : FontWeight.w500,
+                      height: 1,
+                    ),
+                  ),
+                ),
+                if (match != null)
+                  Center(
+                    child: TeamBadge(
+                      key: ValueKey('calCrest:$dayNumber'),
+                      team: match.opponent!,
+                      size: side * 0.62,
+                    ),
+                  ),
+                if (corners.isNotEmpty)
+                  Positioned(
+                    right: side * 0.08,
+                    bottom: side * 0.07,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final mark in corners)
+                          Padding(
+                            padding: EdgeInsets.only(left: side * 0.04),
+                            child: Container(
+                              key: ValueKey('calMark:${mark.kind}:$dayNumber'),
+                              width: side * 0.11,
+                              height: side * 0.11,
+                              decoration: BoxDecoration(
+                                color: mark.color,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
               ],
-            ),
-          ],
-        ],
+            );
+          },
+        ),
       ),
     );
 

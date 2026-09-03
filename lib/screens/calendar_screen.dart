@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
+import 'package:project_srpg/screens/pre_match_screen.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/date_labels.dart';
 import 'package:project_srpg/widgets/lit_card.dart';
@@ -42,10 +43,29 @@ class _CalendarScreenState extends State<CalendarScreen> {
   /// yeniden çekiliyor), bu yüzden örnek ömrü boyunca güvenli.
   final Map<String, api.CalendarPage> _cache = {};
 
+  /// W5'in maç işaretleri hangi tarafın kullanıcı olduğunu söylemez — yalnız
+  /// `home`/`away` verir. P1'den bir kez çekilir; `_opponentOf` bunu
+  /// `home.teamId`/`away.teamId` ile karşılaştırıp gerçek rakibi seçer.
+  String? _userTeamId;
+
   @override
   void initState() {
     super.initState();
     _load();
+    _loadUserTeam();
+  }
+
+  Future<void> _loadUserTeam() async {
+    try {
+      final careerId = await _session.resolve();
+      final player = await _session.client.player(careerId);
+      if (!mounted) return;
+      setState(() => _userTeamId = player.team.teamId);
+    } catch (_) {
+      // Sessizce vazgeçilir: `_opponentOf` bilinmeyen bir `_userTeamId` ile
+      // ev sahibini varsayar (eski davranışın aynısı) — takvimin kendisi
+      // P1 olmadan da çalışmaya devam eder.
+    }
   }
 
   static String _monthKey(DateTime month) =>
@@ -175,36 +195,52 @@ class _CalendarScreenState extends State<CalendarScreen> {
           marks: _selectedDate == null
               ? const []
               : page.marksByDate[_selectedDate!] ?? const [],
+          userTeamId: _userTeamId,
+          isToday: _selectedDate != null && _selectedDate == page.today,
+          onGoToMatch: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => PreMatchScreen()),
+          ),
         ),
       ],
     );
   }
 
-  /// W5 işaretlerini gridin sunum tipine çevirir. Maç günü **rakibin** forma
-  /// rengiyle boyanır: kullanıcının kendi rengi her maçta aynı olurdu ve
-  /// hiçbir şey ayırt etmezdi.
+  /// W5 işaretlerini gridin sunum tipine çevirir. Maç günü hücrenin
+  /// tamamını rakibin rozetiyle doldurur (§6.3) — kullanıcının kendi takımı
+  /// her maçta aynı olurdu ve hiçbir şey ayırt etmezdi.
   Map<String, List<CalendarDayMark>> _dayMarks(api.CalendarPage page) {
-    return {
-      for (final day in page.days)
-        day.date: [
-          for (final mark in day.marks)
-            CalendarDayMark(
-              kind: mark.kind,
-              refId: mark.refId,
-              color: mark.isMatch
-                  ? _opponentColor(mark)
-                  : colorForMarkKind(mark.kind),
-            ),
-        ],
-    };
+    final result = <String, List<CalendarDayMark>>{};
+    for (final day in page.days) {
+      final marks = <CalendarDayMark>[];
+      for (final mark in day.marks) {
+        if (mark.isMatch) {
+          final opponent = _opponentOf(mark);
+          if (opponent != null) {
+            marks.add(CalendarDayMark(kind: 'match', refId: mark.refId, opponent: opponent));
+          }
+          continue;
+        }
+        marks.add(CalendarDayMark(kind: mark.kind, refId: mark.refId, color: colorForMarkKind(mark.kind)));
+      }
+      result[day.date] = marks;
+    }
+    return result;
   }
 
-  Color _opponentColor(api.CalendarMark mark) {
-    // v1'de W5 yalnız kullanıcının maçlarını döner, yani taraflardan biri
-    // hep kendi takımı; renk için diğerini almak istiyoruz. Hangisi olduğunu
-    // ayırt edecek bir alan yok, bu yüzden ev sahibinin rengi kullanılıyor —
-    // deplasmanda rakip, evde kendi rengi, ikisi de anlamlı bir işaret.
-    return mark.home?.colorPrimary ?? AppColors.accent;
+  /// [_opponentOf] hem gridin hem detay panelinin ortak sorusu — ikisi de
+  /// bu fonksiyonu çağırır ki "rakip kim" iki yerde ayrı ayrı (ve
+  /// yanlışlıkla farklı) hesaplanmasın.
+  api.TeamRef? _opponentOf(api.CalendarMark mark) {
+    final home = mark.home;
+    final away = mark.away;
+    final userTeamId = _userTeamId;
+    if (userTeamId != null) {
+      if (home?.teamId == userTeamId) return away ?? home;
+      if (away?.teamId == userTeamId) return home ?? away;
+    }
+    // P1 henüz dönmediyse (veya başarısız olduysa) ev sahibini varsay —
+    // en azından bir takım gösterilir, `_userTeamId` gelince yeniden çizilir.
+    return home ?? away;
   }
 }
 
@@ -292,10 +328,25 @@ class _StepButton extends StatelessWidget {
 }
 
 class _DayDetail extends StatelessWidget {
-  const _DayDetail({required this.date, required this.marks});
+  const _DayDetail({
+    required this.date,
+    required this.marks,
+    required this.userTeamId,
+    required this.isToday,
+    required this.onGoToMatch,
+  });
 
   final String? date;
   final List<api.CalendarMark> marks;
+  final String? userTeamId;
+  final bool isToday;
+  final VoidCallback onGoToMatch;
+
+  /// §6.1 D57 · bugünün maçı hâlâ oynanmadıysa — takvimden de "Maça çık"a
+  /// giden ikinci bir yol.
+  bool get _showGoToMatch =>
+      isToday &&
+      marks.any((m) => m.isMatch && m.isUserMatch && m.status == 'scheduled');
 
   @override
   Widget build(BuildContext context) {
@@ -322,7 +373,22 @@ class _DayDetail extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            for (final mark in marks) _MarkRow(mark: mark),
+            for (final mark in marks) _MarkRow(mark: mark, userTeamId: userTeamId),
+            if (_showGoToMatch) ...[
+              const SizedBox(height: 2),
+              GestureDetector(
+                key: const ValueKey('calGoToMatch'),
+                onTap: onGoToMatch,
+                child: const Text(
+                  'Maça çık →',
+                  style: TextStyle(
+                    color: AppColors.success,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -353,9 +419,10 @@ class _EmptyDetail extends StatelessWidget {
 /// tanımadığı bir `kind` sessizce atlanır, çünkü ileride yeni işaret türleri
 /// eklenebilir (§5.0).
 class _MarkRow extends StatelessWidget {
-  const _MarkRow({required this.mark});
+  const _MarkRow({required this.mark, required this.userTeamId});
 
   final api.CalendarMark mark;
+  final String? userTeamId;
 
   static const _labels = {
     'wage': 'Maaş günü',
@@ -379,9 +446,7 @@ class _MarkRow extends StatelessWidget {
             width: 6,
             height: 6,
             decoration: BoxDecoration(
-              color: mark.isMatch
-                  ? (mark.home?.colorPrimary ?? AppColors.accent)
-                  : colorForMarkKind(mark.kind),
+              color: mark.isMatch ? _opponentColor() : colorForMarkKind(mark.kind),
               shape: BoxShape.circle,
             ),
           ),
@@ -413,6 +478,18 @@ class _MarkRow extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// Gridin `_opponentOf`'uyla aynı kural: kullanıcının kendi takımı değil,
+  /// rakip renklendirilir. Bilinmiyorsa ev sahibi varsayılır (aynı düşüş).
+  Color _opponentColor() {
+    final home = mark.home;
+    final away = mark.away;
+    if (userTeamId != null) {
+      if (home?.teamId == userTeamId) return away?.colorPrimary ?? AppColors.accent;
+      if (away?.teamId == userTeamId) return home?.colorPrimary ?? AppColors.accent;
+    }
+    return home?.colorPrimary ?? AppColors.accent;
   }
 
   String? _title() {
