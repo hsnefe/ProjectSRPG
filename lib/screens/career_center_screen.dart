@@ -5,6 +5,7 @@ import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/league_table_screen.dart';
 import 'package:project_srpg/screens/lifestyle_screen.dart';
 import 'package:project_srpg/screens/news_detail_screen.dart';
+import 'package:project_srpg/screens/news_feed_screen.dart';
 import 'package:project_srpg/screens/player_profile_screen.dart';
 import 'package:project_srpg/screens/pre_match_screen.dart';
 import 'package:project_srpg/screens/relationships_screen.dart';
@@ -900,114 +901,191 @@ class _NewsSection extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      child: _LitCard(
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => NewsDetailScreen(
-                newsIds: [for (final n in newsPreview) n.newsId],
-                initialIndex: 0,
-                session: session,
-              ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // C3 yalnızca son birkaç başlığı verir; arşivin tamamı N1'de.
+          // "Tümü" o akışa açılan tek kapı — kart tek haber göstermeye
+          // devam ediyor.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 4, 0, 10),
+            child: Row(
+              children: [
+                Text(
+                  'HABERLER',
+                  style: TextStyle(
+                    color: AppColors.accent.withValues(alpha: 0.95),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const Spacer(),
+                _AllNewsButton(session: session),
+              ],
             ),
-          );
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          _newsCard(context, item, tint),
+        ],
+      ),
+    );
+  }
+
+  Widget _newsCard(BuildContext context, api.NewsPreviewItem item, Color tint) {
+    return _LitCard(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => NewsDetailScreen(
+              newsIds: [for (final n in newsPreview) n.newsId],
+              initialIndex: 0,
+              session: session,
+            ),
+          ),
+        );
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(15),
+            ),
+            child: Stack(
+              children: [
+                // Detay ekranındaki hero ile aynı ton ve ikon: liste kartı ile
+                // açılan haber aynı şeye benziyor.
+                SizedBox(
+                  height: 120,
+                  width: double.infinity,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              tint.withValues(alpha: 0.55),
+                              tint.withValues(alpha: 0.22),
+                              AppColors.surface0.withValues(alpha: 0.92),
+                            ],
+                            stops: const [0.0, 0.45, 1.0],
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        right: -12,
+                        top: -12,
+                        child: Icon(
+                          iconForNewsCategory(item.category),
+                          size: 96,
+                          color: Colors.white.withValues(alpha: 0.14),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Positioned(
+                  top: 10,
+                  left: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: tint.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: tint.withValues(alpha: 0.35),
+                        width: 0.5,
+                      ),
+                    ),
+                    child: Text(
+                      item.category,
+                      style: TextStyle(
+                        color: tint,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${item.source} · ${newsTimeAgo(item.publishedAt)}',
+                  style: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Haber akışına (N1) açılan giriş. Kartın kendisi tek habere gider, bu hap
+/// arşivin tamamına.
+class _AllNewsButton extends StatelessWidget {
+  const _AllNewsButton({required this.session});
+
+  final CareerSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => NewsFeedScreen(session: session),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 5, 8, 5),
+        decoration: BoxDecoration(
+          color: AppColors.surface1,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(15),
-              ),
-              child: Stack(
-                children: [
-                  // Detay ekranındaki hero ile aynı ton ve ikon: liste kartı ile
-                  // açılan haber aynı şeye benziyor.
-                  SizedBox(
-                    height: 120,
-                    width: double.infinity,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                tint.withValues(alpha: 0.55),
-                                tint.withValues(alpha: 0.22),
-                                AppColors.surface0.withValues(alpha: 0.92),
-                              ],
-                              stops: const [0.0, 0.45, 1.0],
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          right: -12,
-                          top: -12,
-                          child: Icon(
-                            iconForNewsCategory(item.category),
-                            size: 96,
-                            color: Colors.white.withValues(alpha: 0.14),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Positioned(
-                    top: 10,
-                    left: 10,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: tint.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: tint.withValues(alpha: 0.35),
-                          width: 0.5,
-                        ),
-                      ),
-                      child: Text(
-                        item.category,
-                        style: TextStyle(
-                          color: tint,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+            Text(
+              'Tümü',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.title,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 14,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${item.source} · ${newsTimeAgo(item.publishedAt)}',
-                    style: const TextStyle(
-                      color: AppColors.textMuted,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
+            Icon(
+              Icons.chevron_right,
+              size: 16,
+              color: AppColors.textMuted,
             ),
           ],
         ),

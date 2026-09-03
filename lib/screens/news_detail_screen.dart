@@ -271,10 +271,7 @@ class _NewsHero extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          _CategoryPill(
-                            label: item.summary.category,
-                            color: tint,
-                          ),
+                          NewsCategoryPill(category: item.summary.category),
                           const Spacer(),
                           Flexible(
                             child: Text(
@@ -349,33 +346,6 @@ class _ProceduralArt extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _CategoryPill extends StatelessWidget {
-  const _CategoryPill({required this.label, required this.color});
-
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.35), width: 0.5),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
     );
   }
 }

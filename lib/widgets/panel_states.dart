@@ -75,6 +75,44 @@ class PanelError extends StatelessWidget {
   }
 }
 
+/// Uç cevap verdi ama sonuç boş — bu bir hata değil. [PanelError]'dan ayrı
+/// duruyor: "Tekrar dene" burada yanıltıcı olurdu, aynı boş listeyi getirir.
+class PanelEmpty extends StatelessWidget {
+  const PanelEmpty({
+    super.key,
+    required this.message,
+    this.icon = Icons.inbox_outlined,
+  });
+
+  final String message;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 28,
+              color: AppColors.textMuted.withValues(alpha: 0.6),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Kariyer API hatalarını kullanıcıya gösterilecek Türkçe metne çevirir.
 String careerErrorText(Object error) {
   if (error is CareerApiException) {

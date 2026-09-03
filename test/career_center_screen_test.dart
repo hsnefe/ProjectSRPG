@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/career_center_screen.dart';
+import 'package:project_srpg/screens/news_feed_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 
 http.Response _json(Object body, {int status = 200}) => http.Response(
@@ -85,6 +86,26 @@ Map<String, dynamic> _dayBody({bool isMatchDay = false, String? currentDate}) {
   };
 }
 
+/// N1 · haber akışı ekranı hub'dan açılabildiği için bu sahte backend de
+/// listeyi karşılıyor.
+const _newsFeedBody = {
+  'items': [
+    {
+      'news_id': 'n_1', 'published_at': '2026-08-19T09:00:00+03:00',
+      'category': 'Transfer', 'title': 'Bir transfer haberi',
+      'source': 'Spor Manşet', 'excerpt': 'Söylenti büyüyor.',
+      'fixture_id': null,
+    },
+    {
+      'news_id': 'n_2', 'published_at': '2026-08-18T09:00:00+03:00',
+      'category': 'Magazin', 'title': 'Bir magazin haberi',
+      'source': 'Magazin Ekspres', 'excerpt': 'Objektifler peşinde.',
+      'fixture_id': null,
+    },
+  ],
+  'next_before': null,
+};
+
 CareerSession _hubSession(
   Map<String, dynamic> hubBody, {
   Map<String, dynamic>? dayBody,
@@ -93,6 +114,9 @@ CareerSession _hubSession(
   final mock = MockClient((request) async {
     if (request.url.path == '/careers') return _json(_careersListBody);
     if (request.url.path == '/careers/car_test') return _json(hubBody);
+    if (request.url.path == '/careers/car_test/news') {
+      return _json(_newsFeedBody);
+    }
     if (request.url.path == '/careers/car_test/day') {
       return _json(dayBody ?? _dayBody());
     }
@@ -154,6 +178,22 @@ void main() {
 
     expect(find.text('Bir transfer haberi'), findsOneWidget);
     expect(find.textContaining('Spor Manşet ·'), findsOneWidget);
+  });
+
+  testWidgets('haber başlığındaki "Tümü" N1 akış ekranını açar',
+      (tester) async {
+    final session =
+        _hubSession(_hubBody(nextFixture: _fixture, newsPreview: _newsPreview));
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('HABERLER'), findsOneWidget);
+    await tester.tap(find.text('Tümü'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NewsFeedScreen), findsOneWidget);
+    // Akış C3 önizlemesinin ötesini gösteriyor: ikinci haber yalnızca N1'de.
+    expect(find.text('Bir magazin haberi'), findsOneWidget);
   });
 
   testWidgets('haber önizlemesi boşsa haber kartı çizilmez', (tester) async {
