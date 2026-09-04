@@ -342,6 +342,82 @@ void main() {
   });
 
   testWidgets(
+      'maç ekranından dönünce gün verisi tazelenir ve İlerle açılır',
+      (tester) async {
+    // Bug: State geri dönüşte yeniden kurulmadığı için `_dayFuture` hiç
+    // yenilenmiyordu — maçı oynayıp dönünce bile İlerle sonsuza kadar
+    // kilitli kalıyordu. Bu test tam o senaryoyu kurar: PreMatchScreen'e
+    // gidip geri dönünce `/day` ikinci kez çağrılmalı ve artık maç günü
+    // olmadığını söylemeli.
+    var dayCalls = 0;
+    final mock = MockClient((request) async {
+      if (request.url.path == '/careers') return _json(_careersListBody);
+      if (request.url.path == '/careers/car_test') {
+        return _json(_hubBody(nextFixture: _fixture));
+      }
+      if (request.url.path == '/careers/car_test/day') {
+        dayCalls++;
+        // İlk çağrı maç günü, PreMatchScreen'den dönüşten sonraki her
+        // çağrı artık maçın oynandığını söylüyor.
+        return _json(_dayBody(isMatchDay: dayCalls == 1));
+      }
+      if (request.url.path == '/careers/car_test/social/offers') {
+        return _json({'offers': const <dynamic>[]});
+      }
+      if (request.url.path == '/careers/car_test/matches/next') {
+        return _json({
+          'fixture_id': 'f_1',
+          'competition': {'competition_id': 'c_lig2', 'kind': 'league', 'name': '1. Lig'},
+          'kickoff_at': '2026-08-19T20:00:00+03:00', 'user_side': 'home',
+          'engine_payload': {
+            'teams': {
+              'home': {'name': 'FK Yıldız', 'attack': 63.0, 'midfield': 65.0,
+                       'defense': 61.0, 'goalkeeper': 64.0, 'mentality': 'balanced'},
+              'away': {'name': 'Deniz SK', 'attack': 68.0, 'midfield': 66.0,
+                       'defense': 65.0, 'goalkeeper': 67.0, 'mentality': 'attacking'},
+            },
+            'user_side': 'home', 'user_condition': 70, 'client_seed': 1,
+          },
+        });
+      }
+      return http.Response('unexpected ${request.url}', 404);
+    });
+    final session =
+        CareerSession(client: CareerApiClient(httpClient: mock, baseUrl: 'http://test'));
+
+    await _withInstanceOverride(session, () async {
+      await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+      await tester.pumpAndSettle();
+      expect(dayCalls, 1);
+
+      final lockedButton = tester
+          .widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'İlerle'));
+      expect(lockedButton.onPressed, isNull);
+
+      await tester.tap(find.byKey(const ValueKey('dayGoToMatch')));
+      await tester.pumpAndSettle();
+      expect(find.byType(PreMatchScreen), findsOneWidget);
+
+      // Kullanıcı geri döner (maçı oynamış olsun ya da olmasın — dönüş
+      // kendisi tazelemeyi tetiklemeli). Rotayı doğrudan kapatıyoruz:
+      // PreMatchScreen üretimde her zaman gerçek bir `MatchApiClient`
+      // kullanıyor (career_center_screen.dart hiçbir push'ta override
+      // etmiyor), yani testte E11 çağrısı başarısız olup hata durumuna
+      // düşer — o durumun kendi geri tuşu yok. Testin konusu zaten "hangi
+      // düğmeye basıldığı" değil, "rota kapanınca tazeleme tetiklenir mi".
+      Navigator.of(tester.element(find.byType(PreMatchScreen))).pop();
+      await tester.pumpAndSettle();
+
+      expect(dayCalls, 2, reason: '/day ikinci kez çağrılmalı');
+      final unlockedButton = tester
+          .widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'İlerle'));
+      expect(unlockedButton.onPressed, isNotNull);
+      expect(find.text('Maç günü'), findsNothing);
+      expect(find.text('Maça çık →'), findsNothing);
+    });
+  });
+
+  testWidgets(
       'maç günü değilken İlerle aktif ve "Maça çık" görünmez',
       (tester) async {
     final session = _hubSession(_hubBody(nextFixture: _fixture));

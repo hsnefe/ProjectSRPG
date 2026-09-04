@@ -164,7 +164,7 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
 
     if (!mounted || token != _advanceToken) return;
     if (serverMatchUnplayed) {
-      _pushPreMatch(context);
+      _pushPreMatch(context, onReturn: _refreshAfterMatchFlow);
       return;
     }
     if (serverPendingOffer) {
@@ -271,6 +271,20 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
     return reason == null ? '$base.' : '$base — $reason.';
   }
 
+  /// Maç ekranından (`PreMatchScreen` ve ötesi) dönünce gün/hub verisini
+  /// tazeler. `CareerCenterScreen`'in State'i geri dönüşte yeniden
+  /// kurulmuyor — o yüzden `_dayFuture` kendiliğinden yenilenmez ve maçı
+  /// oynayıp döndükten sonra bile `isMatchDay` eski hâliyle kalır, İlerle
+  /// sonsuza kadar kilitli görünür. Maçı hiç oynamadan geri dönülse bile
+  /// zararsız — bir fazla ağ çağrısı, o kadar.
+  void _refreshAfterMatchFlow() {
+    if (!mounted) return;
+    setState(() {
+      _hubFuture = _loadHub();
+      _dayFuture = _loadDay();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -305,6 +319,7 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
                               busy: _advancing,
                               onAdvance: _advancing ? _stopAdvance : _advance,
                               onOpenOffer: _openOffer,
+                              onMatchFlowReturn: _refreshAfterMatchFlow,
                             ),
                           ),
                           FutureBuilder<api.CareerHub>(
@@ -375,7 +390,10 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
     }
     final hub = snapshot.data!;
     return [
-      _MatchPreviewSection(nextFixture: hub.nextFixture),
+      _MatchPreviewSection(
+        nextFixture: hub.nextFixture,
+        onReturn: _refreshAfterMatchFlow,
+      ),
       _NewsSection(newsPreview: hub.newsPreview, session: _session),
     ];
   }
@@ -735,10 +753,15 @@ class _AdvanceOverlay extends StatelessWidget {
 /// `advance` çağrısından bu tek yere yönlenir. Karta bağlı olmadığı için
 /// (`_MatchPreviewSection`'ın `ExpandPageRoute`'unun aksine) düz bir
 /// `MaterialPageRoute` yeterli.
-void _pushPreMatch(BuildContext context) {
-  Navigator.of(context).push(
-    MaterialPageRoute<void>(builder: (_) => PreMatchScreen()),
-  );
+///
+/// [onReturn], ekran geri dönünce (maç oynanmış olsun ya da olmasın)
+/// çağrılır — `CareerCenterScreen`'in State'i bu dönüşte kendiliğinden
+/// tazelenmediği için, çağıran taraf gün/hub verisini yeniden çekmek
+/// isterse bunu burada yapar.
+void _pushPreMatch(BuildContext context, {VoidCallback? onReturn}) {
+  Navigator.of(context)
+      .push(MaterialPageRoute<void>(builder: (_) => PreMatchScreen()))
+      .then((_) => onReturn?.call());
 }
 
 class _DaySection extends StatelessWidget {
@@ -747,6 +770,7 @@ class _DaySection extends StatelessWidget {
     required this.busy,
     required this.onAdvance,
     required this.onOpenOffer,
+    required this.onMatchFlowReturn,
   });
 
   final AsyncSnapshot<api.DayInfo> snapshot;
@@ -756,6 +780,10 @@ class _DaySection extends StatelessWidget {
   /// Bekleyen teklifi yeniden açar — modal kapatılamaz ama kullanıcı
   /// uygulamayı kapatıp dönmüş olabilir (§6.3 D53).
   final ValueChanged<String> onOpenOffer;
+
+  /// Maç ekranından dönünce gün/hub verisini tazeler (§6.1 D57) —
+  /// `_pushPreMatch`'e aktarılır.
+  final VoidCallback onMatchFlowReturn;
 
   @override
   Widget build(BuildContext context) {
@@ -800,7 +828,7 @@ class _DaySection extends StatelessWidget {
                       const SizedBox(height: 4),
                       GestureDetector(
                         key: const ValueKey('dayGoToMatch'),
-                        onTap: () => _pushPreMatch(context),
+                        onTap: () => _pushPreMatch(context, onReturn: onMatchFlowReturn),
                         child: const Text(
                           'Maça çık →',
                           style: TextStyle(
@@ -885,9 +913,12 @@ String _countdownLabel(int daysUntil) {
 }
 
 class _MatchPreviewSection extends StatefulWidget {
-  const _MatchPreviewSection({required this.nextFixture});
+  const _MatchPreviewSection({required this.nextFixture, required this.onReturn});
 
   final api.NextFixtureSummary? nextFixture;
+
+  /// Maç ekranından dönünce gün/hub verisini tazeler (§6.1 D57).
+  final VoidCallback onReturn;
 
   @override
   State<_MatchPreviewSection> createState() => _MatchPreviewSectionState();
@@ -916,12 +947,9 @@ class _MatchPreviewSectionState extends State<_MatchPreviewSection> {
 
     final rect = renderBox.localToGlobal(Offset.zero) & renderBox.size;
 
-    Navigator.of(context).push(
-      ExpandPageRoute<void>(
-        rect: rect,
-        page: PreMatchScreen(),
-      ),
-    );
+    Navigator.of(context)
+        .push(ExpandPageRoute<void>(rect: rect, page: PreMatchScreen()))
+        .then((_) => widget.onReturn());
   }
 
   @override
