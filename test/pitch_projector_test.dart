@@ -86,7 +86,33 @@ void main() {
       expect(p.scale(1), lessThan(p.scale(0)));
       expect(p.groundY(1), lessThan(p.groundY(0)));
       expect(p.groundY(0), closeTo(p.baseY, 1e-9));
-      expect(p.groundY(1), closeTo(p.horizonY, 1e-9));
+
+      // The horizon is the ground's limit, not a depth it reaches: whatever
+      // the distance, a ground point stays below it and only ever converges.
+      // This used to be where depth 1 landed, which put the vanishing line
+      // half a screen above the top edge and left the pitch looking like a map
+      // rather than a view.
+      for (final depth in [1.0, 5.0, 50.0, 5000.0]) {
+        expect(p.groundY(depth), greaterThan(p.horizonY), reason: '$depth');
+        expect(p.groundY(depth), lessThan(p.baseY), reason: '$depth');
+      }
+      expect(p.groundY(1e9), closeTo(p.horizonY, 1e-3));
+      expect(p.horizonY, greaterThan(0), reason: 'the horizon must be on screen');
+      expect(p.horizonY, lessThan(_size.height * 0.5));
+    });
+
+    test('height and width foreshorten by the same amount', () {
+      const p = PitchProjector(size: _size);
+
+      // The drop below the horizon shrinks by exactly the [scale] that shrinks
+      // widths — one perspective, not two curves that can drift apart.
+      for (final depth in [0.0, 0.4, 1.0, 3.0]) {
+        expect(
+          p.groundY(depth) - p.horizonY,
+          closeTo((p.baseY - p.horizonY) * p.scale(depth), 1e-9),
+          reason: '$depth',
+        );
+      }
     });
 
     test('extended geometry is culled earlier than point objects', () {

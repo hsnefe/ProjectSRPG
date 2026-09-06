@@ -105,6 +105,18 @@ class PitchLines {
   /// Depth of one mowing band, about 5 m. Divides [backY]..[goalLineY] into 10.
   static const mowBandDepth = 0.25;
 
+  /// The rest of the pitch, for scenes that stand deep enough to need it.
+  ///
+  /// [backY] is only the *default* back edge (see `ShotScene.backY`), picked so
+  /// the attacking half runs off the top of the screen. A build-up scene stands
+  /// behind that line, so it opens the ground out to its own goal line — 105 m
+  /// is 4.94 units at 21.25 m each, and the halfway line lands at 52.5 m.
+  static const halfwayY = goalLineY - 2.47;
+  static const ownGoalLineY = goalLineY - 4.94;
+
+  /// 9.15 m, the same radius as the penalty arc it is drawn with.
+  static const centreCircleRadius = 0.43;
+
   static const penaltySpotY = goalLineY - penaltySpotDepth;
   static const penaltyFrontY = goalLineY - penaltyDepth;
   static const goalAreaFrontY = goalLineY - goalAreaDepth;
@@ -145,8 +157,19 @@ class PitchProjector {
   static const k = 1.25;
 
   double get halfWidth => size.width * 0.46;
-  double get baseY => size.height * 0.90;
-  double get horizonY => size.height * 0.10;
+
+  /// Where the ball stands: depth 0, just above the bottom edge.
+  double get baseY => size.height * 0.92;
+
+  /// The horizon: where the ground plane vanishes, at infinite depth.
+  ///
+  /// Having this **on screen** is what makes the view a player's rather than a
+  /// map's. It used to be a derived quantity and it landed 54% of a screen
+  /// height *above* the top edge, so the ground plane filled the whole frame
+  /// and never converged — a pitch seen from far above. Now it is the
+  /// parameter, the far field compresses into a band beneath it, and what sits
+  /// above it is the dark beyond the pitch.
+  double get horizonY => size.height * 0.16;
 
   /// Deliberately exaggerating height: a 1:1 projection leaves the goal only
   /// ~26px tall and vertical motion unreadable. The standard pseudo-3D trick.
@@ -187,11 +210,15 @@ class PitchProjector {
 
   double scale(double depth) => 1 / (1 + k * depth);
 
-  /// depth (0..1) → depth compressed to 0..1 on screen.
-  double _depthT(double depth) => depth * (1 + k) / (1 + k * depth);
-
+  /// Where a ground point at this depth lands vertically.
+  ///
+  /// Straight perspective: the distance below the horizon shrinks by exactly
+  /// the same [scale] that shrinks widths, so a ground point approaches
+  /// [horizonY] without ever reaching it. That single identity is what keeps
+  /// the projection honest — vertical and horizontal foreshortening cannot
+  /// drift apart the way they did when this was its own curve.
   double groundY(double depth) =>
-      baseY - (baseY - horizonY) * _depthT(depth);
+      horizonY + (baseY - horizonY) * scale(depth);
 
   /// Projects a point already expressed in camera space.
   Offset projectCamera(double lateral, double depth, double z) {
@@ -244,16 +271,15 @@ class PitchProjector {
   double pointOpacity(double depth) =>
       (depth / pointFadeDepth).clamp(0.0, 1.0);
 
-  /// Far limit for clipped ground geometry, and deliberately generous.
+  /// Far limit for clipped ground geometry.
   ///
-  /// [horizonY] is not a horizon: it is merely where depth 1 lands. [groundY]
-  /// keeps climbing past it, asymptoting at 1.8x the baseY–horizonY span, so
-  /// ground stays on screen out to depth ~1.33. Clipping at 1.0 — as a first
-  /// pass here did — deleted the whole far corner of the pitch and left the
-  /// markings vanishing as the camera turned. This sits well past the top edge
-  /// so the viewport does the cutting and nothing is visibly truncated; it only
-  /// bounds the coordinates handed to the canvas.
-  static const farPlane = 2.0;
+  /// With a real horizon the ground never leaves the screen, so this can no
+  /// longer be "far enough to be off the top edge" — a cut would now show up
+  /// as a hard line across the picture. Instead it has to be further than the
+  /// whole pitch: the longest sight line is a corner-to-corner diagonal of the
+  /// full 105x68 m ground, about 5.9 units, so nothing on the pitch is ever
+  /// clipped and this only bounds the coordinates handed to the canvas.
+  static const farPlane = 7.0;
 
   /// Near limit for *clipped* ground geometry, and deliberately not [nearPlane].
   ///

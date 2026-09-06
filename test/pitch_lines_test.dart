@@ -66,19 +66,35 @@ void main() {
       );
 
       expect(segment, isNotNull);
-      expect(segment!.$2.dy, lessThan(p.horizonY));
+      // Past depth 1 and still drawn: nearer the horizon than the goal line is,
+      // but never above it.
+      expect(segment!.$2.dy, lessThan(p.groundY(1)));
+      expect(segment.$2.dy, greaterThan(p.horizonY));
       expect(p.projectWorld(corner.x, corner.y, 0).dy, closeTo(segment.$2.dy, 1e-9));
     });
 
-    test('a segment reaching past the far plane is cut off screen', () {
+    test('a segment reaching past the far plane is clipped to it', () {
       const p = PitchProjector(size: _size);
-      // Straight along the camera axis, so depth runs the full length.
-      final segment = p.projectGroundSegment((x: 0, y: 0), (x: 0, y: 4));
+      // Straight along the camera axis, so depth runs the full length. Longer
+      // than anything on the pitch, which is the only way to reach the far
+      // plane at all now that it clears the whole ground.
+      final segment = p.projectGroundSegment((x: 0, y: 0), (x: 0, y: 9));
 
       expect(segment, isNotNull);
       expect(segment!.$2.dy, closeTo(p.groundY(PitchProjector.farPlane), 1e-9));
-      // Whatever it cuts is above the top edge, so nothing visible is lost.
-      expect(segment.$2.dy, lessThan(0));
+      // The cut lands between the horizon and the ball, because with a real
+      // horizon the ground never leaves the frame. That is why the far plane
+      // has to clear the whole pitch (see below) rather than merely reach past
+      // the top edge the way it used to.
+      expect(segment.$2.dy, greaterThan(p.horizonY));
+      expect(segment.$2.dy, lessThan(p.baseY));
+    });
+
+    test('the far plane clears the longest sight line on the pitch', () {
+      // Corner to corner of the full ground, which is the furthest anything
+      // drawn can ever be from the camera.
+      const diagonal = 5.9;
+      expect(PitchProjector.farPlane, greaterThan(diagonal));
     });
 
     test('clipped ends always land inside the depth band', () {
@@ -237,10 +253,11 @@ void main() {
         for (final x in [-PitchLines.halfWidth, PitchLines.halfWidth]) {
           for (final y in [PitchLines.backY, PitchLines.goalLineY]) {
             final depth = p.depthOf(x, y);
-            if (depth <= PitchProjector.farPlane) continue;
+            // Nothing on the pitch may reach the far plane at all: a cut now
+            // shows as a hard line across the picture rather than off the top.
             expect(
-              p.groundY(PitchProjector.farPlane),
-              lessThan(0),
+              depth,
+              lessThan(PitchProjector.farPlane),
               reason: 'corner ($x, $y) at angle $angle is cut on screen',
             );
           }
