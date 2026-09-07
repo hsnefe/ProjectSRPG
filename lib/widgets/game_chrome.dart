@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:project_srpg/game/shot_objective.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 
 /// Bir mini oyunu saran ortak kabuk parçaları.
@@ -55,6 +56,79 @@ class GameHeaderBar extends StatelessWidget {
   }
 }
 
+/// Oyunun üstünde duran tek/iki satırlık durum tarifi.
+///
+/// Sınav ekranı bunu sınavın brifingi için kullanıyor, antrenman ekranı da o
+/// denemenin hangi durumda geçtiğini yazmak için — ikisi de "oyun başlamadan
+/// önce okunacak satır" olduğu için tek nüsha.
+class GameBriefBar extends StatelessWidget {
+  const GameBriefBar({super.key, required this.text, this.title});
+
+  final String text;
+
+  /// Varsa metnin üstünde duran kısa başlık.
+  final String? title;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = this.title;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      decoration: const BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ?title == null
+              ? null
+              : Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+          if (title != null) const SizedBox(height: 3),
+          Text(
+            text,
+            style: const TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 11,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bir denemenin göstergedeki hâli.
+///
+/// Üç kademe, çünkü şut/pas senaryolarının bir kısmı "başarılı" ile "çok
+/// başarılı"yı ayırıyor (`ShotGrade`). İki kademeli oyunlar — esneklik gibi —
+/// yalnızca [fail] ve [good] kullanır; [AttemptMark.of] onların `bool`
+/// günlüğünü buraya çeviriyor.
+enum AttemptMark {
+  fail,
+  good,
+  great;
+
+  static AttemptMark of(bool made) => made ? AttemptMark.good : AttemptMark.fail;
+
+  static AttemptMark ofGrade(ShotGrade grade) => switch (grade) {
+        ShotGrade.fail => AttemptMark.fail,
+        ShotGrade.good => AttemptMark.good,
+        ShotGrade.great => AttemptMark.great,
+      };
+}
+
 /// Deneme göstergesi, faz ipucu ve son uçuşun sonucu.
 class AttemptFooter extends StatelessWidget {
   const AttemptFooter({
@@ -65,7 +139,7 @@ class AttemptFooter extends StatelessWidget {
     required this.lastLabel,
   });
 
-  final List<bool> log;
+  final List<AttemptMark> log;
   final int total;
   final String hint;
   final String? lastLabel;
@@ -87,7 +161,7 @@ class AttemptFooter extends StatelessWidget {
               for (var i = 0; i < total; i++)
                 Padding(
                   padding: const EdgeInsets.only(right: 6),
-                  child: AttemptPip(made: i < log.length ? log[i] : null),
+                  child: AttemptPip(mark: i < log.length ? log[i] : null),
                 ),
               const Spacer(),
               if (lastLabel != null)
@@ -116,27 +190,47 @@ class AttemptFooter extends StatelessWidget {
 }
 
 class AttemptPip extends StatelessWidget {
-  const AttemptPip({super.key, required this.made});
+  const AttemptPip({super.key, required this.mark});
 
   /// null = henüz atılmadı.
-  final bool? made;
+  final AttemptMark? mark;
 
   @override
   Widget build(BuildContext context) {
-    final made = this.made;
+    final mark = this.mark;
+    // "Çok başarılı" dolu bir pip değil, halkalı bir pip: başarılıdan ayrılsın
+    // ama gösterge tek renkte kalsın, üç ayrı renk sırayı okunmaz yapıyor.
     return Container(
       width: 12,
       height: 12,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: made == null
-            ? Colors.transparent
-            : (made ? AppColors.success : AppColors.danger),
+        color: switch (mark) {
+          null => Colors.transparent,
+          AttemptMark.fail => AppColors.danger,
+          AttemptMark.good || AttemptMark.great => AppColors.success,
+        },
         border: Border.all(
-          color: made == null ? AppColors.border : Colors.transparent,
+          color: switch (mark) {
+            null => AppColors.border,
+            AttemptMark.great => AppColors.textPrimary,
+            _ => Colors.transparent,
+          },
           width: 1.5,
         ),
       ),
+      child: mark == AttemptMark.great
+          ? Center(
+              child: Container(
+                width: 4,
+                height: 4,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.surface2,
+                ),
+              ),
+            )
+          : null,
     );
   }
 }

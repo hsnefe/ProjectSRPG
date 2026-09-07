@@ -2,29 +2,44 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import 'package:project_srpg/game/shot_game.dart';
+import 'package:project_srpg/game/shot_scenarios.dart';
 import 'package:project_srpg/game/training_result.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/game_chrome.dart';
 import 'package:project_srpg/widgets/training_result_panel.dart';
 
 /// Şut ve pas antrenmanları. İkisi de aynı [ShotGame]; fark yalnızca
-/// [ShotMode] — hangi sonucun sayıldığı ve hangi yöne dönük başlanacağı.
+/// seansa hangi durumların dizildiği.
 ///
 /// Prototip ekranı (FlameShotDemoScreen) mekaniği *göstermek* için var:
 /// pusulası ve dört tanı barı orada kalır. Burası onu gizler, üç deneme sayar
 /// ve sonucu geri döndürür.
+///
+/// Üç deneme artık aynı yerde geçmiyor: seans [ShotScenarios]'tan bir durum
+/// listesi çekiyor ve her deneme sahanın başka bir noktasında, başka bir
+/// kadroyla, kendi hedefiyle oynanıyor (bkz. [ShotGame.playlist]).
 class BallTrainingScreen extends StatefulWidget {
-  const BallTrainingScreen({super.key, required this.mode});
+  const BallTrainingScreen({super.key, required this.mode, this.playlist});
 
   final ShotMode mode;
+
+  /// Seansın durumları. Testler sabit bir liste verebilsin diye dışarıdan
+  /// alınabiliyor; normalde katalogdan rastgele geliyor.
+  final List<ShotScenario>? playlist;
 
   @override
   State<BallTrainingScreen> createState() => _BallTrainingScreenState();
 }
 
 class _BallTrainingScreenState extends State<BallTrainingScreen> {
+  late final List<ShotScenario> _playlist = widget.playlist ??
+      (widget.mode == ShotMode.pass
+          ? ShotScenarios.passSession()
+          : ShotScenarios.shotSession());
+
   late final ShotGame _game = ShotGame(
     mode: widget.mode,
+    playlist: _playlist,
     onStateChanged: _onGameState,
     onFinished: _onFinished,
   );
@@ -58,9 +73,10 @@ class _BallTrainingScreenState extends State<BallTrainingScreen> {
     if (_result != null) return 'Antrenman bitti';
     switch (_game.phase) {
       case ShotPhase.aim:
-        return _isPass
-            ? '1) Sürükle: arkadaşını hedefle, bırak'
-            : '1) Sürükle: kalede bir nokta seç, bırak';
+        return _game.scenario?.aimHint ??
+            (_isPass
+                ? '1) Sürükle: arkadaşını hedefle, bırak'
+                : '1) Sürükle: kalede bir nokta seç, bırak');
       case ShotPhase.strike:
         return '2) Topa vur: merkez = güç, kenar = kavis, alt = yükselt';
       case ShotPhase.flight:
@@ -96,6 +112,13 @@ class _BallTrainingScreenState extends State<BallTrainingScreen> {
                       GameHeaderBar(
                         title: _isPass ? 'Pas Antrenmanı' : 'Şut Antrenmanı',
                       ),
+                      if (_game.scenario case final scenario?)
+                        GameBriefBar(
+                          // Durum ilerledikçe başlık da ilerlesin: hangi
+                          // denemede olduğun, nerede durduğunla aynı şey.
+                          title: '${scenario.kind.label} · ${scenario.title}',
+                          text: scenario.brief,
+                        ),
                       Expanded(
                         child: Padding(
                           padding: const EdgeInsets.all(12),
@@ -112,7 +135,10 @@ class _BallTrainingScreenState extends State<BallTrainingScreen> {
                         )
                       else
                         AttemptFooter(
-                          log: _game.attemptLog,
+                          log: [
+                            for (final attempt in _game.attemptLog)
+                              AttemptMark.ofGrade(attempt.grade),
+                          ],
                           total: ShotGame.attemptsPerSession,
                           hint: _hint,
                           lastLabel: _game.result,

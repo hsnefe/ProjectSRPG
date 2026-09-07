@@ -64,7 +64,8 @@ class _FlexibilityTrainingScreenState
 
   /// Bu turda tamamlanan desenlerin başarı günlüğü — `AttemptFooter`'ın pip
   /// sırası. Yalnızca doğrular burada; bir yanlış zaten baştan başlatıyor.
-  List<bool> get _log => List<bool>.filled(_game.recallIndex, true);
+  List<AttemptMark> get _log =>
+      List<AttemptMark>.filled(_game.recallIndex, AttemptMark.good);
 
   @override
   Widget build(BuildContext context) {

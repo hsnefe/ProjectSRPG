@@ -8,7 +8,10 @@ import 'package:flutter/material.dart' show Colors, ValueChanged;
 
 import 'package:project_srpg/game/game_banner.dart';
 import 'package:project_srpg/game/pitch_projector.dart';
+import 'package:project_srpg/game/shot_objective.dart';
 import 'package:project_srpg/game/training_result.dart';
+
+export 'package:project_srpg/game/shot_objective.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 
 enum ShotPhase { aim, strike, flight, result }
@@ -28,7 +31,20 @@ enum ShotMode {
   const ShotMode(this.successLabel);
 
   /// The one label out of [ShotGame.resolve] that counts as a made attempt.
+  ///
+  /// Kept as the shorthand it always was; the grading itself goes through
+  /// [objective], which a scene can override with something finer-grained.
   final String? successLabel;
+
+  /// How a session in this mode is graded when the scene does not say.
+  ///
+  /// Two-tier by construction: a plain drill has no "çok başarılı" — the third
+  /// rung arrives with the scenarios, which bring their own objectives.
+  ShotObjective get objective => switch (this) {
+        ShotMode.free => ShotObjective.none,
+        ShotMode.shot => ShotObjective.goalOnly,
+        ShotMode.pass => ShotObjective.passOnly,
+      };
 
   /// The world this mode plays in when the caller does not name one. Keeping
   /// the default here is what leaves every existing call site — the prototype
@@ -67,6 +83,7 @@ class ShotTarget {
     required this.y,
     this.isGoal = false,
     this.isRival = false,
+    this.isKey = false,
   });
 
   final String label;
@@ -74,6 +91,12 @@ class ShotTarget {
   final double y;
   final bool isGoal;
   final bool isRival;
+
+  /// The decisive option in a scenario: the man behind the line, the runner in
+  /// behind, the one the safe ball is not going to. Finding him is what turns a
+  /// completed pass from `başarılı` into `çok başarılı` — see
+  /// [ShotObjective.keyPassIsGreat]. At most one per scene, by convention.
+  final bool isKey;
 
   double get distance => math.sqrt(x * x + y * y);
   double get facingAngle => PitchProjector.angleToward(x, y);
@@ -135,12 +158,16 @@ class ShotScene {
   const ShotScene({
     required this.receivers,
     required this.rivals,
-    required this.facing,
+    this.facing = Facing.forward,
+    this.lookAt,
     this.hasKeeper = true,
     this.scoresGoals = true,
     this.origin = (x: 0.0, y: 0.0),
     this.defaultAimDepth = ShotWorld.defaultAimDepth,
+    this.defaultAimLateral = 0,
     this.maxAimDepth = ShotWorld.maxAimDepth,
+    this.backY = PitchLines.backY,
+    this.objective,
   });
 
   /// Everyone in your own shirt: they get drawn, they block the ball, and a
@@ -149,8 +176,15 @@ class ShotScene {
 
   final List<ShotTarget> rivals;
 
-  /// Which way the camera starts out looking.
+  /// Which way the camera starts out looking, on the four-point compass. Only
+  /// the free-mode prototype turns, so this is a starting bearing everywhere
+  /// else — and [lookAt] overrides it when a scene needs one off the compass.
   final Facing facing;
+
+  /// An absolute ground point to face instead. A scenario is built by placing
+  /// people and then looking at them, rather than by working out the bearing
+  /// that happens to put them on screen.
+  final GroundPoint? lookAt;
 
   /// Whether anybody is minding the goal. False leaves it empty — a shot on
   /// target simply goes in.
@@ -165,7 +199,62 @@ class ShotScene {
   final GroundPoint origin;
 
   final double defaultAimDepth;
+
+  /// Nişanın açılışta durduğu yanal kayma.
+  ///
+  /// Sıfır "tam karşı" demek ve uzun süre öyleydi, çünkü kamera zaten
+  /// seçeneklerin ortasına bakıyordu. Kamera oyun yönüne sabitlenince bu
+  /// bozuldu: yana kalan bir seçenekte nişan hedeften uzakta başlıyordu.
+  /// Artık derinlik gibi bu da sahnenin kendi kadrosundan geliyor.
+  final double defaultAimLateral;
+
   final double maxAimDepth;
+
+  /// How far back the ground is drawn, in absolute world coordinates.
+  ///
+  /// The default stops at the halfway line, which is where the attacking half
+  /// ends and — at every bearing from the origin — past the top of the screen.
+  /// A scene that stands behind that line has to open the pitch out behind it,
+  /// or the player would be standing on the edge of the world.
+  final double backY;
+
+  /// What this scene is asking for. Null falls back to [ShotMode.objective],
+  /// which is what leaves the two drills and the two exams graded exactly as
+  /// they were before scenarios existed.
+  final ShotObjective? objective;
+
+  /// The bearing the camera starts at: [lookAt] if the scene named a point,
+  /// otherwise the compass point in [facing].
+  double get startAngle {
+    final look = lookAt;
+    return look == null
+        ? facing.angle
+        : math.atan2(look.x - origin.x, look.y - origin.y);
+  }
+
+  /// The same scene with a few things changed. Used by the catalog test to
+  /// strip the opposition out and check the geometry on its own.
+  ShotScene copyWith({
+    List<ShotTarget>? receivers,
+    List<ShotTarget>? rivals,
+    bool? hasKeeper,
+    bool? scoresGoals,
+    ShotObjective? objective,
+  }) =>
+      ShotScene(
+        receivers: receivers ?? this.receivers,
+        rivals: rivals ?? this.rivals,
+        facing: facing,
+        lookAt: lookAt,
+        hasKeeper: hasKeeper ?? this.hasKeeper,
+        scoresGoals: scoresGoals ?? this.scoresGoals,
+        origin: origin,
+        defaultAimDepth: defaultAimDepth,
+        defaultAimLateral: defaultAimLateral,
+        maxAimDepth: maxAimDepth,
+        backY: backY,
+        objective: objective ?? this.objective,
+      );
 
   /// Everyone with a body on the pitch: what the ball can run into, and what
   /// gets drawn. The goal has no body and the keeper is his own case.
@@ -220,6 +309,89 @@ class ShotScene {
   );
 }
 
+/// Which family a scenario belongs to. Drives nothing in the rules — it is how
+/// a session picks a varied playlist and how the header labels what you are
+/// about to be asked to do.
+enum ShotScenarioKind {
+  /// Bitiriş: kaleye şut, her seferinde başka bir açıdan.
+  shot('Şut'),
+
+  /// Geriden oyun kurulumu: kendi yarı sahandan ilk pas.
+  buildUp('Geriden kurulum'),
+
+  /// Geçiş başlatma: topu kazandıktan sonraki ilk top.
+  transition('Geçiş'),
+
+  /// İleride pas: son otuz metre, son pas.
+  finalThird('Son bölge');
+
+  const ShotScenarioKind(this.label);
+
+  final String label;
+
+  /// Which drill a session of these scenarios reports itself as.
+  ShotMode get mode =>
+      this == ShotScenarioKind.shot ? ShotMode.shot : ShotMode.pass;
+}
+
+/// One authored situation: a place on the pitch, a cast, and what is being
+/// asked for. The catalog of them lives in `shot_scenarios.dart`.
+///
+/// A scenario is deliberately thin — it is a [ShotScene] plus the words that
+/// go around it. The rules never read one; they read the scene it carries,
+/// which is what keeps a forty-entry catalog from leaking into [ShotGame].
+class ShotScenario {
+  const ShotScenario({
+    required this.id,
+    required this.kind,
+    required this.title,
+    required this.brief,
+    required this.scene,
+    required this.aimHint,
+  });
+
+  /// Stable key, unique across the catalog. Logged with each attempt.
+  final String id;
+
+  final ShotScenarioKind kind;
+
+  /// Ekran başlığı, ör. 'Sol yarı alandan içeri kat'.
+  final String title;
+
+  /// Tek satırlık durum tarifi — ne olduğu ve ne beklendiği.
+  final String brief;
+
+  final ShotScene scene;
+
+  /// Nişan fazının ipucu: bu durumda neye bakılacağı.
+  final String aimHint;
+
+  ShotObjective get objective => scene.objective ?? kind.mode.objective;
+}
+
+/// One resolved flight, kept for the footer and the session total.
+class ShotAttempt {
+  const ShotAttempt({
+    required this.grade,
+    required this.label,
+    required this.score,
+    this.scenarioId,
+  });
+
+  final ShotGrade grade;
+
+  /// The raw outcome label the flight produced, e.g. 'PAS TUTTU'.
+  final String label;
+
+  /// 0..1. Carried per attempt rather than derived at the end, because a
+  /// playlist can grade each of its attempts against a different objective.
+  final double score;
+
+  final String? scenarioId;
+
+  bool get made => grade.counts;
+}
+
 /// Flame port of the shot prototype.
 ///
 /// The pseudo-3D projection stays hand-rolled — Flame's camera is genuinely
@@ -231,15 +403,17 @@ class ShotGame extends FlameGame {
     required this.onStateChanged,
     this.mode = ShotMode.free,
     ShotScene? scene,
+    this.playlist = const [],
     this.onFinished,
-  }) : scene = scene ?? mode.defaultScene {
+  }) : _fixedScene = scene ?? mode.defaultScene {
     // A pass drill starts out looking at a team mate rather than at the goal,
-    // and an exam looks wherever its scene points. The bearing is the only
-    // thing set up front; every other rule reads the scene as it runs.
+    // and an exam or a scenario looks wherever its scene points. The bearing is
+    // the only thing set up front; every other rule reads the scene as it runs.
     facing = this.scene.facing;
-    desiredAngle = facing.angle;
-    cameraAngle = facing.angle;
+    desiredAngle = this.scene.startAngle;
+    cameraAngle = desiredAngle;
     aimDepth = this.scene.defaultAimDepth;
+    aimLateral = this.scene.defaultAimLateral;
   }
 
   /// Lets the surrounding Flutter UI rebuild its readout.
@@ -249,8 +423,37 @@ class ShotGame extends FlameGame {
   /// game exactly as they always did.
   final ShotMode mode;
 
-  /// The pitch this session is played on. Fixed for the life of the game.
-  final ShotScene scene;
+  /// The world used when there is no playlist. Fixed for the life of the game.
+  final ShotScene _fixedScene;
+
+  /// The situations this session runs through, one per attempt.
+  ///
+  /// Empty is the old behaviour and still the common one: the prototype, the
+  /// two exams and any caller that names a scene outright play all three
+  /// attempts in the same world. A non-empty playlist moves the player to a
+  /// different part of the pitch between attempts, which is the whole point of
+  /// it — the shot you just took is not the shot you are about to take.
+  ///
+  /// Shorter than [attemptsPerSession] is allowed; the last entry simply
+  /// repeats.
+  final List<ShotScenario> playlist;
+
+  /// Which entry the *current* attempt is being played on.
+  ///
+  /// Advanced by [reset], not by [attempts], so the world cannot change out
+  /// from under a ball that has already been struck: the tally goes up the
+  /// moment a flight resolves, and the result banner is still being read.
+  int _scenarioIndex = 0;
+
+  ShotScenario? get scenario => playlist.isEmpty
+      ? null
+      : playlist[_scenarioIndex.clamp(0, playlist.length - 1)];
+
+  /// The pitch the current attempt is played on.
+  ShotScene get scene => scenario?.scene ?? _fixedScene;
+
+  /// What the current attempt is being graded against.
+  ShotObjective get objective => scene.objective ?? mode.objective;
 
   /// Fired once, when a scored session runs out of attempts. Never in
   /// [ShotMode.free].
@@ -326,14 +529,32 @@ class ShotGame extends FlameGame {
   /// One entry per resolved flight, in order — the footer draws a pip from
   /// each. Deliberately survives [reset], which is how you take the *next*
   /// attempt.
-  final List<bool> attemptLog = <bool>[];
+  final List<ShotAttempt> attemptLog = <ShotAttempt>[];
 
   int get attempts => attemptLog.length;
 
-  int get made => attemptLog.where((made) => made).length;
+  int get made => attemptLog.where((a) => a.made).length;
 
-  bool get lastAttemptSucceeded =>
-      mode.successLabel != null && result == mode.successLabel;
+  /// How many of the made attempts were the *good* answer rather than the safe
+  /// one — the third rung the scenarios brought with them.
+  int get great =>
+      attemptLog.where((a) => a.grade == ShotGrade.great).length;
+
+  /// How well the flight now showing went, derived from the label rather than
+  /// stored: the same outcome is a different grade depending on what the
+  /// scenario was asking for, and on which of two team mates it reached.
+  ShotGrade get lastGrade {
+    final label = result;
+    return label == null
+        ? ShotGrade.fail
+        : objective.gradeOf(label, keyReceiver: _lastReceiver?.isKey ?? false);
+  }
+
+  bool get lastAttemptSucceeded => lastGrade.counts;
+
+  /// Whoever took the last pass in, when anybody did. Only a *caught* ball
+  /// fills this in — the grade is about who received it, not who it was near.
+  ShotTarget? _lastReceiver;
 
   /// Made attempts → exam grade, on the catalog's five-level scale.
   ///
@@ -344,15 +565,30 @@ class ShotGame extends FlameGame {
 
   int get examGrade => gradeByMade[made];
 
+  /// What the attempts were worth, 0..1. Averaged over the *session* length
+  /// rather than over what was played, so an abandoned session cannot score
+  /// full marks, and weighted per attempt because a playlist grades each of
+  /// its situations against its own objective.
+  double get sessionScore =>
+      attemptLog.fold<double>(0, (sum, a) => sum + a.score) /
+      attemptsPerSession;
+
+  /// What the tally is counting. A playlist mixes finishes with lay-offs and
+  /// line-breaking passes, so it counts plain successes.
+  String get _unit {
+    if (playlist.isNotEmpty) return 'başarılı';
+    return mode == ShotMode.pass ? 'isabetli pas' : 'gol';
+  }
+
   TrainingResult get sessionResult => TrainingResult(
         drill: mode == ShotMode.pass ? TrainingDrill.pass : TrainingDrill.shot,
         outcome: made >= madeToPass
             ? TrainingOutcome.success
             : TrainingOutcome.failure,
-        score: made / attemptsPerSession,
-        detail: mode == ShotMode.pass
-            ? '$made/$attemptsPerSession isabetli pas'
-            : '$made/$attemptsPerSession gol',
+        score: sessionScore,
+        detail: great > 0
+            ? '$made/$attemptsPerSession $_unit · $great çok başarılı'
+            : '$made/$attemptsPerSession $_unit',
       );
 
   Size get screenSize => Size(size.x, size.y);
@@ -418,9 +654,12 @@ class ShotGame extends FlameGame {
     // attempt. The compass is hidden in those modes anyway; the guard is what
     // makes that an invariant rather than a UI accident.
     if (mode != ShotMode.free) return;
+    // Reset first: it re-points the camera at the scene's own bearing, which
+    // would undo the turn if it ran second.
+    reset();
     facing = next;
     desiredAngle = next.angle;
-    reset();
+    onStateChanged();
   }
 
   // --- Input (driven by InputLayer) --------------------------------------
@@ -447,8 +686,11 @@ class ShotGame extends FlameGame {
       ShotWorld.maxAimLateral,
       projector.visibleLateral(aimDepth) * 0.97,
     );
-    aimLateral =
-        (delta.dx / (size.x * 0.32) * ShotWorld.maxAimLateral).clamp(-limit, limit);
+    // Derinlik gibi yanal da nişanın durduğu yerden itibaren sürükleniyor;
+    // sıfırdan başlasaydı ilk dokunuş reticle'ı hedefin yanından kaçırırdı.
+    aimLateral = (scene.defaultAimLateral +
+            delta.dx / (size.x * 0.32) * ShotWorld.maxAimLateral)
+        .clamp(-limit, limit);
 
     onStateChanged();
   }
@@ -532,6 +774,7 @@ class ShotGame extends FlameGame {
 
     final outcome = resolve();
     result = outcome.label;
+    _lastReceiver = outcome.receiver;
     // A touched ball stops where it was touched and is given a moment to drop;
     // everything else plays out the whole flight.
     _stopT = outcome.touched ? outcome.t : null;
@@ -776,15 +1019,33 @@ class ShotGame extends FlameGame {
 
   void finishFlight() {
     phase = ShotPhase.result;
-    result ??= judge();
+    if (result == null) {
+      final outcome = resolve();
+      result = outcome.label;
+      _lastReceiver = outcome.receiver;
+    }
     // Purely visual, and there is no view in a headless test — which is where
     // the session accounting below gets driven from.
     if (isMounted) {
-      add(GameBanner(result!, highlight: _isGoodOutcome(result!)));
+      add(GameBanner(
+        result!,
+        // A scored session paints the banner with the grade the attempt just
+        // earned; the free prototype has no objective, so it falls back to
+        // "was that a good ball".
+        highlight: mode == ShotMode.free
+            ? _isGoodOutcome(result!)
+            : lastGrade.counts,
+      ));
     }
 
     if (mode != ShotMode.free) {
-      attemptLog.add(lastAttemptSucceeded);
+      final grade = lastGrade;
+      attemptLog.add(ShotAttempt(
+        grade: grade,
+        label: result!,
+        score: objective.weightOf(grade),
+        scenarioId: scenario?.id,
+      ));
       if (attempts >= attemptsPerSession) onFinished?.call(sessionResult);
     }
 
@@ -795,7 +1056,7 @@ class ShotGame extends FlameGame {
   /// criterion on purpose: a caught pass reads as a good ball even in a
   /// shooting drill, it just does not score.
   static bool _isGoodOutcome(String label) =>
-      label == 'GOL!' || label == 'PAS TUTTU';
+      label == ShotLabel.goal || label == ShotLabel.passCaught;
 
   /// Reads the outcome off the ball's actual world path rather than off
   /// whichever target the compass had selected. That is what makes a pass to a
@@ -810,7 +1071,7 @@ class ShotGame extends FlameGame {
   ///
   /// Nothing in here reads the clock, so it says the same thing at launch as it
   /// does when the ball lands.
-  ({String label, double t, bool touched}) resolve() {
+  ({String label, double t, bool touched, ShotTarget? receiver}) resolve() {
     const r = ShotWorld.ballRadius;
 
     final atGoal = _shotAtGoal();
@@ -818,30 +1079,42 @@ class ShotGame extends FlameGame {
       final x = atGoal.x;
       final z = atGoal.z;
       // Anything that beats the keeper keeps flying; only a save stops here.
-      ({String label, double t, bool touched}) past(String label) =>
-          (label: label, t: _flightSpan, touched: false);
+      ({String label, double t, bool touched, ShotTarget? receiver}) past(
+        String label,
+      ) =>
+          (label: label, t: _flightSpan, touched: false, receiver: null);
 
-      if (x.abs() > ShotWorld.goalHalfWidth + r) return past('AUT');
-      if (z > ShotWorld.crossbarHeight + r) return past('ÜSTTEN AUT');
+      if (x.abs() > ShotWorld.goalHalfWidth + r) return past(ShotLabel.wide);
+      if (z > ShotWorld.crossbarHeight + r) return past(ShotLabel.over);
       if (x.abs() > ShotWorld.goalHalfWidth - r ||
           z > ShotWorld.crossbarHeight - r) {
-        return past('DİREK');
+        return past(ShotLabel.post);
       }
 
       // Keeper reach: harder to get to high balls. An empty goal has nobody
       // to beat, so anything on target simply goes in.
       final reach = z < 0.28 ? 0.15 : (z < 0.42 ? 0.07 : 0.0);
       if (scene.hasKeeper && (keeperReachAt(atGoal.t) - x).abs() < reach) {
-        return (label: 'KURTARIŞ', t: atGoal.t, touched: true);
+        return (
+          label: ShotLabel.save,
+          t: atGoal.t,
+          touched: true,
+          receiver: null,
+        );
       }
 
-      return past('GOL!');
+      return past(ShotLabel.goal);
     }
 
     // Nobody in your shirt gets it now: a rival got there first.
     final contact = _contact;
     if (contact != null && contact.player.isRival) {
-      return (label: 'RAKİP KESTİ', t: contact.t, touched: true);
+      return (
+        label: ShotLabel.intercepted,
+        t: contact.t,
+        touched: true,
+        receiver: null,
+      );
     }
 
     final tg = timeToTarget;
@@ -850,31 +1123,59 @@ class ShotGame extends FlameGame {
       final caught = receiver.gap < ShotWorld.passCatchRadius &&
           heightAt(tg) < ShotWorld.passCatchHeight;
       return (
-        label: caught ? 'PAS TUTTU' : 'PAS KAÇTI',
+        label: caught ? ShotLabel.passCaught : ShotLabel.passMissed,
         t: contact?.t ?? tg,
         touched: contact != null,
+        // Only a ball that actually arrives credits the man it arrived at:
+        // the grade turns on which team mate took it in, and a pass that ran
+        // past him was not taken in by anybody.
+        receiver: caught ? receiver.player : null,
       );
     }
 
     // It ran into one of your own without having been meant for him: still a
     // ball you gave away, just not one you meant to give.
     if (contact != null) {
-      return (label: 'PAS KAÇTI', t: contact.t, touched: true);
+      return (
+        label: ShotLabel.passMissed,
+        t: contact.t,
+        touched: true,
+        receiver: null,
+      );
     }
 
     final landing = worldAt(tg);
     final inPlay = landing.x.abs() <= PitchLines.halfWidth &&
         landing.y <= PitchLines.goalLineY &&
-        landing.y >= PitchLines.backY;
-    return (label: inPlay ? 'BOŞLUĞA' : 'AUT', t: _flightSpan, touched: false);
+        landing.y >= scene.backY;
+    return (
+      label: inPlay ? ShotLabel.intoSpace : ShotLabel.wide,
+      t: _flightSpan,
+      touched: false,
+      receiver: null,
+    );
   }
 
   /// Clears the shot, not the session. [handleTap] calls this in the result
   /// phase to line up the next attempt, so zeroing [attempts] here would mean a
   /// scored session never ends — use [restartSession] for that.
   void reset() {
+    // Line up whichever situation this attempt is played in *before* anything
+    // reads the scene, and only re-point the camera when it actually moved —
+    // the free prototype resets constantly and must keep the bearing it was
+    // turned to.
+    final previous = scene;
+    _scenarioIndex = playlist.isEmpty
+        ? 0
+        : attempts.clamp(0, playlist.length - 1);
+    if (!identical(previous, scene)) {
+      facing = scene.facing;
+      desiredAngle = scene.startAngle;
+      cameraAngle = desiredAngle;
+    }
+
     phase = ShotPhase.aim;
-    aimLateral = 0;
+    aimLateral = scene.defaultAimLateral;
     aimDepth = scene.defaultAimDepth;
     power = 0;
     spin = 0;
@@ -888,6 +1189,7 @@ class ShotGame extends FlameGame {
     _stopT = null;
     ringT = 0;
     result = null;
+    _lastReceiver = null;
     _dragStart = null;
     children.whereType<GameBanner>().forEach((c) => c.removeFromParent());
     onStateChanged();
@@ -906,6 +1208,12 @@ class ShotGame extends FlameGame {
 
 const _grassDark = Color(0xFF15251B);
 const _grassLight = Color(0xFF1A2D20);
+
+/// Sahanın bittiği yerin üstü. Ufuk kadraja girdiği andan beri orada bir şey
+/// olmak zorunda: çimin tonuyla doldurmak yer düzlemini sonsuza uzatıyor ve
+/// kuşbakışı hissini geri getiriyordu.
+const _skyTop = Color(0xFF090D11);
+const _skyHorizon = Color(0xFF17251D);
 const _lineColor = Color(0x55FFFFFF);
 const _rival = AppColors.dangerBright;
 
@@ -969,18 +1277,31 @@ class PitchComponent extends Component with HasGameReference<ShotGame> {
   }
 
   void _paintGrass(Canvas canvas, PitchProjector p) {
+    // Ufkun altı yer, üstü değil. İkisinin arasındaki geçiş sert bir çizgi
+    // olmasın diye gökyüzü tepede karadan ufukta çim tonuna iniyor.
+    final horizon = p.horizonY;
     canvas.drawRect(
-      Rect.fromLTWH(0, 0, p.size.width, p.size.height),
+      Rect.fromLTWH(0, 0, p.size.width, horizon),
+      Paint()
+        ..shader = Gradient.linear(
+          Offset(p.size.width / 2, 0),
+          Offset(p.size.width / 2, horizon),
+          const [_skyTop, _skyHorizon],
+        ),
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(0, horizon, p.size.width, p.size.height - horizon),
       Paint()..color = _grassDark,
     );
 
     // Mowing bands, as world-space strips rather than screen-space stripes, so
     // they turn with the markings. Outside the touchlines the darker base
     // shows through, which is what makes the pitch read as a rectangle.
-    const back = PitchLines.backY;
+    final back = game.scene.backY;
     const front = PitchLines.goalLineY;
     const w = PitchLines.halfWidth;
-    final bands = ((front - back) / PitchLines.mowBandDepth).round();
+    final bands =
+        math.max(1, ((front - back) / PitchLines.mowBandDepth).round());
     final paint = Paint()..color = _grassLight;
 
     for (var i = 0; i < bands; i += 2) {
@@ -1010,10 +1331,9 @@ class PitchComponent extends Component with HasGameReference<ShotGame> {
 
     const w = PitchLines.halfWidth;
     const front = PitchLines.goalLineY;
-    const back = PitchLines.backY;
+    final back = game.scene.backY;
 
-    // Touchlines and the goal line. There is no halfway line to draw: at this
-    // scale it sits at [PitchLines.backY], past the top of the screen.
+    // Touchlines and the goal line.
     _seg(canvas, p, paint, (x: -w, y: back), (x: -w, y: front));
     _seg(canvas, p, paint, (x: w, y: back), (x: w, y: front));
     _seg(canvas, p, paint, (x: -w, y: front), (x: w, y: front));
@@ -1027,8 +1347,16 @@ class PitchComponent extends Component with HasGameReference<ShotGame> {
       PitchLines.goalAreaDepth,
     );
 
-    _paintPenaltySpot(canvas, p);
-    _paintPenaltyArc(canvas, p, paint);
+    _paintPenaltySpot(canvas, p, PitchLines.penaltySpotY);
+    _paintPenaltyArc(canvas, p, paint, PitchLines.penaltySpotY, -1);
+
+    // The rest of the pitch, drawn only by the scenes that stand deep enough to
+    // see it. A build-up scene starts behind the halfway line, so the default
+    // back edge would leave the player looking out over nothing.
+    if (back < PitchLines.halfwayY - 0.02) _paintHalfway(canvas, p, paint);
+    if (back <= PitchLines.ownGoalLineY + 0.02) {
+      _paintOwnHalf(canvas, p, paint);
+    }
 
     // Corner arcs curl into the pitch, so each one starts a quarter turn back
     // from the corner it sits on.
@@ -1048,28 +1376,82 @@ class PitchComponent extends Component with HasGameReference<ShotGame> {
 
   /// A goal-side box: two sides running back from the goal line and the front
   /// line joining them. The fourth edge *is* the goal line, already drawn.
+  ///
+  /// [lineY] and [into] are what let the same three segments draw our own box
+  /// at the other end of the pitch, where the box runs the other way.
   void _box(
     Canvas canvas,
     PitchProjector p,
     Paint paint,
     double halfWidth,
-    double depth,
-  ) {
-    final y = PitchLines.goalLineY - depth;
+    double depth, {
+    double lineY = PitchLines.goalLineY,
+    int into = -1,
+  }) {
+    final y = lineY + depth * into;
     for (final side in [-1, 1]) {
       _seg(
         canvas,
         p,
         paint,
-        (x: halfWidth * side, y: PitchLines.goalLineY),
+        (x: halfWidth * side, y: lineY),
         (x: halfWidth * side, y: y),
       );
     }
     _seg(canvas, p, paint, (x: -halfWidth, y: y), (x: halfWidth, y: y));
   }
 
-  void _paintPenaltySpot(Canvas canvas, PitchProjector p) {
-    const spot = (x: 0.0, y: PitchLines.penaltySpotY);
+  /// The halfway line and the centre circle. Only drawn from deep, where the
+  /// scene has opened the ground out past them.
+  void _paintHalfway(Canvas canvas, PitchProjector p, Paint paint) {
+    const w = PitchLines.halfWidth;
+    const y = PitchLines.halfwayY;
+    _seg(canvas, p, paint, (x: -w, y: y), (x: w, y: y));
+    _arc(
+      canvas,
+      p,
+      paint,
+      centre: (x: 0.0, y: y),
+      radius: PitchLines.centreCircleRadius,
+      from: 0,
+      sweep: math.pi * 2,
+      samples: 24,
+    );
+  }
+
+  /// Our own end: the goal line we are playing away from, its two boxes, the
+  /// spot and the arc. No frame — the far goal is never in shot from here, and
+  /// nothing can be scored in it.
+  void _paintOwnHalf(Canvas canvas, PitchProjector p, Paint paint) {
+    const line = PitchLines.ownGoalLineY;
+    const w = PitchLines.halfWidth;
+    _seg(canvas, p, paint, (x: -w, y: line), (x: w, y: line));
+    _box(
+      canvas,
+      p,
+      paint,
+      PitchLines.penaltyHalfWidth,
+      PitchLines.penaltyDepth,
+      lineY: line,
+      into: 1,
+    );
+    _box(
+      canvas,
+      p,
+      paint,
+      PitchLines.goalAreaHalfWidth,
+      PitchLines.goalAreaDepth,
+      lineY: line,
+      into: 1,
+    );
+
+    const spot = line + PitchLines.penaltySpotDepth;
+    _paintPenaltySpot(canvas, p, spot);
+    _paintPenaltyArc(canvas, p, paint, spot, 1);
+  }
+
+  void _paintPenaltySpot(Canvas canvas, PitchProjector p, double spotY) {
+    final spot = (x: 0.0, y: spotY);
     final depth = p.depthOf(spot.x, spot.y);
     if (!p.isPointVisible(depth)) return;
 
@@ -1084,20 +1466,28 @@ class PitchComponent extends Component with HasGameReference<ShotGame> {
   }
 
   /// Only the sliver of the arc that pokes out in front of the penalty area —
-  /// the rest is inside the box and never drawn.
-  void _paintPenaltyArc(Canvas canvas, PitchProjector p, Paint paint) {
+  /// the rest is inside the box and never drawn. [into] is which way the box
+  /// runs, so our own arc bulges the other way.
+  void _paintPenaltyArc(
+    Canvas canvas,
+    PitchProjector p,
+    Paint paint,
+    double spotY,
+    int into,
+  ) {
     const radius = PitchLines.penaltyArcRadius;
-    const reach = PitchLines.penaltySpotY - PitchLines.penaltyFrontY;
+    const reach = PitchLines.penaltyDepth - PitchLines.penaltySpotDepth;
     if (radius <= reach) return;
 
     final half = math.acos(reach / radius);
+    final centreAngle = into > 0 ? math.pi / 2 : -math.pi / 2;
     _arc(
       canvas,
       p,
       paint,
-      centre: (x: 0.0, y: PitchLines.penaltySpotY),
+      centre: (x: 0.0, y: spotY),
       radius: radius,
-      from: -math.pi / 2 - half,
+      from: centreAngle - half,
       sweep: half * 2,
       samples: 16,
     );

@@ -100,7 +100,7 @@ class _SkillExamScreenState extends State<SkillExamScreen> {
                   child: Column(
                     children: [
                       GameHeaderBar(title: widget.exam.title),
-                      _Brief(text: widget.exam.brief),
+                      GameBriefBar(text: widget.exam.brief),
                       Expanded(
                         child: Padding(
                           padding: const EdgeInsets.all(12),
@@ -121,7 +121,10 @@ class _SkillExamScreenState extends State<SkillExamScreen> {
                         )
                       else
                         AttemptFooter(
-                          log: _game.attemptLog,
+                          log: [
+                            for (final attempt in _game.attemptLog)
+                              AttemptMark.ofGrade(attempt.grade),
+                          ],
                           total: ShotGame.attemptsPerSession,
                           hint: _hint,
                           lastLabel: _game.result,
@@ -132,33 +135,6 @@ class _SkillExamScreenState extends State<SkillExamScreen> {
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Brief extends StatelessWidget {
-  const _Brief({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-      decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: AppColors.border, width: 0.5),
-        ),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: AppColors.textMuted,
-          fontSize: 11,
-          height: 1.4,
         ),
       ),
     );
