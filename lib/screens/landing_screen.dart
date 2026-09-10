@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/load_career_screen.dart';
 import 'package:project_srpg/screens/new_career_screen.dart';
+import 'package:project_srpg/screens/scenario_lab_screen.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/glass_panel.dart';
 import 'package:project_srpg/widgets/glow_text_button.dart';
@@ -68,7 +69,7 @@ class LandingScreen extends StatelessWidget {
                   filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
                   child: Container(
                     width: 320,
-                    height: 180,
+                    height: 236,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.bottomRight,
@@ -109,6 +110,22 @@ class LandingScreen extends StatelessWidget {
                                 ),
                                 settings: const RouteSettings(
                                   name: LoadCareerScreen.routeName,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        // Senaryo sahası kariyerden bağımsız: ne kayıt ne de
+                        // backend istiyor, o yüzden girişten doğrudan açılıyor.
+                        GlowTextButton(
+                          label: 'Senaryo Sahası',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => const ScenarioLabScreen(),
+                                settings: const RouteSettings(
+                                  name: ScenarioLabScreen.routeName,
                                 ),
                               ),
                             );
