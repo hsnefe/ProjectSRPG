@@ -295,6 +295,24 @@ class CareerApiClient {
     return InteractResult.fromJson(body);
   }
 
+  /// §12.1 M4 · `POST /careers/{cid}/matches/{fid}/coach-talk`.
+  ///
+  /// `value` yalnızca talep konularında dolu: `request_position` için
+  /// pozisyon adı, `request_role` için `role_id`. Diğer dört konuda değer
+  /// göndermek 422 döner — sunucu yok saymıyor, reddediyor.
+  Future<CoachTalkResult> coachTalk(
+    String careerId,
+    String fixtureId, {
+    required String topic,
+    String? value,
+  }) async {
+    final body = await _post(
+      '/careers/$careerId/matches/$fixtureId/coach-talk',
+      body: {'topic': topic, 'value': ?value},
+    );
+    return CoachTalkResult.fromJson(body);
+  }
+
   // ---------------------------------------------------------------------
   // §5.4 Sosyal teklifler — R4-R6
   // ---------------------------------------------------------------------

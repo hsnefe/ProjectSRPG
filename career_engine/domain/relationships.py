@@ -68,6 +68,91 @@ def validate_traits(kind: str, traits: dict) -> dict:
     return validated.model_dump()
 
 
+# Bounds for the numeric traits apply_trait_delta may move. A trait not
+# listed here cannot be nudged by a delta at all - the string ones (outlet,
+# tone, mood) are set, not incremented, and there is no caller for that yet.
+#
+# `trust` shares relationship.score's 0-100 range on purpose: they are read
+# side by side (a coach who trusts you at 80 while the relationship sits at
+# 30 should be legible at a glance) and a second scale would make the pair
+# unreadable.
+TRAIT_BOUNDS: dict = {
+    "trust": (0.0, 100.0),
+    "tactical_fit": (0.0, 1.0),
+    "promised_minutes": (0, 95),
+    "interviews_given": (0, None),
+    "gift_count": (0, None),
+}
+
+
+def apply_trait_delta(
+    conn: sqlite3.Connection,
+    career_id: str,
+    relationship_id: str,
+    **deltas,
+) -> list:
+    """The only function allowed to write relationship.traits.
+
+    Before this, `traits` was written exactly once - by onboarding's seed -
+    and read forever after, which made CoachTraits.trust dead data: a field
+    the contract described, the API returned, and nothing could ever move.
+
+    Built like apply_delta above and like wallet.apply/fame.apply: one
+    function owns the column, clamps, and hands back a before/after record.
+    It does not commit; the calling endpoint owns the transaction (INV-3).
+
+    The round trip goes through validate_traits twice - once to read, once
+    to write - so INV-16 holds on both sides and a partial JSON blob picks
+    up its model defaults before any arithmetic touches it. That matters:
+    an older row written before a field existed would otherwise KeyError
+    here rather than starting from the documented default.
+    """
+    row = conn.execute(
+        "SELECT kind, traits FROM relationship WHERE career_id = ? AND relationship_id = ?",
+        (career_id, relationship_id),
+    ).fetchone()
+    if row is None:
+        raise errors.invalid_request(f"unknown relationship_id {relationship_id!r}")
+
+    kind = row["kind"]
+    traits = validate_traits(kind, json.loads(row["traits"]))
+
+    changes = []
+    for key, delta in deltas.items():
+        if key not in traits:
+            raise errors.invalid_request(f"kind {kind!r} has no trait {key!r}")
+        if key not in TRAIT_BOUNDS:
+            raise errors.invalid_request(f"trait {key!r} is not numeric")
+
+        low, high = TRAIT_BOUNDS[key]
+        before = traits[key]
+        after = before + delta
+        if low is not None:
+            after = max(low, after)
+        if high is not None:
+            after = min(high, after)
+        traits[key] = after
+        # The applied delta, not the requested one - same honesty rule
+        # apply_delta follows for the score's audit trail.
+        changes.append({"key": key, "before": before, "after": after, "delta": after - before})
+
+    conn.execute(
+        "UPDATE relationship SET traits = ? WHERE career_id = ? AND relationship_id = ?",
+        (json.dumps(validate_traits(kind, traits), ensure_ascii=False), career_id, relationship_id),
+    )
+    return changes
+
+
+def get_traits(conn: sqlite3.Connection, career_id: str, relationship_id: str) -> dict:
+    row = conn.execute(
+        "SELECT kind, traits FROM relationship WHERE career_id = ? AND relationship_id = ?",
+        (career_id, relationship_id),
+    ).fetchone()
+    if row is None:
+        raise errors.invalid_request(f"unknown relationship_id {relationship_id!r}")
+    return validate_traits(row["kind"], json.loads(row["traits"]))
+
+
 def get_score(conn: sqlite3.Connection, career_id: str, relationship_id: str) -> int:
     row = conn.execute(
         "SELECT score FROM relationship WHERE career_id = ? AND relationship_id = ?",

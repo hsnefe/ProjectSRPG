@@ -962,6 +962,7 @@ Taban: `http://127.0.0.1:8001`
 | M1 | `GET` | `/careers/{cid}/matches/next` | Maç kurulumu — motora verilecek payload dahil |
 | M2 | `POST` | `/careers/{cid}/matches/{fid}/result` | Sonucu yazar + haftayı simüle eder |
 | M3 | `POST` | `/careers/{cid}/matches/{fid}/abandon` | Yarım kalan maçı kurtarır (§6.4) |
+| M4 | `POST` | `/careers/{cid}/matches/{fid}/coach-talk` | Maç öncesi antrenör konuşması (§12.1) |
 | **İçerik** ||||
 | N1 | `GET` | `/careers/{cid}/news` | `?limit=&before=` |
 | N2 | `GET` | `/careers/{cid}/news/{nid}` | Tam gövde |
@@ -3063,3 +3064,121 @@ numarası **artmaz**.
   kendi "ilerleyen versiyonlarda" listesi
 - **Flutter FE kodu** — bu bölüm FE'yi yalnızca **sözleşme** düzeyinde bağlar
   (§11.8); ekran ve istemci değişiklikleri ayrı bir sürümün işidir
+
+
+---
+
+## 12. EK: ANTRENÖR, KADRO VE SPONSORLUK
+
+> Bu bölüm de §11 gibi **imza sonrası** eklendi. §11 kendi alanında (sezon
+> devri, transfer, sözleşme) son sözü söylemeye devam eder; §12 yalnızca
+> aşağıda açıkça saydığı maddeleri geçersiz kılar.
+
+### 12.0 Geçersiz kılananlar
+
+| Nerede | Önceden | §12'de |
+|---|---|---|
+| §3.2 | "`starts` = `appearances`; v1'de kullanıcı daima ilk 11'de" | Kullanıcı **ilk 11 / yedek / kadro dışı** olabilir (§12.2) |
+| §3.4 | `relationship.traits` yalnızca tohumlamada yazılır | `relationships.apply_trait_delta()` tek yazma yolu olarak eklendi (§12.1) |
+| §11.13 | "Kadro modeli ve NPC transferleri" kapsam dışı | **Yalnızca NPC transferi** kapsam dışı kalır |
+
+**D4 kaldırılmadı.** Bir kariyerde hâlâ tam olarak bir `player` satırı vardır
+(`is_user = 1`); 32 takımın kadrosu, NPC oyuncuları ve derinliği yoktur ve
+§12 bunların hiçbirini getirmez. Değişen tek şey **kullanıcının o maçtaki
+durumu**nın artık sabit varsayılmaması — bu, kadro modeli değil, `fixture`
+satırında tek bir kolon.
+
+### 12.1 M4 · Maç öncesi antrenör konuşması
+
+#### M4 · `POST /careers/{cid}/matches/{fid}/coach-talk`
+
+```jsonc
+// İstek
+{ "topic": "philosophy_accept",   // altı değerden biri, aşağıdaki tablo
+  "value": null }                 // yalnızca talep konularında dolu
+
+// Yanıt
+{ "career_state": { /* CareerState — day_budget ve condition oynamış olabilir */ },
+  "topic":   "philosophy_accept",
+  "granted": null,                // talep değilse null; talepse true/false
+  "relationship_changes": [ { "relationship_id": "coach",
+                              "before": 70, "after": 72, "delta": 2 } ],
+  "trait_changes":        [ { "key": "trust",
+                              "before": 50.0, "after": 56.0, "delta": 6.0 } ],
+  "condition_after": null,        // konu kondisyon oynatmıyorsa null
+  "player": null }                // talep kabul edildiyse {position, role}
+```
+
+| `topic` | Ne yapar | `value` |
+|---|---|---|
+| `philosophy_accept` / `philosophy_reject` | Antrenörün oyun anlayışını kabul/ret | yok |
+| `style_accept` / `style_reject` | Oyun tarzını kabul/ret | yok |
+| `request_position` | Pozisyon değişikliği talebi | pozisyon adı |
+| `request_role` | Rol değişikliği talebi | `role_id` |
+
+**İki sayı var ve aynı şey değiller.** `relationship.score` (§3.4) antrenörün
+seni **sevmesi**; `CoachTraits.trust` senin okumanı kendi planının önüne
+koymaya ne kadar hazır olduğu. Birlikte hareket ederler ama aynı değildirler
+ve mekaniğin tamamı bu farkta: planı kabul etmek güveni **ucuza** alır, güven
+ise bir şey isterken **harcadığın** şeydir. Bir antrenör seni sevip yine de
+istediğin yerde oynatmayabilir.
+
+`trust` bu bölüme kadar **ölü veriydi**: §3.4 tanımlıyordu, R1/R2 döndürüyordu,
+hiçbir kod yolu yazmıyordu. Artık `domain/squad.py`'nin (§12.2) ilk 11 kararını
+verirken okuduğu girdi — döngü şöyle kapanıyor:
+
+```text
+konuş -> güven -> kadro -> maç -> ilişki -> konuş
+```
+
+**Kapılar** (sırasıyla, hiçbiri yazmıyor):
+
+| Sıra | Kontrol | Hata |
+|---|---|---|
+| 1 | Kariyer tanınıyor mu | `404 career_not_found` |
+| 2 | Fikstür var mı | `404 fixture_not_found` |
+| 3 | Fikstür **bugünün** mi | `409 not_match_day` |
+| 4 | Bu maç öncesi konuşuldu mu | `409 coach_talk_already_done` |
+| 5 | Günün bütçesi yetiyor mu (§6.2) | `409 insufficient_budget` |
+
+**Maç başına bir konuşma.** Kilit ayrı bir tabloda değil: `apply_delta` her
+konuşmada `reason = "coach_talk:{fixture_id}:{topic}"` ile bir
+`relationship_event` satırı yazıyor, denetim izi kilidin kendisi oluyor ve
+ikisinin çelişebileceği ikinci bir yer olmuyor.
+
+**Talep sonucu zırlanmış (seeded) bir atıştan çıkar** — `(seed, fixture_id,
+topic)`. Aynı talep aynı maçta daima aynı sonucu verir (INV-7) ve bu, 4. kapı
+zaten ikinci denemeyi engellediği için ayrıca korunması gerekmeyen bir özellik.
+Başarı olasılığı `trust`'a ilişkinin kabaca iki katı ağırlık verir; iki uç da
+kesinlik değildir (0.05 taban, 0.90 tavan).
+
+**Pozisyon değişirse rol onunla taşınır.** Roller tam olarak bir pozisyona
+aittir (`worlddata/positions.py`), dolayısıyla kabul edilen bir pozisyon
+talebi rolü öksüz bırakır; rol yeni pozisyonun ilk rolüne taşınır ve yanıt
+bunu `player` bloğunda söyler. İmkânsız bir çifti sessizce tutmak
+`role_belongs_to_position`'ı her sonraki okuyucu için bozardı.
+
+### 12.2 Kadro durumu
+
+*(Commit 6 ile yazılacak.)*
+
+### 12.3 Sponsorluk
+
+*(Commit 10 ile yazılacak.)*
+
+### 12.4 Yeni invariant'lar
+
+> ⚠️ **INV-38 şartnamede hiç yok.** §11.11'in listesi INV-37'den INV-39'a
+> atlıyor. Boşluk kasıtlı mıydı bilinmiyor; doldurulmuyor, numaralar olduğu
+> gibi bırakılıyor.
+
+| # | Garanti |
+|---|---|
+| INV-42 | `relationship.traits` yalnızca `relationships.apply_trait_delta()` ile yazılır; tohumlama (`onboarding._seed_relationships`) tek istisnadır ve o da `validate_traits()`'ten geçer |
+| INV-43 | Bir fikstür öncesi en fazla **bir** antrenör konuşması kaydedilir |
+
+### 12.5 Yeni hata kodları
+
+| HTTP | `code` | Ne zaman |
+|---|---|---|
+| 409 | `coach_talk_already_done` | M4 ikinci kez çağrıldı (INV-43) |

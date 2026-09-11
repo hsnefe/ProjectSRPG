@@ -126,6 +126,16 @@ def skill_exam_already_taken(exam_ids) -> ApiError:
     )
 
 
+def coach_talk_already_done(fixture_id: str) -> ApiError:
+    """§12.1 - one conversation per match. 409, not 422: the request is
+    well-formed, it's the career's state that rejects it (same reading as
+    already_owned and skill_exam_already_taken)."""
+    return ApiError(
+        409, "coach_talk_already_done",
+        f"the coach has already been spoken to before {fixture_id}",
+    )
+
+
 def invalid_request(message: str) -> ApiError:
     return ApiError(422, "invalid_request", message)
 

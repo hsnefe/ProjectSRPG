@@ -503,6 +503,90 @@ class CareerState {
   String get moneyLabel => formatMoney(money);
 }
 
+/// §12.1 M4 · `POST /careers/{cid}/matches/{fid}/coach-talk` yanıtı.
+///
+/// `granted` yalnızca talep konularında (`request_position`/`request_role`)
+/// dolu; kabul/ret konularında `null` gelir — "reddedildi" ile "zaten bir
+/// talep değildi" iki ayrı şey.
+class CoachTalkResult {
+  const CoachTalkResult({
+    required this.careerState,
+    required this.topic,
+    required this.granted,
+    required this.relationshipChanges,
+    required this.traitChanges,
+    required this.conditionAfter,
+    required this.position,
+    required this.role,
+  });
+
+  final CareerState careerState;
+  final String topic;
+  final bool? granted;
+  final List<RelationshipChange> relationshipChanges;
+  final List<TraitChange> traitChanges;
+
+  /// Konu kondisyon oynatmıyorsa null.
+  final int? conditionAfter;
+
+  /// Talep kabul edildiyse oyuncunun yeni pozisyonu/rolü; aksi halde null.
+  final String? position;
+  final String? role;
+
+  /// Antrenörün güveni — komisyon değeri. Talep başarısı bunun üstünden
+  /// hesaplandığı için ekran bunu ayrıca gösteriyor.
+  TraitChange? get trust {
+    for (final c in traitChanges) {
+      if (c.key == 'trust') return c;
+    }
+    return null;
+  }
+
+  factory CoachTalkResult.fromJson(Map<String, dynamic> json) {
+    final player = json['player'] as Map<String, dynamic>?;
+    return CoachTalkResult(
+      careerState: CareerState.fromJson(
+        json['career_state'] as Map<String, dynamic>,
+      ),
+      topic: json['topic'] as String,
+      granted: json['granted'] as bool?,
+      relationshipChanges: (json['relationship_changes'] as List<dynamic>? ?? [])
+          .map((e) => RelationshipChange.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      traitChanges: (json['trait_changes'] as List<dynamic>? ?? [])
+          .map((e) => TraitChange.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      conditionAfter: (json['condition_after'] as num?)?.toInt(),
+      position: player?['position'] as String?,
+      role: player?['role'] as String?,
+    );
+  }
+}
+
+/// §12.1 · `relationship.traits` içindeki sayısal bir alanın hareketi.
+/// `delta` uygulanan miktardır, istenen değil — sınıra dayanmışsa ikisi
+/// farklı olur (`relationships.apply_trait_delta`).
+class TraitChange {
+  const TraitChange({
+    required this.key,
+    required this.before,
+    required this.after,
+    required this.delta,
+  });
+
+  final String key;
+  final double before;
+  final double after;
+  final double delta;
+
+  factory TraitChange.fromJson(Map<String, dynamic> json) => TraitChange(
+        key: json['key'] as String,
+        before: (json['before'] as num).toDouble(),
+        after: (json['after'] as num).toDouble(),
+        delta: (json['delta'] as num).toDouble(),
+      );
+}
+
 /// §5.4 `LedgerEntry` — para hareketi olan yanıtlarda (D25).
 class LedgerEntry {
   const LedgerEntry({
