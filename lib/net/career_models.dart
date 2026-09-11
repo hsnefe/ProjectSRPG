@@ -522,6 +522,158 @@ class CareerState {
   String get moneyLabel => formatMoney(money);
 }
 
+/// §11.5 S1 · sezon devrinin sonucu.
+class SeasonRolloverResult {
+  const SeasonRolloverResult({
+    required this.careerState,
+    required this.previousSeasonId,
+    required this.newSeasonId,
+    required this.summary,
+    required this.finalRank,
+    required this.outcomes,
+    required this.movedWithTeam,
+    required this.contractStatus,
+    required this.newsCreated,
+  });
+
+  final CareerState careerState;
+  final String previousSeasonId;
+  final String newSeasonId;
+  final SeasonSummary summary;
+
+  /// Kullanıcının takımının bitirdiği sıra; takım hiçbir ligde değilse null.
+  final int? finalRank;
+
+  /// `champion` | `continental` | `promoted` | `relegated` — cümle değil
+  /// enum dizisi (§1.3): "Şampiyon oldun!" metnini FE yazar.
+  final List<String> outcomes;
+
+  /// Takım düştü ya da çıktı mı — oyuncu da onunla birlikte taşındı.
+  final bool movedWithTeam;
+
+  /// `active` | `expired`.
+  final String contractStatus;
+
+  final List<String> newsCreated;
+
+  factory SeasonRolloverResult.fromJson(Map<String, dynamic> json) {
+    final user = json['user'] as Map<String, dynamic>? ?? const {};
+    return SeasonRolloverResult(
+      careerState: CareerState.fromJson(
+        json['career_state'] as Map<String, dynamic>,
+      ),
+      previousSeasonId: json['previous_season_id'] as String,
+      newSeasonId: json['new_season_id'] as String,
+      summary: SeasonSummary.fromJson(json['summary'] as Map<String, dynamic>),
+      finalRank: user['final_rank'] as int?,
+      outcomes: ((user['outcomes'] as List<dynamic>?) ?? const [])
+          .map((e) => e as String)
+          .toList(growable: false),
+      movedWithTeam: user['moved_with_team'] as bool? ?? false,
+      contractStatus: user['contract_status'] as String? ?? 'active',
+      newsCreated: ((json['news_created'] as List<dynamic>?) ?? const [])
+          .map((e) => e as String)
+          .toList(growable: false),
+    );
+  }
+}
+
+/// §11.6 S2 · bir sezonun kapanış defteri.
+class SeasonSummary {
+  const SeasonSummary({
+    required this.seasonId,
+    required this.leagues,
+    required this.continentalSlots,
+  });
+
+  final String seasonId;
+
+  /// Kupa burada **yok**: eleme usulünün tablosu olmaz (W2'nin
+  /// `no_standings` cevabıyla aynı gerekçe).
+  final List<SeasonLeagueResult> leagues;
+
+  /// `competition_id` → kıta turnuvası kontenjanı.
+  final Map<String, int> continentalSlots;
+
+  factory SeasonSummary.fromJson(Map<String, dynamic> json) => SeasonSummary(
+        seasonId: json['season_id'] as String,
+        leagues: ((json['leagues'] as List<dynamic>?) ?? const [])
+            .map((e) => SeasonLeagueResult.fromJson(e as Map<String, dynamic>))
+            .toList(growable: false),
+        continentalSlots:
+            ((json['continental_slots'] as Map<String, dynamic>?) ?? const {})
+                .map((key, value) => MapEntry(key, (value as num).toInt())),
+      );
+}
+
+class SeasonLeagueResult {
+  const SeasonLeagueResult({
+    required this.competition,
+    required this.champion,
+    required this.rows,
+  });
+
+  final CompetitionRef competition;
+  final TeamRef? champion;
+  final List<SeasonResultRow> rows;
+
+  factory SeasonLeagueResult.fromJson(Map<String, dynamic> json) {
+    final champion = json['champion'] as Map<String, dynamic>?;
+    return SeasonLeagueResult(
+      competition:
+          CompetitionRef.fromJson(json['competition'] as Map<String, dynamic>),
+      champion: champion == null ? null : TeamRef.fromJson(champion),
+      rows: ((json['rows'] as List<dynamic>?) ?? const [])
+          .map((e) => SeasonResultRow.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+    );
+  }
+}
+
+class SeasonResultRow {
+  const SeasonResultRow({
+    required this.team,
+    required this.finalRank,
+    required this.outcomes,
+    required this.played,
+    required this.won,
+    required this.drawn,
+    required this.lost,
+    required this.goalsFor,
+    required this.goalsAgainst,
+    required this.goalDifference,
+    required this.points,
+  });
+
+  final TeamRef team;
+  final int finalRank;
+  final List<String> outcomes;
+  final int played;
+  final int won;
+  final int drawn;
+  final int lost;
+  final int goalsFor;
+  final int goalsAgainst;
+  final int goalDifference;
+  final int points;
+
+  factory SeasonResultRow.fromJson(Map<String, dynamic> json) => SeasonResultRow(
+        team: TeamRef.fromJson(json['team'] as Map<String, dynamic>),
+        finalRank: json['final_rank'] as int,
+        outcomes: ((json['outcomes'] as List<dynamic>?) ?? const [])
+            .map((e) => e as String)
+            .toList(growable: false),
+        played: json['played'] as int,
+        won: json['won'] as int,
+        drawn: json['drawn'] as int,
+        lost: json['lost'] as int,
+        goalsFor: json['goals_for'] as int,
+        goalsAgainst: json['goals_against'] as int,
+        goalDifference: json['goal_difference'] as int,
+        points: json['points'] as int,
+      );
+}
+
 /// §12.1 M4 · `POST /careers/{cid}/matches/{fid}/coach-talk` yanıtı.
 ///
 /// `granted` yalnızca talep konularında (`request_position`/`request_role`)

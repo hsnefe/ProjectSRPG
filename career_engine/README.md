@@ -26,7 +26,7 @@ and its schema are created automatically on first startup.
 .venv/Scripts/python -m pytest -q
 ```
 
-240 tests: one file per domain module and per router, plus
+416 tests: one file per domain module and per router, plus
 `tests/test_end_to_end.py` — a single session walking every domain area in
 sequence (create a career, train, shop, play a match, advance the world,
 read the results, delete the career and verify INV-9 holds exhaustively).
@@ -44,7 +44,7 @@ catalog/      Static reference data: training/lifestyle/shop items,
               dialogue outcomes, match_engine's action/outcome vocabulary
 worlddata/    The fixed v1 world: 32 teams, 3 competitions, starting
               attributes, the five relationship seed profiles
-db/           SQLite connection setup + migrations (001-005, applied in
+db/           SQLite connection setup + migrations (001-010, applied in
               order, tracked in an internal _schema_migrations table)
 tests/        conftest.py's fixtures (db_conn, api_client, mock_engine)
               plus one test file per domain module / router
@@ -68,17 +68,14 @@ match_engine: `tests/conftest.py`'s `mock_engine` fixture stands in for
 
 ## Known follow-ups (not bugs, deliberately out of scope)
 
-- **Season rollover isn't implemented.** `POST /advance` stops cleanly at
-  `stop_reason: "season_end"` when it reaches the season boundary, but
-  promotion/relegation, next-season fixture generation, and contract/age
-  updates aren't built — CONTRACT.md documents *that* they happen "within
-  that call" but not the generation algorithm itself. See
-  `domain/daytime.py`'s module docstring.
+- **Age never changes.** The rollover moves the world on but not the
+  player's birthday; D32 says age is not a reducer, so nothing depends on
+  it yet beyond the number P1 reports.
 - **⟦AÇIK-5⟧, ⟦AÇIK-8⟧, ⟦AÇIK-9⟧** — day_budget's real resource scale,
   the market-value formula, and what fame actually means are all still
   open per CONTRACT.md §10. Everywhere a placeholder value stands in
   (`api/config.py`'s `DAY_BUDGET_DEFAULTS` etc.) is marked with a `⟦AÇIK-n⟧`
   comment; `grep "⟦" CONTRACT.md` finds the corresponding contract text.
-- **§10.1's B-1/B-2/B-3** — starting contract scale, confirming the FE
-  league maps to tier 2, and naming the FE's second training tab are
-  content/FE-side decisions, not backend work.
+- **§10.1's B-2/B-3** — confirming the FE league maps to tier 2 and naming
+  the FE's second training tab are content/FE-side decisions, not backend
+  work. (B-1, the contract scale, closed with the move to Kredi.)

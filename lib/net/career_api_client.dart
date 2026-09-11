@@ -314,6 +314,30 @@ class CareerApiClient {
   }
 
   // ---------------------------------------------------------------------
+  // §11.5/§11.6 Sezon devri — S1, S2
+  // ---------------------------------------------------------------------
+
+  /// S1 · `POST /careers/{cid}/season/rollover` — gövdesiz.
+  ///
+  /// Sezon sonunda tek çağrı: nihai sıralama dondurulur, terfi/düşme
+  /// uygulanır, yeni sezonun fikstürü üretilir. `game_date` **ilerlemez**
+  /// (D47) — yaz günleri normal `advance` ile yaşanır.
+  Future<SeasonRolloverResult> rolloverSeason(String careerId) async {
+    final body = await _post('/careers/$careerId/season/rollover');
+    return SeasonRolloverResult.fromJson(body);
+  }
+
+  /// S2 · `GET /careers/{cid}/season/summary` — `season` verilmezse en son
+  /// tamamlanan sezon.
+  Future<SeasonSummary> seasonSummary(String careerId, {String? season}) async {
+    final body = await _get(
+      '/careers/$careerId/season/summary',
+      season == null ? null : {'season': season},
+    );
+    return SeasonSummary.fromJson(body);
+  }
+
+  // ---------------------------------------------------------------------
   // §5.4 Sosyal teklifler — R4-R6
   // ---------------------------------------------------------------------
 

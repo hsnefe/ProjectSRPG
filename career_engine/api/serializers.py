@@ -160,16 +160,83 @@ def fetch_full_standings(conn: sqlite3.Connection, career_id: str, season_id: st
             ON s.career_id = ? AND s.season_id = ? AND s.competition_id = ? AND s.team_id = e.team_id
         )
         SELECT team_id, played, won, drawn, lost, goals_for, goals_against,
-               (goals_for - goals_against) AS goal_difference, points,
-               ROW_NUMBER() OVER (
-                 ORDER BY points DESC, (goals_for - goals_against) DESC, goals_for DESC, team_id
-               ) AS rank
+               (goals_for - goals_against) AS goal_difference, points
         FROM agg
-        ORDER BY rank
+        ORDER BY points DESC, (goals_for - goals_against) DESC, goals_for DESC,
+                 goals_against ASC, won DESC, team_id
         """,
         (career_id, season_id, competition_id, career_id, season_id, competition_id),
     ).fetchall()
-    return [dict(r) for r in rows]
+    return _rank_with_head_to_head(conn, career_id, season_id, competition_id,
+                                   [dict(r) for r in rows])
+
+
+def _head_to_head_difference(
+    conn: sqlite3.Connection, career_id: str, season_id: str,
+    competition_id: str, team_ids: list,
+) -> dict:
+    """Goal difference among a tied group ONLY, from the fixtures they
+    played against each other. §11.4 orders on this, and it cannot come out
+    of the `standing` view: that view aggregates per team across the whole
+    competition, while this needs a table built from a subset of fixtures
+    that is different for every group."""
+    if len(team_ids) < 2:
+        return {t: 0 for t in team_ids}
+
+    placeholders = ",".join("?" * len(team_ids))
+    rows = conn.execute(
+        f"SELECT home_team_id, away_team_id, home_score, away_score FROM fixture "
+        f"WHERE career_id = ? AND season_id = ? AND competition_id = ? AND status = 'played' "
+        f"AND home_team_id IN ({placeholders}) AND away_team_id IN ({placeholders})",
+        (career_id, season_id, competition_id, *team_ids, *team_ids),
+    ).fetchall()
+
+    diff = {t: 0 for t in team_ids}
+    for row in rows:
+        margin = row["home_score"] - row["away_score"]
+        diff[row["home_team_id"]] += margin
+        diff[row["away_team_id"]] -= margin
+    return diff
+
+
+def _rank_with_head_to_head(
+    conn: sqlite3.Connection, career_id: str, season_id: str,
+    competition_id: str, rows: list,
+) -> list:
+    """§11.4's ordering, in two stages: SQL settles points, goal difference,
+    goals for, goals against and wins; whatever is still level is separated
+    here by head-to-head goal difference.
+
+    Note the fourth criterion (goals against) can never discriminate on its
+    own: goal difference is goals for minus goals against, so two teams
+    level on points, difference and goals for are necessarily level on goals
+    against too. It stays in the ordering because the spec lists it and it
+    costs nothing; in practice head-to-head is what breaks the tie.
+    """
+    def sql_key(row):
+        return (row["points"], row["goal_difference"], row["goals_for"],
+                -row["goals_against"], row["won"])
+
+    ordered = []
+    index = 0
+    while index < len(rows):
+        end = index + 1
+        while end < len(rows) and sql_key(rows[end]) == sql_key(rows[index]):
+            end += 1
+
+        group = rows[index:end]
+        if len(group) > 1:
+            diff = _head_to_head_difference(
+                conn, career_id, season_id, competition_id,
+                [r["team_id"] for r in group],
+            )
+            group.sort(key=lambda r: (-diff[r["team_id"]], r["team_id"]))
+        ordered.extend(group)
+        index = end
+
+    for position, row in enumerate(ordered, start=1):
+        row["rank"] = position
+    return ordered
 
 
 def fetch_next_fixture(conn: sqlite3.Connection, career_id: str, user_team_id: str) -> Optional[dict]:

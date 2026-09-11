@@ -153,10 +153,11 @@ def _seed_world(conn: sqlite3.Connection, career_id: str, rng: random.Random) ->
     for comp in COMPETITIONS:
         conn.execute(
             "INSERT INTO competition (career_id, competition_id, kind, name, country, tier, "
-            "format, team_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "format, team_count, international_score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 career_id, comp["competition_id"], comp["kind"], comp["name"],
                 comp["country"], comp["tier"], comp["format"], comp["team_count"],
+                comp.get("international_score"),
             ),
         )
 

@@ -1,5 +1,6 @@
 import pytest
 
+from worlddata.competitions import BIRINCI_LIG, COMPETITION_RULES
 from tests.conftest import create_career
 
 
@@ -31,7 +32,8 @@ def test_get_standings_lists_all_teams_at_zero_before_any_match(api_client, crea
     assert body["competition"]["competition_id"] == "c_lig2"
     assert len(body["rows"]) == 14
     assert all(r["played"] == 0 for r in body["rows"])
-    assert body["promotion_slots"] == 2
+    # §11.4 raised D20's two-up-two-down to three.
+    assert body["promotion_slots"] == COMPETITION_RULES[BIRINCI_LIG]["promote_count"]
     assert body["relegation_slots"] == 0
     user_row = next(r for r in body["rows"] if r["is_user_team"])
     assert user_row["team"]["team_id"] == created_career["player"]["team"]["team_id"]

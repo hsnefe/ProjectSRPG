@@ -83,6 +83,33 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
   /// T3 · `POST /careers/{cid}/advance` — günleri **tek tek** ilerletir ve
   /// arada küçük bir takvim gösterir (§6.3, D56).
   ///
+  /// §11.5 S1 · sezon bittiğinde yeni sezonu başlatır.
+  ///
+  /// Prompt "yeni sezon **otomatik** başlamalı" diyor, D46 ise devri ayrı bir
+  /// uçta tutuyor ki FE bir sezon sonu ekranı koyabilsin. İkisi çelişmiyor:
+  /// uç ayrı kalıyor, çağrıyı kullanıcıdan beklemek yerine "İlerle"
+  /// `season_rollover_required` yiyince FE kendisi yapıyor. Oyuncu için
+  /// otomatik, sözleşme için açık bir eylem.
+  Future<void> _rollOverSeason() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final player = PlayerScope.of(context);
+    try {
+      final careerId = await _session.resolve();
+      final result = await _session.client.rolloverSeason(careerId);
+      if (!mounted) return;
+      player.applyServerUpdate(careerState: result.careerState);
+      messenger.showSnackBar(SnackBar(
+        content: Text('${result.newSeasonId} sezonu başladı.'),
+      ));
+      _refreshAfterMatchFlow();
+    } on CareerApiException catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Sezon devri yapılamadı.')),
+      );
+    }
+  }
+
   /// **Neden tek bir `next_event` çağrısı değil.** Sunucu bir çağrıda kırk
   /// gün ileri gidebilir; ekran üçüncü günü oynatırken "Durdur"a basıldığında
   /// takvim yalan söylerdi — durum çoktan ilerlemiş olurdu. Gün gün gidince
@@ -116,6 +143,7 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
     api.AdvanceResult? last;
     var serverPendingOffer = false;
     var serverMatchUnplayed = false;
+    var seasonRolloverDue = false;
     try {
       final careerId = await _session.resolve();
       while (mounted && token == _advanceToken && _overlayDays < _maxLoopDays) {
@@ -150,6 +178,8 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
           serverPendingOffer = true;
         } else if (e.code == 'match_day_unplayed') {
           serverMatchUnplayed = true;
+        } else if (e.code == 'season_rollover_required') {
+          seasonRolloverDue = true;
         } else {
           messenger.showSnackBar(
             SnackBar(content: Text(e.message ?? 'Gün ilerletilemedi.')),
@@ -163,6 +193,10 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
     }
 
     if (!mounted || token != _advanceToken) return;
+    if (seasonRolloverDue) {
+      await _rollOverSeason();
+      return;
+    }
     if (serverMatchUnplayed) {
       _pushPreMatch(context, onReturn: _refreshAfterMatchFlow);
       return;
