@@ -124,7 +124,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Alışveriş'), findsOneWidget);
-    expect(find.text('₺48.200'), findsOneWidget);
+    expect(find.text('48.200 ₭'), findsOneWidget);
     expect(find.byType(ShopItemCard), findsWidgets);
     expect(find.text('Akıllı TV'), findsOneWidget);
 
@@ -160,7 +160,7 @@ void main() {
 
     // Detay kapandı, bakiye düştü (48.200 - 6.200).
     expect(find.text('Satın Al'), findsNothing);
-    expect(find.text('₺42.000'), findsOneWidget);
+    expect(find.text('42.000 ₭'), findsOneWidget);
 
     // Kart artık sahip olarak işaretli ve tekrar alınamıyor.
     expect(find.text('Sahip'), findsOneWidget);
@@ -191,7 +191,7 @@ void main() {
     await tester.tapAt(const Offset(10, 10));
     await tester.pumpAndSettle();
 
-    expect(find.text('₺48.200'), findsOneWidget);
+    expect(find.text('48.200 ₭'), findsOneWidget);
   });
 
   testWidgets('Yaşam Tarzı header\'ındaki butondan açılır', (tester) async {

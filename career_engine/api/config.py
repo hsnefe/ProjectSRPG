@@ -61,16 +61,25 @@ USER_PLAYER_ID = "p_user"
 # snaps the bar down, which reads as a bug once the day loop runs. A fresh
 # career is simply fully fit.
 STARTING_CONDITION = 100
-STARTING_MONEY = 100
+STARTING_MONEY = 60
 
-# ⟦B-1⟧ v1 sözleşme ölçeği - placeholder, tier 2'ye kabaca uygun küçük
-# rakamlar. FE'nin contract_screen.dart'taki sabitleri (haftalık ₺180.000)
-# üst düzey bir oyuncuya ait; bu servis kullanıcıyı tier 2'de başlattığı
-# için (D21) o değerleri doğrudan kullanmıyor.
-STARTING_WEEKLY_WAGE = 3500
-STARTING_APPEARANCE_BONUS = 500
-STARTING_GOAL_BONUS = 1000
-STARTING_RELEASE_CLAUSE = 250000
+# v1 sözleşme ölçeği, **Kredi (₭)** cinsinden. ⟦B-1⟧'i kapatır: eski ₺ ölçeği
+# FE'nin sabitleriyle (haftalık ₺180.000) çelişiyordu ve rakamlar okunamayacak
+# kadar uzundu.
+#
+# Ölçek düz bir bölme değil. ₺ değerlerini 1000'e bölmek ucuz uçtaki her şeyi
+# (yaşam tarzı ₺150-1.200, kişi antrenmanı ₺500-1.500) 0-2 aralığına çökertip
+# aralarındaki farkı siliyordu. Bunun yerine ekonomi ₭ üzerinde yeniden
+# katmanlandı; **haftalık maaş çapa** ve geri kalan ona göre yerleşti — 1 ₭
+# kabaca 1.000 ₺'ye denk düşer ama hiçbir yerde bu kur uygulanmaz, katalog
+# rakamları elle yazıldı (D16: katalog verisi BE'nin).
+#
+#   maaş 40/hafta · maç primi 6 · gol primi 12 · yaşam tarzı 1-8
+#   kişi antrenmanı 3-10 · dükkân 40-9.000 · haftalık gider 0/4/12/30
+STARTING_WEEKLY_WAGE = 40
+STARTING_APPEARANCE_BONUS = 6
+STARTING_GOAL_BONUS = 12
+STARTING_RELEASE_CLAUSE = 900
 CONTRACT_LENGTH_DAYS = 730
 
 # §6.5 D25/D26/D27 - weekly cadence for wage, upkeep, and bonuses.

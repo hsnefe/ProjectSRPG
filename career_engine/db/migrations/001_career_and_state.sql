@@ -17,7 +17,7 @@ CREATE TABLE career_state (
   career_id     TEXT PRIMARY KEY REFERENCES career(career_id) ON DELETE CASCADE,
   game_date     TEXT NOT NULL,             -- D5: dünyanın "bugün"ü
   season_id     TEXT NOT NULL,
-  money         INTEGER NOT NULL,          -- ₺, tam sayı
+  money         INTEGER NOT NULL,          -- ₭ (Kredi), tam sayı
   condition     INTEGER NOT NULL           -- 0-100, D15/D38
 );
 

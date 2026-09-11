@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'package:project_srpg/theme/app_colors.dart';
+import 'package:project_srpg/net/money.dart';
 
 /// Piyasa değeri geçmişinde tek bir ölçüm.
 @immutable
@@ -12,7 +13,7 @@ class ValuePoint {
   /// X eksenindeki kısa etiket: 'Oca 24', 'Tem 25' gibi.
   final String label;
 
-  /// ₺ cinsinden ham değer. Biçimlendirme [ValueScatterChart]'a bırakılır.
+  /// ₭ cinsinden ham değer. Biçimlendirme [ValueScatterChart]'a bırakılır.
   final double value;
 }
 
@@ -58,18 +59,8 @@ class ValueScatterChart extends StatelessWidget {
   /// Y ekseni ve vurgu etiketlerini üretir.
   final String Function(double) valueFormatter;
 
-  /// '₺4,2 M' / '₺450 B' — Türkçe ondalık ayracı virgül.
-  static String formatTry(double value) {
-    if (value >= 1000000) {
-      final millions = value / 1000000;
-      final text = millions >= 10
-          ? millions.round().toString()
-          : millions.toStringAsFixed(1);
-      return '₺${text.replaceAll('.', ',')} M';
-    }
-    if (value >= 1000) return '₺${(value / 1000).round()} B';
-    return '₺${value.round()}';
-  }
+  /// '4,2 M ₭' / '450 B ₭' — biçimin sahibi [formatMoneyCompact].
+  static String formatTry(double value) => formatMoneyCompact(value);
 
   @override
   Widget build(BuildContext context) {

@@ -276,7 +276,7 @@ CREATE TABLE career_state (
   career_id     TEXT PRIMARY KEY REFERENCES career(career_id) ON DELETE CASCADE,
   game_date     TEXT NOT NULL,             -- D5: dünyanın "bugün"ü
   season_id     TEXT NOT NULL,
-  money         INTEGER NOT NULL,          -- player_state.dart:7  (₺, tam sayı)
+  money         INTEGER NOT NULL,          -- player_state.dart:7  (₭ Kredi, tam sayı)
   condition     INTEGER NOT NULL           -- player_state.dart:6  (0-100)
 );
 
@@ -451,7 +451,7 @@ CREATE TABLE player_value_history (
   career_id  TEXT NOT NULL,
   player_id  TEXT NOT NULL,
   measured_on TEXT NOT NULL,              -- anlık görüntü tarihi
-  value      INTEGER NOT NULL,            -- ₺
+  value      INTEGER NOT NULL,            -- ₭ (Kredi)
   PRIMARY KEY (career_id, player_id, measured_on)
 );
 ```
@@ -537,9 +537,9 @@ CREATE TABLE player_contract (
 ```
 
 Beş kalem [`contract_screen.dart:28-40`](../lib/screens/contract_screen.dart)'tan.
-`aylık maaş` **türetilmiş** (`weekly_wage × 4`), saklanmaz. FE bugün "₺180.000" gibi
-biçimlenmiş literal tutuyor ([`contract_screen.dart:16` yorumu](../lib/screens/contract_screen.dart));
-§1.3 gereği BE tam sayı gönderir, biçimlendirme FE'ye geçer.
+`aylık maaş` **türetilmiş** (`weekly_wage × 4`), saklanmaz. §1.3 gereği BE tam sayı
+gönderir, biçimlendirme FE'ye geçer — FE tarafta tek sahibi
+[`money.dart`](../lib/net/money.dart)'ın `formatMoney()`'si.
 
 ### 3.3 Dünya
 
@@ -1046,7 +1046,7 @@ bu bloktan tazelenir. Alanların hangi ekranda göründüğü BE'yi ilgilendirme
 |---|---|
 | **Kimlikler** | `car_` kariyer · `t_` takım · `c_` müsabaka · `f_` fikstür · `n_` haber · `p_` oyuncu. Hepsi opak string; FE ayrıştırmaz |
 | **Tarih/saat** | ISO-8601. Yalnız gün taşıyanlar `YYYY-MM-DD`, an taşıyanlar `+03:00` ofsetli |
-| **Para** | Tam sayı, ₺, kuruş yok. Biçimlendirme FE'de (§1.3) |
+| **Para** | Tam sayı, **₭ (Kredi)**, kesir yok. Biçimlendirme FE'de (§1.3) — tek sahibi `lib/net/money.dart` |
 | **Sayfalama** | `?limit=` (varsayılan 20, en fazla 100) + `?before=` imleci. Yanıt `next_before` döner; `null` ise liste bitti |
 | **Bilinmeyen alan** | FE tanımadığı alanı **yok sayar**. Yanıta alan eklemek kırıcı değildir; alan kaldırmak kırıcıdır |
 | **Hata gövdesi** | `{"code": "...", "message": "..."}` — `match_engine` ile aynı, düz gövde ([`errors.py`](../../match_engine/api/errors.py)) |
@@ -1992,7 +1992,7 @@ görünür.
 | `badgeCode` | FE | Kart görselinin parçası |
 | `status` ("Güven seviyesi yüksek") | FE | `score`'dan türer |
 | `dateLabel` / `timeAgo` / `lastDone` | FE | Tarihten türer, dile bağlı |
-| `moneyLabel` ("₺48.200") | FE | [`player_state.dart:29`](../lib/state/player_state.dart) zaten biçimliyor |
+| `moneyLabel` ("48.200 ₭") | FE | [`player_state.dart:29`](../lib/state/player_state.dart) zaten biçimliyor |
 | `imageAsset` | FE | Dosya yolu, FE paketinin içinde |
 | Aylık maaş | FE | `weekly_wage × 4`, türetilmiş |
 | `rank`, `goal_difference` | **BE gönderir** | Sıralama tabloya bağlı; FE tek satırdan hesaplayamaz |
@@ -2151,10 +2151,16 @@ seçebilir.
 > Bu kural INV-5'i (bakiye negatife düşmez) bozmadan D27'yi mümkün kılar ve
 > `inventory`'ye durum alanı eklemez — eşya ya vardır ya yoktur.
 
-> ⚠️ **v1 sözleşme ölçeği.** FE'nin bugünkü sabit değerleri üst düzey bir
-> oyuncuya ait (haftalık ₺180.000, serbest kalma ₺12.000.000) ama D21 gereği
-> kullanıcı **tier 2'de** başlıyor ve başlangıç bakiyesi ₺48.200. Başlangıç
-> sözleşmesi bu kademeye göre ölçeklenmelidir; veri dosyası ayarıdır, şema değil.
+> **v1 sözleşme ölçeği — ₭ (Kredi).** Para birimi ₺ değil **Kredi**;
+> `api/config.py` başlangıç sözleşmesini tier 2'ye (D21) göre yazıyor:
+> maaş **40 ₭/hafta** (çapa), maç primi 6, gol primi 12, serbest kalma 900,
+> başlangıç bakiyesi 60.
+>
+> Ölçek düz bir bölme değil: ₺ değerlerini 1000'e bölmek ucuz uçtaki her şeyi
+> (yaşam tarzı, kişi antrenmanı) 0-2 aralığına çökertip aralarındaki farkı
+> siliyordu. Ekonomi ₭ üzerinde yeniden katmanlandı — yaşam tarzı 1-8,
+> kişi antrenmanı 3-10, dükkân 40-9.000, haftalık gider 0/4/12/30.
+> Veri dosyası ayarıdır, şema değil (§10.1 B-1 bununla kapandı).
 
 ### 6.6 Kondisyon döngüsü (D38)
 
@@ -2484,7 +2490,7 @@ uygulanabilir bir v1 için kapanmaları gerekir.
 
 | # | Konu | Ne gerekiyor | Nerede |
 |---|---|---|---|
-| B-1 | **v1 sözleşme ölçeği** | FE'nin sabit değerleri üst düzey oyuncuya ait (haftalık ₺180.000, serbest kalma ₺12.000.000) ama kullanıcı tier 2'de ve ₺48.200 ile başlıyor. Başlangıç sözleşmesi bu kademeye ölçeklenmeli | §6.5 · veri dosyası |
+| ~~B-1~~ | ~~**v1 sözleşme ölçeği**~~ | **KAPANDI** — para birimi ₺'den **₭ (Kredi)**'ye geçti ve bütün ekonomi tek ölçekte yeniden katmanlandı (§6.5). FE'nin sabitleriyle çelişki kalmadı | §6.5 · `api/config.py` |
 | B-2 | **Ligin FE verisiyle eşlemesi** | FE'nin mevcut sabit ligi (Deniz SK · Anadolu FC · FK Yıldız) **1. Lig / tier 2** olarak yerleştirildi; Süper Lig'in 18 takımı yeni isim. **Bu bir varsayımdır, teyit bekliyor** | §3.3 · veri dosyası |
 | B-3 | **Kişi antrenmanlarının sekmesi** | D31 kalemleri için FE'de boş bir sekme hazır (`_tactical`, [`training_screen.dart:111`](../lib/screens/training_screen.dart)) ama adı "Taktik". İsimlendirme kararı | §5.7 · FE |
 | B-4 | **Lig tablosu başlığı** | Artık hangi müsabakanın tablosuna bakıldığı değişken; başlık veriden gelmeli | §3.3 · FE |

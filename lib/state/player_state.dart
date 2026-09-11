@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:project_srpg/net/career_models.dart';
 import 'package:project_srpg/net/career_session.dart';
+import 'package:project_srpg/net/money.dart';
 
 /// Tek kaynaklı oyuncu durumu. Kondisyon ve para bütün ekranlarda buradan
 /// okunur; aktiviteler backend'e yazıldıktan sonra [applyServerUpdate] ile
@@ -49,9 +50,8 @@ class PlayerState extends ChangeNotifier {
 
   int get money => _money;
 
-  /// '₺48.200' biçiminde, binlik ayracı nokta (§1.3 — BE sayıyı verir,
-  /// etiketi FE yazar).
-  String get moneyLabel => '₺${_thousands(_money)}';
+  /// '48.200 ₭' biçiminde (§1.3 — BE sayıyı verir, etiketi FE yazar).
+  String get moneyLabel => formatMoney(_money);
 
   /// D30'un on bir niteliği — [training_radar_screen] ve
   /// [relationships_radar_screen] buradan okur, ikinci bir çağrı yapmaz.
@@ -157,15 +157,4 @@ class PlayerState extends ChangeNotifier {
     return letters.join();
   }
 
-  static String _thousands(int value) {
-    final digits = value.abs().toString();
-    final buffer = StringBuffer(value < 0 ? '-' : '');
-    for (var i = 0; i < digits.length; i++) {
-      if (i > 0 && (digits.length - i) % 3 == 0) {
-        buffer.write('.');
-      }
-      buffer.write(digits[i]);
-    }
-    return buffer.toString();
-  }
 }

@@ -75,7 +75,7 @@ TRAINING_ITEMS = [
         "description": "Röportaj ve kamera karşısında durmayı öğren.",
         "family": "kişi", "drill": None,
         "costs": {"time": 60, "energy": 5},
-        "effects": {"attribute:charisma": 0.8, "money": -1500},
+        "effects": {"attribute:charisma": 0.8, "money": -10},
         "requires": {"confidence": 6},
     },
     {
@@ -83,28 +83,28 @@ TRAINING_ITEMS = [
         "description": "Sosyal ortamlarda nezaket ve incelik üzerine çalış.",
         "family": "kişi", "drill": None,
         "costs": {"time": 45, "energy": 5},
-        "effects": {"attribute:politeness": 0.8, "money": -800},
+        "effects": {"attribute:politeness": 0.8, "money": -5},
     },
     {
         "catalog_id": "ozguven-koclugu", "title": "Özgüven Koçluğu",
         "description": "Baskı altında kararlılığını artırmak için birebir koçluk.",
         "family": "kişi", "drill": None,
         "costs": {"time": 60, "energy": 8},
-        "effects": {"attribute:confidence": 0.8, "money": -1200},
+        "effects": {"attribute:confidence": 0.8, "money": -8},
     },
     {
         "catalog_id": "satranc-kulubu", "title": "Satranç Kulübü",
         "description": "Analitik düşünmeyi geliştiren düzenli bir aktivite.",
         "family": "kişi", "drill": None,
         "costs": {"time": 90, "energy": 5},
-        "effects": {"attribute:intelligence": 0.8, "money": -500},
+        "effects": {"attribute:intelligence": 0.8, "money": -3},
     },
     {
         "catalog_id": "kriz-simulasyonu", "title": "Kriz Simülasyonu",
         "description": "Beklenmedik durumlarda hızlı karar verme pratiği.",
         "family": "kişi", "drill": None,
         "costs": {"time": 60, "energy": 10},
-        "effects": {"attribute:resourcefulness": 0.8, "money": -1000},
+        "effects": {"attribute:resourcefulness": 0.8, "money": -7},
     },
 ]
 

@@ -336,7 +336,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('%72'), findsOneWidget);
-    expect(find.text('₺48.200'), findsOneWidget);
+    expect(find.text('48.200 ₭'), findsOneWidget);
 
     // Kariyer merkezinden yaşam tarzına geç.
     await tester.scrollUntilVisible(find.text('Yaşam tarzı'), 200);
@@ -358,7 +358,7 @@ void main() {
 
     await tester.scrollUntilVisible(find.text('%80'), -200);
     expect(find.text('%80'), findsOneWidget);
-    expect(find.text('₺48.020'), findsOneWidget);
+    expect(find.text('48.020 ₭'), findsOneWidget);
   });
 
   testWidgets('eşiği tutulmayan aktivite kilitli görünür ve yapılamaz',

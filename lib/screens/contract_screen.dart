@@ -3,6 +3,7 @@ import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/date_labels.dart';
+import 'package:project_srpg/net/money.dart';
 
 /// Sözleşmedeki tek bir kalem.
 class _ContractTerm {
@@ -143,25 +144,25 @@ class _ContractScreenState extends State<ContractScreen> {
                             final earnings = [
                               _ContractTerm(
                                 label: 'Haftalık maaş',
-                                value: _money(contract.weeklyWage),
+                                value: formatMoney(contract.weeklyWage),
                               ),
                               // Türetilmiş — weekly_wage × 4, ayrı bir ödeme
                               // değil (§3.2).
                               _ContractTerm(
                                 label: 'Aylık maaş',
-                                value: _money(contract.monthlyWage),
+                                value: formatMoney(contract.monthlyWage),
                               ),
                               _ContractTerm(
                                 label: 'Maç başı primi',
-                                value: _money(contract.appearanceBonus),
+                                value: formatMoney(contract.appearanceBonus),
                               ),
                               _ContractTerm(
                                 label: 'Gol primi',
-                                value: _money(contract.goalBonus),
+                                value: formatMoney(contract.goalBonus),
                               ),
                               _ContractTerm(
                                 label: 'Serbest kalma bedeli',
-                                value: _money(contract.releaseClause),
+                                value: formatMoney(contract.releaseClause),
                                 tint: AppColors.warning,
                               ),
                             ];
@@ -214,17 +215,6 @@ class _ContractScreenState extends State<ContractScreen> {
       ),
     );
   }
-}
-
-/// '₺180.000' — binlik ayracı nokta, BE tam sayı verir (§1.3).
-String _money(int value) {
-  final digits = value.abs().toString();
-  final buffer = StringBuffer(value < 0 ? '-' : '');
-  for (var i = 0; i < digits.length; i++) {
-    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write('.');
-    buffer.write(digits[i]);
-  }
-  return '₺${buffer.toString()}';
 }
 
 class _HeaderSection extends StatelessWidget {

@@ -1,4 +1,5 @@
 import 'dart:ui' show Color;
+import 'package:project_srpg/net/money.dart';
 
 /// `career_engine` yanıt gövdelerinin Dart karşılıkları (CONTRACT.md §5).
 ///
@@ -497,18 +498,9 @@ class CareerState {
   /// D41 · anahtarlar ⟦AÇIK-5⟧ — bugün yalnızca `time`/`energy`.
   final Map<String, double> dayBudget;
 
-  /// '₺48.200' — biçimlendirme FE'nin işi (§1.3).
-  String get moneyLabel => '₺${_thousands(money)}';
-
-  static String _thousands(int value) {
-    final digits = value.abs().toString();
-    final buffer = StringBuffer();
-    for (var i = 0; i < digits.length; i++) {
-      if (i > 0 && (digits.length - i) % 3 == 0) buffer.write('.');
-      buffer.write(digits[i]);
-    }
-    return (value < 0 ? '-' : '') + buffer.toString();
-  }
+  /// '48.200 ₭' — biçimlendirme FE'nin işi (§1.3); biçimin tek sahibi
+  /// [formatMoney] (`lib/net/money.dart`).
+  String get moneyLabel => formatMoney(money);
 }
 
 /// §5.4 `LedgerEntry` — para hareketi olan yanıtlarda (D25).
@@ -1614,6 +1606,7 @@ class NextCareerMatch {
     required this.competition,
     required this.kickoffAt,
     required this.userSide,
+    this.formationId,
     required this.enginePayload,
   });
 
@@ -1624,6 +1617,7 @@ class NextCareerMatch {
           CompetitionRef.fromJson(json['competition'] as Map<String, dynamic>),
       kickoffAt: json['kickoff_at'] as String,
       userSide: json['user_side'] as String,
+      formationId: json['formation_id'] as String?,
       enginePayload: json['engine_payload'] as Map<String, dynamic>,
     );
   }
@@ -1632,6 +1626,14 @@ class NextCareerMatch {
   final CompetitionRef competition;
   final String kickoffAt;
   final String userSide;
+
+  /// Kullanıcının takımının dizilişi (`lib/game/formations.g.dart`'taki id).
+  /// Nullable: dizilişleri bilmeyen bir career_engine sürümüne karşı ekran
+  /// çökmemeli — o durumda varsayılan diziliş çizilir.
+  final String? formationId;
+
+  /// `engine_payload` motora olduğu gibi POST'lanır; [formationId] onun
+  /// dışındadır, motor diziliş bilmez.
   final Map<String, dynamic> enginePayload;
 }
 

@@ -8,6 +8,7 @@ import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/state/player_state.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/activity_card.dart';
+import 'package:project_srpg/net/money.dart';
 
 enum _LifestyleTab { individual, group }
 
@@ -75,7 +76,7 @@ LifestyleActivity _toActivity(api.CatalogItem item, PlayerState player) {
     duration: item.durationLabel ?? '',
     conditionDelta: (item.effects['condition'] as num?)?.toInt() ?? 0,
     // Para bir `cost` değil, negatif bir `effect`'tir (§6.2) — kart burada
-    // pozitif bir ₺ etiketi gösterdiği için işareti çeviriyoruz.
+    // pozitif bir ₭ etiketi gösterdiği için işareti çeviriyoruz.
     cost: -((item.effects['money'] as num?)?.toInt() ?? 0),
     // D42 · eşiği FE karşılaştırır, BE tekrar doğrular (INV-30). Seviyeler
     // P1'den geldiği gibi okunur; FE `value`'dan seviye türetmez.
@@ -726,7 +727,7 @@ class _ActivityDetails extends StatelessWidget {
               if (activity.cost > 0)
                 _Badge(
                   icon: Icons.payments_outlined,
-                  label: '₺${activity.cost}',
+                  label: formatMoney(activity.cost),
                   color: AppColors.warning,
                 ),
               // D42 · kartta yalnızca bir kilit ikonu var; gerekçeyi burada,

@@ -1,7 +1,7 @@
 """§5.6 N3 'lifestyle' - ports lifestyle_screen.dart's fifteen activities
 (three groups) into D41's costs/effects shape. `duration` (a free-text
 label like 'Tüm gece') becomes costs.time in minutes — a reasonable literal
-reading of each label, e.g. '1 saat' → 60, 'Yarım gün' → 360. `cost` (₺)
+reading of each label, e.g. '1 saat' → 60, 'Yarım gün' → 360. `cost` (₭)
 becomes effects.money as a negative; `conditionDelta` becomes
 effects.condition unchanged. Every number here is ⟦AÇIK-5⟧ — placeholder
 until the budget's actual scale is decided.
@@ -23,7 +23,7 @@ LIFESTYLE_ITEMS = [
      "description": "Kendi mutfağında dengeli bir öğün hazırla. Doğru beslenme, "
                      "antrenmandan aldığın verimi doğrudan artırır.",
      "duration_label": "1 saat",
-     "costs": {"time": 60}, "effects": {"condition": 6, "money": -250}},
+     "costs": {"time": 60}, "effects": {"condition": 6, "money": -2}},
     {"catalog_id": "ev-meditasyon", "title": "Meditasyon", "group": "EV AKTİVİTELERİ",
      "description": "Sessiz bir odada nefes çalışması yap. Maç öncesi baskıyı "
                      "yönetmeni kolaylaştırır.",
@@ -50,7 +50,7 @@ LIFESTYLE_ITEMS = [
      "description": "Havuzda düşük tempolu kulaç at. Eklemleri zorlamadan "
                      "toparlanmayı hızlandıran ideal aktif dinlenme.",
      "duration_label": "1 saat",
-     "costs": {"time": 60}, "effects": {"condition": 8, "money": -180}},
+     "costs": {"time": 60}, "effects": {"condition": 8, "money": -1}},
     {"catalog_id": "fiz-bisiklet", "title": "Bisiklet", "group": "FİZİKSEL AKTİVİTELER",
      "description": "Sahil boyunca uzun bir tur at. Bacak kaslarını çalıştırır, "
                      "kafanı da açar.",
@@ -60,12 +60,12 @@ LIFESTYLE_ITEMS = [
      "description": "Esneme ve denge çalışması yap. Sakatlanma riskini düşürür, "
                      "kaslarındaki gerginliği alır.",
      "duration_label": "50 dakika",
-     "costs": {"time": 50}, "effects": {"condition": 7, "money": -200}},
+     "costs": {"time": 50}, "effects": {"condition": 7, "money": -2}},
     {"catalog_id": "fiz-sauna", "title": "Sauna & Masaj", "group": "FİZİKSEL AKTİVİTELER",
      "description": "Profesyonel bir merkezde tam toparlanma seansı. Pahalı ama "
                      "kondisyonu en hızlı geri getiren yöntem.",
      "duration_label": "2 saat",
-     "costs": {"time": 120}, "effects": {"condition": 16, "money": -950}},
+     "costs": {"time": 120}, "effects": {"condition": 16, "money": -6}},
 
     # --- SOSYAL AKTİVİTELER ---
     {"catalog_id": "sos-arkadas", "title": "Arkadaş Buluşması", "group": "SOSYAL AKTİVİTELER",
@@ -73,13 +73,13 @@ LIFESTYLE_ITEMS = [
                      "sosyal çevrenle bağını canlı tutar.",
      "duration_label": "3 saat",
      "costs": {"time": 180},
-     "effects": {"condition": -3, "money": -400, "attribute:charisma": 0.3}},
+     "effects": {"condition": -3, "money": -3, "attribute:charisma": 0.3}},
     {"catalog_id": "sos-kafe", "title": "Kafe", "group": "SOSYAL AKTİVİTELER",
      "description": "Sakin bir kafede kahve iç. Kısa ve zararsız bir mola, "
                      "kafan dinlenir.",
      "duration_label": "1 saat",
      "costs": {"time": 60},
-     "effects": {"condition": 1, "money": -150, "attribute:politeness": 0.1}},
+     "effects": {"condition": 1, "money": -1, "attribute:politeness": 0.1}},
     {"catalog_id": "sos-aile", "title": "Aile Ziyareti", "group": "SOSYAL AKTİVİTELER",
      "description": "Ailenle vakit geçir. Kariyerin baskısını hafifletir, "
                      "aile ilişkini güçlendirir.",
@@ -91,7 +91,7 @@ LIFESTYLE_ITEMS = [
                      "antrenmana bedeli ağır.",
      "duration_label": "Tüm gece",
      "costs": {"time": 540},
-     "effects": {"condition": -12, "money": -1200, "attribute:confidence": 0.4}},
+     "effects": {"condition": -12, "money": -8, "attribute:confidence": 0.4}},
     # D35 - "Tribünün gözünde değerin artar" vaadi burada ilk kez karşılığını
     # buluyor: fame:overall AÇIK-9 kapanana kadar null (§3.2 notu).
     # D42: charisma 7 taze bir kariyerin seviyesinin TAM karşılığıdır, yani

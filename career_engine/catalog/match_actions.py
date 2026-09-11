@@ -24,6 +24,12 @@ ACTION_SCHEMAS = {
     "penalty_win": "binary",
     "tactical_sub": "binary",
     "time_waste": "binary",
+    # v1.5 - the 3 passing phases, also minigame-resolved. Plain `graded`:
+    # the best outcome of a pass is not "you scored", so there is no top tier
+    # to split the way graded4 splits the finishing actions.
+    "build_up_pass": "graded",
+    "transition_pass": "graded",
+    "final_ball": "graded",
 }
 
 GRADED_OUTCOMES = {"great", "good", "bad"}
@@ -54,15 +60,33 @@ GOAL_OUTCOMES = {
 }
 
 
+# v1.5 - which (action_key, outcome_key) pair is an assist, in the same
+# direct-lookup shape as GOAL_OUTCOMES. `final_ball`'s best branch injects a
+# Goal, so the team scores, but the shot is taken by a teammate - the player's
+# own contribution is the pass. Without this entry that goal would be counted
+# for nobody: is_goal() rightly says no (the player did not shoot) and the old
+# graded4-only is_assist() also said no.
+ASSIST_OUTCOMES = {
+    "final_ball": "great",
+}
+
+
 def is_goal(action_key: str, outcome_key: str) -> bool:
     return GOAL_OUTCOMES.get(action_key) == outcome_key
 
 
 def is_assist(action_key: str, outcome_key: str) -> bool:
-    """graded4's second-best branch (dev_actions.py's graded4(asist=...)):
-    the player set up a teammate who scored, instead of scoring themself.
-    Only the 4 graded4 actions can ever produce this outcome key."""
-    return ACTION_SCHEMAS.get(action_key) == "graded4" and outcome_key == "asist"
+    """The player set up a teammate who scored, instead of scoring themself.
+
+    Two shapes produce it: graded4's dedicated `asist` branch (the 4 finishing
+    actions - dev_actions.py's graded4(asist=...)), and a passing action whose
+    best branch ends in a goal (ASSIST_OUTCOMES)."""
+    if ACTION_SCHEMAS.get(action_key) == "graded4" and outcome_key == "asist":
+        return True
+    return ASSIST_OUTCOMES.get(action_key) == outcome_key
 
 
 assert set(GOAL_OUTCOMES) <= set(ACTION_SCHEMAS)
+assert set(ASSIST_OUTCOMES) <= set(ACTION_SCHEMAS)
+# A pair cannot be both, or a single resolution would count twice.
+assert not set(GOAL_OUTCOMES.items()) & set(ASSIST_OUTCOMES.items())

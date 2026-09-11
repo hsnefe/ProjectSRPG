@@ -55,7 +55,7 @@ CREATE TABLE player_value_history (
   career_id   TEXT NOT NULL,
   player_id   TEXT NOT NULL,
   measured_on TEXT NOT NULL,
-  value       INTEGER NOT NULL,            -- ₺
+  value       INTEGER NOT NULL,            -- ₭ (Kredi)
   PRIMARY KEY (career_id, player_id, measured_on)
 );
 

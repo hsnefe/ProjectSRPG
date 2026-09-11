@@ -61,7 +61,7 @@ void main() {
 
       expect(profile.name, 'Efe Kaan');
       expect(profile.careerState.money, 48200);
-      expect(profile.careerState.moneyLabel, '₺48.200');
+      expect(profile.careerState.moneyLabel, '48.200 ₭');
       expect(profile.attribute('shooting'), 50.0);
       // D43 · seviye BE'de türetilir; FE onu okur, hesaplamaz.
       expect(

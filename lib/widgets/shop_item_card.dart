@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import 'package:project_srpg/theme/app_colors.dart';
+import 'package:project_srpg/net/money.dart';
 
 /// Alışveriş ekranındaki bir ürün.
 class ShopItem {
@@ -25,7 +26,7 @@ class ShopItem {
   /// Kartın cam gövdesine verilen renk tonu.
   final Color tint;
 
-  /// ₺ cinsinden fiyat.
+  /// ₭ (Kredi) cinsinden fiyat.
   final int price;
 
   /// 'Yıllık %28 getiri', '3+1, 120 m²' gibi serbest metin.
@@ -38,17 +39,8 @@ class ShopItem {
   /// değişmez — dosya bulunamazsa yine prosedürel görsele düşer.
   final String? imageAsset;
 
-  String get priceLabel => '₺${_thousands(price)}';
+  String get priceLabel => formatMoney(price);
 
-  static String _thousands(int value) {
-    final digits = value.toString();
-    final buffer = StringBuffer();
-    for (var i = 0; i < digits.length; i++) {
-      if (i > 0 && (digits.length - i) % 3 == 0) buffer.write('.');
-      buffer.write(digits[i]);
-    }
-    return buffer.toString();
-  }
 }
 
 /// Buzlu cam ürün kartı: fotoğraf (ya da tonlu prosedürel gövde), üstünde ışık

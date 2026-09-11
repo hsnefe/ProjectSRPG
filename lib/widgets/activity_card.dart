@@ -32,7 +32,7 @@ class LifestyleActivity {
   /// Kondisyona etkisi; eksi olabilir.
   final int conditionDelta;
 
-  /// ₺ cinsinden maliyet.
+  /// ₭ (Kredi) cinsinden maliyet.
   final int cost;
 
   /// D42 · karşılanmayan nitelik eşikleri (`attribute_key` -> gereken

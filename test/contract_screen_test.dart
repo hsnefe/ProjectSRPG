@@ -66,12 +66,12 @@ void main() {
     expect(find.text('FK Yıldız'), findsOneWidget);
     expect(find.text('01.07.2024'), findsOneWidget);
     expect(find.text('30.06.2027'), findsOneWidget);
-    expect(find.text('₺180.000'), findsOneWidget);
+    expect(find.text('180.000 ₭'), findsOneWidget);
     // Aylık maaş türetilmiş: weekly_wage × 4 (§3.2), ayrı bir BE alanı değil.
-    expect(find.text('₺720.000'), findsOneWidget);
-    expect(find.text('₺25.000'), findsOneWidget);
-    expect(find.text('₺40.000'), findsOneWidget);
-    expect(find.text('₺12.000.000'), findsOneWidget);
+    expect(find.text('720.000 ₭'), findsOneWidget);
+    expect(find.text('25.000 ₭'), findsOneWidget);
+    expect(find.text('40.000 ₭'), findsOneWidget);
+    expect(find.text('12.000.000 ₭'), findsOneWidget);
   });
 
   testWidgets('Sözleşme Uzat butonu yakında mesajı gösterir', (tester) async {

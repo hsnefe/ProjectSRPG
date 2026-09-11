@@ -9,6 +9,11 @@ isolation; this test's job is different — proving the pieces compose.
 import sqlite3
 
 from api import config
+from catalog.shop import SHOP_ITEMS
+
+# Read from the catalog, not copied: a reprice (the ₺ -> ₭ move) should not
+# break a test that is about money moving, not about what boots cost.
+BOOTS_PRICE = next(i["price"] for i in SHOP_ITEMS if i["catalog_id"] == "personal-boots")
 from tests.conftest import grant_money, set_attribute
 from worlddata.relationships import STARTING_SCORES
 
@@ -99,7 +104,7 @@ def test_full_career_session(api_client, mock_engine):
     buy = api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "personal-boots"})
     assert buy.status_code == 200
     money_after_purchase = buy.json()["career_state"]["money"]
-    assert money_after_purchase == config.STARTING_MONEY + 20000 - 8900
+    assert money_after_purchase == config.STARTING_MONEY + 20000 - BOOTS_PRICE
 
     # 7. Chat with the coach. The conciliatory reply is gated on politeness
     #    6 (D42) and a fresh career sits at 58.0 — level 5 — so it bounces

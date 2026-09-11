@@ -61,10 +61,10 @@ def test_get_player_contract_matches_starting_values(api_client, created_career)
 
     # §3 assigns the club, so the contract is with whatever it picked.
     assert body["team"]["team_id"] == created_career["player"]["team"]["team_id"]
-    assert body["weekly_wage"] == 3500
-    assert body["appearance_bonus"] == 500
-    assert body["goal_bonus"] == 1000
-    assert body["release_clause"] == 250000
+    assert body["weekly_wage"] == config.STARTING_WEEKLY_WAGE
+    assert body["appearance_bonus"] == config.STARTING_APPEARANCE_BONUS
+    assert body["goal_bonus"] == config.STARTING_GOAL_BONUS
+    assert body["release_clause"] == config.STARTING_RELEASE_CLAUSE
     assert body["days_until_expiry"] > 0
 
 

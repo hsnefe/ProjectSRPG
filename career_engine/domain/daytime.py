@@ -423,7 +423,7 @@ def process_day(conn: sqlite3.Connection, career_id: str, on_date: str, seed: in
             shortfall = next(e["shortfall"] for e in events if e["kind"] == "upkeep_warning")
             news_created.append(_create_news(
                 conn, career_id, "Analiz", "Bütçe uyarısı",
-                f"Önümüzdeki düzenli gider (₺{shortfall} açık) karşılanamayabilir.", on_date,
+                f"Önümüzdeki düzenli gider ({shortfall} ₭ açık) karşılanamayabilir.", on_date,
             ))
         else:
             wage_entry = _pay_wage(conn, career_id, on_date)

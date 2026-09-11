@@ -3,6 +3,9 @@ import sqlite3
 import pytest
 
 from api import config
+from catalog.shop import SHOP_ITEMS
+
+BOOTS_PRICE = next(i["price"] for i in SHOP_ITEMS if i["catalog_id"] == "personal-boots")
 from tests.conftest import (
     advance_to_match_day,
     create_career,
@@ -96,8 +99,8 @@ def test_post_purchase_charges_money_and_records_inventory(api_client, created_c
     assert resp.status_code == 200
     body = resp.json()
 
-    assert body["item"]["price_paid"] == 8900
-    assert body["career_state"]["money"] == funded - 8900
+    assert body["item"]["price_paid"] == BOOTS_PRICE
+    assert body["career_state"]["money"] == funded - BOOTS_PRICE
     # T4 does not touch the day's budget (§6.2 - money is an effect, not a cost).
     assert body["career_state"]["day_budget"]["time"] == 720
 
@@ -345,8 +348,8 @@ def test_advance_monday_pays_wage(api_client, created_career, mock_engine):
     assert body["career_state"]["current_date"] == "2026-08-03"
     wage_entries = [e for e in body["ledger_entries"] if e["kind"] == "wage"]
     assert len(wage_entries) == 1
-    assert wage_entries[0]["amount"] == 3500
-    assert body["career_state"]["money"] == config.STARTING_MONEY + 3500
+    assert wage_entries[0]["amount"] == config.STARTING_WEEKLY_WAGE
+    assert body["career_state"]["money"] == config.STARTING_MONEY + config.STARTING_WEEKLY_WAGE
 
 
 def test_advance_season_finished_errors(api_client, created_career):
