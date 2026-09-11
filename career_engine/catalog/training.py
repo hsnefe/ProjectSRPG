@@ -53,8 +53,8 @@ TRAINING_ITEMS = [
     },
     {
         "catalog_id": "dribling", "title": "Dribling",
-        "description": "Top sürme ve çift adım çalışması.",
-        "family": "saha", "drill": None,
+        "description": "Koridorda top sürme: aynı yöne kaydırdıkça hızlan, ters yön frenler.",
+        "family": "saha", "drill": "dribble",
         "costs": {"time": 60, "energy": 18},
         "effects": {"attribute:dribbling": 1.0},
     },
