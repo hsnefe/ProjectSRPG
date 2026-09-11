@@ -5,6 +5,8 @@ import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/state/player_scope.dart';
 
 import 'package:project_srpg/theme/app_colors.dart';
+import 'package:project_srpg/widgets/character_portrait.dart';
+import 'package:project_srpg/widgets/dialogue_backdrop.dart';
 import 'package:project_srpg/widgets/typewriter_text.dart';
 
 /// Diyalog ağacındaki tek bir seçenek: gösterilen metin ve gidilecek düğümün id'si.
@@ -48,6 +50,8 @@ class DialogScreen extends StatefulWidget {
     required this.relationshipId,
     required this.dialogueId,
     this.session,
+    this.scene = DialogueScene.trainingGround,
+    this.portrait,
     this.backgroundAsset,
     this.characterAsset,
   });
@@ -66,10 +70,20 @@ class DialogScreen extends StatefulWidget {
   /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
   final CareerSession? session;
 
-  /// Görsel alanın arka plan katmanı; null ise renk/degrade ile doldurulur.
+  /// Konuşmanın **nerede** geçtiği — arka plan bundan çizilir. Sosyal
+  /// olayın kendisi belirler (takim yemeği kafede, röportaj basın odasında);
+  /// bilinmiyorsa idman sahası varsayılır.
+  final DialogueScene scene;
+
+  /// Karşıdaki kişinin görünüşü. Null ise nötr bir siluet çizilir.
+  final PortraitTraits? portrait;
+
+  /// Görsel alanın arka plan katmanı. **Gerçek bir görsel varsa** [scene]'in
+  /// çizimini geçersiz kılar; null ise sahne çizilir.
   final String? backgroundAsset;
 
-  /// Görsel alanın karakter katmanı; null ise ikon placeholder kullanılır.
+  /// Görsel alanın karakter katmanı; gerçek portre varsa [portrait]'i
+  /// geçersiz kılar.
   final String? characterAsset;
 
   @override
@@ -247,6 +261,8 @@ class _DialogScreenState extends State<DialogScreen> {
                         _PhotoSection(
                           contactName: widget.contactName,
                           tint: widget.tint,
+                          scene: widget.scene,
+                          portrait: widget.portrait,
                           backgroundAsset: widget.backgroundAsset,
                           characterAsset: widget.characterAsset,
                         ),
@@ -283,12 +299,16 @@ class _PhotoSection extends StatelessWidget {
   const _PhotoSection({
     required this.contactName,
     required this.tint,
+    required this.scene,
+    this.portrait,
     this.backgroundAsset,
     this.characterAsset,
   });
 
   final String contactName;
   final Color tint;
+  final DialogueScene scene;
+  final PortraitTraits? portrait;
   final String? backgroundAsset;
   final String? characterAsset;
 
@@ -301,10 +321,18 @@ class _PhotoSection extends StatelessWidget {
         alignment: Alignment.center,
         children: [
           Positioned.fill(
-            child: _BackgroundLayer(asset: backgroundAsset, tint: tint),
+            child: _BackgroundLayer(
+              asset: backgroundAsset,
+              scene: scene,
+              tint: tint,
+            ),
           ),
           Positioned.fill(
-            child: _CharacterLayer(asset: characterAsset, tint: tint),
+            child: _CharacterLayer(
+              asset: characterAsset,
+              portrait: portrait,
+              tint: tint,
+            ),
           ),
           Positioned(
             left: 12,
@@ -335,24 +363,23 @@ class _PhotoSection extends StatelessWidget {
 }
 
 /// Görsel alanın zemin katmanı; karakter katmanının arkasında kalır.
+///
+/// Gerçek bir görsel yoksa düz bir degrade yerine **sahne** çizilir — bir
+/// konuşmanın nerede geçtiği, ne konuşulduğu kadar bilgi taşıyor.
 class _BackgroundLayer extends StatelessWidget {
-  const _BackgroundLayer({required this.asset, required this.tint});
+  const _BackgroundLayer({
+    required this.asset,
+    required this.scene,
+    required this.tint,
+  });
 
   final String? asset;
+  final DialogueScene scene;
   final Color tint;
 
   @override
   Widget build(BuildContext context) {
-    final fallback = DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.surface1,
-        gradient: RadialGradient(
-          center: const Alignment(0, -0.4),
-          radius: 1.1,
-          colors: [tint.withValues(alpha: 0.22), AppColors.surface1],
-        ),
-      ),
-    );
+    final fallback = DialogueBackdrop(scene: scene, tint: tint);
 
     final path = asset;
     if (path == null) return fallback;
@@ -364,22 +391,32 @@ class _BackgroundLayer extends StatelessWidget {
   }
 }
 
-/// Görsel alanın karakter katmanı; gerçek portre yoksa tint renkli ikon.
+/// Görsel alanın karakter katmanı; gerçek portre yoksa kişiden türetilmiş
+/// prosüdürel büst çizilir ([PortraitTraits.forId]). Eski placeholder ikonu
+/// yalnızca [portrait] da verilmediyse kalır.
 class _CharacterLayer extends StatelessWidget {
-  const _CharacterLayer({required this.asset, required this.tint});
+  const _CharacterLayer({
+    required this.asset,
+    required this.portrait,
+    required this.tint,
+  });
 
   final String? asset;
+  final PortraitTraits? portrait;
   final Color tint;
 
   @override
   Widget build(BuildContext context) {
-    final fallback = Center(
-      child: Icon(
-        Icons.person_outline,
-        size: 64,
-        color: tint.withValues(alpha: 0.8),
-      ),
-    );
+    final traits = portrait;
+    final fallback = traits != null
+        ? CharacterPortrait(traits: traits)
+        : Center(
+            child: Icon(
+              Icons.person_outline,
+              size: 64,
+              color: tint.withValues(alpha: 0.8),
+            ),
+          );
 
     final path = asset;
     if (path == null) return fallback;

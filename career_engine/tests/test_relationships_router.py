@@ -94,12 +94,15 @@ def test_interact_unknown_leaf_errors(api_client, created_career):
 
 def test_interact_negative_delta_clamps_at_zero(api_client, created_career):
     career_id = created_career["career_id"]
-    for _ in range(30):
+    # media starts at 10 and this leaf is -3, so four calls already hit the
+    # floor. The loop count matters now that a conversation costs the day's
+    # budget (§6.2): six fits inside one day, thirty does not.
+    for _ in range(6):
         resp = api_client.post(
             f"/careers/{career_id}/relationships/media/interact",
             json={"dialogue_id": "media_01", "choice_path": ["start", "r1"]},  # -3 each
         )
-    assert resp.status_code == 200
+        assert resp.status_code == 200, resp.text
     assert resp.json()["relationship_changes"][0]["after"] == 0
 
 
@@ -169,3 +172,64 @@ def test_interact_unknown_leaf_is_still_422_not_409(api_client, created_career):
         json={"dialogue_id": "media_01", "choice_path": ["start", "r404"]},
     )
     assert resp.status_code == 422
+
+
+# --- §6.2/D41: a conversation costs the day -------------------------------
+
+def test_interact_spends_the_day_budget(api_client, created_career):
+    """Talking used to be free, which made it the one action with no
+    opportunity cost. It now comes out of the same pool training does."""
+    career_id = created_career["career_id"]
+    before = api_client.get(f"/careers/{career_id}/day").json()["career_state"]["day_budget"]
+
+    resp = api_client.post(
+        f"/careers/{career_id}/relationships/family/interact",
+        json={"dialogue_id": "family_01", "choice_path": ["start", "r0"]},
+    )
+    assert resp.status_code == 200
+    after = resp.json()["career_state"]["day_budget"]
+
+    assert after["time"] == before["time"] - 60
+    assert after["energy"] == before["energy"] - 2
+
+
+def test_interact_applies_condition(api_client, created_career):
+    """A leaf may move condition either way: calling home rests you, a row
+    with the coach does not."""
+    career_id = created_career["career_id"]
+    before = api_client.get(f"/careers/{career_id}/day").json()["career_state"]["condition"]
+
+    resp = api_client.post(
+        f"/careers/{career_id}/relationships/coach/interact",
+        json={"dialogue_id": "coach_01", "choice_path": ["start", "r1"]},  # -3 condition
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["condition_after"] == before - 3
+    assert body["career_state"]["condition"] == before - 3
+
+
+def test_interact_without_budget_is_refused_and_writes_nothing(api_client, created_career):
+    """INV-4: a 409 leaves nothing behind — not the budget, not the score."""
+    career_id = created_career["career_id"]
+    body = {"dialogue_id": "media_01", "choice_path": ["start", "r1"]}
+
+    # Drain the day. This leaf costs 11 energy, so ten of them clear 100.
+    for _ in range(9):
+        assert api_client.post(
+            f"/careers/{career_id}/relationships/media/interact", json=body
+        ).status_code == 200
+
+    score_before = api_client.get(f"/careers/{career_id}/relationships/media").json()["score"]
+    budget_before = api_client.get(f"/careers/{career_id}/day").json()["career_state"]["day_budget"]
+
+    resp = api_client.post(f"/careers/{career_id}/relationships/media/interact", json=body)
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "insufficient_budget"
+
+    after = api_client.get(f"/careers/{career_id}/relationships/media").json()
+    assert after["score"] == score_before
+    assert (
+        api_client.get(f"/careers/{career_id}/day").json()["career_state"]["day_budget"]
+        == budget_before
+    )

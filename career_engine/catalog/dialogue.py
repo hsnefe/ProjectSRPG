@@ -40,14 +40,33 @@ DIALOGUE_RELATIONSHIP = {
 # politeness 5, confidence 5, intelligence 6, resourcefulness 2) so the
 # locks are visible from day one and open through the kişi training paths.
 # INV-32 (asserted below) keeps every tree walkable regardless.
+# §6.2/D41 - what a conversation costs from the day. Talking used to be free,
+# which made it the one action with no opportunity cost: there was never a
+# reason not to call everyone every day, so the relationship scores drifted
+# up on their own and the day's budget never entered the decision.
+#
+# The unit is the day's budget, NOT the calendar. D5 makes a day the tick and
+# `game_date` moves only inside T3's advance; pushing the date from R3 would
+# mean a conversation could skip a match day. Time passing *within* a day is
+# exactly what `day_budget` models (§6.2), so a conversation eats into the day
+# the way a training session does.
+#
+# Per-leaf rather than per-dialogue: hanging up on your family (family_01/r1)
+# is a shorter conversation than sitting through an interview. The default
+# below covers a leaf that does not name its own.
+DIALOGUE_DEFAULT_COSTS = {"time": 45.0, "energy": 4.0}
+
 DIALOGUE_OUTCOMES = {
     "coach_01": {
         # Saying the right thing to a coach who just criticised you is a
         # politeness move, not a confidence one.
-        "r0": {"relationship_delta": 3, "attribute_effects": {}, "requires": {"politeness": 6}},
-        "r1": {"relationship_delta": -2, "attribute_effects": {}},
+        "r0": {"relationship_delta": 3, "attribute_effects": {}, "requires": {"politeness": 6},
+               "costs": {"time": 40.0, "energy": 5.0}, "condition": -1},
+        "r1": {"relationship_delta": -2, "attribute_effects": {},
+               "costs": {"time": 25.0, "energy": 8.0}, "condition": -3},
         # Parking the argument for the right moment — reads the room.
-        "r2": {"relationship_delta": 0, "attribute_effects": {}, "requires": {"intelligence": 6}},
+        "r2": {"relationship_delta": 0, "attribute_effects": {}, "requires": {"intelligence": 6},
+               "costs": {"time": 20.0, "energy": 2.0}},
     },
     "team_01": {
         "r0": {"relationship_delta": 2, "attribute_effects": {}, "requires": {"confidence": 6}},
@@ -56,18 +75,23 @@ DIALOGUE_OUTCOMES = {
     "media_01": {
         # Walking into an interview that has transfer questions in it.
         "r0": {"relationship_delta": 3, "attribute_effects": {"charisma": 0.2},
-               "requires": {"charisma": 8}},
-        "r1": {"relationship_delta": -3, "attribute_effects": {}},
+               "requires": {"charisma": 8},
+               "costs": {"time": 75.0, "energy": 9.0}, "condition": -2},
+        "r1": {"relationship_delta": -3, "attribute_effects": {},
+               "costs": {"time": 60.0, "energy": 11.0}, "condition": -3},
         "r2": {"relationship_delta": 1, "attribute_effects": {}},
     },
     "partner_01": {
         "r0": {"relationship_delta": 1, "attribute_effects": {}},
         # Making five minutes appear on a match day.
-        "r1": {"relationship_delta": 3, "attribute_effects": {}, "requires": {"resourcefulness": 3}},
+        "r1": {"relationship_delta": 3, "attribute_effects": {}, "requires": {"resourcefulness": 3},
+               "costs": {"time": 90.0, "energy": 3.0}, "condition": 1},
     },
     "family_01": {
-        "r0": {"relationship_delta": 4, "attribute_effects": {}},
-        "r1": {"relationship_delta": -2, "attribute_effects": {}},
+        "r0": {"relationship_delta": 4, "attribute_effects": {},
+               "costs": {"time": 60.0, "energy": 2.0}, "condition": 2},
+        "r1": {"relationship_delta": -2, "attribute_effects": {},
+               "costs": {"time": 10.0, "energy": 1.0}},
         "r2": {"relationship_delta": 1, "attribute_effects": {}},
     },
 }
@@ -86,6 +110,13 @@ def resolve_outcome(dialogue_id: str, choice_path: list) -> dict:
     if outcome is None:
         raise errors.invalid_request(f"dialogue {dialogue_id!r} has no leaf {leaf!r}")
     return outcome
+
+
+def costs_for(outcome: dict) -> dict:
+    """The leaf's own costs, or the default. Kept here rather than in the
+    router so a leaf that forgets to price itself still costs something -
+    a free conversation is the bug this replaced."""
+    return dict(outcome.get("costs") or DIALOGUE_DEFAULT_COSTS)
 
 
 def public_catalog() -> list:

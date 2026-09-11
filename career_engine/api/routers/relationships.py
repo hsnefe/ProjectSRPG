@@ -7,8 +7,15 @@ from fastapi import APIRouter, Depends
 from api import config, errors, serializers
 from api.deps import get_db
 from api.schemas.relationship import InteractRequest
-from catalog.dialogue import DIALOGUE_RELATIONSHIP, resolve_outcome
-from domain import attributes, relationships as relationships_domain, requirements, social
+from catalog.dialogue import DIALOGUE_RELATIONSHIP, costs_for as dialogue_costs, resolve_outcome
+from domain import (
+    attributes,
+    condition,
+    day_budget,
+    relationships as relationships_domain,
+    requirements,
+    social,
+)
 
 router = APIRouter(prefix="/careers/{career_id}/relationships", tags=["relationships"])
 
@@ -97,6 +104,25 @@ def interact(
     # relationship.score and relationship_event untouched (INV-30).
     requirements.check(conn, career_id, config.USER_PLAYER_ID, outcome.get("requires"))
 
+    # §6.2/D41 - a conversation takes time out of the day. Spent before the
+    # first write and after the requirement gate, so a 409 from either side
+    # leaves nothing behind (INV-4/INV-30): day_budget.spend checks every
+    # resource before touching any of them, and this endpoint owns the
+    # transaction (INV-3), so the commit below is still the only one.
+    #
+    # This is what "a dialogue advances time" means under D5. The clock is a
+    # whole day and game_date moves only inside T3's advance; nudging it here
+    # would let a conversation skip a match day. Time passing *within* a day
+    # is day_budget, so talking spends the day rather than the calendar.
+    day_budget.spend(conn, career_id, dialogue_costs(outcome))
+
+    condition_delta = outcome.get("condition", 0)
+    condition_after = (
+        condition.apply_delta(conn, career_id, condition_delta)
+        if condition_delta
+        else None
+    )
+
     current_date = conn.execute(
         # game_date, not current_date — SQLite's CURRENT_DATE keyword.
         "SELECT game_date FROM career_state WHERE career_id = ?", (career_id,)
@@ -117,8 +143,11 @@ def interact(
     conn.commit()
 
     return {
+        # D28/INV-18 - the full block, which now actually moves: day_budget
+        # and (when the leaf carries one) condition are both in here.
         "career_state": serializers.fetch_career_state(conn, career_id),
         "relationship_changes": [relationship_change],
         "attribute_changes": attribute_changes,
+        "condition_after": condition_after,
         "ledger_entries": [],
     }

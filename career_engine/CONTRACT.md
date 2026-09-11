@@ -1508,6 +1508,33 @@ reddedilir:
   "message": "'charisma' level 7, needs 8" }
 ```
 
+**Konuşmak günün bütçesinden yer (§6.2/D41).** R3 başlangıçta bedelsizdi;
+bu, onu **fırsat maliyeti olmayan tek aksiyon** yapıyordu — herkesi her gün
+aramamak için hiçbir sebep yoktu, ilişki skorları kendiliğinden yukarı
+sürükleniyor ve günün bütçesi karara hiç girmiyordu. Artık her yaprak
+kendi `costs`'unu taşıyor (`catalog/dialogue.py`; yazmayan yaprak için
+`DIALOGUE_DEFAULT_COSTS`), bazıları ayrıca `condition` oynatıyor — eve telefon
+dinlendirir, antrenörle tartışma yıpratır.
+
+Ölçü **günün bütçesi, takvim değil.** D5'te saat bir tam gün ve `game_date`
+yalnızca T3'ün `advance`'ı içinde ilerliyor; R3 içinde tarihi itmek bir
+konuşmanın maç gününü atlaması anlamına gelirdi. Gün **içindeki** zamanın
+geçme biçimi `day_budget`'tır (§6.2), yani konuşmak takvimi değil günü harcar.
+
+Harcama, yeterlilik kapısından (D42) **sonra** ve ilk yazmadan **önce**
+yapılır; `day_budget.spend()` hiçbirine dokunmadan önce bütün kaynakları
+kontrol ettiği için iki 409 yolundan hangisi tetiklenirse tetiklensin geriye
+hiçbir iz kalmaz (INV-4/INV-30). Yetmezse `409 insufficient_budget`.
+
+Yanıta `condition_after` eklendi: yaprak kondisyon oynatmıyorsa `null`.
+
+**Sunum notu (§5.8).** Konuşmanın **nerede** geçtiği ve karşıdaki kişinin
+**nasıl göründüğü** BE'den gelmez, ikisi de FE'nin sunum kararı — ikon ve
+renk gibi. FE sahneyi ilişki türünden (ya da sosyal olayın şablonundan)
+seçiyor, portreyi `relationship_id`'den deterministik türetiyor
+(`lib/widgets/character_portrait.dart`). Bu yüzden yeni bir sahne ya da yeni
+bir portre şeması sözleşmeyi değiştirmez.
+
 #### R4 · `GET /careers/{cid}/social/offers`
 
 ```jsonc

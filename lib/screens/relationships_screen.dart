@@ -7,6 +7,8 @@ import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/dialog_screen.dart';
 import 'package:project_srpg/screens/relationships_radar_screen.dart';
 import 'package:project_srpg/theme/app_colors.dart';
+import 'package:project_srpg/widgets/character_portrait.dart';
+import 'package:project_srpg/widgets/dialogue_backdrop.dart';
 import 'package:project_srpg/widgets/character_card.dart';
 import 'package:project_srpg/widgets/character_profile_modal.dart';
 import 'package:project_srpg/widgets/expand_page_route.dart';
@@ -21,12 +23,17 @@ class _Presentation {
     required this.badgeCode,
     required this.leftTag,
     required this.dialogueId,
+    required this.scene,
   });
 
   final IconData icon;
   final Color tint;
   final String badgeCode;
   final String leftTag;
+
+  /// Bu kişiyle konuşma nerede geçiyor — diyalog ekranının arka planı.
+  /// §5.8: sahne de ikon/renk gibi FE'nin sunum kararı, BE göndermez.
+  final DialogueScene scene;
 
   /// catalog/dialogue.py'nin `DIALOGUE_RELATIONSHIP` anahtarları.
   final String dialogueId;
@@ -38,14 +45,17 @@ const _presentationByRelationshipId = {
   'coach': _Presentation(
     icon: Icons.assignment_outlined, tint: AppColors.accent, badgeCode: 'AN',
     leftTag: 'KLÜP', dialogueId: 'coach_01',
+    scene: DialogueScene.lockerRoom,
   ),
   'team': _Presentation(
     icon: Icons.groups_outlined, tint: AppColors.success, badgeCode: 'TK',
     leftTag: 'KLÜP', dialogueId: 'team_01',
+    scene: DialogueScene.trainingGround,
   ),
   'media': _Presentation(
     icon: Icons.mic_none_outlined, tint: AppColors.danger, badgeCode: 'MD',
     leftTag: 'BASIN', dialogueId: 'media_01',
+    scene: DialogueScene.pressRoom,
   ),
   // `dialogueId` bilinçli olarak boş: catalog/dialogue.py'de 'fans' için bir
   // diyalog ağacı yok, `_openDialog` bunu `_dialogueTreeByRelationshipId`'de
@@ -53,20 +63,23 @@ const _presentationByRelationshipId = {
   'fans': _Presentation(
     icon: Icons.groups_2_outlined, tint: AppColors.warning, badgeCode: 'TF',
     leftTag: 'TARAFTAR', dialogueId: '',
+    scene: DialogueScene.stadium,
   ),
   'partner': _Presentation(
     icon: Icons.favorite_border, tint: _purple, badgeCode: 'PA',
     leftTag: 'ÖZEL', dialogueId: 'partner_01',
+    scene: DialogueScene.home,
   ),
   'family': _Presentation(
     icon: Icons.home_outlined, tint: AppColors.warning, badgeCode: 'AS',
     leftTag: 'ÖZEL', dialogueId: 'family_01',
+    scene: DialogueScene.home,
   ),
 };
 
 const _defaultPresentation = _Presentation(
   icon: Icons.person_outline, tint: AppColors.textMuted, badgeCode: '??',
-  leftTag: '', dialogueId: '',
+  leftTag: '', dialogueId: '', scene: DialogueScene.trainingGround,
 );
 
 _Presentation _presentationFor(String relationshipId) =>
@@ -591,6 +604,10 @@ class _RelationshipCharacterCardState
           tint: presentation.tint,
           relationshipId: relationshipId,
           dialogueId: presentation.dialogueId,
+          scene: presentation.scene,
+          // Kişinin görünüşü kimliğinden türetiliyor: antrenör her
+          // açılışta aynı, medyacı ondan farklı (bkz. PortraitTraits.forId).
+          portrait: PortraitTraits.forId(relationshipId, tint: presentation.tint),
           session: widget.session,
         ),
       ),
