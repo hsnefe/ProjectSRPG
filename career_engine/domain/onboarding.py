@@ -219,8 +219,14 @@ def _seed_player(
             "VALUES (?, ?, ?, ?)",
             (career_id, player_id, key, value),
         )
+    # D50/INV-35 - a contract ends on a season boundary, never on an
+    # arbitrary date. CONTRACT_LENGTH_DAYS (730) landed on a random Tuesday
+    # and is retired; the opening deal runs STARTING_CONTRACT_SEASONS whole
+    # seasons and expires with the last of them.
     signed_at = SEASON_STARTS_ON
-    expires_at = (date.fromisoformat(SEASON_STARTS_ON) + timedelta(days=config.CONTRACT_LENGTH_DAYS)).isoformat()
+    expires_at = season.calendar_for(
+        FIRST_SEASON_OPENING_YEAR + config.STARTING_CONTRACT_SEASONS - 1
+    ).ends_on.isoformat()
     conn.execute(
         "INSERT INTO player_contract (career_id, player_id, team_id, signed_at, expires_at, "
         "weekly_wage, appearance_bonus, goal_bonus, release_clause) "

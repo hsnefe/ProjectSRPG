@@ -20,7 +20,7 @@ import sqlite3
 from typing import List
 
 from api import config, errors, serializers
-from domain import daytime, season as season_mod
+from domain import contracts, daytime, season as season_mod, transfer
 from worlddata.competitions import COMPETITION_RULES, CUP_TEAM_IDS, continental_slots
 
 
@@ -323,6 +323,23 @@ def run(conn: sqlite3.Connection, career_id: str) -> dict:
         _fixture_news(conn, career_id, calendar.season_id, user_team_id, game_date)
     )
 
+    # 3. §11.7's contract check. A deal whose `expires_at` was the season
+    # that just ended is over, and the player is a free agent: the club goes
+    # on being their club (`player.team_id` does not move) but no wage is
+    # paid, because §6.5's wage line only fires for an ACTIVE contract.
+    #
+    # The summer window opens the moment this call returns — §11.2 step 2
+    # now finds a season standing ahead — so the offers are generated here
+    # rather than waiting for the player to go looking. The current club is
+    # among the bidders (§11.7), which is what makes staying a choice.
+    contract_status = (
+        "active" if contracts.active_contract(conn, career_id, game_date) else "expired"
+    )
+    offers = []
+    if contract_status == "expired":
+        transfer.generate(conn, career_id, game_date, seed, "summer")
+        offers = transfer.list_open(conn, career_id)
+
     # The career's own season_id follows the world. game_date does NOT move
     # (D47) - the summer is played day by day like any other stretch.
     conn.execute(
@@ -344,10 +361,8 @@ def run(conn: sqlite3.Connection, career_id: str) -> dict:
                 if new_league_id else None
             ),
             **user,
-            # §11.7's contract check lands here in the next commit; until
-            # then a contract simply carries on.
-            "contract_status": "active",
+            "contract_status": contract_status,
         },
-        "offers": [],
+        "offers": offers,
         "news_created": news_created,
     }

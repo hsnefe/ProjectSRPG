@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
+import 'package:project_srpg/screens/transfer_offers_screen.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/date_labels.dart';
 import 'package:project_srpg/net/money.dart';
@@ -42,14 +43,16 @@ class _ContractScreenState extends State<ContractScreen> {
     return _session.client.playerContract(careerId);
   }
 
-  void _showStubMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
+  /// §11.7 · teklifler ekranını açar. Bir teklif kabul edildiyse `true`
+  /// döner ve sözleşme yeniden çekilir — kulüp de şartlar da değişmiştir.
+  Future<void> _openOffers(BuildContext context) async {
+    final moved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => TransferOffersScreen(session: widget.session),
       ),
     );
+    if (!mounted || moved != true) return;
+    setState(() => _contractFuture = _load());
   }
 
   @override
@@ -185,10 +188,11 @@ class _ContractScreenState extends State<ContractScreen> {
                         child: SizedBox(
                           width: double.infinity,
                           child: FilledButton(
-                            onPressed: () => _showStubMessage(
-                              context,
-                              'Sözleşme uzatma yakında',
-                            ),
+                            // §11.7 · uzatma ayrı bir mekanik değil:
+                            // mevcut kulübün yenileme teklifi rakiplerin
+                            // teklifleriyle aynı listede duruyor, çünkü oyuncu
+                            // için karar tek: nerede oynayacağım.
+                            onPressed: () => _openOffers(context),
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.accent,
                               foregroundColor: AppColors.textPrimary,
@@ -201,7 +205,7 @@ class _ContractScreenState extends State<ContractScreen> {
                                 borderRadius: BorderRadius.circular(10),
                               ),
                             ),
-                            child: const Text('Sözleşme Uzat'),
+                            child: const Text('Teklifleri Gör'),
                           ),
                         ),
                       ),

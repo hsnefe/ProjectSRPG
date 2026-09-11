@@ -18,7 +18,10 @@ from typing import List, Optional, Set
 
 from api import config
 from api.ids import new_news_id
-from domain import condition, engine_client, formulas, scheduling, season as season_mod, social, squad, wallet
+from domain import (
+    condition, contracts, engine_client, formulas, scheduling,
+    season as season_mod, social, squad, transfer, wallet,
+)
 from worlddata.competitions import ULUSAL_KUPA
 
 
@@ -34,12 +37,24 @@ def _user_team_id(conn: sqlite3.Connection, career_id: str) -> str:
     ).fetchone()["team_id"]
 
 
-def _latest_contract(conn: sqlite3.Connection, career_id: str) -> Optional[sqlite3.Row]:
-    return conn.execute(
-        "SELECT * FROM player_contract WHERE career_id = ? AND player_id = ? "
-        "ORDER BY signed_at DESC LIMIT 1",
-        (career_id, config.USER_PLAYER_ID),
-    ).fetchone()
+def _latest_contract(
+    conn: sqlite3.Connection, career_id: str, on_date: str = None
+) -> Optional[sqlite3.Row]:
+    """The contract IN FORCE, not merely the newest.
+
+    This used to order by `signed_at` and ignore `expires_at` entirely, so an
+    expired deal stayed "the" contract and `_pay_wage` went on paying from it
+    forever. Nothing could reach that state before §11.7, because no contract
+    ever ran out; now being out of contract is a state the game has.
+
+    `on_date` is optional only so the handful of callers that predate it keep
+    working against today.
+    """
+    if on_date is None:
+        on_date = conn.execute(
+            "SELECT game_date FROM career_state WHERE career_id = ?", (career_id,)
+        ).fetchone()["game_date"]
+    return contracts.active_contract(conn, career_id, on_date)
 
 
 def _sum_upkeep(conn: sqlite3.Connection, career_id: str) -> int:
@@ -184,11 +199,18 @@ def list_events(
     if cup_round:
         events.append({"kind": "cup_draw", "ref_id": ULUSAL_KUPA, "round_no": cup_round["round_no"]})
 
-    contract = _latest_contract(conn, career_id)
+    contract = contracts.active_contract(conn, career_id, on_date)
     if contract:
-        days_left = (_dt.date.fromisoformat(contract["expires_at"]) - _dt.date.fromisoformat(on_date)).days
+        days_left = contracts.days_until_expiry(contract, on_date)
         if 0 <= days_left <= config.CONTRACT_EXPIRING_DAYS:
             events.append({"kind": "contract_expiring", "ref_id": None, "days_left": days_left})
+    elif contracts.latest_contract(conn, career_id) is not None:
+        # §11.8 - out of contract. `ref_id` is null: there is nothing to
+        # point at, which is the whole news.
+        events.append({"kind": "contract_expired", "ref_id": None})
+
+    for offer in transfer.list_open(conn, career_id):
+        events.append({"kind": "transfer_offer", "ref_id": offer["offer_id"]})
 
     if _dt.date.fromisoformat(on_date).weekday() == config.WAGE_WEEKDAY:
         shortfall = _projected_upkeep_shortfall(conn, career_id)

@@ -522,6 +522,143 @@ class CareerState {
   String get moneyLabel => formatMoney(money);
 }
 
+/// §11.7 S3 · transfer penceresindeki teklifler.
+class TransferOffers {
+  const TransferOffers({
+    required this.window,
+    required this.closesOn,
+    required this.offers,
+  });
+
+  /// `winter` | `summer` | null (pencere kapalı).
+  final String? window;
+
+  /// Pencerenin son günü; kapalıysa null.
+  final String? closesOn;
+
+  /// Pencere kapalıyken **boş liste** — hata değil (§11.7).
+  final List<TransferOffer> offers;
+
+  bool get isOpen => window != null;
+
+  /// Mevcut kulübün yenileme teklifi; yoksa null.
+  TransferOffer? get renewal {
+    for (final o in offers) {
+      if (o.isRenewal) return o;
+    }
+    return null;
+  }
+
+  List<TransferOffer> get rivals =>
+      offers.where((o) => !o.isRenewal).toList(growable: false);
+
+  factory TransferOffers.fromJson(Map<String, dynamic> json) => TransferOffers(
+        window: json['window'] as String?,
+        closesOn: json['closes_on'] as String?,
+        offers: ((json['offers'] as List<dynamic>?) ?? const [])
+            .map((e) => TransferOffer.fromJson(e as Map<String, dynamic>))
+            .toList(growable: false),
+      );
+}
+
+class TransferOffer {
+  const TransferOffer({
+    required this.offerId,
+    required this.team,
+    required this.competition,
+    required this.weeklyWage,
+    required this.appearanceBonus,
+    required this.goalBonus,
+    required this.releaseClause,
+    required this.lengthSeasons,
+    required this.expiresAt,
+    required this.isRenewal,
+    required this.counterUsed,
+  });
+
+  final String offerId;
+  final TeamRef team;
+  final CompetitionRef? competition;
+  final int weeklyWage;
+  final int appearanceBonus;
+  final int goalBonus;
+  final int releaseClause;
+  final int lengthSeasons;
+
+  /// Kabul edilirse sözleşmenin biteceği gün — daima bir sezon sınırı
+  /// (D50/INV-35).
+  final String expiresAt;
+
+  /// Mevcut kulübün teklifi mi. Yalnızca bunun bir karşı teklif hakkı var.
+  final bool isRenewal;
+  final bool counterUsed;
+
+  bool get canCounter => isRenewal && !counterUsed;
+
+  factory TransferOffer.fromJson(Map<String, dynamic> json) {
+    final competition = json['competition'] as Map<String, dynamic>?;
+    return TransferOffer(
+      offerId: json['offer_id'] as String,
+      team: TeamRef.fromJson(json['team'] as Map<String, dynamic>),
+      competition:
+          competition == null ? null : CompetitionRef.fromJson(competition),
+      weeklyWage: json['weekly_wage'] as int,
+      appearanceBonus: json['appearance_bonus'] as int,
+      goalBonus: json['goal_bonus'] as int,
+      releaseClause: json['release_clause'] as int,
+      lengthSeasons: json['length_seasons'] as int,
+      expiresAt: json['expires_at'] as String,
+      isRenewal: json['is_renewal'] as bool? ?? false,
+      counterUsed: json['counter_used'] as bool? ?? false,
+    );
+  }
+}
+
+/// §12.4 · karşı teklifin sonucu.
+class CounterOfferResult {
+  const CounterOfferResult({required this.accepted, required this.offer});
+
+  final bool accepted;
+  final TransferOffer offer;
+
+  factory CounterOfferResult.fromJson(Map<String, dynamic> json) =>
+      CounterOfferResult(
+        accepted: json['accepted'] as bool,
+        offer: TransferOffer.fromJson(json['offer'] as Map<String, dynamic>),
+      );
+}
+
+/// §11.7 S4 · kabul edilen teklifin sonucu.
+class TransferAcceptResult {
+  const TransferAcceptResult({
+    required this.careerState,
+    required this.team,
+    required this.competition,
+    required this.weeklyWage,
+    required this.expiresAt,
+  });
+
+  final CareerState careerState;
+  final TeamRef team;
+  final CompetitionRef? competition;
+  final int weeklyWage;
+  final String expiresAt;
+
+  factory TransferAcceptResult.fromJson(Map<String, dynamic> json) {
+    final competition = json['competition'] as Map<String, dynamic>?;
+    final contract = json['contract'] as Map<String, dynamic>;
+    return TransferAcceptResult(
+      careerState:
+          CareerState.fromJson(json['career_state'] as Map<String, dynamic>),
+      team: TeamRef.fromJson(json['team'] as Map<String, dynamic>),
+      competition:
+          competition == null ? null : CompetitionRef.fromJson(competition),
+      weeklyWage: contract['weekly_wage'] as int,
+      expiresAt: contract['expires_at'] as String,
+    );
+  }
+}
+
 /// §11.5 S1 · sezon devrinin sonucu.
 class SeasonRolloverResult {
   const SeasonRolloverResult({

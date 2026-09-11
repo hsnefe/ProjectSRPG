@@ -3231,7 +3231,78 @@ bilmediği için teklif üretmeyi sürdürür, süzgeç FE'dedir.
 
 *(Commit 10 ile yazılacak.)*
 
-### 12.4 Yeni invariant'lar
+### 12.4 Sözleşme yenileme — karşı teklif
+
+§11.7 yalnızca **kabul**'ü tanımlıyor (S4). Tek seçeneği kabul olan bir
+teklif listesi bir görüşme değil, bir duyurudur; mevcut kulübün teklifi
+bu yüzden **bir kez** geri itilebiliyor.
+
+#### `POST /careers/{cid}/transfer/offers/{oid}/counter`
+
+```jsonc
+// İstek — gövde yok
+
+// Yanıt
+{ "career_state": { /* CareerState */ },
+  "accepted": true,                    // kulüp yükseltti mi
+  "offer":    { /* TransferOffer — counter_used artık true */ } }
+```
+
+Başarılıysa haftalık ücret **%25** artar ve primlerle serbest kalma bedeli
+onunla birlikte yeniden hesaplanır — eski ölçekte kalmış bir prim, yükseltilmiş
+bir maaşın yanında tutarsız durur. Başarısızsa şartlar aynen kalır.
+
+Kulübün cevabı antrenör ilişkisinden, `trust`'tan (§12.1) ve geçen sezonun
+gollerinden çıkar — seni oynatan neyse, sana zam veren de o. Atış `offer_id`
+üzerine zırlanmış, yani cevap yeniden atılamaz; zaten `counter_used` her iki
+durumda da kapanıyor.
+
+**Yalnızca yenileme tekliflerinde.** Rakip kulüp pazarlık etmiyor: `is_renewal`
+false olan bir teklifte `counter_used` başlangıçta 0 kalır ama uç onu
+`409 offer_not_open` ile reddeder.
+
+#### `POST /careers/{cid}/transfer/offers/{oid}/decline`
+
+Reddetmek hiçbir gereksinim kontrol etmez, hiçbir bütçe harcamaz ve
+başarısız olamaz — INV-40'ın sosyal tekliflere verdiği okumanın aynısı.
+
+#### Şema eki
+
+`007_season_rollover.sql`'in `transfer_offer` tablosu §11.3'ün DDL'ine iki
+kolon ekliyor:
+
+```sql
+  is_renewal       INTEGER NOT NULL DEFAULT 0,
+  counter_used     INTEGER NOT NULL DEFAULT 0,
+```
+
+`is_renewal` olmadan "mevcut kulübün teklifi hangisi" sorusu `team_id`'yi
+oyuncunun kulübüyle karşılaştırmakla cevaplanırdı — ki teklif kabul edilip
+kulüp değiştikten sonra o karşılaştırma yalan söyler.
+
+### 12.5 §11.7'nin uygulamasında kapatılan üç hata
+
+Üçü de yalnızca bir sözleşme gerçekten bitebildiğinde ortaya çıkıyor,
+yani §11 öncesi erişilemez durumlardı:
+
+1. **Süresi geçmiş sözleşme maaş ödemeye devam ediyordu.** Sorgu
+   `signed_at`'e göre sıralıyor, `expires_at`'e hiç bakmıyordu; §11.7'nin
+   "serbest oyuncu" durumu = **aktif sözleşme satırı yok**, o sorgunun
+   soramadığı soru. `domain/contracts.py` artık iki ayrı soruyu ayrı ayrı
+   cevaplıyor: yürürlükteki sözleşme (maaş için) ve en son imzalananı
+   (gösterim için).
+2. **`player_contract` PK'ı aynı gün iki imzada çakışıyordu.** Anahtar
+   `(career_id, player_id, signed_at)`; eskisinin bittiği gün yenisini
+   imzalamak istisna değil normal durum. `INSERT OR REPLACE` — oyuncu iki
+   sözleşme taşımaz, geçerli olan son imzadır.
+3. **P3 `days_until_expiry`'yi duvar saatinden sayıyordu.** İki sezon dönmüş
+   bir kariyer makinenin takviminden yıllarca uzakta; artık `game_date`'ten.
+
+P3 yanıtına `status` (`active` | `expired`) eklendi: serbest oyuncuda son
+sözleşme yine gösterilir, çünkü `null` dönmek FE'ye "sözleşmen bitti" ile
+"kariyer yok"u ayırt ettirmiyor.
+
+### 12.6 Yeni invariant'lar
 
 > ⚠️ **INV-38 şartnamede hiç yok.** §11.11'in listesi INV-37'den INV-39'a
 > atlıyor. Boşluk kasıtlı mıydı bilinmiyor; doldurulmuyor, numaralar olduğu
@@ -3243,6 +3314,8 @@ bilmediği için teklif üretmeyi sürdürür, süzgeç FE'dedir.
 | INV-43 | Bir fikstür öncesi en fazla **bir** antrenör konuşması kaydedilir |
 | INV-44 | Bir fikstürün `user_squad_status`'ı bir kez yazılır ve değişmez; T1 ile M1 aynı maç için daima aynı cevabı verir |
 | INV-45 | `user_squad_status = 'out'` olan bir fikstür arka plan simülasyonuna düşer; hiçbir fikstür `scheduled` olarak asılı kalmaz |
+| INV-46 | Bir teklif en fazla **bir** kez karşı teklife konu olur (`counter_used`) |
+| INV-47 | Bir teklif kabul edildiğinde aynı kariyerin diğer bütün `status='open'` teklifleri `expired` olur |
 
 ### 12.5 Yeni hata kodları
 

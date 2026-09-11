@@ -15,3 +15,8 @@ def new_social_offer_id() -> str:
     # 'so_', not 'o_': §11.3 reserves the bare 'o_' prefix for transfer
     # offers, which are a different mechanic with their own error codes.
     return "so_" + secrets.token_hex(6)
+
+def new_transfer_offer_id() -> str:
+    """§11.3 - the bare 'o_' prefix, reserved since the social offers took
+    'so_' precisely so this family could have it."""
+    return "o_" + secrets.token_hex(6)

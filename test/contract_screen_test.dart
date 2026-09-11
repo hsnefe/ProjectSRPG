@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/contract_screen.dart';
+import 'package:project_srpg/screens/transfer_offers_screen.dart';
 
 http.Response _json(Object? body, {int status = 200}) => http.Response(
       body == null ? 'null' : jsonEncode(body),
@@ -74,20 +75,21 @@ void main() {
     expect(find.text('12.000.000 ₭'), findsOneWidget);
   });
 
-  testWidgets('Sözleşme Uzat butonu yakında mesajı gösterir', (tester) async {
+  testWidgets('Teklifleri Gör butonu teklifler ekranını açar', (tester) async {
+    // §11.7 · uzatma ayrı bir mekanik değil: mevcut kulübün yenileme teklifi
+    // rakiplerin teklifleriyle aynı listede duruyor, o yüzden buton artık
+    // stub değil — doğrudan o ekrana götürüyor.
     await tester.pumpWidget(_wrap(
       ContractScreen(session: _sessionWithContract(_contract)),
     ));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Sözleşme Uzat'));
-    await tester.pump();
+    await tester.tap(find.text('Teklifleri Gör'));
+    await tester.pumpAndSettle();
 
-    expect(find.text('Sözleşme uzatma yakında'), findsOneWidget);
-
-    // SnackBar'ın 2 saniyelik kapanma timer'ını boşalt; yoksa teardown'da
-    // "A Timer is still pending" hatası riski var.
-    await tester.pump(const Duration(seconds: 3));
+    expect(find.byType(TransferOffersScreen), findsOneWidget);
+    // Pencere kapalıyken (mock 404 dönüyor) ekran hatasını gösterir; önemli
+    // olan butonun artık bir yere götürmesi.
   });
 
   testWidgets('sözleşme yoksa (BE null döner) bilgilendirme metni görünür',

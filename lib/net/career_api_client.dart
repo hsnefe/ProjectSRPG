@@ -314,6 +314,45 @@ class CareerApiClient {
   }
 
   // ---------------------------------------------------------------------
+  // §11.7 Transfer ve sözleşme — S3, S4
+  // ---------------------------------------------------------------------
+
+  /// S3 · `GET /careers/{cid}/transfer/offers`. Pencere kapalıyken boş
+  /// liste döner, hata değil.
+  Future<TransferOffers> transferOffers(String careerId) async {
+    final body = await _get('/careers/$careerId/transfer/offers');
+    return TransferOffers.fromJson(body);
+  }
+
+  /// S4 · teklifi kabul et. Tek transaction: oyuncu taşınır, sözleşme
+  /// yazılır, diğer bütün açık teklifler kapanır.
+  Future<TransferAcceptResult> acceptTransferOffer(
+    String careerId,
+    String offerId,
+  ) async {
+    final body = await _post('/careers/$careerId/transfer/offers/$offerId/accept');
+    return TransferAcceptResult.fromJson(body);
+  }
+
+  /// §12.4 · yenileme teklifinde bir kez "daha iyisini iste".
+  Future<CounterOfferResult> counterTransferOffer(
+    String careerId,
+    String offerId,
+  ) async {
+    final body = await _post('/careers/$careerId/transfer/offers/$offerId/counter');
+    return CounterOfferResult.fromJson(body);
+  }
+
+  /// Teklifi reddet — hiçbir şeye mal olmaz ve başarısız olamaz.
+  Future<TransferOffers> declineTransferOffer(
+    String careerId,
+    String offerId,
+  ) async {
+    final body = await _post('/careers/$careerId/transfer/offers/$offerId/decline');
+    return TransferOffers.fromJson(body);
+  }
+
+  // ---------------------------------------------------------------------
   // §11.5/§11.6 Sezon devri — S1, S2
   // ---------------------------------------------------------------------
 

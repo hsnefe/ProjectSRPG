@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query
 
 from api import config, serializers
 from api.deps import get_db
-from domain import attributes as attributes_domain, formulas
+from domain import attributes as attributes_domain, contracts, formulas
 
 router = APIRouter(prefix="/careers/{career_id}/player", tags=["player"])
 
@@ -148,18 +148,28 @@ def get_player_stats(
 def get_player_contract(career_id: str, conn: sqlite3.Connection = Depends(get_db)):
     player_row = _fetch_player_row(conn, career_id)
 
-    row = conn.execute(
-        "SELECT * FROM player_contract WHERE career_id = ? AND player_id = ? "
-        "ORDER BY signed_at DESC LIMIT 1",
-        (career_id, player_row["player_id"]),
-    ).fetchone()
-    if row is None:
-        return None
+    game_date = conn.execute(
+        "SELECT game_date FROM career_state WHERE career_id = ?", (career_id,)
+    ).fetchone()["game_date"]
 
-    days_until_expiry = (_dt.date.fromisoformat(row["expires_at"]) - _dt.date.today()).days
+    row = contracts.active_contract(conn, career_id, game_date)
+    expired = False
+    if row is None:
+        # §11.7 - a free agent. The last deal is still worth showing ("your
+        # contract ran out in June") rather than answering null, which FE
+        # cannot tell from "no career".
+        row = contracts.latest_contract(conn, career_id)
+        if row is None:
+            return None
+        expired = True
+
+    # From game_date, never the wall clock: a career two seasons in is years
+    # away from the machine's own calendar.
+    days_until_expiry = contracts.days_until_expiry(row, game_date)
 
     return {
         "team": serializers.fetch_team_ref(conn, career_id, row["team_id"]),
+        "status": "expired" if expired else "active",
         "signed_at": row["signed_at"],
         "expires_at": row["expires_at"],
         "weekly_wage": row["weekly_wage"],

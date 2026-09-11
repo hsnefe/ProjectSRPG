@@ -80,7 +80,12 @@ STARTING_WEEKLY_WAGE = 40
 STARTING_APPEARANCE_BONUS = 6
 STARTING_GOAL_BONUS = 12
 STARTING_RELEASE_CLAUSE = 900
-CONTRACT_LENGTH_DAYS = 730
+
+# D50/INV-35 - length is counted in SEASONS, and the contract always expires
+# on a season boundary. The old CONTRACT_LENGTH_DAYS = 730 is retired: 730
+# days from a August Saturday lands on an arbitrary Tuesday, which is
+# neither of the two dates a contract is allowed to end on.
+STARTING_CONTRACT_SEASONS = 2
 
 # §6.5 D25/D26/D27 - weekly cadence for wage, upkeep, and bonuses.
 WAGE_WEEKDAY = 0  # Monday, per date.weekday()
