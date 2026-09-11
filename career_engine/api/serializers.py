@@ -5,6 +5,9 @@ import sqlite3
 from typing import Optional
 
 from api import errors
+# Imported inside the module rather than at call sites: CareerState is
+# assembled here and nowhere else, so the phase has exactly one source.
+from domain import season
 
 
 def age_from_birth_date(birth_date: str) -> int:
@@ -101,6 +104,10 @@ def fetch_career_state(conn: sqlite3.Connection, career_id: str) -> dict:
     return {
         "current_date": row["game_date"],
         "season_id": row["season_id"],
+        # §11.8/D45 - derived, never stored. Added here rather than at each
+        # call site so it lands in every mutating endpoint's response at
+        # once (D28/INV-18), which is what the contract asks for.
+        "season_phase": season.derive_phase(conn, career_id, row["game_date"]),
         "money": row["money"],
         "condition": row["condition"],
         "day_budget": fetch_day_budget(conn, career_id),

@@ -1,6 +1,7 @@
 import pytest
 
 from api import config
+from domain import onboarding
 from worlddata.formations import FORMATION_IDS
 from tests.conftest import advance_to_match_day, create_career
 
@@ -71,7 +72,7 @@ def test_get_next_match_is_refused_before_the_match_day(api_client, mock_engine)
     resp = api_client.get(f"/careers/{career_id}/matches/next")
     assert resp.status_code == 409
     assert resp.json()["code"] == "not_match_day"
-    assert "2026-08-08" in resp.json()["message"]
+    assert onboarding.FIRST_SEASON.league_starts_on.isoformat() in resp.json()["message"]
     assert "7 day(s)" in resp.json()["message"]
 
 

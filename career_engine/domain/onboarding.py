@@ -14,33 +14,28 @@ from typing import Optional
 
 from api import config, errors
 from api.ids import new_career_id
-from domain import day_budget, scheduling, team_assignment, wallet
+from domain import day_budget, season, team_assignment, wallet
 from worlddata import positions as positions_data
 from worlddata.attributes import starting_attributes
 from worlddata.competitions import (
     BIRINCI_LIG, COMPETITION_RULES, COMPETITIONS, CUP_TEAM_IDS,
-    STARTING_ENTRIES, SUPER_LIG, ULUSAL_KUPA,
+    SUPER_LIG, ULUSAL_KUPA,
 )
 from worlddata.countries import DEFAULT_COUNTRY_CODE, get_country
 from worlddata.relationships import RELATIONSHIP_SEED, STARTING_SCORES
 from worlddata.teams import ALL_TEAMS, TIER1_TEAMS, TIER2_TEAMS
 
-SEASON_ID = "25/26"
-SEASON_STARTS_ON = "2026-08-01"      # a Saturday; the career's own day 1
-SEASON_ENDS_ON = "2027-05-31"
+# §11.1/D44 - the first season's dates are derived like every other season's,
+# from the year it opens in. They were four hard-coded strings before, and one
+# of them (SEASON_ID = "25/26" against a 2026-08 start) already contradicted
+# the others; deriving removes the chance of saying that again and lets the
+# rollover reuse the same builder.
+FIRST_SEASON_OPENING_YEAR = 2026
+FIRST_SEASON = season.calendar_for(FIRST_SEASON_OPENING_YEAR)
 
-# League round 1 is a week after the season opens, so a new career starts
-# with a full preparation week rather than a match on its very first day
-# (§6.1: the day loop is what the user actually plays). Rounds are 7 days
-# apart from here, so every league fixture falls on a Saturday.
-LEAGUE_STARTS_ON = "2026-08-08"
-
-# The cup runs midweek, between league rounds — 14 days apart from a
-# Wednesday, so a cup round can never land on a league Saturday. Before
-# this, both calendars ran on Saturdays and a team could be drawn into two
-# fixtures on the same date, which M1's "today's match" query has no way to
-# choose between.
-CUP_STARTS_ON = "2026-08-19"
+SEASON_ID = FIRST_SEASON.season_id
+SEASON_STARTS_ON = FIRST_SEASON.starts_on.isoformat()
+SEASON_ENDS_ON = FIRST_SEASON.ends_on.isoformat()
 
 # A name field long enough for a double-barrelled surname, short enough that
 # it can't push FE's cards out of shape. Not pinned by CONTRACT.md.
@@ -176,65 +171,20 @@ def _seed_world(conn: sqlite3.Connection, career_id: str, rng: random.Random) ->
             ),
         )
 
-    for competition_id, tid in STARTING_ENTRIES:
-        conn.execute(
-            "INSERT INTO competition_entry (career_id, season_id, competition_id, team_id) "
-            "VALUES (?, ?, ?, ?)",
-            (career_id, SEASON_ID, competition_id, tid),
-        )
-
-    conn.execute(
-        "INSERT INTO season (career_id, season_id, starts_on, ends_on) VALUES (?, ?, ?, ?)",
-        (career_id, SEASON_ID, SEASON_STARTS_ON, SEASON_ENDS_ON),
-    )
-
-    # D9: seed shuffles fixture order (not the roster) — each league gets
-    # its own independent shuffle of the same fixed team list.
-    for competition_id, teams in ((SUPER_LIG, TIER1_TEAMS), (BIRINCI_LIG, TIER2_TEAMS)):
-        ids = [t["team_id"] for t in teams]
-        rng.shuffle(ids)
-        rounds, fixtures = scheduling.generate_league_season(
-            career_id, SEASON_ID, competition_id, ids, LEAGUE_STARTS_ON
-        )
-        _insert_rounds(conn, rounds)
-        _insert_fixtures(conn, fixtures)
-
-    cup_rounds = scheduling.generate_cup_calendar(
-        career_id, SEASON_ID, ULUSAL_KUPA, len(CUP_TEAM_IDS), CUP_STARTS_ON
-    )
-    _insert_rounds(conn, cup_rounds)
-
-    # Round 1 (r32) has no prior-round dependency, so it's drawn immediately
-    # alongside the calendar — later rounds stay undrawn until their
-    # predecessor is played (§3.3, §6.7's cup-draw event).
-    round1_kickoff = f"{cup_rounds[0]['scheduled_on']}T20:00:00+03:00"
-    round1_fixtures = scheduling.draw_cup_round(
-        career_id, SEASON_ID, ULUSAL_KUPA, 1, round1_kickoff, CUP_TEAM_IDS, rng=rng
-    )
-    _insert_fixtures(conn, round1_fixtures)
-    conn.execute(
-        "UPDATE competition_round SET drawn = 1 "
-        "WHERE career_id = ? AND season_id = ? AND competition_id = ? AND round_no = 1",
-        (career_id, SEASON_ID, ULUSAL_KUPA),
-    )
-
-
-def _insert_rounds(conn: sqlite3.Connection, rounds: list) -> None:
-    conn.executemany(
-        "INSERT INTO competition_round (career_id, season_id, competition_id, round_no, "
-        "stage, scheduled_on, drawn) VALUES (:career_id, :season_id, :competition_id, "
-        ":round_no, :stage, :scheduled_on, :drawn)",
-        rounds,
-    )
-
-
-def _insert_fixtures(conn: sqlite3.Connection, fixtures: list) -> None:
-    conn.executemany(
-        "INSERT INTO fixture (career_id, fixture_id, season_id, competition_id, round_no, "
-        "leg, kickoff_at, home_team_id, away_team_id, status, home_score, away_score, match_id) "
-        "VALUES (:career_id, :fixture_id, :season_id, :competition_id, :round_no, :leg, "
-        ":kickoff_at, :home_team_id, :away_team_id, :status, :home_score, :away_score, :match_id)",
-        fixtures,
+    # §11.1 - the season row, its entries, every league fixture and the cup
+    # calendar all come from the shared builder, so season one and season two
+    # are generated by the same code. The tier lists only decide who starts
+    # where; from the second season on, competition_entry is the source.
+    season.create_season(
+        conn,
+        career_id,
+        FIRST_SEASON,
+        league_teams={
+            SUPER_LIG: [t["team_id"] for t in TIER1_TEAMS],
+            BIRINCI_LIG: [t["team_id"] for t in TIER2_TEAMS],
+        },
+        rng=rng,
+        cup_team_ids=CUP_TEAM_IDS,
     )
 
 

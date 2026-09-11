@@ -104,8 +104,42 @@ def fixture_already_played(fixture_id: str) -> ApiError:
     return ApiError(409, "fixture_already_played", f"fixture {fixture_id!r} result was already recorded")
 
 
-def season_finished() -> ApiError:
-    return ApiError(409, "season_finished", "the season has ended")
+def season_rollover_required() -> ApiError:
+    """§11.9 - replaces the retired `season_finished`. The difference is the
+    whole point of §11: the season being over is no longer the end of the
+    career, it is a thing the player does something about (S1)."""
+    return ApiError(
+        409, "season_rollover_required",
+        "the season is over; POST /season/rollover before advancing",
+    )
+
+
+def season_not_finished(unplayed: int) -> ApiError:
+    """§11.9 - S1/S2 called while fixtures remain (INV-13). The count is in
+    the message because for the user the two precondition failures are one
+    situation ("it isn't over yet") and the number is the only useful
+    difference between them."""
+    return ApiError(
+        409, "season_not_finished",
+        f"{unplayed} fixture(s) of this season are still unplayed",
+    )
+
+
+def no_transfer_window() -> ApiError:
+    return ApiError(
+        409, "no_transfer_window",
+        "transfer offers can only be accepted during a transfer window",
+    )
+
+
+def offer_not_found(offer_id: str) -> ApiError:
+    return ApiError(404, "offer_not_found", f"unknown offer_id {offer_id!r}")
+
+
+def offer_not_open(offer_id: str) -> ApiError:
+    return ApiError(
+        409, "offer_not_open", f"offer {offer_id} is no longer open"
+    )
 
 
 def fixture_not_in_progress(fixture_id: str) -> ApiError:

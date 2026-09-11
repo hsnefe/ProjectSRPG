@@ -1,8 +1,25 @@
+import datetime as _dt
 import sqlite3
 
 import pytest
 
 from api import config
+from domain import onboarding
+
+# §11.1 - dates come from the derived calendar, not spelled out. The season
+# used to open on a hard-coded 2026-08-01; now it is "the last Saturday of
+# August, minus a preparation week" and these follow it.
+SEASON_START = onboarding.SEASON_STARTS_ON
+LEAGUE_ROUND_1 = onboarding.FIRST_SEASON.league_starts_on.isoformat()
+
+
+def _plus_days(iso: str, days: int) -> str:
+    return (_dt.date.fromisoformat(iso) + _dt.timedelta(days=days)).isoformat()
+
+
+def _first_monday_from(iso: str) -> str:
+    day = _dt.date.fromisoformat(iso)
+    return (day + _dt.timedelta(days=(0 - day.weekday()) % 7)).isoformat()
 from catalog.shop import SHOP_ITEMS
 
 BOOTS_PRICE = next(i["price"] for i in SHOP_ITEMS if i["catalog_id"] == "personal-boots")
@@ -31,7 +48,7 @@ def test_get_day_fresh_career_opens_on_a_preparation_week(api_client, created_ca
     resp = api_client.get(f"/careers/{created_career['career_id']}/day")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["career_state"]["current_date"] == "2026-08-01"
+    assert body["career_state"]["current_date"] == SEASON_START
     assert body["is_match_day"] is False
     assert not any(e["kind"] == "match" for e in body["events"])
 
@@ -130,7 +147,7 @@ def test_advance_next_day_moves_the_date_one_day(api_client, created_career, moc
     body = resp.json()
 
     assert body["days_advanced"] == 1
-    assert body["career_state"]["current_date"] == "2026-08-02"
+    assert body["career_state"]["current_date"] == _plus_days(SEASON_START, 1)
 
 
 def test_advance_stops_on_match_day_when_seeking_next_event(api_client, created_career, mock_engine):
@@ -141,7 +158,7 @@ def test_advance_stops_on_match_day_when_seeking_next_event(api_client, created_
 
     assert body["days_advanced"] == 7  # the preparation week, day by day
     assert body["stop_reason"] == "match"
-    assert body["career_state"]["current_date"] == "2026-08-08"  # league round 1
+    assert body["career_state"]["current_date"] == LEAGUE_ROUND_1
     assert body["simulated"]["fixtures"] > 0  # every non-user fixture that day
 
     # The user's own fixture is untouched — still scheduled, no score.
@@ -265,9 +282,13 @@ def test_a_quiet_next_day_still_reports_its_events(api_client, created_career, m
 
 
 def test_advance_walks_a_full_week_between_matches(api_client, created_career, mock_engine):
-    """The whole point of the day loop: a match, then a week of days the
-    user actually plays, then the next match. §6.1 D57 - the match itself
-    has to be played (M1 -> M2) before the second advance can move at all."""
+    """The whole point of the day loop: a match, then days the user actually
+    plays, then the next match. §6.1 D57 - the match itself has to be played
+    (M1 -> M2) before the second advance can move at all.
+
+    The gap after the league opener is four days, not seven: §11.1 puts the
+    cup's first round on the Wednesday after the league's first Saturday,
+    precisely so a midweek tie sits between league weekends."""
     career_id = created_career["career_id"]
     first = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_event"}).json()
     assert first["stop_reason"] == "match"
@@ -275,9 +296,9 @@ def test_advance_walks_a_full_week_between_matches(api_client, created_career, m
     play_users_match(api_client, career_id)
 
     second = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_event"}).json()
-    assert second["days_advanced"] == 7
     assert second["stop_reason"] == "match"
-    assert second["career_state"]["current_date"] == "2026-08-15"
+    assert second["days_advanced"] == 4
+    assert second["career_state"]["current_date"] ==         onboarding.FIRST_SEASON.cup_starts_on.isoformat()
 
 
 def test_advance_refuses_while_the_users_match_is_unplayed(api_client, created_career, mock_engine):
@@ -340,30 +361,36 @@ def test_advance_does_not_stop_on_a_persistently_low_relationship(api_client, cr
 
 def test_advance_monday_pays_wage(api_client, created_career, mock_engine):
     career_id = created_career["career_id"]
-    # 2026-08-01 is a Saturday; 2026-08-03 is the first Monday.
+    # The season opens on a Saturday; wages land on the first Monday after.
     api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"})  # -> Sun 08-02
     resp = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"})  # -> Mon 08-03
     body = resp.json()
 
-    assert body["career_state"]["current_date"] == "2026-08-03"
+    assert body["career_state"]["current_date"] == _first_monday_from(SEASON_START)
     wage_entries = [e for e in body["ledger_entries"] if e["kind"] == "wage"]
     assert len(wage_entries) == 1
     assert wage_entries[0]["amount"] == config.STARTING_WEEKLY_WAGE
     assert body["career_state"]["money"] == config.STARTING_MONEY + config.STARTING_WEEKLY_WAGE
 
 
-def test_advance_season_finished_errors(api_client, created_career):
+def test_advance_past_the_season_asks_for_a_rollover(api_client, created_career):
+    """§11.8 - the season being over is no longer the end of the career.
+    `season_finished` retired; the new code names what to do about it."""
     career_id = created_career["career_id"]
     # Fast-forward past the season boundary directly (running the real
     # ~300-day loop would be impractically slow for a unit test).
+    past_the_end = _plus_days(onboarding.SEASON_ENDS_ON, 5)
     conn = sqlite3.connect(config.DB_PATH)
-    conn.execute("UPDATE career_state SET game_date = '2027-06-01' WHERE career_id = ?", (career_id,))
+    conn.execute(
+        "UPDATE career_state SET game_date = ? WHERE career_id = ?",
+        (past_the_end, career_id),
+    )
     conn.commit()
     conn.close()
 
     resp = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"})
     assert resp.status_code == 409
-    assert resp.json()["code"] == "season_finished"
+    assert resp.json()["code"] == "season_rollover_required"
 
 
 def test_advance_upkeep_shortfall_warns_then_repossesses(api_client, created_career, mock_engine):
@@ -375,8 +402,8 @@ def test_advance_upkeep_shortfall_warns_then_repossesses(api_client, created_car
     conn.execute("UPDATE career_state SET money = 100 WHERE career_id = ?", (career_id,))
     conn.execute(
         "INSERT INTO inventory (career_id, item_id, purchased_at, price_paid, upkeep_weekly) "
-        "VALUES (?, 'estate-villa', '2026-08-01', 12750000, 4500)",
-        (career_id,),
+        "VALUES (?, 'estate-villa', ?, 12750000, 4500)",
+        (career_id, SEASON_START),
     )
     conn.commit()
     conn.close()

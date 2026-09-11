@@ -257,7 +257,7 @@ def test_career_opens_a_week_before_the_first_league_round(db_conn):
     ).fetchone()["k"]
 
     assert game_date == onboarding.SEASON_STARTS_ON
-    assert first_kickoff[:10] == onboarding.LEAGUE_STARTS_ON
+    assert first_kickoff[:10] == onboarding.FIRST_SEASON.league_starts_on.isoformat()
     gap = date.fromisoformat(first_kickoff[:10]) - date.fromisoformat(game_date)
     assert gap.days == 7
 

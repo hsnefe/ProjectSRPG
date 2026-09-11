@@ -18,7 +18,7 @@ from typing import List, Optional, Set
 
 from api import config
 from api.ids import new_news_id
-from domain import condition, engine_client, formulas, scheduling, social, squad, wallet
+from domain import condition, engine_client, formulas, scheduling, season as season_mod, social, squad, wallet
 from worlddata.competitions import ULUSAL_KUPA
 
 
@@ -57,11 +57,18 @@ def _projected_upkeep_shortfall(conn: sqlite3.Connection, career_id: str) -> int
     return max(0, upkeep - (balance + wage))
 
 
-def _is_cup_round_complete(conn: sqlite3.Connection, career_id: str, round_no: int) -> bool:
+def _is_cup_round_complete(
+    conn: sqlite3.Connection, career_id: str, season_id: str, round_no: int
+) -> bool:
+    """Season-scoped. Without the season filter, season two's round 1 would
+    match season one's round 1 as well — the cup restarts its numbering
+    every year, so `round_no` alone stops identifying a round the moment a
+    second season exists."""
     row = conn.execute(
         "SELECT COUNT(*) AS total, SUM(CASE WHEN status = 'played' THEN 1 ELSE 0 END) AS played "
-        "FROM fixture WHERE career_id = ? AND competition_id = ? AND round_no = ?",
-        (career_id, ULUSAL_KUPA, round_no),
+        "FROM fixture WHERE career_id = ? AND season_id = ? AND competition_id = ? "
+        "AND round_no = ?",
+        (career_id, season_id, ULUSAL_KUPA, round_no),
     ).fetchone()
     return row["total"] > 0 and row["total"] == row["played"]
 
@@ -71,15 +78,16 @@ def _next_drawable_cup_round(conn: sqlite3.Connection, career_id: str, on_date: 
     later — see module docstring: a round can't draw until the previous
     one is fully played, which may lag its nominal date if the user's own
     tie hasn't been resolved yet) AND the previous round is complete."""
+    season_id = _current_season(conn, career_id)
     row = conn.execute(
         "SELECT round_no, scheduled_on FROM competition_round "
-        "WHERE career_id = ? AND competition_id = ? AND drawn = 0 "
+        "WHERE career_id = ? AND season_id = ? AND competition_id = ? AND drawn = 0 "
         "ORDER BY round_no ASC LIMIT 1",
-        (career_id, ULUSAL_KUPA),
+        (career_id, season_id, ULUSAL_KUPA),
     ).fetchone()
     if row is None or row["scheduled_on"] > on_date:
         return None
-    if not _is_cup_round_complete(conn, career_id, row["round_no"] - 1):
+    if not _is_cup_round_complete(conn, career_id, season_id, row["round_no"] - 1):
         return None
     return row
 
@@ -95,7 +103,13 @@ def _next_drawable_cup_round(conn: sqlite3.Connection, career_id: str, on_date: 
 # ("eşiğin altına düştüğünde", "30 gün kala"), which is what this restores:
 # contract_expiring stops exactly on the day the window opens, and a low
 # relationship is surfaced by T1 without ever blocking the day loop.
-STOP_EVENT_KINDS = {"match", "cup_draw", "upkeep_warning", "season_end"}
+# §11.8 - `season_phase_change` joins the stoppers so `advance` parks itself
+# at the winter break and at season end instead of running through them.
+# `season_end` stays alongside it: the phase can turn over on a day the
+# calendar boundary does not (all fixtures played early), and vice versa.
+STOP_EVENT_KINDS = {
+    "match", "cup_draw", "upkeep_warning", "season_end", "season_phase_change",
+}
 
 
 def stop_worthy(events: List[dict], on_date: str = None) -> List[dict]:
@@ -196,10 +210,15 @@ def list_events(
     for r in low_rows:
         events.append({"kind": "relationship_low", "ref_id": r["relationship_id"]})
 
-    season = conn.execute(
-        "SELECT ends_on FROM season WHERE career_id = ? ORDER BY ends_on DESC LIMIT 1", (career_id,)
-    ).fetchone()
-    if season and on_date >= season["ends_on"]:
+    # §11.2/§11.8 - the phase is derived, so "it changed" is a comparison
+    # against yesterday rather than a stored flag. `ref_id` is the name of
+    # the new phase, which is what FE keys its season-end screen on.
+    phase = season_mod.derive_phase(conn, career_id, on_date)
+    previous = _dt.date.fromisoformat(on_date) - _dt.timedelta(days=1)
+    if season_mod.derive_phase(conn, career_id, previous.isoformat()) != phase:
+        events.append({"kind": "season_phase_change", "ref_id": phase})
+
+    if phase == season_mod.SEASON_END:
         events.append({"kind": "season_end", "ref_id": None})
 
     return events
@@ -356,13 +375,14 @@ def _decide_winner(seed: int, fixture_row: sqlite3.Row) -> str:
 
 
 def _draw_cup_round(conn: sqlite3.Connection, career_id: str, round_no: int, on_date: str, seed: int) -> None:
+    season_id = _current_season(conn, career_id)
     prev_rows = conn.execute(
-        "SELECT * FROM fixture WHERE career_id = ? AND competition_id = ? AND round_no = ?",
-        (career_id, ULUSAL_KUPA, round_no - 1),
+        "SELECT * FROM fixture WHERE career_id = ? AND season_id = ? "
+        "AND competition_id = ? AND round_no = ?",
+        (career_id, season_id, ULUSAL_KUPA, round_no - 1),
     ).fetchall()
     winners = [_decide_winner(seed, r) for r in prev_rows]
 
-    season_id = _current_season(conn, career_id)
     kickoff = f"{on_date}T20:00:00+03:00"
     fixtures = scheduling.draw_cup_round(
         career_id, season_id, ULUSAL_KUPA, round_no, kickoff, winners,

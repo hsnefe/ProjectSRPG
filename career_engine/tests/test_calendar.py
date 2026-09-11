@@ -4,6 +4,7 @@ import datetime as _dt
 import pytest
 
 from api import config
+from domain import onboarding
 from domain import calendar as calendar_domain
 from tests.conftest import new_career, play_users_match
 
@@ -41,11 +42,13 @@ def test_the_default_range_is_the_month_the_career_is_in(api_client, career):
     career_id, _ = career
     body = api_client.get(f"/careers/{career_id}/calendar").json()
 
-    assert body["today"] == "2026-08-01"
+    assert body["today"] == onboarding.SEASON_STARTS_ON
     assert body["from"] == "2026-08-01"
     assert body["to"] == "2026-08-31"
     assert body["season"] == {
-        "season_id": "25/26", "starts_on": "2026-08-01", "ends_on": "2027-05-31",
+        "season_id": onboarding.SEASON_ID,
+        "starts_on": onboarding.SEASON_STARTS_ON,
+        "ends_on": onboarding.SEASON_ENDS_ON,
     }
 
 
@@ -134,10 +137,12 @@ def test_the_season_end_only_shows_up_on_its_own_page(api_client, career):
     assert not any(
         m["kind"] == "season_end" for d in august["days"] for m in d["marks"]
     )
-    assert "season_start" in kinds_on(august, "2026-08-01")
+    assert "season_start" in kinds_on(august, onboarding.SEASON_STARTS_ON)
 
-    may = api_client.get(f"/careers/{career_id}/calendar?from=2027-05-01&to=2027-05-31").json()
-    assert "season_end" in kinds_on(may, "2027-05-31")
+    # §11.1 - the season now ends on the first Saturday of June, so the
+    # mark lives on June's page rather than May's.
+    june = api_client.get(f"/careers/{career_id}/calendar?from=2027-06-01&to=2027-06-30").json()
+    assert "season_end" in kinds_on(june, onboarding.SEASON_ENDS_ON)
 
 
 def test_the_contract_expiry_is_marked_on_its_page(api_client, career):

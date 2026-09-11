@@ -470,6 +470,7 @@ class CareerState {
   const CareerState({
     required this.currentDate,
     required this.seasonId,
+    this.seasonPhase,
     required this.money,
     required this.condition,
     required this.dayBudget,
@@ -479,6 +480,7 @@ class CareerState {
     return CareerState(
       currentDate: json['current_date'] as String,
       seasonId: json['season_id'] as String,
+      seasonPhase: json['season_phase'] as String?,
       money: json['money'] as int,
       condition: json['condition'] as int,
       dayBudget: (json['day_budget'] as Map<String, dynamic>).map(
@@ -489,6 +491,23 @@ class CareerState {
 
   final String currentDate;
   final String seasonId;
+
+  /// §11.2/D45 · `pre_season` | `first_half` | `winter_break` |
+  /// `second_half` | `season_end` | `summer_transfer_window`.
+  ///
+  /// Türetilmiş değer, saklanmıyor — niteliğin `level`'ıyla aynı desen (D43).
+  /// Nullable: alanı göndermeyen bir career_engine sürümüne karşı ekran
+  /// çökmemeli, fazı bilmiyoruz demek yeterli.
+  final String? seasonPhase;
+
+  /// Transfer penceresi açık mı (§11.7). Yalnızca iki tatil fazında açık.
+  bool get transferWindowOpen =>
+      seasonPhase == 'winter_break' || seasonPhase == 'summer_transfer_window';
+
+  /// Sezon bitti ve devir bekliyor (§11.5). `advance` bu fazda
+  /// `409 season_rollover_required` döner.
+  bool get rolloverDue => seasonPhase == 'season_end';
+
   final int money;
 
   /// Bugünkü değer, 0-100. D15: bu, `player_attribute['condition']` (tavan)

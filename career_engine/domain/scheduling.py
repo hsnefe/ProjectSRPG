@@ -45,19 +45,39 @@ def generate_league_season(
     team_ids: List[str],
     starts_on: str,
     days_between_rounds: int = 7,
+    skip_from: str = None,
+    skip_to: str = None,
 ) -> Tuple[List[dict], List[dict]]:
     """Full double round-robin: (n-1) rounds for the first leg, (n-1) more
     for the second with home/away swapped. Returns (competition_round rows,
     fixture rows) — both fully populated, since a league's pairing needs no
-    draw (unlike the cup)."""
+    draw (unlike the cup).
+
+    `skip_from`/`skip_to` bound a holiday no league round may land in
+    (§11.1, INV-33). A round that falls inside it shifts by a whole
+    `days_between_rounds` at a time rather than to the next free day, so the
+    weekly rhythm survives the break instead of drifting onto a Tuesday —
+    and every round after it keeps the same offset, because the shift is
+    carried rather than recomputed per round."""
     first_leg = _round_robin_pairs(team_ids)
     start = date.fromisoformat(starts_on)
+    holiday_from = date.fromisoformat(skip_from) if skip_from else None
+    holiday_to = date.fromisoformat(skip_to) if skip_to else None
+
+    def _in_holiday(day: date) -> bool:
+        return holiday_from is not None and holiday_from <= day <= holiday_to
 
     rounds, fixtures = [], []
     round_no = 1
+    shift_days = 0
     for leg in (1, 2):
         for pairs in first_leg:
-            kickoff_date = start + timedelta(days=days_between_rounds * (round_no - 1))
+            kickoff_date = start + timedelta(
+                days=days_between_rounds * (round_no - 1) + shift_days
+            )
+            while _in_holiday(kickoff_date):
+                kickoff_date += timedelta(days=days_between_rounds)
+                shift_days += days_between_rounds
             rounds.append({
                 "career_id": career_id, "season_id": season_id, "competition_id": competition_id,
                 "round_no": round_no, "stage": "regular",

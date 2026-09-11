@@ -14,6 +14,7 @@ from catalog.shop import SHOP_ITEMS
 from catalog.training import TRAINING_ITEMS
 from domain import attributes, condition, day_budget, daytime, fame, requirements, social
 from domain import relationships as relationships_domain
+from domain import season as season_mod
 from domain import wallet
 
 router = APIRouter(prefix="/careers/{career_id}", tags=["time"])
@@ -170,11 +171,13 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
     seed = conn.execute("SELECT seed FROM career WHERE career_id = ?", (career_id,)).fetchone()["seed"]
     current_date = _current_date(conn, career_id)
 
-    season = conn.execute(
-        "SELECT ends_on FROM season WHERE career_id = ? ORDER BY ends_on DESC LIMIT 1", (career_id,)
-    ).fetchone()
-    if season and current_date >= season["ends_on"]:
-        raise errors.season_finished()
+    # §11.8 - the gate asks the PHASE, not the calendar boundary. §11.2's
+    # last rule lets a season end early (the table says June, the last match
+    # was played in May), and only the phase knows that. Retired:
+    # `season_finished`, which was a dead end; this one names what to do
+    # about it (S1).
+    if season_mod.derive_phase(conn, career_id, current_date) == season_mod.SEASON_END:
+        raise errors.season_rollover_required()
 
     # §6.1 D57: the user's own match today must be played, not skipped.
     # Checked before the social-offer gate — a scheduled match is the more
