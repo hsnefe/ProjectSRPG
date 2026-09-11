@@ -1723,6 +1723,7 @@ dondurulur (D27). Zaten sahip olunan ürün `409 already_owned`.
   "competition": { /* CompetitionRef */ },
   "kickoff_at":  "2026-03-16T20:00:00+03:00",
   "user_side":   "home",
+  "formation_id": "4-2-3-1",           // kullanıcının takımının dizilişi
 
   "engine_payload": {                  // doğrudan motorun POST /matches gövdesi
     "teams": {
@@ -1738,6 +1739,15 @@ dondurulur (D27). Zaten sahip olunan ürün `409 already_owned`.
 ```
 
 `engine_payload` **olduğu gibi** motora iletilir; FE içeriğini yorumlamaz.
+
+**`formation_id` `engine_payload`'ın dışındadır.** Diziliş bir kariyer
+kavramı — motorun `POST /matches` gövdesinde karşılığı yok, oraya konsa motor
+onu tanımaz. Değer `worlddata/teams.py`'de takıma atanır ve `worlddata/
+formations.py`'nin `FORMATION_IDS` listesinden gelir; her kariyerde aynıdır
+(D9). Slot koordinatları burada taşınmaz: şekiller `formation_creator` ile
+çizilip FE'ye `lib/game/formations.g.dart` olarak gömülür, BE yalnızca hangi
+şeklin oynandığını söyler. FE tanımadığı bir id görürse kendi varsayılan
+dizilişine düşer.
 
 **Rating'ler kulüp gücüdür, başka hiçbir şey değil (D37).** Kullanıcının
 nitelikleri buraya girmez (INV-26). `user_condition` takım bloklarının **içinde
@@ -1786,9 +1796,10 @@ gibi kabul edilmez (INV-23):
 |---|---|
 | `stats.{home,away}` | **Tam olarak 13 anahtar** ([`models.py:82-88`](../../match_engine/models.py)); eksik veya fazla kabul edilmez |
 | `score.*` | `stats.*.goals` ile tutarlı olmalı |
-| `interventions[].action_key` | Motorun 11 aksiyonluk kataloğundan (`API_CONTRACT.md` Ek B) |
-| `interventions[].outcome_key` | Aksiyonun şemasına uygun (`catalog/match_actions.py`, `API_CONTRACT.md` §7.3/Ek B ile birebir): `graded` → `{great,good,bad}`, `graded4` (4 şut-minigame aksiyonu: `finish_power`/`finish_finesse`/`long_shot`/`counter_attack`) → `{great,asist,good,bad}`, `binary` → `{success,failure}` — **`"goal"`/`"save"` gibi serbest metin değil** |
+| `interventions[].action_key` | Motorun 14 aksiyonluk kataloğundan (`API_CONTRACT.md` Ek B; v1.5'te 3 pas aksiyonu eklendi) |
+| `interventions[].outcome_key` | Aksiyonun şemasına uygun (`catalog/match_actions.py`, `API_CONTRACT.md` §7.3/Ek B ile birebir): `graded` → `{great,good,bad}` (3 savunma + 3 pas aksiyonu), `graded4` (4 şut-minigame aksiyonu: `finish_power`/`finish_finesse`/`long_shot`/`counter_attack`) → `{great,asist,good,bad}`, `binary` → `{success,failure}` — **`"goal"`/`"save"` gibi serbest metin değil**. `final_ball`/`great` bir **asisttir** (`ASSIST_OUTCOMES`): dal gol basar ama vuruşu arkadaşı yapar |
 | `interventions[].minute` | 1-95, artan sırada |
+| `user_cards` | **Opsiyonel**; varsa tam olarak `{yellow, red}`, `yellow` 0-2, `red` 0-1. Yoksa sıfır sayılır |
 | `final_condition` | 35-100 ve maç öncesi kondisyondan büyük olamaz |
 
 İhlalde `422 invalid_match_result`; hiçbir tabloya yazılmaz.
@@ -1815,6 +1826,27 @@ mağlubiyet) + kişisel gol/asist katkısı + sarı/kırmızı kart disiplini �
 antrenör disiplin ve katkıya en çok ağırlık verir, takım en az kişisel-odaklı,
 taraftar sonuca/gole en sert tepki verir, medya kart/gol gibi "manşetlik"
 olaylara en duyarlı. ⚠️ İlk taslak — oyun testiyle kalibre edilmesi gerekebilir.
+
+**Disiplinin kaynağı `user_cards`, `stats` değil.** Yukarıdaki "kart
+disiplini" terimi bu maddenin en başından beri **oyuncunun kendi** kartını
+kastediyordu, ama ilk uygulama `stats[user_side]` okuyordu — o blok
+(`_STATS_KEYS`, motordan birebir kopyalanan 13 anahtar) **takımın tamamına**
+ait. Sonuç: bir takım arkadaşı atıldığında kullanıcı tertemiz oynadığı hâlde
+coach −2 / team −1 / fans −1 / media −2 yiyordu, üstelik takımın üçüncü
+sarısı neredeyse her maç dolduğu için sarı cezası da rutin olarak tetikleniyordu.
+Ayrıca çift sayımdı: kırmızı kart motorda zaten savunmayı 15 puan kırıyor
+(`match_engine/models.py`), yani bedeli bu deltaların hesaplandığı skorda
+ödenmiş oluyor.
+
+Eşikler artık kişisel ölçekte: bir oyuncu en fazla iki sarı görebilir
+(ikincisi zaten atılmadır), o yüzden eski takım-biçimli 3/2 kesme noktaları
+sırasıyla erişilemez ve hep-erişilir hâldeydi.
+
+v1'de `user_cards` **daima sıfırdır ve doğrusu budur** — motor kartı isimsiz
+bir savunmacıya yazıp kimin gördüğünü tel üzerinde taşımadığı için kullanıcı
+kart göremez. Alan, motor kartı sahiplendirdiği gün FE'nin gerçek sayıyı
+yazacağı yer olarak duruyor; o güne kadar sunucu tarafında eksikliği sıfır
+sayılır, yani eski gövdeler kırılmaz.
 
 #### M3 · `POST /careers/{cid}/matches/{fid}/abandon`
 

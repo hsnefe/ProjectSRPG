@@ -246,6 +246,12 @@ class _MatchScreenState extends State<MatchScreen> {
         'final_possession_home': summary.finalPossessionHome,
         'final_condition':
             widget.controller.playerCondition.clamp(35, preMatchCondition),
+        // M2 · oyuncunun **kendi** disiplini — `stats` bloğundaki kart
+        // sayıları takımın tamamına ait, kullanıcıya değil. v1'de motor kartı
+        // isimsiz bir savunmacıya yazıyor ve kimin gördüğünü tel üzerinde
+        // taşımıyor, yani kullanıcı kart göremez; alan sıfır kalır. Motor
+        // kartı sahiplendirdiği gün doldurulacak yer burası.
+        'user_cards': const {'yellow': 0, 'red': 0},
         'interventions': widget.controller.interventions
             .map((e) => {
                   'minute': e.minute,

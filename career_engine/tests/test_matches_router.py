@@ -1,6 +1,7 @@
 import pytest
 
 from api import config
+from worlddata.formations import FORMATION_IDS
 from tests.conftest import advance_to_match_day, create_career
 
 
@@ -51,6 +52,15 @@ def test_get_next_match_returns_engine_payload(api_client, created_career):
     assert payload["user_condition"] == config.STARTING_CONDITION
     assert "client_seed" in payload
     assert "stamina" not in str(payload)  # D39 — never in the team blocks
+
+
+def test_get_next_match_names_the_user_teams_formation(api_client, created_career):
+    """Diziliş bir kariyer kavramı: yanıtta var, motora giden gövdede yok."""
+    career_id = created_career["career_id"]
+    body = api_client.get(f"/careers/{career_id}/matches/next").json()
+
+    assert body["formation_id"] in FORMATION_IDS
+    assert "formation" not in str(body["engine_payload"])
 
 
 def test_get_next_match_is_refused_before_the_match_day(api_client, mock_engine):
@@ -174,6 +184,65 @@ def test_post_result_includes_relationship_changes(api_client, created_career, m
     for c in changes:
         assert -5 <= c["delta"] <= 5
         assert c["after"] == c["before"] + c["delta"]
+
+
+def _coach_delta_for(api_client, *, team_cards=(0, 0), user_cards=None):
+    """Posts one won match and returns the coach delta it produced. Each
+    call needs its own career because M2 may only be posted once per
+    fixture (INV-6)."""
+    career_id = create_career(api_client)["career_id"]
+    advance_to_match_day(api_client, career_id)
+    nxt = api_client.get(f"/careers/{career_id}/matches/next").json()
+    side, fixture_id = nxt["user_side"], nxt["fixture_id"]
+
+    body = _valid_result_body(
+        fixture_id,
+        home_goals=2 if side == "home" else 0,
+        away_goals=0 if side == "home" else 2,
+    )
+    body["interventions"] = []
+    yellow, red = team_cards
+    body["stats"][side]["yellow_cards"] = yellow
+    body["stats"][side]["red_cards"] = red
+    if user_cards is not None:
+        body["user_cards"] = user_cards
+
+    resp = api_client.post(f"/careers/{career_id}/matches/{fixture_id}/result", json=body)
+    assert resp.status_code == 200, resp.text
+    return next(
+        c for c in resp.json()["relationship_changes"] if c["relationship_id"] == "coach"
+    )["delta"]
+
+
+def test_teammate_cards_do_not_change_coach_delta(api_client, mock_engine):
+    """A team-mate's sending-off lives in `stats[user_side]` - the whole
+    team's block - not in the user's own discipline. M2 used to read it as
+    if it were the player's, so a clean match cost coach -2 / team -1 /
+    media -2 because somebody else walked, and the team's third yellow
+    (routine) fired the booking penalty nearly every game."""
+    clean = _coach_delta_for(api_client, team_cards=(0, 0))
+    teammates_booked = _coach_delta_for(api_client, team_cards=(3, 1))
+
+    assert teammates_booked == clean
+
+
+def test_user_own_red_card_lowers_coach_delta(api_client, mock_engine):
+    """The other half of the split: the player's OWN card still costs."""
+    clean = _coach_delta_for(api_client, user_cards={"yellow": 0, "red": 0})
+    sent_off = _coach_delta_for(api_client, user_cards={"yellow": 0, "red": 1})
+
+    assert sent_off == clean - 2
+
+
+def test_post_result_rejects_malformed_user_cards(api_client, created_career, mock_engine):
+    career_id = created_career["career_id"]
+    fixture_id = api_client.get(f"/careers/{career_id}/matches/next").json()["fixture_id"]
+
+    body = _valid_result_body(fixture_id)
+    body["user_cards"] = {"yellow": 0, "red": 3}  # a player cannot be sent off twice
+    resp = api_client.post(f"/careers/{career_id}/matches/{fixture_id}/result", json=body)
+    assert resp.status_code == 422
+    assert resp.json()["code"] == "invalid_match_result"
 
 
 def test_post_result_relationship_deltas_react_to_result(api_client, mock_engine):

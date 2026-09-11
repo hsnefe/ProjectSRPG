@@ -13,6 +13,8 @@ from typing import Optional
 from api import config, errors, serializers
 from catalog.match_actions import ACTION_SCHEMAS, OUTCOME_SETS, is_assist, is_goal
 from domain import condition, daytime, formulas, relationships, wallet
+from worlddata.formations import DEFAULT_FORMATION
+from worlddata.teams import ALL_TEAMS
 
 _STATS_KEYS = {
     "goals", "shots", "shots_on_target", "corners", "dangerous_attacks",
@@ -25,6 +27,18 @@ def _team_row(conn: sqlite3.Connection, career_id: str, team_id: str) -> sqlite3
     return conn.execute(
         "SELECT * FROM team WHERE career_id = ? AND team_id = ?", (career_id, team_id)
     ).fetchone()
+
+
+_FORMATIONS_BY_TEAM = {t["team_id"]: t["formation"] for t in ALL_TEAMS}
+
+
+def _formation_for(team_id: str) -> str:
+    """Takımın dizilişi. `team` tablosundan değil worlddata'dan okunuyor:
+    diziliş D9 gereği her kariyerde aynı statik dünya verisi, tıpkı
+    positions.py'nin rol kataloğu gibi — kariyer başına kopyalanırsa
+    kopyayla kaynak ayrışabilir. Takım başına diziliş kariyer içinde
+    değişebilir olsun istenirse 003_world.sql'e kolon eklenmesi gerekir."""
+    return _FORMATIONS_BY_TEAM.get(team_id, DEFAULT_FORMATION)
 
 
 def _team_engine_fields(row: sqlite3.Row) -> dict:
@@ -96,6 +110,9 @@ def build_next_match_payload(conn: sqlite3.Connection, career_id: str) -> dict:
         "competition": serializers.fetch_competition_ref(conn, career_id, fixture["competition_id"]),
         "kickoff_at": fixture["kickoff_at"],
         "user_side": user_side,
+        # Kullanıcının takımının dizilişi. `engine_payload`'ın **dışında**:
+        # o gövde motora olduğu gibi POST'lanıyor ve motor diziliş bilmiyor.
+        "formation_id": _formation_for(user_team_id),
         "engine_payload": {
             "teams": {
                 "home": _team_engine_fields(home_row),
@@ -159,6 +176,18 @@ def validate_result(body: dict, pre_match_condition: int) -> None:
             raise errors.invalid_match_result(
                 f"outcome_key {outcome_key!r} invalid for {schema} action {action_key!r}"
             )
+
+    # §5.6 M2 - the user's OWN discipline, not the team's. Optional: the field
+    # only carries a non-zero value once match_engine attributes a card to a
+    # named player, which v1 does not do (see _match_relationship_deltas).
+    user_cards = body.get("user_cards")
+    if user_cards is not None:
+        if not isinstance(user_cards, dict) or set(user_cards.keys()) != {"yellow", "red"}:
+            raise errors.invalid_match_result("user_cards must have exactly yellow/red")
+        if not isinstance(user_cards["yellow"], int) or not (0 <= user_cards["yellow"] <= 2):
+            raise errors.invalid_match_result("user_cards.yellow must be an integer in 0-2")
+        if not isinstance(user_cards["red"], int) or not (0 <= user_cards["red"] <= 1):
+            raise errors.invalid_match_result("user_cards.red must be an integer in 0-1")
 
     final_condition = body["final_condition"]
     if not isinstance(final_condition, int) or not (35 <= final_condition <= 100):
@@ -224,7 +253,8 @@ def apply_result(conn: sqlite3.Connection, career_id: str, fixture_id: str, body
     assist_count = sum(1 for iv in interventions if is_assist(iv["action_key"], iv["outcome_key"]))
 
     deltas, match_result = _match_relationship_deltas(
-        body["score"], user_side, opponent_side, body["stats"][user_side], goal_count
+        body["score"], user_side, opponent_side,
+        body.get("user_cards") or {"yellow": 0, "red": 0}, goal_count,
     )
     relationship_changes = [
         relationships.apply_delta(
@@ -295,7 +325,7 @@ def apply_result(conn: sqlite3.Connection, career_id: str, fixture_id: str, body
 
 
 def _match_relationship_deltas(
-    score: dict, user_side: str, opponent_side: str, user_stats: dict, goal_count: int,
+    score: dict, user_side: str, opponent_side: str, user_cards: dict, goal_count: int,
 ) -> tuple:
     """New M2 behavior: coach/team/fans/media each react to this one match,
     clamped to ±5. partner/family are deliberately untouched - the feature
@@ -306,20 +336,39 @@ def _match_relationship_deltas(
 
     Weighted by how much each side plausibly cares about a personal stat
     line vs. the bare result: coach weighs discipline + personal
-    contribution heaviest (tactical trust); team is the most muted (shared
-    result matters more than your line, but a man down hurts everyone);
-    fans swing hardest on the scoreline and love goals, indifferent to
-    cards unless it costs the match; media is the most headline-driven -
-    barely reacts to a plain draw, lights up for goals, and cards are their
-    biggest negative hook."""
+    contribution heaviest (tactical trust); team is the most muted (the
+    shared result matters more than your line); fans swing hardest on the
+    scoreline and love goals; media is the most headline-driven - barely
+    reacts to a plain draw, lights up for goals, and a sending-off is
+    their biggest negative hook.
+
+    Discipline reads `user_cards` - the USER's own cards - and never
+    `stats[user_side]`, which is the whole team's block (_STATS_KEYS, the
+    13 keys copied verbatim from match_engine). Reading the team block here
+    punished the player for a team-mate's sending-off, contradicting
+    §5.6's own wording ("sarı/kırmızı kart disiplini"), and the team's
+    third yellow - routine in any match - fired the penalty nearly every
+    game. It also double-counted: a red card already costs the side 15
+    defence points in the engine (match_engine/models.py), so it is paid
+    for in the scoreline these deltas are computed from.
+
+    In v1 `user_cards` is always zero, and that is the correct answer
+    rather than a stub: match_engine books an anonymous defender and never
+    puts the carded player's identity on the wire, so the user cannot be
+    sent off. The field is where FE writes the real count the day the
+    engine attributes a card."""
     user_goals, opp_goals = score[user_side], score[opponent_side]
     result = "win" if user_goals > opp_goals else "loss" if user_goals < opp_goals else "draw"
-    reds, yellows = user_stats["red_cards"], user_stats["yellow_cards"]
+    reds, yellows = user_cards["red"], user_cards["yellow"]
 
+    # Thresholds are on the PERSONAL scale now, not the team's: one player
+    # can collect at most two yellows (the second is itself a dismissal), so
+    # the old team-shaped cut-offs of 3 and 2 would have been unreachable
+    # and never-not-reached respectively.
     coach = {"win": 3, "draw": 1, "loss": -2}[result]
     coach += 1 if goal_count >= 1 else 0
     coach -= 2 if reds >= 1 else 0
-    coach -= 1 if yellows >= 3 else 0
+    coach -= 1 if yellows >= 2 else 0
 
     team = {"win": 2, "draw": 0, "loss": -1}[result]
     team += 1 if goal_count >= 1 else 0
@@ -332,7 +381,7 @@ def _match_relationship_deltas(
     media = {"win": 1, "draw": 0, "loss": -1}[result]
     media += min(2, goal_count)
     media -= 2 if reds >= 1 else 0
-    media -= 1 if yellows >= 2 else 0
+    media -= 1 if yellows >= 1 else 0
 
     def clamp(v):
         return max(-5, min(5, v))
