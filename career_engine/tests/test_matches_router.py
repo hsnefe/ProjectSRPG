@@ -111,7 +111,9 @@ def test_post_result_applies_everything(api_client, created_career, mock_engine)
     body = resp.json()
 
     assert body["fixture"]["status"] == "played"
-    assert body["player_stat_delta"] == {"appearances": 1, "goals": 1, "assists": 0, "minutes": 95}
+    assert body["player_stat_delta"] == {
+        "appearances": 1, "starts": 1, "goals": 1, "assists": 0, "minutes": 95,
+    }
     assert body["career_state"]["condition"] == 54
     kinds = {e["kind"] for e in body["ledger_entries"]}
     assert "appearance_bonus" in kinds

@@ -44,7 +44,10 @@ def _current_date(conn: sqlite3.Connection, career_id: str) -> str:
 def get_day(career_id: str, conn: sqlite3.Connection = Depends(get_db)):
     serializers.require_career(conn, career_id)
     career_state = serializers.fetch_career_state(conn, career_id)
-    events = daytime.list_events(conn, career_id, career_state["current_date"])
+    seed = conn.execute(
+        "SELECT seed FROM career WHERE career_id = ?", (career_id,)
+    ).fetchone()["seed"]
+    events = daytime.list_events(conn, career_id, career_state["current_date"], seed)
     is_match_day = any(e["kind"] == "match" for e in events)
     return {
         "career_state": career_state,
@@ -178,7 +181,7 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
     # fundamental blocker of the two, and matches are pre-scheduled well in
     # advance while an offer is a same-day roll, so a same-day collision of
     # both is rare and match wins the message when it happens.
-    unplayed_fixture_id = daytime.user_match_today(conn, career_id, current_date)
+    unplayed_fixture_id = daytime.user_match_today(conn, career_id, current_date, seed)
     if unplayed_fixture_id:
         raise errors.match_day_unplayed(unplayed_fixture_id)
 

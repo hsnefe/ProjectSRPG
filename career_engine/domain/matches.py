@@ -12,7 +12,7 @@ from typing import Optional
 
 from api import config, errors, serializers
 from catalog.match_actions import ACTION_SCHEMAS, OUTCOME_SETS, is_assist, is_goal
-from domain import condition, daytime, formulas, relationships, wallet
+from domain import condition, daytime, formulas, relationships, squad, wallet
 from worlddata.formations import DEFAULT_FORMATION
 from worlddata.teams import ALL_TEAMS
 
@@ -98,6 +98,17 @@ def build_next_match_payload(conn: sqlite3.Connection, career_id: str) -> dict:
     if fixture is None:
         raise _not_match_day(conn, career_id, user_team_id, game_date)
 
+    # §12.2 - a fixture the user is left out of is never offered here; it is
+    # the background simulation's, and _not_match_day reports the next one
+    # the user is actually in.
+    seed = conn.execute(
+        "SELECT seed FROM career WHERE career_id = ?", (career_id,)
+    ).fetchone()["seed"]
+    squad_status = squad.status_for(conn, career_id, fixture["fixture_id"], seed)
+    if not squad.plays(squad_status):
+        conn.commit()  # keep the decision; it is what the day loop will read
+        raise _not_match_day(conn, career_id, user_team_id, game_date)
+
     home_row = _team_row(conn, career_id, fixture["home_team_id"])
     away_row = _team_row(conn, career_id, fixture["away_team_id"])
     user_side = "home" if fixture["home_team_id"] == user_team_id else "away"
@@ -110,6 +121,9 @@ def build_next_match_payload(conn: sqlite3.Connection, career_id: str) -> dict:
         "competition": serializers.fetch_competition_ref(conn, career_id, fixture["competition_id"]),
         "kickoff_at": fixture["kickoff_at"],
         "user_side": user_side,
+        # §12.2 - 'first_eleven' | 'bench'. Never 'out': that fixture is not
+        # offered at all (see the gate above).
+        "squad_status": squad_status,
         # Kullanıcının takımının dizilişi. `engine_payload`'ın **dışında**:
         # o gövde motora olduğu gibi POST'lanıyor ve motor diziliş bilmiyor.
         "formation_id": _formation_for(user_team_id),
@@ -189,6 +203,20 @@ def validate_result(body: dict, pre_match_condition: int) -> None:
         if not isinstance(user_cards["red"], int) or not (0 <= user_cards["red"] <= 1):
             raise errors.invalid_match_result("user_cards.red must be an integer in 0-1")
 
+    # §12.2 - how much of the match the user actually played. Optional so a
+    # body written before squad status existed still validates; absent means
+    # the old assumption, a full start.
+    started = body.get("started", True)
+    if not isinstance(started, bool):
+        raise errors.invalid_match_result("started must be a boolean")
+
+    minutes_played = body.get("minutes_played")
+    if minutes_played is not None:
+        if not isinstance(minutes_played, int) or not (0 <= minutes_played <= 95):
+            raise errors.invalid_match_result("minutes_played must be an integer in 0-95")
+        if started and minutes_played == 0:
+            raise errors.invalid_match_result("a starter cannot have played 0 minutes")
+
     final_condition = body["final_condition"]
     if not isinstance(final_condition, int) or not (35 <= final_condition <= 100):
         raise errors.invalid_match_result("final_condition must be an integer in 35-100")
@@ -248,6 +276,14 @@ def apply_result(conn: sqlite3.Connection, career_id: str, fixture_id: str, body
 
     condition.set_from_match(conn, career_id, body["final_condition"])
 
+    # §12.2 - what the user actually played. A body that says nothing is the
+    # pre-squad-status shape and means a full start, so old callers are
+    # unaffected; a substitute who never came on reports minutes_played 0.
+    started = body.get("started", True)
+    minutes = body.get("minutes_played")
+    if minutes is None:
+        minutes = 95 if started else 0
+
     interventions = body.get("interventions", [])
     goal_count = sum(1 for iv in interventions if is_goal(iv["action_key"], iv["outcome_key"]))
     assist_count = sum(1 for iv in interventions if is_assist(iv["action_key"], iv["outcome_key"]))
@@ -269,7 +305,9 @@ def apply_result(conn: sqlite3.Connection, career_id: str, fixture_id: str, body
         (career_id, config.USER_PLAYER_ID),
     ).fetchone()
     if contract:
-        if contract["appearance_bonus"]:
+        # §12.2 - an appearance bonus is for appearing. Sitting on the bench
+        # for ninety minutes is not what the clause pays for.
+        if contract["appearance_bonus"] and minutes > 0:
             ledger_entries.append(wallet.apply(
                 conn, career_id, contract["appearance_bonus"], "appearance_bonus",
                 f"appearance_bonus:{fixture_id}", happened_at,
@@ -280,14 +318,19 @@ def apply_result(conn: sqlite3.Connection, career_id: str, fixture_id: str, body
                 f"goal_bonus:{fixture_id}", happened_at,
             ))
 
+    # §12.2 - `starts` is no longer the same number as `appearances`, and
+    # minutes are no longer always 95. A substitute who never came on still
+    # gets the appearance (he was in the squad) but no minutes and no start.
     conn.execute(
         "INSERT INTO player_season_stat (career_id, player_id, season_id, competition_id, "
         "appearances, starts, goals, assists, minutes, passes_completed, passes_attempted) "
-        "VALUES (?, ?, ?, ?, 1, 1, ?, ?, 95, 0, 0) "
+        "VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, 0, 0) "
         "ON CONFLICT (career_id, player_id, season_id, competition_id) DO UPDATE SET "
-        "appearances = appearances + 1, starts = starts + 1, goals = goals + excluded.goals, "
-        "assists = assists + excluded.assists, minutes = minutes + 95",
-        (career_id, config.USER_PLAYER_ID, season_id, competition_id, goal_count, assist_count),
+        "appearances = appearances + 1, starts = starts + excluded.starts, "
+        "goals = goals + excluded.goals, assists = assists + excluded.assists, "
+        "minutes = minutes + excluded.minutes",
+        (career_id, config.USER_PLAYER_ID, season_id, competition_id,
+         1 if started else 0, goal_count, assist_count, minutes),
     )
 
     seed = conn.execute("SELECT seed FROM career WHERE career_id = ?", (career_id,)).fetchone()["seed"]
@@ -316,7 +359,11 @@ def apply_result(conn: sqlite3.Connection, career_id: str, fixture_id: str, body
         "other_results": other_results,
         "standing_delta": {"rank_before": rank_before, "rank_after": rank_after},
         "player_stat_delta": {
-            "appearances": 1, "goals": goal_count, "assists": assist_count, "minutes": 95,
+            "appearances": 1,
+            "starts": 1 if started else 0,
+            "goals": goal_count,
+            "assists": assist_count,
+            "minutes": minutes,
         },
         "relationship_changes": relationship_changes,
         "ledger_entries": ledger_entries,

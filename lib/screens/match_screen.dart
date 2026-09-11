@@ -246,6 +246,11 @@ class _MatchScreenState extends State<MatchScreen> {
         'final_possession_home': summary.finalPossessionHome,
         'final_condition':
             widget.controller.playerCondition.clamp(35, preMatchCondition),
+        // §12.2 · ne kadarını gerçekten oynadığı. İlk 11'de başlayıp 95'e
+        // kadar kalmak eski varsayımın aynısı; yedek girmek ya da oyundan
+        // çıkarılmak artık sezon istatistiğine doğru yansıyor.
+        'started': widget.controller.started,
+        'minutes_played': widget.controller.minutesPlayed,
         // M2 · oyuncunun **kendi** disiplini — `stats` bloğundaki kart
         // sayıları takımın tamamına ait, kullanıcıya değil. v1'de motor kartı
         // isimsiz bir savunmacıya yazıyor ve kimin gördüğünü tel üzerinde

@@ -1,0 +1,16 @@
+-- §12.2 Kullanıcının bir fikstürdeki kadro durumu.
+--
+-- Neden 010 ve neden 007/008 değil: 007 sezon devrine (§11.3), 008 haber
+-- katmanına ayrılmış; 009 sosyal teklifler. 007 bu dosyadan SONRA yazılacak
+-- ama bu bir sorun değil — db/migrate.py her migration'ı ayrı ayrı takip
+-- ediyor (_schema_migrations), sıra yalnız dosya adına bakıyor ve ikisi ayrı
+-- tablolara dokunuyor.
+--
+-- Neden `fixture`'da bir kolon, ayrı bir tablo değil: durum bir fikstüre
+-- birebir bağlı ve kullanıcı başına tektir (D4 korunuyor, kadro yok). Ayrı
+-- bir tablo aynı anahtarı ikinci kez taşır ve JOIN'i her M1 çağrısına ekler.
+--
+-- NULL = "henüz karar verilmedi" ya da "kullanıcının takımı bu maçta yok".
+-- Karar tembel veriliyor (domain/squad.py), o yüzden geçmiş fikstürlerin
+-- satırları NULL kalır ve öyle okunur.
+ALTER TABLE fixture ADD COLUMN user_squad_status TEXT;   -- 'first_eleven'|'bench'|'out'

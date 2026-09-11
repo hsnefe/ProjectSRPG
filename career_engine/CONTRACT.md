@@ -3160,7 +3160,72 @@ bunu `player` bloğunda söyler. İmkânsız bir çifti sessizce tutmak
 
 ### 12.2 Kadro durumu
 
-*(Commit 6 ile yazılacak.)*
+Kullanıcı artık her maç sahaya çıkmıyor. Üç durum var:
+
+| `user_squad_status` | Anlamı |
+|---|---|
+| `first_eleven` | İlk on birde başlar |
+| `bench` | Kadroda ama yedek; antrenör kulübeye dönerse oyuna girer |
+| `out` | Kadro dışı; maç arka plan simülasyonuna düşer |
+
+**Şema** — `010_squad_status.sql`:
+
+```sql
+ALTER TABLE fixture ADD COLUMN user_squad_status TEXT;   -- 'first_eleven'|'bench'|'out'
+```
+
+Ayrı bir tablo değil tek kolon: durum bir fikstüre birebir bağlı ve kullanıcı
+başına tek (D4 korunuyor). NULL = henüz karar verilmedi ya da kullanıcının
+takımı o maçta yok.
+
+**Karar tembel ve yapışkan.** İlk soran hesaplar, sonuç yazılır, sonrakiler
+onu okur. İki çağrı aynı maç hakkında anlaşmak zorunda (T1'in olay listesi ve
+T3'ün maç günü kapısı — `user_match_today`'in var olma sebebi bu); her
+çağrıda yeniden atılan bir zar, kapıyla ekran arasında cevabı değiştirebilirdi.
+
+Girdiler ve ağırlıklar (`domain/squad.py`): kondisyon **0.45**, antrenörün
+`trust`'ı **0.35** (§12.1), antrenör ilişkisi **0.20**, üstüne ±10'luk
+zırlanmış bir salınım (INV-7 korunur). Eşikler: ≥55 ilk 11, ≥30 yedek, altı
+kadro dışı. Taze bir kariyer 76.5 ile başlar — kariyerin açılışı eskisi gibi
+görünmeli; yerini kaybetmek başına gelen bir şey olmalı, ilk gün atılan bir
+yazı tura değil.
+
+**M1 değişikliği.** Yanıta `squad_status` eklendi (`first_eleven` | `bench`).
+`out` olduğunda fikstür **hiç teklif edilmez**: M1 `409 not_match_day` döner ve
+maç `_simulate_day_fixtures`'a düşer. Bu zorunlu — aksi halde fikstür sonsuza
+kadar `scheduled` kalır, D57'nin maç günü kilidi kariyeri dondurur ve sezon
+hiç bitmez.
+
+**M2 değişikliği.** Gövde iki opsiyonel alan alır:
+
+| Alan | Kural |
+|---|---|
+| `started` | Boolean, varsayılan `true` |
+| `minutes_played` | 0-95 tam sayı; yoksa `started ? 95 : 0` |
+
+Geçersiz bileşim: `started: true` + `minutes_played: 0` → `422`. Alanların
+ikisi de opsiyonel olduğu için §12.2 öncesi yazılmış bir gövde hâlâ geçerli
+ve eski anlamını (tam maç başlangıç) taşıyor.
+
+`player_season_stat`'ta **`starts` artık `appearances`'e eşit değil** (§3.2'nin
+aksine): oyuna hiç girmeyen bir yedek görünüm alır (kadrodaydı) ama başlangıç
+ve dakika almaz. `player_stat_delta` yanıtına `starts` eklendi.
+
+**Maç başı primi yalnızca `minutes_played > 0` iken ödenir.** Prim sahaya
+çıkmak içindir; doksan dakika kulübede oturmak maddenin ödediği şey değil.
+
+**Oyuna girme ve çıkma FE'de karara bağlanır.** Motorun `substitution` olayı
+**isimsiz** (`API_CONTRACT.md` §4.5): kimin girip çıktığını değil yalnızca hangi
+tarafın değişiklik yaptığını taşıyor, çünkü motorda kadro yok. O yüzden
+"bu değişiklik kullanıcıyı ilgilendiriyor mu" sorusunu `MatchController`
+yanıtlıyor:
+
+* yedekteyken kendi tarafının **ilk** değişikliği oyuncuyu sahaya alır;
+* sahadayken bir değişiklik ancak kondisyon 45'in altındaysa oyuncuyu alır —
+  aksi halde her değişiklik oyuncuyu çıkarırdı.
+
+Sahada olmayan bir oyuncuya **müdahale teklifi gösterilmez**; motor kadroyu
+bilmediği için teklif üretmeyi sürdürür, süzgeç FE'dedir.
 
 ### 12.3 Sponsorluk
 
@@ -3176,6 +3241,8 @@ bunu `player` bloğunda söyler. İmkânsız bir çifti sessizce tutmak
 |---|---|
 | INV-42 | `relationship.traits` yalnızca `relationships.apply_trait_delta()` ile yazılır; tohumlama (`onboarding._seed_relationships`) tek istisnadır ve o da `validate_traits()`'ten geçer |
 | INV-43 | Bir fikstür öncesi en fazla **bir** antrenör konuşması kaydedilir |
+| INV-44 | Bir fikstürün `user_squad_status`'ı bir kez yazılır ve değişmez; T1 ile M1 aynı maç için daima aynı cevabı verir |
+| INV-45 | `user_squad_status = 'out'` olan bir fikstür arka plan simülasyonuna düşer; hiçbir fikstür `scheduled` olarak asılı kalmaz |
 
 ### 12.5 Yeni hata kodları
 

@@ -39,6 +39,10 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
   /// diziliş tahtası bunlar olmadan da varsayılanlarla çizilir (bkz.
   /// [_loadPlayerContext]).
   String? _formationId;
+
+  /// §12.2 M1 · `first_eleven` | `bench`. M1 alanı göndermeyen bir sürüme
+  /// karşı ilk 11 varsayılır.
+  String _squadStatus = 'first_eleven';
   String? _roleName;
   String? _playerPosition;
   String? _playerRole;
@@ -78,6 +82,7 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
       setState(() {
         _fixtureId = careerMatch.fixtureId;
         _formationId = careerMatch.formationId;
+        _squadStatus = careerMatch.squadStatus;
         _preMatchCondition =
             careerMatch.enginePayload['user_condition'] as int?;
         // E11'in kendi kickoff_at'i motorun dolgu değeri (§8.1a) — gösterimde
@@ -214,6 +219,9 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
         teams: next.teams,
         staminaCatalog: next.stamina,
         directiveOptions: next.directiveOptions,
+        // §12.2 — yedek başlayan oyuncu sahaya girene kadar müdahale
+        // teklifi almaz ve M2'ye `started: false` raporlanır.
+        squadStatus: _squadStatus,
         // D38 — maç oyuncunun kendi kondisyonundan başlar, 100'den değil.
         startCondition: _preMatchCondition,
       );
@@ -301,6 +309,7 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
               _playerPosition ??
               PlayerScope.of(context).position,
         ),
+        _SquadStatusRow(status: _squadStatus),
         const _ConditionBar(),
         _ActionRow(
           starting: _starting,
@@ -660,6 +669,58 @@ class _ConditionBar extends StatelessWidget {
               minHeight: 6,
               backgroundColor: AppColors.surface1,
               color: AppColors.success,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// §12.2 · bugün ilk 11'de mi yedekte mi. `out` buraya hiç düşmez:
+/// kadro dışı kaldığında M1 fikstürü hiç vermiyor, ekran "maç günü değil"
+/// gövdesine düşüyor.
+class _SquadStatusRow extends StatelessWidget {
+  const _SquadStatusRow({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final bench = status == 'bench';
+    final color = bench ? AppColors.warning : AppColors.success;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+      child: Row(
+        children: [
+          Container(
+            key: Key('squad_status_$status'),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: color.withValues(alpha: 0.5), width: 0.5),
+            ),
+            child: Text(
+              bench ? 'YEDEK' : 'İLK 11',
+              style: TextStyle(
+                color: color,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.1,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              bench
+                  ? 'Antrenör kulübeye dönerse oyuna girersin.'
+                  : 'Başlangıç on birindesin.',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 11,
+              ),
             ),
           ),
         ],

@@ -18,7 +18,7 @@ from typing import List, Optional, Set
 
 from api import config
 from api.ids import new_news_id
-from domain import condition, engine_client, formulas, scheduling, social, wallet
+from domain import condition, engine_client, formulas, scheduling, social, squad, wallet
 from worlddata.competitions import ULUSAL_KUPA
 
 
@@ -120,11 +120,10 @@ def stop_worthy(events: List[dict], on_date: str = None) -> List[dict]:
     return out
 
 
-def user_match_today(conn: sqlite3.Connection, career_id: str, on_date: str) -> Optional[str]:
-    """The user's own fixture kicking off on_date, if it's still
-    'scheduled' — None otherwise. The single query behind both
-    list_events()'s 'match' event and T3's match-day gate (§6.1 D57), so the
-    two can never disagree about what counts as "today's match"."""
+def team_match_today(conn: sqlite3.Connection, career_id: str, on_date: str) -> Optional[str]:
+    """The user's TEAM's fixture kicking off on_date, if it's still
+    'scheduled'. Says nothing about whether the user is in the squad for it —
+    that is squad.status_for's job (§12.2)."""
     user_team_id = _user_team_id(conn, career_id)
     row = conn.execute(
         "SELECT fixture_id FROM fixture WHERE career_id = ? AND status = 'scheduled' "
@@ -134,11 +133,36 @@ def user_match_today(conn: sqlite3.Connection, career_id: str, on_date: str) -> 
     return row["fixture_id"] if row else None
 
 
-def list_events(conn: sqlite3.Connection, career_id: str, on_date: str) -> List[dict]:
-    """Every event condition true for on_date, read-only."""
+def user_match_today(
+    conn: sqlite3.Connection, career_id: str, on_date: str, seed: Optional[int] = None
+) -> Optional[str]:
+    """The fixture the USER plays on_date — None when the team has none, or
+    when it has one the user is left out of (§12.2). The single query behind
+    both list_events()'s 'match' event and T3's match-day gate (§6.1 D57), so
+    the two can never disagree about what counts as "today's match".
+
+    `seed` is optional only so read-only callers that have no reason to know
+    about it keep working; without it the squad decision cannot be made, so
+    an undecided fixture reads as playable. Every caller inside the day loop
+    passes it."""
+    fixture_id = team_match_today(conn, career_id, on_date)
+    if fixture_id is None or seed is None:
+        return fixture_id
+    return squad.user_fixture_today(conn, career_id, on_date, seed, fixture_id)
+
+
+def list_events(
+    conn: sqlite3.Connection, career_id: str, on_date: str, seed: Optional[int] = None
+) -> List[dict]:
+    """Every event condition true for on_date.
+
+    No longer strictly read-only: deciding the user's squad status for
+    today's fixture writes that decision down (§12.2). The write is
+    idempotent and the caller owns the commit, so a GET that never commits
+    simply re-decides identically next time — the roll is seeded."""
     events = []
 
-    fixture_id = user_match_today(conn, career_id, on_date)
+    fixture_id = user_match_today(conn, career_id, on_date, seed)
     if fixture_id:
         events.append({"kind": "match", "ref_id": fixture_id})
 
@@ -251,16 +275,21 @@ def _fixture_rng(seed: int, *parts) -> random.Random:
 
 
 def _simulate_day_fixtures(conn: sqlite3.Connection, career_id: str, on_date: str, seed: int) -> dict:
-    """§6.7 D40: every OTHER team's scheduled fixture kicking off on_date, in
-    every competition. The user's own fixture is always excluded — it stays
-    'scheduled' and is played interactively via M1-M3, and (§6.1 D57) time
-    cannot advance past it while it is, so there is no longer a second case
-    where the user's own fixture needs simulating here."""
+    """§6.7 D40: every fixture kicking off on_date that the user is not
+    playing, in every competition.
+
+    The user's own team's fixture is excluded only while the user is *in* the
+    squad for it (§12.2): then it stays 'scheduled' and is played
+    interactively via M1-M3, and (§6.1 D57) time cannot advance past it.
+    Left out of the squad, the user watches from the stands and the match is
+    simulated here like any other — otherwise it would stay 'scheduled'
+    forever and the season could never finish."""
     user_team_id = _user_team_id(conn, career_id)
+    skip_fixture_id = user_match_today(conn, career_id, on_date, seed)
     rows = conn.execute(
         "SELECT * FROM fixture WHERE career_id = ? AND status = 'scheduled' AND kickoff_at LIKE ? "
-        "AND home_team_id != ? AND away_team_id != ?",
-        (career_id, f"{on_date}%", user_team_id, user_team_id),
+        "AND (home_team_id != ? AND away_team_id != ? OR fixture_id != COALESCE(?, ''))",
+        (career_id, f"{on_date}%", user_team_id, user_team_id, skip_fixture_id),
     ).fetchall()
     if not rows:
         return {"count": 0, "competitions": set(), "results": []}
@@ -412,7 +441,7 @@ def process_day(conn: sqlite3.Connection, career_id: str, on_date: str, seed: in
     non-user fixture, draws the next cup round if ready. Does NOT move
     career_state.game_date — the caller (T3) does that once, after this
     returns, alongside day_budget refill."""
-    events = list_events(conn, career_id, on_date)
+    events = list_events(conn, career_id, on_date, seed)
     is_monday = _dt.date.fromisoformat(on_date).weekday() == config.WAGE_WEEKDAY
     warned_today = any(e["kind"] == "upkeep_warning" for e in events)
 

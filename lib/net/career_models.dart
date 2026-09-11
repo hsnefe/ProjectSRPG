@@ -1690,6 +1690,7 @@ class NextCareerMatch {
     required this.competition,
     required this.kickoffAt,
     required this.userSide,
+    this.squadStatus = 'first_eleven',
     this.formationId,
     required this.enginePayload,
   });
@@ -1701,6 +1702,7 @@ class NextCareerMatch {
           CompetitionRef.fromJson(json['competition'] as Map<String, dynamic>),
       kickoffAt: json['kickoff_at'] as String,
       userSide: json['user_side'] as String,
+      squadStatus: json['squad_status'] as String? ?? 'first_eleven',
       formationId: json['formation_id'] as String?,
       enginePayload: json['engine_payload'] as Map<String, dynamic>,
     );
@@ -1710,6 +1712,11 @@ class NextCareerMatch {
   final CompetitionRef competition;
   final String kickoffAt;
   final String userSide;
+
+  /// §12.2 · `first_eleven` | `bench`. `out` buraya hiç gelmez — o fikstür
+  /// M1'de teklif edilmiyor. Alanı tanımayan bir sürüme karşı varsayılan
+  /// ilk 11: §12.2 öncesi davranış buydu.
+  final String squadStatus;
 
   /// Kullanıcının takımının dizilişi (`lib/game/formations.g.dart`'taki id).
   /// Nullable: dizilişleri bilmeyen bir career_engine sürümüne karşı ekran

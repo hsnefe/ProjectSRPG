@@ -30,6 +30,7 @@ class MatchController extends ChangeNotifier {
     required this.teams,
     required this.staminaCatalog,
     required this.directiveOptions,
+    this.squadStatus = 'first_eleven',
     int? startCondition,
     MatchApiClient? apiClient,
     MatchStreamSource? streamSource,
@@ -46,6 +47,10 @@ class MatchController extends ChangeNotifier {
   final MatchTeams teams;
   final StaminaCatalog staminaCatalog;
   final DirectiveOptions directiveOptions;
+
+  /// §12.2 M1 · `first_eleven` | `bench`. `out` buraya hiç ulaşmaz — o
+  /// fikstür M1'de teklif edilmiyor, arka plan simülasyonuna düşüyor.
+  final String squadStatus;
 
   /// Oyuncunun maça girdiği kondisyon — career_engine M1'in
   /// `engine_payload.user_condition`'ı (D38). Maç boyunca yalnızca bu sayı
@@ -72,6 +77,15 @@ class MatchController extends ChangeNotifier {
 
   double _playerCondition;
   int? _lastTickStamina;
+
+  /// §12.2 · oyuncunun sahada olup olmadığı. İlk 11'de başlarsa baştan
+  /// true, yedekte başlarsa antrenör kulübeye dönene kadar false.
+  late bool _onPitch = squadStatus == 'first_eleven';
+
+  /// Sahaya çıkılan ve sahadan çıkılan dakikalar. İkisi birlikte M2'nin
+  /// `minutes_played`'ini veriyor.
+  late int? _onMinute = squadStatus == 'first_eleven' ? 0 : null;
+  int? _offMinute;
 
   bool _disposed = false;
   InterventionOfferFrame? _activeOffer;
@@ -119,6 +133,22 @@ class MatchController extends ChangeNotifier {
   /// tick'lerin `resolved_intervention` bloğundan gelir: `outcome_key`
   /// zarını sunucu attığı için tek doğruluk kaynağı odur.
   List<InterventionLogEntry> get interventions => List.unmodifiable(_interventions);
+
+  /// §12.2 · oyuncu şu anda sahada mı. Müdahale teklifleri yalnızca sahadayken
+  /// kabul edilir — kulübeden top kapamazsın.
+  bool get onPitch => _onPitch;
+
+  /// M2'nin `started` alanı.
+  bool get started => squadStatus == 'first_eleven';
+
+  /// M2'nin `minutes_played`'i. Sahaya hiç çıkılmadıysa 0; çıkılıp
+  /// çıkarıldıysa aradaki fark; sonuna kadar oynandıysa son dakikaya kadar.
+  int get minutesPlayed {
+    final on = _onMinute;
+    if (on == null) return 0;
+    final off = _offMinute ?? (_finished ? _minute : _minute);
+    return (off - on).clamp(0, 95);
+  }
 
   /// Maç boyunca sunulan teklif sayısı — kabul/ret/zaman aşımı ayrımı
   /// yapılmaz, `offer_id`'ye göre tekilleştirilir (E8 replay'i aynı teklifi
@@ -168,6 +198,12 @@ class MatchController extends ChangeNotifier {
       // `resolved:true` yalnızca E8 replay'inde gelir (§9.2) - canlı akışta
       // hiç görülmez, görülürse de gösterilmeden atlanır.
       if (message.offer.resolved == true) return;
+      // §12.2 · kulübeden top kapamazsın. Yedekte beklerken ya da oyundan
+      // çıktıktan sonra gelen teklifler gösterilmiyor; motor kadroyu bilmediği
+      // (D4/§11.7) için teklif üretmeyi sürdürüyor, süzgeç burada.
+      // `_offeredIds`'e yine de yazıldı: teklif maçta gerçekten sunuldu,
+      // yalnızca kullanıcıya ulaşmadı.
+      if (!_onPitch) return;
       _activeOffer = message.offer;
       _pendingOfferPrompt = message.offer.prompt;
       // Modalda gösterilen "an" metni yorum akışına da yazılır - kullanıcı
@@ -214,6 +250,7 @@ class MatchController extends ChangeNotifier {
     }
 
     for (final event in tick.events) {
+      _applySubstitution(event, tick.minute);
       _events.add(
         MatchEvent(
           minute: tick.minute,
@@ -242,6 +279,54 @@ class MatchController extends ChangeNotifier {
 
     notifyListeners();
   }
+
+  /// §12.2 · motorun `substitution` olayı **isimsiz**: kimin girdiğini ya da
+  /// çıktığını tel üzerinde taşımıyor, yalnızca hangi tarafın değişiklik
+  /// yaptığını. O yüzden "bu değişiklik kullanıcıyı ilgilendiriyor mu"
+  /// kararı burada veriliyor:
+  ///
+  /// * **yedekteyken** kendi tarafının ilk değişikliği oyuncuyu sahaya alır —
+  ///   antrenör kulübeye döndüğünde döndüğü kişi odur;
+  /// * **sahadayken** bir değişiklik ancak kondisyon gerçekten düştüyse
+  ///   oyuncuyu çıkarır. Aksi halde her değişiklik oyuncuyu alırdı ve formda
+  ///   bir oyuncu 60. dakikada kendini kulübede bulurdu.
+  ///
+  /// Bir kez girer, bir kez çıkar: geri dönüş yok.
+  void _applySubstitution(dynamic event, int minute) {
+    if (event.eventType != 'substitution') return;
+    if (_sideFrom(event.side) != _userMatchSide) return;
+
+    if (!_onPitch && _offMinute == null && _onMinute == null) {
+      _onPitch = true;
+      _onMinute = minute;
+      _events.add(MatchEvent(
+        minute: minute,
+        side: _userMatchSide,
+        text: 'Oyuna giriyorsun.',
+        icon: Icons.login_outlined,
+      ));
+      return;
+    }
+
+    if (_onPitch && _playerCondition <= _substitutionConditionFloor) {
+      _onPitch = false;
+      _offMinute = minute;
+      _events.add(MatchEvent(
+        minute: minute,
+        side: _userMatchSide,
+        text: 'Oyundan çıkıyorsun.',
+        icon: Icons.logout_outlined,
+      ));
+    }
+  }
+
+  /// Bu kondisyonun altında bir değişiklik oyuncuyu alır. Motorun zemini 35
+  /// (D38), maliyet §6.6'da ~30 puan; 45 "belirgin yorulmuş ama daha
+  /// bitmemiş" demek.
+  static const _substitutionConditionFloor = 45.0;
+
+  MatchSide get _userMatchSide =>
+      userSide == 'home' ? MatchSide.home : MatchSide.away;
 
   void _meltCondition(TeamTickInfo? tickTeam) {
     if (tickTeam == null) return;
