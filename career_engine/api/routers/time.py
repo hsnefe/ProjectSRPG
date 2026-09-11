@@ -15,6 +15,7 @@ from catalog.training import TRAINING_ITEMS
 from domain import attributes, condition, day_budget, daytime, fame, requirements, social
 from domain import relationships as relationships_domain
 from domain import season as season_mod
+from domain import sponsorship
 from domain import wallet
 
 router = APIRouter(prefix="/careers/{career_id}", tags=["time"])
@@ -195,6 +196,13 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
     pending_offers = social.list_open(conn, career_id)
     if pending_offers:
         raise errors.social_offer_pending(pending_offers[0]["offer_id"])
+
+    # §12.7 - the same gate for a booked sponsorship appearance. You said
+    # you would be there; the day is not one you skip past. The way out is
+    # `skip`, which breaks the deal - the player is charged, never trapped.
+    due = sponsorship.pending_obligations(conn, career_id, current_date)
+    if due:
+        raise errors.sponsorship_obligation_pending(due[0]["obligation_id"])
 
     days_advanced = 0
     fixtures_total = 0

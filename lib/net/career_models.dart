@@ -522,6 +522,144 @@ class CareerState {
   String get moneyLabel => formatMoney(money);
 }
 
+/// §12.7 · sponsorluk durumu — teklifler, aktif anlaşmalar ve bekleyen
+/// zorunlu etkinlikler tek yanıtta. Oyuncunun sorusu "sponsorluk durumum ne",
+/// "masada ne var" değil.
+class SponsorshipState {
+  const SponsorshipState({
+    required this.offers,
+    required this.active,
+    required this.pendingObligations,
+  });
+
+  final List<SponsorshipDeal> offers;
+  final List<SponsorshipDeal> active;
+
+  /// Bugün ya da daha önce vadesi gelmiş, henüz cevaplanmamış randevular.
+  /// Bunlardan biri varken `advance` `409` döner (§12.7).
+  final List<SponsorshipObligation> pendingObligations;
+
+  factory SponsorshipState.fromJson(Map<String, dynamic> json) {
+    List<SponsorshipDeal> deals(String key) =>
+        ((json[key] as List<dynamic>?) ?? const [])
+            .map((e) => SponsorshipDeal.fromJson(e as Map<String, dynamic>))
+            .toList(growable: false);
+    return SponsorshipState(
+      offers: deals('offers'),
+      active: deals('active'),
+      pendingObligations:
+          ((json['pending_obligations'] as List<dynamic>?) ?? const [])
+              .map((e) =>
+                  SponsorshipObligation.fromJson(e as Map<String, dynamic>))
+              .toList(growable: false),
+    );
+  }
+}
+
+class SponsorshipDeal {
+  const SponsorshipDeal({
+    required this.dealId,
+    required this.brand,
+    required this.title,
+    required this.body,
+    required this.acceptLabel,
+    required this.declineLabel,
+    required this.weeklyIncome,
+    required this.seasons,
+    required this.requires,
+    required this.obligation,
+    required this.status,
+    required this.expiresOn,
+  });
+
+  final String dealId;
+  final String brand;
+  final String title;
+  final String body;
+  final String acceptLabel;
+  final String declineLabel;
+
+  /// ₭ cinsinden, her Pazartesi. İmza anında donar.
+  final int weeklyIncome;
+  final int seasons;
+
+  /// D42 eşikleri — kişi nitelikleri.
+  final Map<String, int> requires;
+
+  /// Null ise yükümlülüksüz bir anlaşma. **İmzadan önce gösterilir**:
+  /// sonradan öğrenilen bir bedel karar değil tuzaktır.
+  final SponsorshipObligationSpec? obligation;
+
+  final String status;
+  final String? expiresOn;
+
+  factory SponsorshipDeal.fromJson(Map<String, dynamic> json) {
+    final obligation = json['obligation'] as Map<String, dynamic>?;
+    return SponsorshipDeal(
+      dealId: json['deal_id'] as String,
+      brand: json['brand'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      body: json['body'] as String? ?? '',
+      acceptLabel: json['accept_label'] as String? ?? 'Kabul et',
+      declineLabel: json['decline_label'] as String? ?? 'Reddet',
+      weeklyIncome: json['weekly_income'] as int,
+      seasons: json['seasons'] as int? ?? 1,
+      requires: ((json['requires'] as Map<String, dynamic>?) ?? const {})
+          .map((key, value) => MapEntry(key, (value as num).toInt())),
+      obligation: obligation == null
+          ? null
+          : SponsorshipObligationSpec.fromJson(obligation),
+      status: json['status'] as String,
+      expiresOn: json['expires_on'] as String?,
+    );
+  }
+}
+
+/// Anlaşmanın yükümlülük ritmi — kaç günde bir, neye mal oluyor.
+class SponsorshipObligationSpec {
+  const SponsorshipObligationSpec({
+    required this.title,
+    required this.everyDays,
+    required this.costs,
+    required this.condition,
+  });
+
+  final String title;
+  final int everyDays;
+  final Map<String, double> costs;
+
+  /// Katılmanın kondisyon bedeli (negatif).
+  final int condition;
+
+  factory SponsorshipObligationSpec.fromJson(Map<String, dynamic> json) =>
+      SponsorshipObligationSpec(
+        title: json['title'] as String,
+        everyDays: json['every_days'] as int,
+        costs: ((json['costs'] as Map<String, dynamic>?) ?? const {})
+            .map((key, value) => MapEntry(key, (value as num).toDouble())),
+        condition: (json['condition'] as num?)?.toInt() ?? 0,
+      );
+}
+
+class SponsorshipObligation {
+  const SponsorshipObligation({
+    required this.obligationId,
+    required this.dealId,
+    required this.dueOn,
+  });
+
+  final String obligationId;
+  final String dealId;
+  final String dueOn;
+
+  factory SponsorshipObligation.fromJson(Map<String, dynamic> json) =>
+      SponsorshipObligation(
+        obligationId: json['obligation_id'] as String,
+        dealId: json['deal_id'] as String? ?? '',
+        dueOn: json['due_on'] as String,
+      );
+}
+
 /// §11.7 S3 · transfer penceresindeki teklifler.
 class TransferOffers {
   const TransferOffers({

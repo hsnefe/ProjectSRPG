@@ -20,3 +20,10 @@ def new_transfer_offer_id() -> str:
     """§11.3 - the bare 'o_' prefix, reserved since the social offers took
     'so_' precisely so this family could have it."""
     return "o_" + secrets.token_hex(6)
+
+def new_sponsorship_deal_id() -> str:
+    return "sp_" + secrets.token_hex(6)
+
+
+def new_obligation_id() -> str:
+    return "ob_" + secrets.token_hex(6)

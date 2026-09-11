@@ -314,6 +314,58 @@ class CareerApiClient {
   }
 
   // ---------------------------------------------------------------------
+  // §12.7 Sponsorluk
+  // ---------------------------------------------------------------------
+
+  /// Teklifler, aktif anlaşmalar ve bekleyen randevular tek yanıtta.
+  Future<SponsorshipState> sponsorships(String careerId) async {
+    final body = await _get('/careers/$careerId/sponsorships');
+    return SponsorshipState.fromJson(body);
+  }
+
+  /// Anlaşmayı imzala. Yükümlülükleri varsa hepsi imza anında takvime
+  /// yazılır.
+  Future<SponsorshipDeal> acceptSponsorship(
+    String careerId,
+    String dealId,
+  ) async {
+    final body = await _post('/careers/$careerId/sponsorships/$dealId/accept');
+    return SponsorshipDeal.fromJson(body['deal'] as Map<String, dynamic>);
+  }
+
+  /// Reddet — hiçbir şeye mal olmaz, başarısız olamaz.
+  Future<SponsorshipState> declineSponsorship(
+    String careerId,
+    String dealId,
+  ) async {
+    await _post('/careers/$careerId/sponsorships/$dealId/decline');
+    return sponsorships(careerId);
+  }
+
+  /// Randevuya git — günün bütçesinden ve kondisyondan yer.
+  Future<CareerState> attendSponsorshipObligation(
+    String careerId,
+    String obligationId,
+  ) async {
+    final body = await _post(
+      '/careers/$careerId/sponsorships/obligations/$obligationId/attend',
+    );
+    return CareerState.fromJson(body['career_state'] as Map<String, dynamic>);
+  }
+
+  /// Gitme — anlaşma bozulur, gelir kesilir, basın yazar. Zamanı tekrar
+  /// akmaya başlatan çıkış kapısı budur.
+  Future<CareerState> skipSponsorshipObligation(
+    String careerId,
+    String obligationId,
+  ) async {
+    final body = await _post(
+      '/careers/$careerId/sponsorships/obligations/$obligationId/skip',
+    );
+    return CareerState.fromJson(body['career_state'] as Map<String, dynamic>);
+  }
+
+  // ---------------------------------------------------------------------
   // §11.7 Transfer ve sözleşme — S3, S4
   // ---------------------------------------------------------------------
 

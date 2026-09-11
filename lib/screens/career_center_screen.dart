@@ -12,6 +12,7 @@ import 'package:project_srpg/screens/relationships_screen.dart';
 import 'package:project_srpg/screens/settings_screen.dart';
 import 'package:project_srpg/screens/training_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
+import 'package:project_srpg/screens/sponsorship_screen.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/date_labels.dart';
 import 'package:project_srpg/widgets/expand_page_route.dart';
@@ -83,6 +84,15 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
   /// T3 · `POST /careers/{cid}/advance` — günleri **tek tek** ilerletir ve
   /// arada küçük bir takvim gösterir (§6.3, D56).
   ///
+  /// §12.7 · sponsorluk ekranını açar; bir şey değiştiyse hub tazelenir.
+  Future<void> _openSponsorships() async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(builder: (_) => const SponsorshipScreen()),
+    );
+    if (!mounted || changed != true) return;
+    _refreshAfterMatchFlow();
+  }
+
   /// §11.5 S1 · sezon bittiğinde yeni sezonu başlatır.
   ///
   /// Prompt "yeni sezon **otomatik** başlamalı" diyor, D46 ise devri ayrı bir
@@ -144,6 +154,7 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
     var serverPendingOffer = false;
     var serverMatchUnplayed = false;
     var seasonRolloverDue = false;
+    var sponsorshipDue = false;
     try {
       final careerId = await _session.resolve();
       while (mounted && token == _advanceToken && _overlayDays < _maxLoopDays) {
@@ -180,6 +191,8 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
           serverMatchUnplayed = true;
         } else if (e.code == 'season_rollover_required') {
           seasonRolloverDue = true;
+        } else if (e.code == 'sponsorship_obligation_pending') {
+          sponsorshipDue = true;
         } else {
           messenger.showSnackBar(
             SnackBar(content: Text(e.message ?? 'Gün ilerletilemedi.')),
@@ -195,6 +208,13 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
     if (!mounted || token != _advanceToken) return;
     if (seasonRolloverDue) {
       await _rollOverSeason();
+      return;
+    }
+    // §12.7 · söz verilen bir randevu varken gün ilerlemiyor. Ham hata
+    // metni yerine kararin verilecegi ekran açılıyor — sosyal teklifin
+    // `social_offer_pending` arka kapısıyla aynı okuma.
+    if (sponsorshipDue) {
+      await _openSponsorships();
       return;
     }
     if (serverMatchUnplayed) {

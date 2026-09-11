@@ -146,4 +146,5 @@ LEDGER_KINDS = (
     "starting_balance",
     "wage", "appearance_bonus", "goal_bonus",
     "purchase", "upkeep", "lifestyle", "training", "sale",
+    "sponsorship",  # §12.7 - weekly, alongside the wage
 )

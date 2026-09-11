@@ -170,6 +170,27 @@ def coach_talk_already_done(fixture_id: str) -> ApiError:
     )
 
 
+def sponsorship_not_found(deal_id: str) -> ApiError:
+    return ApiError(404, "sponsorship_not_found", f"unknown sponsorship {deal_id!r}")
+
+
+def sponsorship_not_open(deal_id: str) -> ApiError:
+    return ApiError(
+        409, "sponsorship_not_open", f"sponsorship {deal_id} is no longer open"
+    )
+
+
+def sponsorship_obligation_pending(obligation_id: str) -> ApiError:
+    """§12.7 - a booked appearance has to be answered before time moves,
+    the same gate D53 puts in front of an unanswered social offer. The way
+    out is `skip`, which breaks the deal: the player is charged, never
+    trapped."""
+    return ApiError(
+        409, "sponsorship_obligation_pending",
+        f"sponsorship obligation {obligation_id} is due today",
+    )
+
+
 def invalid_request(message: str) -> ApiError:
     return ApiError(422, "invalid_request", message)
 

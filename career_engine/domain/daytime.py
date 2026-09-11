@@ -20,7 +20,7 @@ from api import config
 from api.ids import new_news_id
 from domain import (
     condition, contracts, engine_client, formulas, scheduling,
-    season as season_mod, social, squad, transfer, wallet,
+    season as season_mod, social, sponsorship, squad, transfer, wallet,
 )
 from worlddata.competitions import ULUSAL_KUPA
 
@@ -124,6 +124,9 @@ def _next_drawable_cup_round(conn: sqlite3.Connection, career_id: str, on_date: 
 # calendar boundary does not (all fixtures played early), and vice versa.
 STOP_EVENT_KINDS = {
     "match", "cup_draw", "upkeep_warning", "season_end", "season_phase_change",
+    # §12.7 - a booked appearance and a brand on the phone are both things
+    # the day should stop for.
+    "sponsorship_offer", "sponsorship_obligation",
 }
 
 
@@ -211,6 +214,16 @@ def list_events(
 
     for offer in transfer.list_open(conn, career_id):
         events.append({"kind": "transfer_offer", "ref_id": offer["offer_id"]})
+
+    for deal in sponsorship.list_offers(conn, career_id):
+        events.append({"kind": "sponsorship_offer", "ref_id": deal["deal_id"]})
+
+    for row in sponsorship.pending_obligations(conn, career_id, on_date):
+        events.append({
+            "kind": "sponsorship_obligation",
+            "ref_id": row["obligation_id"],
+            "due_on": row["due_on"],
+        })
 
     if _dt.date.fromisoformat(on_date).weekday() == config.WAGE_WEEKDAY:
         shortfall = _projected_upkeep_shortfall(conn, career_id)
@@ -445,6 +458,10 @@ def resolve_pending_monday(conn: sqlite3.Connection, career_id: str, on_date: st
     wage_entry = _pay_wage(conn, career_id, on_date)
     if wage_entry:
         ledger_entries.append(wage_entry)
+    # §12.7 - sponsorship money arrives on the same Monday, and BEFORE the
+    # upkeep is taken: it is income, and letting a villa be repossessed while
+    # a cheque sits uncashed would be wrong in the obvious way.
+    ledger_entries += sponsorship.pay_weekly(conn, career_id, on_date)
     upkeep_entries, repossessed = _pay_upkeep(conn, career_id, on_date)
     ledger_entries += upkeep_entries
     return {"ledger_entries": ledger_entries, "repossessed": repossessed}
@@ -466,6 +483,12 @@ def resolve_pending_today(conn: sqlite3.Connection, career_id: str, on_date: str
 
     Idempotent: _simulate_day_fixtures only touches still-'scheduled' rows,
     so calling this again for an already-resolved date is a no-op."""
+    # §12.7 - one sponsorship roll a day, after the social one so the two
+    # cannot both open on the same morning and stack two decisions.
+    deal = sponsorship.maybe_generate(conn, career_id, on_date, seed)
+    if deal:
+        events.append({"kind": "sponsorship_offer", "ref_id": deal["deal_id"]})
+
     sim = _simulate_day_fixtures(conn, career_id, on_date, seed)
 
     cup_round = _next_drawable_cup_round(conn, career_id, on_date)
@@ -490,6 +513,12 @@ def process_day(conn: sqlite3.Connection, career_id: str, on_date: str, seed: in
     ledger_entries, news_created, repossessed = [], [], []
 
     if is_monday:
+        # §12.7 - sponsorship money lands on Monday whatever else happens.
+        # Outside the warned/else split on purpose: income arriving is not
+        # conditional on the upkeep being affordable, and it is exactly what
+        # might make it affordable.
+        ledger_entries += sponsorship.pay_weekly(conn, career_id, on_date)
+
         if warned_today:
             shortfall = next(e["shortfall"] for e in events if e["kind"] == "upkeep_warning")
             news_created.append(_create_news(

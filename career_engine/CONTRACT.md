@@ -3229,7 +3229,78 @@ bilmediği için teklif üretmeyi sürdürür, süzgeç FE'dedir.
 
 ### 12.3 Sponsorluk
 
-*(Commit 10 ile yazılacak.)*
+> Şartnamenin hiçbir yerinde geçmiyor. 3065 satırlık belgede "sponsor"
+> kelimesi **bir kez** geçiyor (§10, ⟦AÇIK-9⟧'un şöhret tartışmasında,
+> şöhretin *olası bir tüketicisi* olarak) ve orada bir spec değil, açık bir
+> soru. Bu bölüm sıfırdan yazıldı.
+
+Bir anlaşma iki şeyi birden taşır ve mekanik tam olarak ikisinin
+gerilimidir: **kazanılmadan gelen haftalık para**, ve bazılarında
+**oyuncuya ait olmaktan çıkan günler**. Yükümlülüğü olmayan anlaşma daha
+az öder; dosyadaki en büyük çek üç haftada bir öğleden sonrasına mal olur.
+
+**Faz kapısı yok.** Transferden farklı olarak sezonun her döneminde
+imzalanabilir: marka transfer penceresi beklemez.
+
+#### Şema — `011_sponsorship.sql`
+
+İki tablo: `sponsorship_deal` (teklif/anlaşma) ve `sponsorship_obligation`
+(takvime yazılmış zorunlu etkinlikler). Satırda yalnızca `template_id`
+durur — getiriler ve yükümlülük ritmi `content/sponsorships.py`'de
+yazarlanmış veridir (009'un gerekçesiyle aynı).
+
+**İstisna `weekly_income`:** imza anındaki rakamla donuyor. Şablonu sonradan
+düzenlemek uçuştaki bir anlaşmanın gelirini değiştirmemeli — `inventory`'nin
+`price_paid`'i dondurmasıyla aynı gerekçe.
+
+#### Uçlar
+
+| Metot | Yol |
+|---|---|
+| `GET` | `/careers/{cid}/sponsorships` — teklifler + aktif anlaşmalar + bekleyen yükümlülükler |
+| `POST` | `/careers/{cid}/sponsorships/{did}/accept` |
+| `POST` | `/careers/{cid}/sponsorships/{did}/decline` |
+| `POST` | `/careers/{cid}/sponsorships/obligations/{oid}/attend` |
+| `POST` | `/careers/{cid}/sponsorships/obligations/{oid}/skip` |
+
+**Yükümlülükler imza anında topluca takvime yazılır**, teker teker değil:
+oyuncu neye imza attığını görebilsin, ve hiç koşmamış bir gün döngüsü
+sessizce bir etkinlik üretmeyi atlayamasın.
+
+**Bekleyen bir yükümlülük `advance`'ı kapıda reddeder**
+(`409 sponsorship_obligation_pending`) — D53'ün sosyal tekliflere koyduğu
+kilidin aynısı: orada olacağına söz verdiysen o gün atlanacak bir gün
+değil. Çıkış kapısı `skip`: anlaşma **bozulur**, gelir kesilir, o
+anlaşmanın bütün diğer randevuları düşer ve `media` ilişkisi düşer —
+yokluk bir haberdir. Oyuncu asla kilitlenmez, yalnızca bedel öder.
+
+**Gelir maaşla aynı Pazartesi, `wallet.apply(kind='sponsorship')` ile**
+(INV-17 korunur) ve düzenli giderden **önce**: gelir gelmesi giderin
+karşılanabilir olmasına bağlı değil, üstelik onu karşılanabilir kılan
+şeyin ta kendisi olabilir.
+
+**`requires` kapısı (D42) kişi niteliklerine bakıyor** — marka kameranın
+karşısında duramayan birine adını vermez. §11.13 kişi ailesini transfer
+pazarlığının dışında tuttuğu için, para sisteminde gerçek iş yaptığı tek
+yer burası.
+
+Anlaşma da bir sözleşme gibi **sezon sınırında** biter (D50'nin okuması):
+rastgele bir salı günü biten bir reklam anlaşması takvimi boşuna
+okunmaz kılardı.
+
+#### Yeni olay türleri ve hata kodları
+
+`events[].kind`: `sponsorship_offer` (`ref_id` = `deal_id`),
+`sponsorship_obligation` (`ref_id` = `obligation_id`, ayrıca `due_on`).
+İkisi de `advance`'ı durduran türlerden.
+
+| HTTP | `code` | Ne zaman |
+|---|---|---|
+| 404 | `sponsorship_not_found` | Bilinmeyen `deal_id`/`obligation_id` |
+| 409 | `sponsorship_not_open` | Teklif/yükümlülük zaten cevaplanmış |
+| 409 | `sponsorship_obligation_pending` | Bekleyen randevu varken `advance` çağrıldı |
+
+`LEDGER_KINDS`'a `sponsorship` eklendi.
 
 ### 12.4 Sözleşme yenileme — karşı teklif
 
@@ -3316,6 +3387,8 @@ sözleşme yine gösterilir, çünkü `null` dönmek FE'ye "sözleşmen bitti" i
 | INV-45 | `user_squad_status = 'out'` olan bir fikstür arka plan simülasyonuna düşer; hiçbir fikstür `scheduled` olarak asılı kalmaz |
 | INV-46 | Bir teklif en fazla **bir** kez karşı teklife konu olur (`counter_used`) |
 | INV-47 | Bir teklif kabul edildiğinde aynı kariyerin diğer bütün `status='open'` teklifleri `expired` olur |
+| INV-48 | Bir kariyerde aynı anda en fazla **bir** `status='offered'` sponsorluk bulunur (INV-39'un okuması) |
+| INV-49 | Bir yükümlülük kaçırıldığında anlaşma `broken` olur ve o anlaşmanın bekleyen bütün randevuları `missed` yazılır |
 
 ### 12.5 Yeni hata kodları
 
