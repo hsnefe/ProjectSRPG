@@ -282,9 +282,11 @@ class DirectiveResponse {
 // ---------------------------------------------------------------------------
 
 /// `intervention_offer` zarfındaki tek bir sonuç seçeneği (§7.2) — yalnızca
-/// `resolution:"minigame"` tekliflerinde gelir. Bu turda motor hiç minigame
-/// teklifi üretmiyor (`api/config.py`'deki `MINIGAME_ACTION_KEYS` boş), ama
-/// şema burada duruyor: minigame geri açıldığında FE'de değişiklik gerekmesin.
+/// `resolution:"minigame"` tekliflerinde gelir. Motor bunları dört atak
+/// aksiyonunda üretiyor (`api/config.py`'deki `MINIGAME_ACTION_KEYS`:
+/// `finish_power`, `finish_finesse`, `long_shot`, `counter_attack`).
+/// Ekranda gösterilmiyorlar — sonucu şut mini-oyunu belirliyor, kullanıcı
+/// listeden seçmiyor.
 class OutcomeKeyOption {
   const OutcomeKeyOption({
     required this.key,

@@ -1,6 +1,7 @@
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
+import 'package:project_srpg/game/match_scenarios.dart';
 import 'package:project_srpg/game/shot_game.dart';
 import 'package:project_srpg/net/match_models.dart';
 import 'package:project_srpg/theme/app_colors.dart';
@@ -15,10 +16,13 @@ typedef InterventionShotResult = ({String outcomeKey, String rawLabel});
 /// minigame sonuç tablosu, `graded4` şeması: great/asist/good/bad).
 ///
 /// Kaleye giden gol `great`; kaleye şut çekmek yerine son anda boştaki bir
-/// arkadaşa ulaşan pas `asist` — bu ayrım oyunun kendi mekaniğinden geliyor
-/// (`ShotTarget.goal` ile `ShotTarget.teamMates` arasında serbest seçim,
-/// `ShotMode.free` + `ShotScene.full` zaten ikisini de açık tutuyor).
+/// arkadaşa ulaşan pas `asist` — bu ayrım oyunun kendi mekaniğinden geliyor:
+/// sahnede hem kale hem bir alıcı varsa ikisi de aynı nişan mekaniğiyle açık.
 /// Kalecinin çeldiği/direğe çarpan şutlar `good`; geri kalan her şey `bad`.
+///
+/// Tablo sahneden bağımsız: hangi senaryo açılırsa açılsın ham etiket aynı
+/// dokuz değerden biri, dolayısıyla §7.3 eşlemesi senaryolar geldiğinde de
+/// aynen geçerli kalıyor.
 @visibleForTesting
 const Map<String, String> outcomeKeyForLabel = {
   'GOL!': 'great',
@@ -34,10 +38,17 @@ const Map<String, String> outcomeKeyForLabel = {
 
 /// Bir `resolution:"minigame"` teklifinin tam ekran karar ekranı (§7.2).
 ///
-/// `shot_game.dart`'a hiç dokunulmaz: `ShotMode.free` + `ShotScene.full`
-/// zaten hem kaleye şut hem arkadaşa pas seçeneğini açık bir aim
-/// mekaniğiyle sunuyor — "Gol" ile "Asist" ayrımı bu yüzden oyun mekaniğine
-/// dokunmadan, yalnızca sonucun yorumlanma biçiminden geliyor.
+/// Hangi sahnede oynandığına teklifin `action_key`'i karar veriyor
+/// ([MatchScenarios]): güç şutu yakın mesafeden, placeli şut açıdan, uzaktan
+/// şut ceza sahası dışından. Eskiden hepsi tek bir sabit sahneydi
+/// (`ShotScene.full`), yani doksan dakikanın her müdahalesi aynı yerden
+/// çekiliyordu.
+///
+/// `ShotMode.free` korunuyor: o mod deneme saymıyor ve pusulayı serbest
+/// bırakıyor, dolayısıyla ekran tek atışlık kalıyor. Notlandırma da
+/// senaryonun kendi [ShotObjective]'ine değil, aşağıdaki [outcomeKeyForLabel]
+/// tablosuna bağlı — motora giden anahtar sözleşmenin tanımladığı şey, oyunun
+/// antrenman tarafındaki üç kademesi değil.
 ///
 /// **Tek deneme, geri alma yok** — canlı bir maç kararı pratikte tekrar
 /// denenemez; ilk sonuç ne çıkarsa `Navigator.pop` ile döner. Kullanıcı hiç
@@ -46,18 +57,32 @@ const Map<String, String> outcomeKeyForLabel = {
 /// kalır ve 180 sn'lik emniyet süresi sonunda kendiliğinden `decline` olur
 /// (§7.2/§9.2 — kullanıcı minigame'i yarıda bırakırsa POST hiç atılmaz).
 class InterventionShotScreen extends StatefulWidget {
-  const InterventionShotScreen({super.key, required this.offer});
+  const InterventionShotScreen({
+    super.key,
+    required this.offer,
+    this.scenario,
+  });
 
   final InterventionOfferFrame offer;
+
+  /// Testlerin sahneyi sabitleyebilmesi için; uygulamada boş bırakılır ve
+  /// teklifin `action_key`'inden seçilir.
+  final ShotScenario? scenario;
 
   @override
   State<InterventionShotScreen> createState() => _InterventionShotScreenState();
 }
 
 class _InterventionShotScreenState extends State<InterventionShotScreen> {
+  /// Bu teklifin oynanacağı durum. Tanınmayan bir `action_key` gelirse null
+  /// kalır ve oyun eski sabit sahnede oynanır — ileri uyumluluk: motorun
+  /// ekleyeceği yeni bir aksiyon akışı kırmamalı.
+  late final ShotScenario? _scenario =
+      widget.scenario ?? MatchScenarios.pick(widget.offer.actionKey);
+
   late final ShotGame _game = ShotGame(
     mode: ShotMode.free,
-    scene: ShotScene.full,
+    scene: _scenario?.scene ?? ShotScene.full,
     onStateChanged: _onGameState,
   );
 
@@ -88,7 +113,13 @@ class _InterventionShotScreenState extends State<InterventionShotScreen> {
     final rawLabel = _game.result;
     if (_game.phase != ShotPhase.result || rawLabel == null) return;
     _handled = true;
-    final outcomeKey = outcomeKeyForLabel[rawLabel] ?? 'bad';
+    // Bitiriş aksiyonlarında anahtar ham etiketten geliyor (§7.3); pas
+    // aksiyonlarında senaryonun kendi notundan, çünkü aynı "PAS TUTTU"nun
+    // hangi kademe olduğuna topu kimin aldığı karar veriyor.
+    final outcomeKey =
+        MatchScenarios.passActionKeys.contains(widget.offer.actionKey)
+            ? MatchScenarios.outcomeKeyForGrade(_game.lastGrade)
+            : outcomeKeyForLabel[rawLabel] ?? 'bad';
     Navigator.of(context)
         .pop<InterventionShotResult>((outcomeKey: outcomeKey, rawLabel: rawLabel));
   }
@@ -126,7 +157,16 @@ class _InterventionShotScreenState extends State<InterventionShotScreen> {
                   borderRadius: BorderRadius.circular(12),
                   child: Column(
                     children: [
+                      // Başlık motorun kendi cümlesi (§7.2 `prompt`) —
+                      // maçta o an ne olduğunu söyleyen tek yetkili metin.
+                      // Senaryonun tarifi onun altında, çünkü o yalnızca
+                      // sahneyi anlatıyor.
                       GameHeaderBar(title: widget.offer.prompt),
+                      if (_scenario case final scenario?)
+                        GameBriefBar(
+                          title: scenario.title,
+                          text: scenario.brief,
+                        ),
                       Expanded(
                         child: Padding(
                           padding: const EdgeInsets.all(12),

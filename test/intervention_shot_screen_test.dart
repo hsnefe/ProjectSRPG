@@ -1,10 +1,13 @@
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:project_srpg/game/match_scenarios.dart';
 import 'package:project_srpg/game/pitch_projector.dart';
 import 'package:project_srpg/game/shot_game.dart';
+import 'package:project_srpg/game/shot_scenarios.dart';
 import 'package:project_srpg/net/match_models.dart';
 import 'package:project_srpg/screens/intervention_shot_screen.dart';
+import 'package:project_srpg/widgets/game_chrome.dart';
 
 const _size = Size(360, 600);
 
@@ -31,7 +34,11 @@ void _attempt(
 }) {
   if (game.phase == ShotPhase.result) game.reset();
 
-  final p = PitchProjector(size: _size, cameraAngle: game.cameraAngle);
+  final p = PitchProjector(
+    size: _size,
+    cameraAngle: game.cameraAngle,
+    origin: game.scene.origin,
+  );
   game
     ..aimLateral = p.lateralOf(wx, wy)
     ..aimDepth = p.depthOf(wx, wy)
@@ -55,19 +62,20 @@ void _catchablePassAttempt(ShotGame game) => _attempt(
       loft: 0.6,
     );
 
-InterventionOfferFrame _offer() => const InterventionOfferFrame(
+InterventionOfferFrame _offer({String actionKey = 'finish_power'}) =>
+    InterventionOfferFrame(
       seq: 1,
       matchId: 'm_test',
       offerId: 'off_1',
       minute: 63,
       resolution: 'minigame',
-      actionKey: 'finish_power',
+      actionKey: actionKey,
       prompt: 'Forvet ceza sahasında topla buluştu',
       riskHint: null,
       timeoutSeconds: 20,
       onTimeout: 'decline',
       minigame: 'shot',
-      outcomeKeys: [
+      outcomeKeys: const [
         OutcomeKeyOption(key: 'great', label: 'Ağlara gitti', tone: 'positive'),
         OutcomeKeyOption(key: 'asist', label: 'Arkadaşına pas', tone: 'positive'),
         OutcomeKeyOption(key: 'good', label: 'Kaleci çeldi', tone: 'neutral'),
@@ -95,7 +103,11 @@ void main() {
     });
   });
 
-  group('ShotMode.free + ShotScene.full (ekranın kullandığı kurulum)', () {
+  // Eşleme sahneden bağımsız: ekran artık teklifin `action_key`'ine göre
+  // katalogdan bir sahne açıyor (`MatchScenarios`), ama ham etiket kümesi her
+  // sahnede aynı dokuz değer. Fizik burada hâlâ tam kadrolu `ShotScene.full`
+  // üzerinde sınanıyor — üçünü de tek sahnede üretebilen tek sahne o.
+  group('etiket → outcome_key eşlemesi', () {
     test('a goal produces GOL! -> great', () {
       final game = _game();
       _goalAttempt(game);
@@ -136,6 +148,39 @@ void main() {
       await tester.pumpWidget(MaterialApp(home: InterventionShotScreen(offer: _offer())));
       await tester.pump();
 
+      // Başlık motorun cümlesi kalıyor (§7.2 `prompt`) — sahne değişse de o
+      // an maçta ne olduğunu söyleyen tek yetkili metin bu.
+      expect(find.text('Forvet ceza sahasında topla buluştu'), findsOneWidget);
+    });
+
+    testWidgets('sahneyi teklifin action_key havuzundan seçer', (tester) async {
+      await tester.pumpWidget(MaterialApp(home: InterventionShotScreen(offer: _offer())));
+      await tester.pump();
+
+      // `finish_power` havuzundan biri açılmış olmalı; hangisi olduğu
+      // rastgele, ama havuzun dışından olamaz.
+      final titles = [
+        for (final s in MatchScenarios.poolFor('finish_power')) s.title,
+      ];
+      expect(
+        titles.where((t) => find.text(t).evaluate().isNotEmpty),
+        hasLength(1),
+        reason: 'açılan sahne finish_power havuzunda değil',
+      );
+    });
+
+    testWidgets('tanınmayan bir aksiyonda eski sabit sahneye düşer',
+        (tester) async {
+      // İleri uyumluluk: motorun ekleyeceği bir aksiyon ekranı kırmamalı.
+      // Sahne brifingi olmadan açılır, teklif normal akışında oynanır.
+      await tester.pumpWidget(MaterialApp(
+        home: InterventionShotScreen(
+          offer: _offer(actionKey: 'bir_gun_eklenecek_aksiyon'),
+        ),
+      ));
+      await tester.pump();
+
+      expect(find.byType(GameBriefBar), findsNothing);
       expect(find.text('Forvet ceza sahasında topla buluştu'), findsOneWidget);
     });
 
@@ -171,7 +216,15 @@ void main() {
           builder: (context) => ElevatedButton(
             onPressed: () async {
               result = await Navigator.of(context).push<InterventionShotResult>(
-                MaterialPageRoute(builder: (_) => InterventionShotScreen(offer: _offer())),
+                MaterialPageRoute(
+                  builder: (_) => InterventionShotScreen(
+                    offer: _offer(),
+                    // Sahne sabitleniyor: ekran normalde havuzdan rastgele
+                    // seçiyor, aşağıdaki atış ise belli bir sahneye göre
+                    // ayarlı — rastgelelik testi ara sıra düşürürdü.
+                    scenario: ShotScenarios.byId('shot_box_centre'),
+                  ),
+                ),
               );
             },
             child: const Text('open'),

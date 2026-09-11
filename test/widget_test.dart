@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:project_srpg/main.dart';
 import 'package:project_srpg/screens/career_center_screen.dart';
+import 'package:project_srpg/widgets/formation_board.dart';
 
 /// Landing'in "New Game" düğmesi artık kariyer sihirbazına gidiyor
 /// (`NewCareerScreen`) ve sihirbaz canlı bir `career_engine` ister. Bu
@@ -61,7 +62,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Maça Çıkış'), findsOneWidget);
-    expect(find.text('Saha dizilişi (yakında)'), findsOneWidget);
+    expect(find.byType(FormationBoard), findsOneWidget);
     expect(find.text('Antrenörle konuş'), findsOneWidget);
   });
 

@@ -10,6 +10,7 @@ import 'package:project_srpg/net/match_api_client.dart';
 import 'package:project_srpg/screens/match_screen.dart';
 import 'package:project_srpg/screens/pre_match_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
+import 'package:project_srpg/widgets/formation_board.dart';
 
 http.Response _json(Object body, {int status = 200}) => http.Response(
       jsonEncode(body),
@@ -33,6 +34,7 @@ Map<String, dynamic> _m1Body({String fixtureId = 'f_1'}) => {
       },
       'kickoff_at': '2026-08-22T20:00:00+03:00', // bir Cumartesi
       'user_side': 'home',
+      'formation_id': '4-2-3-1',
       'engine_payload': {
         'teams': {
           'home': {
@@ -68,6 +70,7 @@ Map<String, dynamic> _hubBodyWithDaysUntil(int daysUntil) => {
       },
       'player': {
         'name': 'Efe Kaan', 'position': 'Orta saha', 'age': 21,
+        'role': 'oyun_kurucu', 'role_name': 'Oyun Kurucu',
         'team': {
           'team_id': 't_ykz', 'name': 'FK Yıldız', 'short_name': 'YKZ',
           'color_primary': '#1E6FD9', 'color_secondary': '#FFFFFF',
@@ -124,6 +127,9 @@ void main() {
       if (request.url.path == '/careers/car_test/matches/next') {
         return _json(_m1Body());
       }
+      if (request.url.path == '/careers/car_test') {
+        return _json(_hubBodyWithDaysUntil(0));
+      }
       return http.Response('unexpected ${request.url}', 404);
     });
     final matchMock = MockClient((request) async {
@@ -145,6 +151,12 @@ void main() {
     // saati gösterilir (§8.1a).
     expect(find.text('Cumartesi, 20:00'), findsOneWidget);
     expect(find.text('Dengeli'), findsOneWidget);
+    // Bireysel rol artık sabit değil, C3'ten geliyor.
+    expect(find.text('Oyun Kurucu'), findsOneWidget);
+    // M1'in bildirdiği diziliş çizilir — 4-2-3-1'in on slotu.
+    final board = tester.widget<FormationBoard>(find.byType(FormationBoard));
+    expect(board.formation.id, '4-2-3-1');
+    expect(find.byType(FormationBoard), findsOneWidget);
   });
 
   testWidgets('409 match_in_progress otomatik M3 ile kurtarılıp M1 tekrarlanır',
@@ -166,6 +178,9 @@ void main() {
           );
         }
         return _json(_m1Body(fixtureId: 'f_2'));
+      }
+      if (request.url.path == '/careers/car_test') {
+        return _json(_hubBodyWithDaysUntil(0));
       }
       if (request.url.path == '/careers/car_test/matches/f_stale/abandon') {
         abandonCalled = true;
@@ -205,6 +220,9 @@ void main() {
       if (request.url.path == '/careers') return _json(_careersListBody);
       if (request.url.path == '/careers/car_test/matches/next') {
         return _json(_m1Body());
+      }
+      if (request.url.path == '/careers/car_test') {
+        return _json(_hubBodyWithDaysUntil(0));
       }
       return http.Response('unexpected ${request.url}', 404);
     });
@@ -281,5 +299,44 @@ void main() {
     expect(find.text('Tekrar dene'), findsNothing);
     // Maç günü olmadan motora hiç maç kurulmaz.
     expect(e11Called, isFalse);
+  });
+
+  testWidgets('C3 çökerse maça çıkış durmaz: varsayılan diziliş, mevki rolü',
+      (tester) async {
+    _useTallView(tester);
+    final careerMock = MockClient((request) async {
+      if (request.url.path == '/careers') return _json(_careersListBody);
+      if (request.url.path == '/careers/car_test/matches/next') {
+        // Diziliş bilmeyen bir career_engine sürümü: formation_id yok.
+        final body = _m1Body()..remove('formation_id');
+        return _json(body);
+      }
+      if (request.url.path == '/careers/car_test') {
+        return http.Response('boom', 500);
+      }
+      return http.Response('unexpected ${request.url}', 404);
+    });
+    final matchMock = MockClient((request) async {
+      if (request.url.path == '/matches') return _json(_e11Body, status: 201);
+      return http.Response('unexpected ${request.url}', 404);
+    });
+
+    await tester.pumpWidget(_wrap(PreMatchScreen(
+      session: CareerSession(
+        client: CareerApiClient(httpClient: careerMock, baseUrl: 'http://test'),
+      ),
+      matchApiClient:
+          MatchApiClient(httpClient: matchMock, baseUrl: 'http://test'),
+    )));
+    await tester.pumpAndSettle();
+
+    expect(find.text('FK Yıldız - Deniz SK'), findsOneWidget);
+    expect(find.text('Tekrar dene'), findsNothing);
+    // formation_id gelmedi -> varsayılana düşülür, boş kutuya değil.
+    final board = tester.widget<FormationBoard>(find.byType(FormationBoard));
+    expect(board.formation.id, '4-4-2-duz');
+    // Rol adı okunamadı -> PlayerState'in mevkisi yazılır.
+    expect(board.playerPosition, 'Orta saha');
+    expect(find.text('Oyun Kurucu'), findsNothing);
   });
 }

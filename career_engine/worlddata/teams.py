@@ -12,6 +12,7 @@ TIER2 keeps ProjectSRPG's existing eight names from league_table_screen.dart
 verbatim (B-2): FK Yıldız is the user's club there, per D21's "user always
 starts at the bottom tier".
 """
+from worlddata.formations import FORMATION_IDS
 
 # tier=2, "1. Lig" — 14 takım. Kullanıcının kulübü burada (D21).
 TIER2_TEAMS = [
@@ -109,6 +110,27 @@ def _mentality(index: int) -> str:
     return "balanced"
 
 
+# Mentalite başına oynanabilir şekiller. Bir takımın dizilişi için dosyada
+# ayrı bir kolon yok; mentalite ise zaten var, o yüzden şekil ona bağlanıyor —
+# hücum eden takım üç forvetli/çift onlu, savunan takım beş savunmalı çıkar.
+# Havuz içindeki seçim sıraya göre yapılır (bkz. _formation): aynı mentalitedeki
+# on sekiz takımın hepsi aynı dizilişte sahaya çıkmasın diye.
+_FORMATION_POOLS = {
+    "attacking": ("4-3-3-yuksek-pres", "4-3-3-duz", "3-4-3-cift10", "4-4-2-diamond-st"),
+    "balanced":  ("4-2-3-1", "4-4-2-duz", "4-4-2-diamond-kanat", "3-5-2-atak"),
+    "defensive": ("5-3-2-savunma", "3-5-2-savunma", "5-3-2-atak"),
+}
+
+
+def _formation(mentality: str, index: int) -> str:
+    """Mentaliteden ve takımın kendi listesindeki sırasından türetilir —
+    _mentality ile aynı gerekçe: dayanaksız veri uydurmak yerine dosyada
+    hâlihazırda bulunan bir kolona bağlanır. Deterministik: aynı takım her
+    kariyerde aynı dizilişi oynar (D9)."""
+    pool = _FORMATION_POOLS[mentality]
+    return pool[index % len(pool)]
+
+
 # Şema dört rating tutar (attack/midfield/defense/goalkeeper), takimlar.txt tek
 # **Güç** kolonu verir. Dördü de o değeri alır: tek sayıyı dört sayıya bölmenin
 # dosyada bir dayanağı yok, dayanaksız sayı üretilmez (§3.2'nin aynı ilkesi).
@@ -118,9 +140,15 @@ TIER1_TEAMS = [
      "attack": float(power), "midfield": float(power),
      "defense": float(power), "goalkeeper": float(power),
      "mentality": _mentality(i),
+     "formation": _formation(_mentality(i), i),
      "color_primary": _COLORS[color1], "color_secondary": _COLORS[color2]}
     for i, (team_id, short_name, name, color1, color2, power) in enumerate(_TIER1_SOURCE)
 ]
+
+# TIER2 elle yazıldığı ve _formation'dan önce geldiği için dizilişini burada
+# alır — TIER1'in comprehension içinde aldığı değerin aynısı, aynı kuralla.
+for _i, _team in enumerate(TIER2_TEAMS):
+    _team["formation"] = _formation(_team["mentality"], _i)
 
 ALL_TEAMS = TIER1_TEAMS + TIER2_TEAMS
 
@@ -133,3 +161,4 @@ assert len({t["short_name"] for t in ALL_TEAMS}) == len(ALL_TEAMS), "duplicate s
 # Motorun Team.name sınırı (API_CONTRACT §8.1); "Amed Sportif Faaliyetler" tam 24.
 assert all(len(t["name"]) <= 24 for t in ALL_TEAMS), "team name over 24 chars"
 assert all(len(t["short_name"]) == 3 for t in ALL_TEAMS), "short_name must be 3 chars"
+assert all(t["formation"] in FORMATION_IDS for t in ALL_TEAMS), "unknown formation id"

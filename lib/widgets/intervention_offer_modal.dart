@@ -12,10 +12,12 @@ enum InterventionChoice { intervene, decline, timeout }
 /// Motorun `intervention_offer` yayınladığı anda ekranın ortasında açılan,
 /// dışarı tıklanarak kapatılamayan karar paneli (§7.2).
 ///
-/// `outcome_keys`/`minigame` alanları ayrıştırılıyor ama bu turda hiç
-/// kullanılmıyor — motor hiçbir teklifi `resolution:"minigame"` olarak
-/// göndermiyor (`api/config.py`'deki `MINIGAME_ACTION_KEYS` boş). Minigame
-/// geri açıldığında bu widget'a dokunmadan üstüne inşa edilebilir.
+/// `outcome_keys`/`minigame` alanları ayrıştırılıyor ama panel onları
+/// göstermiyor: §7.2 [İ-A2] paneli iki butonla sınırlıyor ("Müdahale et" /
+/// "Vazgeç"), aşama 2 yok. Minigame teklifleri de bu panelden geçiyor —
+/// "Müdahale et" onlarda POST atmak yerine tam ekran şut ekranını açıyor
+/// (`match_screen.dart`), dolayısıyla widget'ın kendisi ikisini ayırt
+/// etmek zorunda değil.
 Future<InterventionChoice?> showInterventionOffer(
   BuildContext context, {
   required InterventionOfferFrame offer,
