@@ -8,82 +8,10 @@ import 'package:project_srpg/screens/dialog_screen.dart';
 import 'package:project_srpg/screens/relationships_radar_screen.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/character_portrait.dart';
-import 'package:project_srpg/widgets/dialogue_backdrop.dart';
 import 'package:project_srpg/widgets/character_card.dart';
 import 'package:project_srpg/widgets/character_profile_modal.dart';
 import 'package:project_srpg/widgets/expand_page_route.dart';
-
-/// §5.8 — ikon, ton, rozet kodu ve üst kategori etiketi BE'den gelmez, FE'nin
-/// sunum kararı (R1 yalnızca `relationship_id/kind/category/score/...`
-/// verir). Altı ilişki sabit olduğu için (D4, §3.4) elle eşleniyor.
-class _Presentation {
-  const _Presentation({
-    required this.icon,
-    required this.tint,
-    required this.badgeCode,
-    required this.leftTag,
-    required this.dialogueId,
-    required this.scene,
-  });
-
-  final IconData icon;
-  final Color tint;
-  final String badgeCode;
-  final String leftTag;
-
-  /// Bu kişiyle konuşma nerede geçiyor — diyalog ekranının arka planı.
-  /// §5.8: sahne de ikon/renk gibi FE'nin sunum kararı, BE göndermez.
-  final DialogueScene scene;
-
-  /// catalog/dialogue.py'nin `DIALOGUE_RELATIONSHIP` anahtarları.
-  final String dialogueId;
-}
-
-const _purple = Color(0xFF9B5CF6);
-
-const _presentationByRelationshipId = {
-  'coach': _Presentation(
-    icon: Icons.assignment_outlined, tint: AppColors.accent, badgeCode: 'AN',
-    leftTag: 'KLÜP', dialogueId: 'coach_01',
-    scene: DialogueScene.lockerRoom,
-  ),
-  'team': _Presentation(
-    icon: Icons.groups_outlined, tint: AppColors.success, badgeCode: 'TK',
-    leftTag: 'KLÜP', dialogueId: 'team_01',
-    scene: DialogueScene.trainingGround,
-  ),
-  'media': _Presentation(
-    icon: Icons.mic_none_outlined, tint: AppColors.danger, badgeCode: 'MD',
-    leftTag: 'BASIN', dialogueId: 'media_01',
-    scene: DialogueScene.pressRoom,
-  ),
-  // `dialogueId` bilinçli olarak boş: catalog/dialogue.py'de 'fans' için bir
-  // diyalog ağacı yok, `_openDialog` bunu `_dialogueTreeByRelationshipId`'de
-  // bulamayınca sessizce no-op olur (bkz. aşağıdaki `_openDialog`).
-  'fans': _Presentation(
-    icon: Icons.groups_2_outlined, tint: AppColors.warning, badgeCode: 'TF',
-    leftTag: 'TARAFTAR', dialogueId: '',
-    scene: DialogueScene.stadium,
-  ),
-  'partner': _Presentation(
-    icon: Icons.favorite_border, tint: _purple, badgeCode: 'PA',
-    leftTag: 'ÖZEL', dialogueId: 'partner_01',
-    scene: DialogueScene.home,
-  ),
-  'family': _Presentation(
-    icon: Icons.home_outlined, tint: AppColors.warning, badgeCode: 'AS',
-    leftTag: 'ÖZEL', dialogueId: 'family_01',
-    scene: DialogueScene.home,
-  ),
-};
-
-const _defaultPresentation = _Presentation(
-  icon: Icons.person_outline, tint: AppColors.textMuted, badgeCode: '??',
-  leftTag: '', dialogueId: '', scene: DialogueScene.trainingGround,
-);
-
-_Presentation _presentationFor(String relationshipId) =>
-    _presentationByRelationshipId[relationshipId] ?? _defaultPresentation;
+import 'package:project_srpg/widgets/relationship_presentation.dart';
 
 /// D23: diyalog **ağacı** (metin + dallanma) BE'de tutulmaz, FE'nin içeriği —
 /// catalog/dialogue.py bunu doğrudan yorumluyor: her düğüm id'si ve yaprağı
@@ -242,7 +170,7 @@ String _lastContactLabel(String? isoDate) {
 }
 
 CharacterCardData _toCardData(api.RelationshipCard card) {
-  final presentation = _presentationFor(card.relationshipId);
+  final presentation = presentationForRelationship(card.relationshipId);
   return CharacterCardData(
     id: card.relationshipId,
     name: card.category,
@@ -259,7 +187,7 @@ CharacterCardData _toCardData(api.RelationshipCard card) {
 
 CharacterProfile _toProfile(api.RelationshipProfile profile) {
   final card = profile.card;
-  final presentation = _presentationFor(card.relationshipId);
+  final presentation = presentationForRelationship(card.relationshipId);
   return CharacterProfile(
     name: card.personName,
     relationLabel: card.category,
@@ -591,7 +519,7 @@ class _RelationshipCharacterCardState
     final rect = _globalRect(_callButtonKey);
     if (rect == null) return;
     final relationshipId = widget.card.relationshipId;
-    final presentation = _presentationFor(relationshipId);
+    final presentation = presentationForRelationship(relationshipId);
     final tree = _dialogueTreeByRelationshipId[relationshipId];
     if (tree == null) return;
 

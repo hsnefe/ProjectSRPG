@@ -12,6 +12,7 @@ import 'package:project_srpg/screens/relationships_screen.dart';
 import 'package:project_srpg/screens/settings_screen.dart';
 import 'package:project_srpg/screens/training_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
+import 'package:project_srpg/screens/social_offer_screen.dart';
 import 'package:project_srpg/screens/sponsorship_screen.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/date_labels.dart';
@@ -19,7 +20,6 @@ import 'package:project_srpg/widgets/expand_page_route.dart';
 import 'package:project_srpg/widgets/lit_card.dart';
 import 'package:project_srpg/widgets/month_calendar.dart';
 import 'package:project_srpg/widgets/panel_states.dart';
-import 'package:project_srpg/widgets/social_offer_modal.dart';
 import 'package:project_srpg/widgets/news_style.dart';
 
 class CareerCenterScreen extends StatefulWidget {
@@ -265,7 +265,7 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
         return;
       }
 
-      final result = await showSocialOfferModal(
+      final result = await showSocialOfferScreen(
         context,
         session: _session,
         offer: offer,
@@ -281,23 +281,12 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
         _hubFuture = _loadHub();
         _dayFuture = _loadDay();
       });
-      messenger.showSnackBar(SnackBar(content: Text(_offerSummary(result))));
     } on CareerApiException catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(content: Text(e.message ?? 'Teklif açılamadı.')),
       );
     }
-  }
-
-  /// 'Antrenör +5' — BE `delta` gönderir, cümleyi ekran kurar (§1.3).
-  String _offerSummary(api.SocialOfferResult result) {
-    final changes = result.relationshipChanges;
-    final change = changes.isEmpty ? null : changes.first;
-    final name = result.offer.relationship?.category ?? 'İlişki';
-    if (change == null) return 'Teklif yanıtlandı.';
-    final sign = change.delta >= 0 ? '+' : '';
-    return '$name $sign${change.delta}';
   }
 
   /// Kullanıcı akan takvimi durdurur. Döngü `await`ten döndüğünde jetonun

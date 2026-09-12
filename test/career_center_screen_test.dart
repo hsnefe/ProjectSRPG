@@ -12,7 +12,7 @@ import 'package:project_srpg/screens/career_center_screen.dart';
 import 'package:project_srpg/screens/pre_match_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/widgets/month_calendar.dart';
-import 'package:project_srpg/widgets/social_offer_modal.dart';
+import 'package:project_srpg/screens/social_offer_screen.dart';
 
 http.Response _json(Object body, {int status = 200}) => http.Response(
       jsonEncode(body),
@@ -242,6 +242,20 @@ Widget _wrap(Widget home) {
       home: home,
     ),
   );
+}
+
+/// Teklif ekranındaki daktiloyu ve butonların sıralı belirişini atlar. İki
+/// dokunuş gerekiyor: biri yazıyı tamamlar, biri de sıradaki butonları bir
+/// kerede açar — ayrıntısı `test/social_offer_screen_test.dart`'ta.
+Future<void> _skipOfferIntro(WidgetTester tester) async {
+  final body = find.descendant(
+    of: find.byType(SocialOfferScreen),
+    matching: find.byType(SingleChildScrollView),
+  );
+  await tester.tap(body);
+  await tester.pumpAndSettle();
+  await tester.tap(body);
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -610,7 +624,7 @@ void main() {
 
     expect(find.text('the season has ended'), findsOneWidget);
   });
-testWidgets('döngü bir teklifte durunca modal açılır', (tester) async {
+testWidgets('döngü bir teklifte durunca teklif ekranı açılır', (tester) async {
     // (b) · `stopped_events` kimliği taşır, yani hangi teklifin açılacağını
     // öğrenmek için T1 yeniden çağrılmaz.
     final session = _hubSession(
@@ -633,11 +647,11 @@ testWidgets('döngü bir teklifte durunca modal açılır', (tester) async {
     await tester.tap(find.text('İlerle'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(SocialOfferModal), findsOneWidget);
+    expect(find.byType(SocialOfferScreen), findsOneWidget);
     expect(find.text('Fazladan idman'), findsOneWidget);
   });
 
-  testWidgets('teklif cevaplanınca modal kapanır ve delta SnackBar\'a düşer',
+  testWidgets('teklif cevaplanınca sonuç panelinden geçilip ekran kapanır',
       (tester) async {
     final session = _hubSession(
       _hubBody(nextFixture: _fixture),
@@ -658,11 +672,19 @@ testWidgets('döngü bir teklifte durunca modal açılır', (tester) async {
 
     await tester.tap(find.text('İlerle'));
     await tester.pumpAndSettle();
+    await _skipOfferIntro(tester);
     await tester.tap(find.byKey(const ValueKey('offerAccept')));
     await tester.pumpAndSettle();
 
-    expect(find.byType(SocialOfferModal), findsNothing);
-    expect(find.text('Antrenör +5'), findsOneWidget);
+    // Delta artık SnackBar'a değil, ekranın kendi sonuç paneline düşüyor.
+    expect(find.byType(SocialOfferScreen), findsOneWidget);
+    expect(find.text('70 → 75'), findsOneWidget);
+
+    await _skipOfferIntro(tester);
+    await tester.tap(find.byKey(const ValueKey('offerDone')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SocialOfferScreen), findsNothing);
   });
 
   testWidgets('bekleyen teklif varken İlerle ilerlemez, teklifi açar',
@@ -686,10 +708,10 @@ testWidgets('döngü bir teklifte durunca modal açılır', (tester) async {
     await tester.pumpAndSettle();
 
     expect(advanceCalls, 0);
-    expect(find.byType(SocialOfferModal), findsOneWidget);
+    expect(find.byType(SocialOfferScreen), findsOneWidget);
   });
 
-  testWidgets('gün satırındaki teklif rozeti modalı yeniden açar',
+  testWidgets('gün satırındaki teklif rozeti ekranı yeniden açar',
       (tester) async {
     final session = _hubSession(
       _hubBody(nextFixture: _fixture),
@@ -704,7 +726,7 @@ testWidgets('döngü bir teklifte durunca modal açılır', (tester) async {
     await tester.tap(find.byKey(const ValueKey('daySocialOffer')));
     await tester.pumpAndSettle();
 
-    expect(find.byType(SocialOfferModal), findsOneWidget);
+    expect(find.byType(SocialOfferScreen), findsOneWidget);
   });
 
   testWidgets('sunucu social_offer_pending derse teklif açılır', (tester) async {
@@ -724,7 +746,7 @@ testWidgets('döngü bir teklifte durunca modal açılır', (tester) async {
     await tester.tap(find.text('İlerle'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(SocialOfferModal), findsOneWidget);
+    expect(find.byType(SocialOfferScreen), findsOneWidget);
     // 409'un ham metni gösterilmez — kullanıcıya teklifin kendisi gösterilir.
     expect(find.text('so_1 is waiting'), findsNothing);
   });
@@ -742,7 +764,7 @@ testWidgets('döngü bir teklifte durunca modal açılır', (tester) async {
     await tester.tap(find.byKey(const ValueKey('daySocialOffer')));
     await tester.pumpAndSettle();
 
-    expect(find.byType(SocialOfferModal), findsNothing);
+    expect(find.byType(SocialOfferScreen), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

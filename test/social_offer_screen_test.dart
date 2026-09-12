@@ -7,7 +7,7 @@ import 'package:http/testing.dart';
 import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
-import 'package:project_srpg/widgets/social_offer_modal.dart';
+import 'package:project_srpg/screens/social_offer_screen.dart';
 
 http.Response _json(Object body, {int status = 200}) => http.Response(
       jsonEncode(body),
@@ -44,7 +44,12 @@ api.SocialOffer _offer({
   });
 }
 
-Map<String, Object?> _resultBody(String status, int delta) => {
+Map<String, Object?> _resultBody(
+  String status,
+  int delta, {
+  List<Object?> attributeChanges = const <dynamic>[],
+}) =>
+    {
       'career_state': _careerState,
       'offer': {
         'offer_id': 'so_1', 'template_id': 'coach_extra_session',
@@ -58,14 +63,19 @@ Map<String, Object?> _resultBody(String status, int delta) => {
         {'relationship_id': 'coach', 'before': 70, 'after': 70 + delta,
          'delta': delta}
       ],
-      'attribute_changes': const <dynamic>[],
+      'attribute_changes': attributeChanges,
       'ledger_entries': const <dynamic>[],
     };
 
 class _Backend {
-  _Backend({this.acceptStatus = 200});
+  _Backend({this.acceptStatus = 200, this.acceptBody});
 
   final int acceptStatus;
+
+  /// Kabul yanıtını değiştirmek isteyen testler için; null ise yalnızca +5'lik
+  /// ilişki değişimi taşıyan varsayılan gövde döner.
+  final Map<String, Object?>? acceptBody;
+
   final List<String> paths = [];
 
   CareerSession session() {
@@ -87,7 +97,7 @@ class _Backend {
             status: acceptStatus,
           );
         }
-        return _json(_resultBody('accepted', 5));
+        return _json(acceptBody ?? _resultBody('accepted', 5));
       }
       if (request.url.path.endsWith('/decline')) {
         return _json(_resultBody('declined', -3));
@@ -100,9 +110,11 @@ class _Backend {
   }
 }
 
-/// Modalı gerçek bir route olarak açar — barrier ve geri tuşu davranışı
-/// ancak böyle test edilebilir.
-Future<api.SocialOfferResult?> _open(
+/// Ekranı gerçek bir route olarak iter — geri tuşu davranışı ve `pop`'un
+/// döndürdüğü sonuç ancak böyle test edilebilir. Dönen fonksiyon çağrıldığında
+/// ekranın `pop` ettiği değeri verir: `_open` itme anında dönüyor, sonuç ise
+/// ekran kapandığında yazılıyor.
+Future<api.SocialOfferResult? Function()> _open(
   WidgetTester tester,
   _Backend backend, {
   api.SocialOffer? offer,
@@ -115,7 +127,7 @@ Future<api.SocialOfferResult?> _open(
         body: Center(
           child: ElevatedButton(
             onPressed: () async {
-              captured = await showSocialOfferModal(
+              captured = await showSocialOfferScreen(
                 context,
                 session: backend.session(),
                 offer: offer ?? _offer(),
@@ -129,87 +141,159 @@ Future<api.SocialOfferResult?> _open(
   ));
   await tester.tap(find.text('aç'));
   await tester.pumpAndSettle();
-  return captured;
+  return () => captured;
+}
+
+/// Daktilo bitene ve butonlar belirene kadar ilerletir.
+///
+/// `pumpAndSettle` tek başına yetmiyor: butonlar `Future.delayed` ile 80 ms
+/// arayla beliriyor ve bekleyen bir gecikmenin planlanmış karesi olmadığı için
+/// `pumpAndSettle` erken dönüyor. Metne dokunmak yazıyı anında tamamlar,
+/// ikinci dokunuş da sıradaki butonları bir kerede açar.
+Future<void> _skipIntro(WidgetTester tester) async {
+  await tester.tap(find.byType(SingleChildScrollView));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byType(SingleChildScrollView));
+  await tester.pumpAndSettle();
 }
 
 void main() {
   testWidgets('başlık, gövde ve iki etiket çizilir', (tester) async {
     await _open(tester, _Backend());
+    await _skipIntro(tester);
 
     expect(find.text('Fazladan idman'), findsOneWidget);
     expect(find.text('Antrenör yarın sabah bire bir çalışmak istiyor.'),
         findsOneWidget);
     expect(find.text('Sahada olurum'), findsOneWidget);
     expect(find.text('Bu hafta olmaz'), findsOneWidget);
-    expect(find.text('Antrenör · Antrenör Mert'), findsOneWidget);
   });
 
-  testWidgets('maliyet okunabilir birimlerle gösterilir', (tester) async {
+  testWidgets('kişinin künyesi ve skoru sahnenin üstünde durur', (tester) async {
     await _open(tester, _Backend());
-    expect(find.text('2 sa · 20 enerji'), findsOneWidget);
+
+    expect(find.text('Antrenör Mert'), findsOneWidget);
+    expect(find.text('ANTRENÖR'), findsOneWidget);
+    expect(find.text('70'), findsOneWidget);
   });
 
-  testWidgets('requires kapısı nitelik adıyla gösterilir', (tester) async {
+  testWidgets('maliyet ayrı rozetlerde okunabilir birimlerle gösterilir',
+      (tester) async {
+    await _open(tester, _Backend());
+
+    expect(find.text('2 sa'), findsOneWidget);
+    expect(find.text('20 enerji'), findsOneWidget);
+  });
+
+  testWidgets('requires kapısı nitelik adıyla rozetlenir', (tester) async {
     await _open(tester, _Backend(),
         offer: _offer(requires: const {'politeness': 4}));
-    expect(find.textContaining('Kabul için:'), findsOneWidget);
+
+    expect(find.text('Kabul için'), findsOneWidget);
     expect(find.textContaining('4'), findsWidgets);
   });
 
-  testWidgets('kabul /accept POSTlar ve sonucu döndürür', (tester) async {
+  testWidgets('daktilo bitmeden butonlar basılamaz', (tester) async {
     final backend = _Backend();
     await _open(tester, backend);
+
+    // Yazı akarken butonlar görünmez ve `IgnorePointer` altında.
+    await tester.tap(find.byKey(const ValueKey('offerAccept')),
+        warnIfMissed: false);
+    await tester.pumpAndSettle();
+
+    expect(backend.paths,
+        isNot(contains('POST /careers/car_1/social/offers/so_1/accept')));
+  });
+
+  testWidgets('kabul /accept POSTlar ve ekranı sonuç fazına geçirir',
+      (tester) async {
+    final backend = _Backend();
+    await _open(tester, backend);
+    await _skipIntro(tester);
 
     await tester.tap(find.byKey(const ValueKey('offerAccept')));
     await tester.pumpAndSettle();
 
     expect(backend.paths.last, 'POST /careers/car_1/social/offers/so_1/accept');
-    expect(find.text('Fazladan idman'), findsNothing, reason: 'modal kapandı');
+    // Ekran kapanmaz: sonuç kişinin karşısında gösteriliyor.
+    expect(find.byType(SocialOfferScreen), findsOneWidget);
+    expect(find.text('Antrenör'), findsOneWidget);
+    expect(find.text('70 → 75'), findsOneWidget);
+    expect(find.text('+5'), findsOneWidget);
   });
 
-  testWidgets('ret /decline POSTlar', (tester) async {
+  testWidgets('sonuç panelindeki Devam ekranı kapatır ve sonucu döndürür',
+      (tester) async {
+    final result = await _open(tester, _Backend());
+    await _skipIntro(tester);
+
+    await tester.tap(find.byKey(const ValueKey('offerAccept')));
+    await tester.pumpAndSettle();
+    await _skipIntro(tester);
+    await tester.tap(find.byKey(const ValueKey('offerDone')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SocialOfferScreen), findsNothing);
+    expect(result()?.offer.status, 'accepted');
+    expect(result()?.relationshipChanges.single.delta, 5);
+  });
+
+  testWidgets('ret /decline POSTlar ve düşen skoru gösterir', (tester) async {
     final backend = _Backend();
     await _open(tester, backend);
+    await _skipIntro(tester);
 
     await tester.tap(find.byKey(const ValueKey('offerDecline')));
     await tester.pumpAndSettle();
 
     expect(backend.paths.last, 'POST /careers/car_1/social/offers/so_1/decline');
-    expect(find.text('Fazladan idman'), findsNothing);
+    expect(find.text('70 → 67'), findsOneWidget);
+    expect(find.text('-3'), findsOneWidget);
   });
 
-  testWidgets('barrier\'a dokunmak modalı kapatmaz', (tester) async {
-    await _open(tester, _Backend());
+  testWidgets('seviye atlayan nitelik sonuç panelinde belirtilir',
+      (tester) async {
+    final backend = _Backend(
+      acceptBody: _resultBody('accepted', 5, attributeChanges: [
+        {'key': 'finishing', 'before': 41.0, 'after': 44.0,
+         'level_before': 2, 'level_after': 3},
+      ]),
+    );
+    await _open(tester, backend);
+    await _skipIntro(tester);
 
-    // Kartın dışında, ekranın en üstünde bir nokta.
-    await tester.tapAt(const Offset(10, 10));
+    await tester.tap(find.byKey(const ValueKey('offerAccept')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Fazladan idman'), findsOneWidget);
+    expect(find.text('41 → 44'), findsOneWidget);
+    expect(find.textContaining('seviye 3'), findsOneWidget);
   });
 
-  testWidgets('geri tuşu modalı kapatmaz', (tester) async {
+  testWidgets('geri tuşu ekranı kapatmaz', (tester) async {
     await _open(tester, _Backend());
 
-    final widgetsBinding = tester.binding;
-    await widgetsBinding.handlePopRoute();
+    await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
 
     // D53 · cevap zorunlu; INV-40 sayesinde ret her zaman mümkün olduğu için
     // bu kilit bir çıkmaz değil.
+    expect(find.byType(SocialOfferScreen), findsOneWidget);
     expect(find.text('Fazladan idman'), findsOneWidget);
   });
 
-  testWidgets('409 modalı açık bırakır ve mesajı gösterir', (tester) async {
+  testWidgets('409 teklif fazını açık bırakır ve mesajı gösterir',
+      (tester) async {
     await _open(tester, _Backend(acceptStatus: 409));
+    await _skipIntro(tester);
 
     await tester.tap(find.byKey(const ValueKey('offerAccept')));
     await tester.pumpAndSettle();
 
     expect(find.text("not enough 'time' left today"), findsOneWidget);
     expect(find.text('Fazladan idman'), findsOneWidget);
-    // Reddetmek hâlâ mümkün olmalı (INV-40); bir sonraki test bunu
-    // gerçekten basarak doğruluyor, burada düğmenin etkin olduğu yeter.
+    // Reddetmek hâlâ mümkün olmalı (INV-40); bir sonraki test bunu gerçekten
+    // basarak doğruluyor, burada düğmenin etkin olduğu yeter.
     final decline = tester.widget<OutlinedButton>(
       find.descendant(
         of: find.byKey(const ValueKey('offerDecline')),
@@ -222,6 +306,7 @@ void main() {
   testWidgets('reddedilen kabulden sonra ret hâlâ çalışır', (tester) async {
     final backend = _Backend(acceptStatus: 409);
     await _open(tester, backend);
+    await _skipIntro(tester);
 
     await tester.tap(find.byKey(const ValueKey('offerAccept')));
     await tester.pumpAndSettle();
@@ -229,6 +314,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(backend.paths.last, 'POST /careers/car_1/social/offers/so_1/decline');
-    expect(find.text('Fazladan idman'), findsNothing);
+    expect(find.text('70 → 67'), findsOneWidget);
   });
 }

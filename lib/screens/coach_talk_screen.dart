@@ -5,6 +5,7 @@ import 'package:project_srpg/net/career_models.dart';
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/character_portrait.dart';
+import 'package:project_srpg/widgets/delta_row.dart';
 import 'package:project_srpg/widgets/dialogue_backdrop.dart';
 import 'package:project_srpg/widgets/typewriter_text.dart';
 
@@ -445,14 +446,14 @@ class _ResultPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (trust != null)
-            _DeltaRow(
+            DeltaRow(
               key: const Key('coach_trust_delta'),
               label: 'Güven',
               before: trust.before,
               after: trust.after,
             ),
           if (score != null)
-            _DeltaRow(
+            DeltaRow(
               key: const Key('coach_score_delta'),
               label: 'İlişki',
               before: score.before.toDouble(),
@@ -474,57 +475,6 @@ class _ResultPanel extends StatelessWidget {
             key: const Key('coach_talk_done'),
             onPressed: onDone,
             child: const Text('Tamam'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DeltaRow extends StatelessWidget {
-  const _DeltaRow({
-    super.key,
-    required this.label,
-    required this.before,
-    required this.after,
-  });
-
-  final String label;
-  final double before;
-  final double after;
-
-  @override
-  Widget build(BuildContext context) {
-    final delta = after - before;
-    final color = delta > 0
-        ? AppColors.success
-        : (delta < 0 ? AppColors.danger : AppColors.textSecondary);
-    final sign = delta > 0 ? '+' : '';
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-              ),
-            ),
-          ),
-          Text(
-            '${before.round()} → ${after.round()}',
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '$sign${delta.toStringAsFixed(delta.truncateToDouble() == delta ? 0 : 1)}',
-            style: TextStyle(color: color, fontSize: 12),
           ),
         ],
       ),
