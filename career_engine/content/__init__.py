@@ -85,3 +85,11 @@ def validate_social_offers(templates: list) -> None:
                 raise ValueError(f"{where} has unknown cost key {key!r}")
 
         validate_requires(template.get("requires"), where)
+
+        # §12.8/D58 - opt-in only: absent means "resolves same day", exactly
+        # today's behavior, so this is the one field every existing template
+        # is allowed to skip.
+        plan_days_ahead = template.get("plan_days_ahead")
+        if plan_days_ahead is not None:
+            if not isinstance(plan_days_ahead, int) or isinstance(plan_days_ahead, bool) or plan_days_ahead < 1:
+                raise ValueError(f"{where} plan_days_ahead is not a positive integer: {plan_days_ahead!r}")

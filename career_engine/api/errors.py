@@ -75,6 +75,21 @@ def social_offer_pending(offer_id: str) -> ApiError:
     return ApiError(409, "social_offer_pending", f"social offer {offer_id!r} is waiting for an answer")
 
 
+def social_plan_not_found(plan_id: str) -> ApiError:
+    return ApiError(404, "social_plan_not_found", f"no social plan {plan_id!r}")
+
+
+def social_plan_not_open(plan_id: str) -> ApiError:
+    return ApiError(409, "social_plan_not_open", f"social plan {plan_id!r} is already resolved")
+
+
+def social_plan_pending(plan_id: str) -> ApiError:
+    """§12.8/D58 - the same gate D53 puts on an unanswered social offer, now
+    on a plan whose due day has arrived: attend or skip it before time
+    moves. The id travels in the message for the same reason."""
+    return ApiError(409, "social_plan_pending", f"social plan {plan_id!r} is due today")
+
+
 def match_day_unplayed(fixture_id: str) -> ApiError:
     """§6.1 D57 - time cannot advance while the user's own match today is
     still 'scheduled'. Replaces the earlier "missed match" auto-play: the

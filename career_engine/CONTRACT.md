@@ -3081,6 +3081,7 @@ numarası **artmaz**.
 | §3.2 | "`starts` = `appearances`; v1'de kullanıcı daima ilk 11'de" | Kullanıcı **ilk 11 / yedek / kadro dışı** olabilir (§12.2) |
 | §3.4 | `relationship.traits` yalnızca tohumlamada yazılır | `relationships.apply_trait_delta()` tek yazma yolu olarak eklendi (§12.1) |
 | §11.13 | "Kadro modeli ve NPC transferleri" kapsam dışı | **Yalnızca NPC transferi** kapsam dışı kalır |
+| §6.3 D54 | "Süre yok; geldiği gün cevaplanır" | Yalnızca `plan_days_ahead` alanı olmayan şablonlar için geçerli kalır; bu alanı taşıyan bir şablonun kabulü anında çözülmez, ileri tarihli bir `social_plan` randevusu yazar (§12.8) |
 
 **D4 kaldırılmadı.** Bir kariyerde hâlâ tam olarak bir `player` satırı vardır
 (`is_user = 1`); 32 takımın kadrosu, NPC oyuncuları ve derinliği yoktur ve
@@ -3395,3 +3396,87 @@ sözleşme yine gösterilir, çünkü `null` dönmek FE'ye "sözleşmen bitti" i
 | HTTP | `code` | Ne zaman |
 |---|---|---|
 | 409 | `coach_talk_already_done` | M4 ikinci kez çağrıldı (INV-43) |
+
+### 12.8 Sosyal plan (ileri tarihli teklif)
+
+> Numaralandırma notu: bu bölümden önce `§12`'de iki farklı yer `12.5`
+> başlığını taşıyor (yukarıdaki "üç hata" ve "yeni hata kodları" altbölümleri)
+> — şartnamenin kendi önceki hatası, burada düzeltilmiyor. `12.7` de
+> `domain/sponsorship.py`'nin kendi yorumlarında (yanlışlıkla, gerçek başlığı
+> `12.3`'tür) kendine atıfta bulunduğu bir numara; karışıklığı büyütmemek için
+> bu bölüm doğrudan bir sonraki temiz numarayı, `12.8`'i alıyor.
+
+D54 "süre yok, geldiği gün cevaplanır" bütün sosyal teklifler için doğruydu —
+ta ki bir teklifin metni gerçekten bir sonraki günü vaat edene kadar
+(`coach_extra_session`: "yarın sabah"). Böyle bir şablon artık kabul anında
+çözülmüyor; `relationship_delta` yine anında uygulanır (D53'ün ruhu
+korunuyor: bir cevap yine anında bir şey değiştiriyor) ama `costs` ve
+`effects` o günün yerine planın günü için ayrılan bir `social_plan`
+satırına ertelenir. Oyuncu o gün gelince ya gider (`attend`) ya da gitmez
+(`skip`) — sponsorluk randevusunun (§12.3) attend/skip'iyle birebir aynı
+kapı.
+
+#### Şema — `012_social_plans.sql`
+
+```sql
+CREATE TABLE social_plan (
+  career_id       TEXT NOT NULL REFERENCES career(career_id) ON DELETE CASCADE,
+  plan_id         TEXT NOT NULL,          -- 'spl_' + 12 hex
+  offer_id        TEXT NOT NULL,
+  template_id     TEXT NOT NULL,
+  relationship_id TEXT NOT NULL,
+  due_on          TEXT NOT NULL,
+  status          TEXT NOT NULL,          -- 'pending' | 'done' | 'missed'
+  PRIMARY KEY (career_id, plan_id)
+);
+```
+
+#### Şablon alanı
+
+`content/social_offers.py`'de bir şablonun `plan_days_ahead: int` alanı
+(pozitif tam sayı) varsa, o şablonun kabulü bu bölümdeki davranışı alır.
+Alan yoksa hiçbir şey değişmez — mevcut yedi şablondan altısı bugün olduğu
+gibi anında çözülmeye devam eder; yalnızca `coach_extra_session`
+`plan_days_ahead: 1` taşır.
+
+#### Uçlar
+
+| # | Yöntem | Yol | Açıklama |
+|---|---|---|---|
+| — | `GET` | `/careers/{cid}/social/plans` | Bugün (veya daha önce) vadesi gelmiş bekleyen planlar |
+| — | `POST` | `/careers/{cid}/social/plans/{plan_id}/attend` | Git: `costs` düşer, `effects` uygulanır, `status='done'` |
+| — | `POST` | `/careers/{cid}/social/plans/{plan_id}/skip` | Gitme: hiçbir maliyet yok, `status='missed'`, ilişkiye §12.8's `MISSED_PLAN_RELATIONSHIP_DELTA` (-12) yazılır |
+
+R5/R6'nın kabul yanıtı artık ek bir `plan` alanı taşır: `plan_days_ahead`
+olmayan bir şablonda veya reddedilen bir teklifte `null`, olan bir şablonun
+kabulünde oluşturulan `social_plan`'ın genel görünümü. `attend`/`skip`
+yanıtları da aynı R5/R6 zarfını (`career_state` + `relationship_changes` +
+`attribute_changes` + `ledger_entries` + `plan`) kullanır (INV-18).
+
+#### Gün döngüsü kapısı
+
+`list_events()` bekleyen her planı `{"kind": "social_plan_due", ...}` olarak
+ekler ve bu tür `STOP_EVENT_KINDS`'tadır — sponsorluk randevusu gibi
+**kenar-tetikli değil**: cevaplanana kadar her gün `POST /advance`'ı
+`409 social_plan_pending` ile kapıda durdurur.
+
+#### Yeni karar
+
+| # | Konu | Karar | Gerekçe |
+|---|---|---|---|
+| D58 | Sosyal teklifin zamanlaması | **`plan_days_ahead` alanı olan şablonlar ileri tarihli randevu yazar; yoksa mevcut anında çözüm** | Bir teklifin metni "yarın sabah" diyorsa mekanik onu "şimdi" gibi davranmamalı; alanın yokluğu geri uyumluluğu bozmadan geri kalan altı şablonu olduğu gibi bırakır |
+
+#### Yeni invariant'lar
+
+| # | Garanti |
+|---|---|
+| INV-50 | Bir `social_plan` satırı yalnızca `plan_days_ahead` taşıyan bir şablonun kabulünden doğar; bu alanı olmayan hiçbir şablon `social_plan` üretmez (D58) |
+| INV-51 | Bekleyen (`pending`) bir `social_plan`, bir sponsorluk yükümlülüğü gibi `POST /advance`'ı kapıda durdurur; kaçırılan (`missed`) bir planın ilişki cezası aynı şablonun `decline` deltasından daha büyüktür |
+
+#### Yeni hata kodları
+
+| HTTP | `code` | Ne zaman |
+|---|---|---|
+| 404 | `social_plan_not_found` | Bilinmeyen `plan_id` |
+| 409 | `social_plan_not_open` | Plan zaten `done`/`missed` iken tekrar `attend`/`skip` çağrıldı |
+| 409 | `social_plan_pending` | Cevaplanmamış bir sosyal plan varken `advance` çağrıldı; mesaj `plan_id` taşır |

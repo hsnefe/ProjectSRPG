@@ -27,3 +27,8 @@ def new_sponsorship_deal_id() -> str:
 
 def new_obligation_id() -> str:
     return "ob_" + secrets.token_hex(6)
+
+
+def new_social_plan_id() -> str:
+    # 'spl_', not 'sp_': that prefix is sponsorship_deal's (§12.7).
+    return "spl_" + secrets.token_hex(6)

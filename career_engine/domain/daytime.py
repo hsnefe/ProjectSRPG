@@ -127,6 +127,10 @@ STOP_EVENT_KINDS = {
     # §12.7 - a booked appearance and a brand on the phone are both things
     # the day should stop for.
     "sponsorship_offer", "sponsorship_obligation",
+    # §12.8/D58 - a social plan the player already committed to, same
+    # reasoning as a sponsorship obligation: due today, not skippable by
+    # advancing past it silently.
+    "social_plan_due",
 }
 
 
@@ -236,6 +240,14 @@ def list_events(
             "ref_id": offer["offer_id"],
             "relationship_id": offer["relationship_id"],
             "opened_on": offer["opened_on"],
+        })
+
+    for plan in social.list_due_plans(conn, career_id, on_date):
+        events.append({
+            "kind": "social_plan_due",
+            "ref_id": plan["plan_id"],
+            "relationship_id": plan["relationship_id"],
+            "due_on": plan["due_on"],
         })
 
     low_rows = conn.execute(

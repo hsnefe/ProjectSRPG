@@ -21,6 +21,11 @@ test.
 budget and touches no balance. A mandatory answer with a failable escape
 hatch is a soft-lock waiting for a player with an empty wallet.
 
+A template with `plan_days_ahead` (§12.8, D58) is the one exception to
+"answered means resolved": accepting still applies `relationship_delta` on
+the spot, but its `costs`/`effects` move to a `social_plan` row due on a
+later day instead of applying here and now — see the plan functions below.
+
 Like every other domain module: nothing here commits. The router does, once
 (INV-3).
 """
@@ -30,13 +35,23 @@ import sqlite3
 from typing import List, Optional
 
 from api import config
-from api.ids import new_social_offer_id
+from api.ids import new_social_offer_id, new_social_plan_id
 from content.social_offers import SOCIAL_OFFERS
 from domain import requirements
 
 _BY_ID = {t["template_id"]: t for t in SOCIAL_OFFERS}
 
 DECISIONS = ("accept", "decline")
+
+PLAN_PENDING = "pending"
+PLAN_DONE = "done"
+PLAN_MISSED = "missed"
+
+# §12.8/D58 - what missing a plan you already said yes to costs. Bigger than
+# any template's own decline delta (those run -1 to -5): breaking a promise
+# reads worse than never having made one, the same relationship sponsorship
+# obligations already put on a missed appearance (MISSED_MEDIA_DELTA).
+MISSED_PLAN_RELATIONSHIP_DELTA = -12
 
 
 def template(template_id: str) -> Optional[dict]:
@@ -206,3 +221,75 @@ def resolve(
         ("accepted" if decision == "accept" else "declined", on_date, career_id, offer_id),
     )
     return get(conn, career_id, offer_id)
+
+
+# --- social plans (§12.8, D58) --------------------------------------------
+#
+# A `plan_days_ahead` template's accept doesn't resolve on the spot: it
+# schedules one of these, due on a later day, that the player has to attend
+# or skip once that day arrives. Single write path for the `social_plan`
+# table, the way `resolve()` above is for `social_offer` — the router still
+# owns applying `costs`/`effects` (INV-3: one transaction, and those belong
+# to wallet/condition/attributes/day_budget's own single write paths, not
+# this module's).
+
+def _row_to_plan(row: sqlite3.Row) -> dict:
+    tpl = template(row["template_id"]) or {}
+    return {
+        "plan_id": row["plan_id"],
+        "offer_id": row["offer_id"],
+        "template_id": row["template_id"],
+        "relationship_id": row["relationship_id"],
+        "due_on": row["due_on"],
+        "status": row["status"],
+        "title": tpl.get("title", ""),
+        "body": tpl.get("body", ""),
+        "costs": tpl.get("costs", {}),
+    }
+
+
+def get_plan(conn: sqlite3.Connection, career_id: str, plan_id: str) -> Optional[dict]:
+    row = conn.execute(
+        "SELECT * FROM social_plan WHERE career_id = ? AND plan_id = ?",
+        (career_id, plan_id),
+    ).fetchone()
+    return _row_to_plan(row) if row else None
+
+
+def list_due_plans(conn: sqlite3.Connection, career_id: str, on_date: str) -> List[dict]:
+    """Every plan due today or overdue — overdue only possible in the moment
+    between a day rolling over and the player answering, since the advance
+    gate stops time until they do (mirrors sponsorship.pending_obligations)."""
+    rows = conn.execute(
+        "SELECT * FROM social_plan WHERE career_id = ? AND status = ? AND due_on <= ? "
+        "ORDER BY due_on ASC, plan_id ASC",
+        (career_id, PLAN_PENDING, on_date),
+    ).fetchall()
+    return [_row_to_plan(r) for r in rows]
+
+
+def create_plan(
+    conn: sqlite3.Connection, career_id: str, offer_id: str, template_id: str,
+    relationship_id: str, due_on: str,
+) -> dict:
+    plan_id = new_social_plan_id()
+    conn.execute(
+        "INSERT INTO social_plan (career_id, plan_id, offer_id, template_id, "
+        "relationship_id, due_on, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (career_id, plan_id, offer_id, template_id, relationship_id, due_on, PLAN_PENDING),
+    )
+    return get_plan(conn, career_id, plan_id)
+
+
+def mark_plan_done(conn: sqlite3.Connection, career_id: str, plan_id: str) -> None:
+    conn.execute(
+        "UPDATE social_plan SET status = ? WHERE career_id = ? AND plan_id = ?",
+        (PLAN_DONE, career_id, plan_id),
+    )
+
+
+def mark_plan_missed(conn: sqlite3.Connection, career_id: str, plan_id: str) -> None:
+    conn.execute(
+        "UPDATE social_plan SET status = ? WHERE career_id = ? AND plan_id = ?",
+        (PLAN_MISSED, career_id, plan_id),
+    )

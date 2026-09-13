@@ -37,6 +37,12 @@ SOCIAL_OFFERS = [
         "accept": {"relationship_delta": 5, "effects": {"condition": -6, "attribute:shooting": 0.6}},
         "decline": {"relationship_delta": -3, "effects": {}},
         "costs": {"time": 120, "energy": 20},
+        # "Yarın sabah": a promise about a specific future day, not "now" or
+        # "tonight" like the rest of this pool. `plan_days_ahead` is what
+        # turns accepting into a scheduled `social_plan` (due the next day)
+        # instead of resolving `costs`/`effects` on the spot — see
+        # domain/social.py and CONTRACT.md §12.8/D58.
+        "plan_days_ahead": 1,
     },
     {
         "template_id": "coach_video_review",

@@ -197,6 +197,14 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
     if pending_offers:
         raise errors.social_offer_pending(pending_offers[0]["offer_id"])
 
+    # §12.8/D58 - the same gate for a plan the player already accepted. You
+    # said you'd be there; the day it's due is not one you advance past
+    # unanswered. `skip` (not `attend`) is the way out, same shape as a
+    # sponsorship obligation just below.
+    due_plans = social.list_due_plans(conn, career_id, current_date)
+    if due_plans:
+        raise errors.social_plan_pending(due_plans[0]["plan_id"])
+
     # §12.7 - the same gate for a booked sponsorship appearance. You said
     # you would be there; the day is not one you skip past. The way out is
     # `skip`, which breaks the deal - the player is charged, never trapped.
