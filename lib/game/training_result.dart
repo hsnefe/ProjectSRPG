@@ -20,7 +20,15 @@ library;
 /// Which drill produced a result. This doubles as the identity a training card
 /// carries, so the card, the launcher and the future PlayerState effect all
 /// agree on one key.
-enum TrainingDrill { conditioning, strength, shot, pass, flexibility, dribble }
+enum TrainingDrill {
+  conditioning,
+  strength,
+  shot,
+  pass,
+  flexibility,
+  dribble,
+  tackling,
+}
 
 enum TrainingOutcome { success, failure }
 
