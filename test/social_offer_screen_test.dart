@@ -252,6 +252,33 @@ void main() {
     expect(find.text('-3'), findsOneWidget);
   });
 
+  testWidgets('§12.8/D58 · planlı bir kabul randevu tarihini gösterir',
+      (tester) async {
+    final backend = _Backend(
+      acceptBody: {
+        ..._resultBody('accepted', 5),
+        'plan': {
+          'plan_id': 'spl_1',
+          'offer_id': 'so_1',
+          'template_id': 'coach_extra_session',
+          'relationship_id': 'coach',
+          'title': 'Fazladan idman',
+          'body': '...',
+          'due_on': '2026-08-20',
+          'status': 'pending',
+          'costs': {'time': 120.0, 'energy': 20.0},
+        },
+      },
+    );
+    await _open(tester, backend);
+    await _skipIntro(tester);
+
+    await tester.tap(find.byKey(const ValueKey('offerAccept')));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Randevu'), findsOneWidget);
+  });
+
   testWidgets('seviye atlayan nitelik sonuç panelinde belirtilir',
       (tester) async {
     final backend = _Backend(

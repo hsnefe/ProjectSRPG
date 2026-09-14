@@ -13,6 +13,7 @@ import 'package:project_srpg/screens/settings_screen.dart';
 import 'package:project_srpg/screens/training_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/screens/social_offer_screen.dart';
+import 'package:project_srpg/screens/social_plan_screen.dart';
 import 'package:project_srpg/screens/sponsorship_screen.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/date_labels.dart';
@@ -93,6 +94,16 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
     _refreshAfterMatchFlow();
   }
 
+  /// §12.8/D58 · bugün vadesi gelmiş bir sosyal plan varken açılır — aynı
+  /// desen, `_openSponsorships()`'un ikizi.
+  Future<void> _openSocialPlans() async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(builder: (_) => const SocialPlanScreen()),
+    );
+    if (!mounted || changed != true) return;
+    _refreshAfterMatchFlow();
+  }
+
   /// §11.5 S1 · sezon bittiğinde yeni sezonu başlatır.
   ///
   /// Prompt "yeni sezon **otomatik** başlamalı" diyor, D46 ise devri ayrı bir
@@ -155,6 +166,7 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
     var serverMatchUnplayed = false;
     var seasonRolloverDue = false;
     var sponsorshipDue = false;
+    var socialPlanDue = false;
     try {
       final careerId = await _session.resolve();
       while (mounted && token == _advanceToken && _overlayDays < _maxLoopDays) {
@@ -193,6 +205,8 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
           seasonRolloverDue = true;
         } else if (e.code == 'sponsorship_obligation_pending') {
           sponsorshipDue = true;
+        } else if (e.code == 'social_plan_pending') {
+          socialPlanDue = true;
         } else {
           messenger.showSnackBar(
             SnackBar(content: Text(e.message ?? 'Gün ilerletilemedi.')),
@@ -215,6 +229,12 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
     // `social_offer_pending` arka kapısıyla aynı okuma.
     if (sponsorshipDue) {
       await _openSponsorships();
+      return;
+    }
+    // §12.8/D58 · söz verilen bir plan varken gün ilerlemiyor — aynı okuma,
+    // aynı arka kapı biçimi.
+    if (socialPlanDue) {
+      await _openSocialPlans();
       return;
     }
     if (serverMatchUnplayed) {

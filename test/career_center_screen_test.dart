@@ -13,6 +13,7 @@ import 'package:project_srpg/screens/pre_match_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/widgets/month_calendar.dart';
 import 'package:project_srpg/screens/social_offer_screen.dart';
+import 'package:project_srpg/screens/social_plan_screen.dart';
 
 http.Response _json(Object body, {int status = 200}) => http.Response(
       jsonEncode(body),
@@ -129,6 +130,15 @@ const _offerContact = {
   'score': 70, 'person_name': 'Mert Çalışkan', 'contact_name': 'Antrenör Mert',
 };
 
+const _duePlanBody = {
+  'plan_id': 'spl_1', 'offer_id': 'so_1', 'template_id': 'coach_extra_session',
+  'relationship_id': 'coach', 'relationship': _offerContact,
+  'title': 'Fazladan idman',
+  'body': 'Antrenör yarın sabah bire bir çalışmak istiyor.',
+  'due_on': '2026-08-19', 'status': 'pending',
+  'costs': {'time': 120.0, 'energy': 20.0},
+};
+
 const _openOfferBody = {
   'offer_id': 'so_1', 'template_id': 'coach_extra_session',
   'relationship_id': 'coach', 'relationship': _offerContact,
@@ -144,6 +154,7 @@ CareerSession _hubSession(
   Map<String, dynamic>? dayBody,
   http.Response Function(http.Request)? onAdvance,
   List<Map<String, dynamic>>? socialOffers,
+  List<Map<String, dynamic>>? socialPlans,
 }) {
   final mock = MockClient((request) async {
     if (request.url.path == '/careers') return _json(_careersListBody);
@@ -153,6 +164,10 @@ CareerSession _hubSession(
     }
     if (request.url.path == '/careers/car_test/social/offers') {
       return _json({'offers': socialOffers ?? const <dynamic>[]});
+    }
+    if (request.url.path == '/careers/car_test/social/plans' &&
+        request.method == 'GET') {
+      return _json({'plans': socialPlans ?? const <dynamic>[]});
     }
     if (request.url.path.startsWith('/careers/car_test/social/offers/')) {
       return _json({
@@ -749,6 +764,29 @@ testWidgets('döngü bir teklifte durunca teklif ekranı açılır', (tester) as
     expect(find.byType(SocialOfferScreen), findsOneWidget);
     // 409'un ham metni gösterilmez — kullanıcıya teklifin kendisi gösterilir.
     expect(find.text('so_1 is waiting'), findsNothing);
+  });
+
+  testWidgets('sunucu social_plan_pending derse plan ekranı açılır',
+      (tester) async {
+    // §12.8/D58 · social_offer_pending'in aynı arka kapı okuması — bekleyen
+    // bir plan varken sunucu 409 atar, uygulama ham hata yerine plan
+    // ekranını açar.
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      socialPlans: const [_duePlanBody],
+      onAdvance: (request) => _json(
+        {'code': 'social_plan_pending', 'message': "spl_1 is due today"},
+        status: 409,
+      ),
+    );
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('İlerle'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SocialPlanScreen), findsOneWidget);
+    expect(find.text('spl_1 is due today'), findsNothing);
   });
 
   testWidgets('teklif başka bir yerde cevaplanmışsa sessizce tazelenir',

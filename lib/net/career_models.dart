@@ -2783,21 +2783,26 @@ class SocialOfferContact {
   final String contactName;
 }
 
-/// R5/R6 · teklif yanıtı. R3'ün şekli, artı çözümlenmiş `offer`.
+/// R5/R6 · teklif yanıtı. R3'ün şekli, artı çözümlenmiş `offer`. `plan`,
+/// §12.8/D58'in `plan_days_ahead` taşıyan bir şablonu kabul edince yazdığı
+/// randevu — taşımayan şablonlarda ve her reddetmede null kalır.
 class SocialOfferResult {
   const SocialOfferResult({
     required this.careerState,
     required this.offer,
+    this.plan,
     required this.relationshipChanges,
     required this.attributeChanges,
     required this.ledgerEntries,
   });
 
   factory SocialOfferResult.fromJson(Map<String, dynamic> json) {
+    final plan = json['plan'] as Map<String, dynamic>?;
     return SocialOfferResult(
       careerState:
           CareerState.fromJson(json['career_state'] as Map<String, dynamic>),
       offer: SocialOffer.fromJson(json['offer'] as Map<String, dynamic>),
+      plan: plan == null ? null : SocialPlan.fromJson(plan),
       relationshipChanges:
           ((json['relationship_changes'] as List<dynamic>?) ?? const [])
               .map((e) => RelationshipChange.fromJson(e as Map<String, dynamic>))
@@ -2811,6 +2816,96 @@ class SocialOfferResult {
 
   final CareerState careerState;
   final SocialOffer offer;
+  final SocialPlan? plan;
+  final List<RelationshipChange> relationshipChanges;
+  final List<AttributeChange> attributeChanges;
+  final List<LedgerEntry> ledgerEntries;
+}
+
+// ---------------------------------------------------------------------------
+// §12.8 D58 — sosyal planlar (ileri tarihli teklif)
+// ---------------------------------------------------------------------------
+
+/// Bir `plan_days_ahead` şablonunun kabulünden doğan randevu. Sponsorluk
+/// yükümlülüğünün aksine (`SponsorshipObligation`, yalnızca id/tarih —
+/// başlık/gövde sahibi anlaşma) kendi `title`/`body`/`costs`'unu taşır: bir
+/// deal sarmalayıcısı yok, R4'ün `SocialOffer`'ı gibi kendi başına yeterli.
+class SocialPlan {
+  const SocialPlan({
+    required this.planId,
+    required this.offerId,
+    required this.templateId,
+    required this.relationshipId,
+    required this.title,
+    required this.body,
+    required this.dueOn,
+    required this.status,
+    required this.costs,
+    this.relationship,
+  });
+
+  factory SocialPlan.fromJson(Map<String, dynamic> json) {
+    final relationship = json['relationship'] as Map<String, dynamic>?;
+    return SocialPlan(
+      planId: json['plan_id'] as String,
+      offerId: json['offer_id'] as String? ?? '',
+      templateId: json['template_id'] as String? ?? '',
+      relationshipId: json['relationship_id'] as String,
+      title: json['title'] as String? ?? '',
+      body: json['body'] as String? ?? '',
+      dueOn: json['due_on'] as String,
+      status: json['status'] as String,
+      costs: ((json['costs'] as Map<String, dynamic>?) ?? const {}).map(
+        (key, value) => MapEntry(key, (value as num).toDouble()),
+      ),
+      relationship: relationship == null
+          ? null
+          : SocialOfferContact.fromJson(relationship),
+    );
+  }
+
+  final String planId;
+  final String offerId;
+  final String templateId;
+  final String relationshipId;
+  final String title;
+  final String body;
+  final String dueOn;
+  final String status;
+  final Map<String, double> costs;
+  final SocialOfferContact? relationship;
+
+  bool get isPending => status == 'pending';
+}
+
+/// `attend`/`skip` yanıtı — R5/R6 ile aynı zarf, `offer` yerine `plan`.
+class SocialPlanResult {
+  const SocialPlanResult({
+    required this.careerState,
+    required this.plan,
+    required this.relationshipChanges,
+    required this.attributeChanges,
+    required this.ledgerEntries,
+  });
+
+  factory SocialPlanResult.fromJson(Map<String, dynamic> json) {
+    return SocialPlanResult(
+      careerState:
+          CareerState.fromJson(json['career_state'] as Map<String, dynamic>),
+      plan: SocialPlan.fromJson(json['plan'] as Map<String, dynamic>),
+      relationshipChanges:
+          ((json['relationship_changes'] as List<dynamic>?) ?? const [])
+              .map((e) => RelationshipChange.fromJson(e as Map<String, dynamic>))
+              .toList(growable: false),
+      attributeChanges: ((json['attribute_changes'] as List<dynamic>?) ?? const [])
+          .map((e) => AttributeChange.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+      ledgerEntries: _parseLedgerEntries(json['ledger_entries']),
+    );
+  }
+
+  final CareerState careerState;
+  final SocialPlan plan;
   final List<RelationshipChange> relationshipChanges;
   final List<AttributeChange> attributeChanges;
   final List<LedgerEntry> ledgerEntries;

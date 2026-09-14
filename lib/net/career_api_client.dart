@@ -466,6 +466,40 @@ class CareerApiClient {
   }
 
   // ---------------------------------------------------------------------
+  // §12.8 D58 Sosyal planlar (ileri tarihli teklif)
+  // ---------------------------------------------------------------------
+
+  /// `GET /careers/{cid}/social/plans` — bugün (veya daha önce) vadesi
+  /// gelmiş, bekleyen planlar.
+  Future<List<SocialPlan>> socialPlans(String careerId) async {
+    final body = await _get('/careers/$careerId/social/plans');
+    return (body['plans'] as List<dynamic>)
+        .map((e) => SocialPlan.fromJson(e as Map<String, dynamic>))
+        .toList(growable: false);
+  }
+
+  /// Git — günün bütçesinden düşer, kabul anında ertelenmiş etkileri
+  /// uygular.
+  Future<SocialPlanResult> attendSocialPlan(
+    String careerId,
+    String planId,
+  ) async {
+    final body = await _post('/careers/$careerId/social/plans/$planId/attend');
+    return SocialPlanResult.fromJson(body);
+  }
+
+  /// Gitme — hiçbir şeye mal olmaz, ama reddetmekten daha büyük bir ilişki
+  /// cezası yazar (bir söz zaten verilmişti). Zamanı tekrar akmaya
+  /// başlatan çıkış kapısı budur.
+  Future<SocialPlanResult> skipSocialPlan(
+    String careerId,
+    String planId,
+  ) async {
+    final body = await _post('/careers/$careerId/social/plans/$planId/skip');
+    return SocialPlanResult.fromJson(body);
+  }
+
+  // ---------------------------------------------------------------------
   // §5.5 Zaman — T1-T4
   // ---------------------------------------------------------------------
 

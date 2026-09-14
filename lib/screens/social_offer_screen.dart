@@ -306,6 +306,18 @@ class _SocialOfferScreenState extends State<SocialOfferScreen> {
       children: [
         _typewriter(_closingLine(widget.offer.relationshipId, accepted)),
         const SizedBox(height: 14),
+        // §12.8/D58 · bu kabul anında çözülmedi — geri kalanı planın günü
+        // bekliyor. Nitelik/kondisyon/para satırları bu yüzden boş kalıyor;
+        // burada onun yerine ne zaman gidileceği yazıyor.
+        if (result.plan case final plan?)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _Chip(
+              icon: Icons.event_outlined,
+              tint: AppColors.warning,
+              label: 'Randevu: ${fullDateLabel(plan.dueOn)}',
+            ),
+          ),
         for (final change in result.relationshipChanges)
           DeltaRow(
             key: ValueKey('offerRelDelta_${change.relationshipId}'),
