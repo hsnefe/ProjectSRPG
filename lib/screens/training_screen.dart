@@ -10,6 +10,7 @@ import 'package:project_srpg/screens/conditioning_training_screen.dart';
 import 'package:project_srpg/screens/dribble_training_screen.dart';
 import 'package:project_srpg/screens/flexibility_training_screen.dart';
 import 'package:project_srpg/screens/strength_training_screen.dart';
+import 'package:project_srpg/screens/tackle_training_screen.dart';
 import 'package:project_srpg/screens/training_radar_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/state/player_state.dart';
@@ -54,8 +55,8 @@ class _TrainingItem {
 }
 
 /// N3 `drill` string'i → [TrainingDrill]. Yalnızca gerçek bir mini-oyunu
-/// olan değerler eşlenir; kalanı (müdahale, bütün kişi kalemleri) backend
-/// zaten `null` gönderiyor.
+/// olan değerler eşlenir; kalanı (bütün kişi kalemleri) backend zaten `null`
+/// gönderiyor.
 const _drillByKey = {
   'conditioning': TrainingDrill.conditioning,
   'strength': TrainingDrill.strength,
@@ -63,6 +64,7 @@ const _drillByKey = {
   'pass': TrainingDrill.pass,
   'flexibility': TrainingDrill.flexibility,
   'dribble': TrainingDrill.dribble,
+  'tackling': TrainingDrill.tackling,
 };
 
 /// §5.8 — ikon ve renk BE'den gelmez, FE'nin sunum kararı. `catalog_id`
@@ -74,6 +76,7 @@ const _iconByCatalogId = {
   'sut': Icons.sports_soccer,
   'pas': Icons.swap_horiz,
   'dribling': Icons.directions_walk,
+  'mudahale': Icons.sports_kabaddi,
   'medya-egitimi': Icons.mic_outlined,
   'gorgu-dersleri': Icons.handshake_outlined,
   'ozguven-koclugu': Icons.psychology_outlined,
@@ -156,6 +159,9 @@ class _TrainingScreenState extends State<TrainingScreen> {
         ),
       TrainingDrill.dribble => MaterialPageRoute<TrainingResult>(
           builder: (_) => const DribbleTrainingScreen(),
+        ),
+      TrainingDrill.tackling => MaterialPageRoute<TrainingResult>(
+          builder: (_) => const TackleTrainingScreen(),
         ),
     };
 

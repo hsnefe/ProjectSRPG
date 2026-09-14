@@ -60,8 +60,8 @@ TRAINING_ITEMS = [
     },
     {
         "catalog_id": "mudahale", "title": "Müdahale",
-        "description": "Top kapma ve ikili mücadele çalışması.",
-        "family": "saha", "drill": None,
+        "description": "Baskı zinciri: tempoyu tutturarak rakibe yetiş, açılan pencerede dal.",
+        "family": "saha", "drill": "tackling",
         "costs": {"time": 60, "energy": 20},
         "effects": {"attribute:tackling": 1.0},
     },
