@@ -12,11 +12,15 @@ import 'package:project_srpg/screens/ball_training_screen.dart';
 import 'package:project_srpg/screens/conditioning_training_screen.dart';
 import 'package:project_srpg/screens/flexibility_training_screen.dart';
 import 'package:project_srpg/screens/strength_training_screen.dart';
+import 'package:project_srpg/screens/tackle_training_screen.dart';
 import 'package:project_srpg/screens/training_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 
-/// N3 `training` kataloğu — career_engine/catalog/training.py'nin 11
-/// kaleminin aynısı (6 saha + 5 kişi).
+/// N3 `training` kataloğu — career_engine/catalog/training.py'nin 12
+/// kaleminin aynısı (7 saha + 5 kişi). Elle tutulan bir ayna olduğu için
+/// katalog değiştikçe burası da güncellenmeli: literal kendi kendine
+/// yettiğinden, saptığında testler sessizce eski davranışı doğrulamaya
+/// devam eder.
 const _trainingItems = [
   {
     'catalog_id': 'kondisyon-kosusu', 'title': 'Kondisyon Koşusu',
@@ -50,39 +54,46 @@ const _trainingItems = [
   },
   {
     'catalog_id': 'dribling', 'title': 'Dribling',
-    'description': '…', 'family': 'saha', 'drill': null,
+    'description': '…', 'family': 'saha', 'drill': 'dribble',
     'costs': {'time': 60, 'energy': 18},
     'effects': {'attribute:dribbling': 1.0},
+  },
+  {
+    'catalog_id': 'mudahale', 'title': 'Müdahale',
+    'description': '…', 'family': 'saha', 'drill': 'tackling',
+    'costs': {'time': 60, 'energy': 20},
+    'effects': {'attribute:tackling': 1.0},
   },
   {
     'catalog_id': 'medya-egitimi', 'title': 'Medya Eğitimi',
     'description': '…', 'family': 'kişi', 'drill': null,
     'costs': {'time': 60, 'energy': 5},
-    'effects': {'attribute:charisma': 0.8, 'money': -1500},
+    'effects': {'attribute:charisma': 0.8, 'money': -10},
+    'requires': {'confidence': 6},
   },
   {
     'catalog_id': 'gorgu-dersleri', 'title': 'Görgü Dersleri',
     'description': '…', 'family': 'kişi', 'drill': null,
     'costs': {'time': 45, 'energy': 5},
-    'effects': {'attribute:politeness': 0.8, 'money': -800},
+    'effects': {'attribute:politeness': 0.8, 'money': -5},
   },
   {
     'catalog_id': 'ozguven-koclugu', 'title': 'Özgüven Koçluğu',
     'description': '…', 'family': 'kişi', 'drill': null,
     'costs': {'time': 60, 'energy': 8},
-    'effects': {'attribute:confidence': 0.8, 'money': -1200},
+    'effects': {'attribute:confidence': 0.8, 'money': -8},
   },
   {
     'catalog_id': 'satranc-kulubu', 'title': 'Satranç Kulübü',
     'description': '…', 'family': 'kişi', 'drill': null,
     'costs': {'time': 90, 'energy': 5},
-    'effects': {'attribute:intelligence': 0.8, 'money': -500},
+    'effects': {'attribute:intelligence': 0.8, 'money': -3},
   },
   {
     'catalog_id': 'kriz-simulasyonu', 'title': 'Kriz Simülasyonu',
     'description': '…', 'family': 'kişi', 'drill': null,
     'costs': {'time': 60, 'energy': 10},
-    'effects': {'attribute:resourcefulness': 0.8, 'money': -1000},
+    'effects': {'attribute:resourcefulness': 0.8, 'money': -7},
   },
 ];
 
@@ -102,8 +113,8 @@ CareerSession _trainingSession() {
   return CareerSession(client: CareerApiClient(httpClient: mock, baseUrl: 'http://test'));
 }
 
-/// D42 · `medya-egitimi`'ne bir eşik takar ve oyuncunun özgüven seviyesini
-/// [confidenceLevel] yapar.
+/// D42 · oyuncunun özgüven seviyesini [confidenceLevel] yapar; eşiğin
+/// kendisi katalogda zaten duruyor.
 CareerSession _gatedTrainingSession({required int confidenceLevel}) {
   final items = [
     for (final item in _trainingItems)
@@ -188,19 +199,11 @@ Future<void> _scrollTo(WidgetTester tester, String title) async {
 }
 
 void main() {
-  group('mini-oyunu olmayan kartlar', () {
-    testWidgets('Dribling Yakında yazar ve pasiftir', (tester) async {
-      await tester.pumpWidget(
-        _wrap(TrainingScreen(session: _trainingSession())),
-      );
-      await tester.pumpAndSettle();
-
-      await _scrollTo(tester, 'Dribling');
-      expect(_button(tester, 'Dribling').onPressed, isNull);
-      expect(find.text('Yakında'), findsOneWidget);
-    });
-
-    testWidgets('diğer beşi Başla yazar ve tıklanabilir', (tester) async {
+  group('kart butonları', () {
+    // Müdahale'nin de oyunu olduğuna göre yedi saha kartının hepsi açık;
+    // 'Yakında' artık yalnızca kişi kalemlerinde kalan bir durum.
+    testWidgets('yedi saha kartı da Başla yazar ve tıklanabilir',
+        (tester) async {
       await tester.pumpWidget(
         _wrap(TrainingScreen(session: _trainingSession())),
       );
@@ -212,10 +215,35 @@ void main() {
         'Esneklik & Toparlanma',
         'Şut',
         'Pas',
+        'Dribling',
+        'Müdahale',
       ]) {
         await _scrollTo(tester, title);
         expect(_button(tester, title).onPressed, isNotNull, reason: title);
       }
+    });
+
+    testWidgets('mini-oyunu olmayan kişi kartı Yakında yazar ve pasiftir',
+        (tester) async {
+      await tester.pumpWidget(
+        _wrap(TrainingScreen(session: _trainingSession())),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Kişisel'));
+      await tester.pumpAndSettle();
+      await _scrollTo(tester, 'Görgü Dersleri');
+
+      expect(_button(tester, 'Görgü Dersleri').onPressed, isNull);
+      expect(
+        find.descendant(
+          of: find.ancestor(
+            of: find.text('Görgü Dersleri'),
+            matching: _card,
+          ),
+          matching: find.text('Yakında'),
+        ),
+        findsOneWidget,
+      );
     });
   });
 
@@ -250,6 +278,22 @@ void main() {
       expect(find.byType(ConditioningTrainingScreen), findsOneWidget);
 
       // Canlı bir GameWidget kaldığı için test bitmeden söküyoruz.
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('Müdahale baskı zinciri ekranını açar', (tester) async {
+      await tester.pumpWidget(
+        _wrap(TrainingScreen(session: _trainingSession())),
+      );
+      await tester.pumpAndSettle();
+      await _scrollTo(tester, 'Müdahale');
+
+      await tester.tap(_startButton('Müdahale'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.byType(TackleTrainingScreen), findsOneWidget);
+
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
