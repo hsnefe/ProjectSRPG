@@ -10,6 +10,7 @@ import 'package:project_srpg/widgets/date_labels.dart';
 import 'package:project_srpg/widgets/delta_row.dart';
 import 'package:project_srpg/widgets/dialogue_backdrop.dart';
 import 'package:project_srpg/widgets/relationship_presentation.dart';
+import 'package:project_srpg/widgets/turkish_text.dart';
 import 'package:project_srpg/widgets/typewriter_text.dart';
 
 /// Sosyal teklif ekranı — R4'ün metnini gösterir, R5/R6'yı çağırır (§5.4).
@@ -578,7 +579,7 @@ class _SceneSection extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        person.category.toUpperCase(),
+                        trUpperCase(person.category),
                         style: const TextStyle(
                           color: AppColors.textSoft,
                           fontSize: 10,
