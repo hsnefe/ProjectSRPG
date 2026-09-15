@@ -11,6 +11,7 @@ import 'package:project_srpg/net/match_api_client.dart';
 import 'package:project_srpg/net/match_models.dart';
 import 'package:project_srpg/net/match_sse_client.dart';
 import 'package:project_srpg/screens/intervention_shot_screen.dart';
+import 'package:project_srpg/screens/intervention_tackle_screen.dart';
 import 'package:project_srpg/screens/match_screen.dart';
 import 'package:project_srpg/screens/request_screen.dart';
 import 'package:project_srpg/state/match_controller.dart';
@@ -82,6 +83,7 @@ InterventionOfferFrame _minigameOffer({
   int minute = 63,
   String actionKey = 'finish_power',
   String prompt = 'Forvet ceza sahasında topla buluştu',
+  String minigame = 'shot',
 }) {
   return InterventionOfferFrame(
     seq: minute,
@@ -89,7 +91,7 @@ InterventionOfferFrame _minigameOffer({
     offerId: offerId,
     minute: minute,
     resolution: 'minigame',
-    minigame: 'shot',
+    minigame: minigame,
     actionKey: actionKey,
     prompt: prompt,
     riskHint: null,
@@ -534,6 +536,55 @@ void main() {
       expect(find.byType(InterventionShotScreen), findsOneWidget);
       // Sonuç henüz gelmedi - motora hiçbir POST atılmamalı.
       expect(requests.where((r) => r.url.path.endsWith('/intervention')), isEmpty);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('minigame:"tackle" teklifi şut değil müdahale ekranını açar',
+        (tester) async {
+      final source = _FakeSseClient();
+      final requests = <http.Request>[];
+      await _pumpMatchScreen(
+        tester,
+        _buildController(source, recordedRequests: requests),
+      );
+
+      await _emitOffer(
+        tester,
+        source,
+        _minigameOffer(
+          minigame: 'tackle',
+          actionKey: 'tackle_hard',
+          prompt: 'Rakip dikine çıkıyor, son savunmacı müdahaleye gidiyor',
+        ),
+      );
+
+      await tester.tap(find.text('Müdahale et'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.byType(InterventionTackleScreen), findsOneWidget);
+      expect(find.byType(InterventionShotScreen), findsNothing);
+      expect(requests.where((r) => r.url.path.endsWith('/intervention')), isEmpty);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    // §7.2 `minigame`'i serbest bir string olarak tanımlıyor: motorun ileride
+    // ekleyeceği bir değer yüzünden teklif açıkta kalmamalı.
+    testWidgets('tanınmayan bir minigame değeri şut ekranına düşer',
+        (tester) async {
+      final source = _FakeSseClient();
+      await _pumpMatchScreen(tester, _buildController(source));
+
+      await _emitOffer(
+          tester, source, _minigameOffer(minigame: 'henuz_olmayan_oyun'));
+
+      await tester.tap(find.text('Müdahale et'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.byType(InterventionShotScreen), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
     });

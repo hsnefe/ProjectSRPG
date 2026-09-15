@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:project_srpg/game/shot_game.dart';
 import 'package:project_srpg/game/shot_scenarios.dart';
+import 'package:project_srpg/game/tackle_scenarios.dart';
 
 /// Maç motorunun `action_key`'i → o anı temsil eden senaryo havuzu.
 ///
@@ -127,7 +128,39 @@ class MatchScenarios {
     'final_ball',
   };
 
+  // --- Savunma aksiyonları -------------------------------------------------
+  //
+  // Şut tarafı havuzları id id sayıyor, çünkü kırk iki şut durumu aksiyonlara
+  // birebir oturmuyor. Müdahale katalogu ise zaten aksiyonun sorduğu soruya
+  // göre ailelere bölündü (`tackle_scenarios.dart`), o yüzden burada aile adı
+  // yetiyor: kataloğa yeni bir durum eklemek onu otomatik olarak havuza da
+  // sokuyor, ikinci bir liste bakımı gerekmiyor.
+  //
+  // `keeper_sweep` dışarıda: §7.3'teki gerekçesi mini oyunun yokluğu değil,
+  // aksiyonu oyuncunun değil kalecinin yapması.
+  static const tackleByActionKey = <String, List<TackleScenarioKind>>{
+    'high_press': [TackleScenarioKind.press],
+    'tackle_hard': [TackleScenarioKind.contain, TackleScenarioKind.recovery],
+  };
+
+  static List<TackleScenario> tacklePoolFor(String actionKey) => [
+        for (final kind
+            in tackleByActionKey[actionKey] ?? const <TackleScenarioKind>[])
+          ...TackleScenarios.of(kind),
+      ];
+
+  /// Bu müdahale teklifinde oynanacak durum; tanınmayan bir `action_key` için
+  /// null — çağıran o zaman nötr çarpanlara düşer ([pick] ile aynı gerekçe).
+  static TackleScenario? pickTackle(String actionKey, {math.Random? random}) {
+    final pool = tacklePoolFor(actionKey);
+    if (pool.isEmpty) return null;
+    return pool[(random ?? math.Random()).nextInt(pool.length)];
+  }
+
   /// Senaryonun kademesi → motorun `graded` anahtarı. Üçe üç, birebir.
+  ///
+  /// Müdahale oyunu da aynı [ShotGrade]'i kullandığı için bu tablo savunma
+  /// aksiyonlarında da olduğu gibi geçerli.
   static String outcomeKeyForGrade(ShotGrade grade) => switch (grade) {
         ShotGrade.great => 'great',
         ShotGrade.good => 'good',

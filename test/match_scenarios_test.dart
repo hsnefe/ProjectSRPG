@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:project_srpg/game/match_scenarios.dart';
+import 'package:project_srpg/game/tackle_scenarios.dart';
 import 'package:project_srpg/game/pitch_projector.dart';
 import 'package:project_srpg/game/shot_game.dart';
 import 'package:project_srpg/game/shot_scenarios.dart';
@@ -114,6 +115,60 @@ void main() {
           MatchScenarios.pick('finish_power', random: math.Random(seed))!.id,
       };
       expect(drawn.length, greaterThan(1));
+    });
+  });
+
+  group('müdahale havuzları', () {
+    test('high_press yalnızca baskı ailesini çeker', () {
+      expect(
+        MatchScenarios.tacklePoolFor('high_press'),
+        TackleScenarios.of(TackleScenarioKind.press),
+      );
+    });
+
+    test('tackle_hard tutma ve dönüş ailelerini çeker', () {
+      expect(
+        MatchScenarios.tacklePoolFor('tackle_hard'),
+        [
+          ...TackleScenarios.of(TackleScenarioKind.contain),
+          ...TackleScenarios.of(TackleScenarioKind.recovery),
+        ],
+      );
+    });
+
+    // §7.3'teki gerekçe mini oyunun yokluğu değil, aksiyonu kalecinin yapması.
+    test('keeper_sweep havuzu yok', () {
+      expect(MatchScenarios.tacklePoolFor('keeper_sweep'), isEmpty);
+      expect(MatchScenarios.pickTackle('keeper_sweep'), isNull);
+    });
+
+    test('tanınmayan bir aksiyon akışı kırmaz', () {
+      expect(MatchScenarios.pickTackle('henuz_olmayan_aksiyon'), isNull);
+    });
+
+    test('seçim havuzun içinden gelir', () {
+      final pool = MatchScenarios.tacklePoolFor('tackle_hard');
+      for (var seed = 0; seed < 25; seed++) {
+        expect(
+          pool,
+          contains(
+              MatchScenarios.pickTackle('tackle_hard', random: math.Random(seed))),
+        );
+      }
+    });
+
+    test('katalogdaki her durum bir aksiyondan erişilebilir', () {
+      final reachable = {
+        for (final key in MatchScenarios.tackleByActionKey.keys)
+          ...MatchScenarios.tacklePoolFor(key).map((s) => s.id),
+      };
+      expect(reachable, TackleScenarios.all.map((s) => s.id).toSet());
+    });
+
+    test('hiçbir durum iki aksiyonda birden değil', () {
+      final press = MatchScenarios.tacklePoolFor('high_press').map((s) => s.id);
+      final hard = MatchScenarios.tacklePoolFor('tackle_hard').map((s) => s.id);
+      expect(press.toSet().intersection(hard.toSet()), isEmpty);
     });
   });
 
