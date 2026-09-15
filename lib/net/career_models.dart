@@ -2910,3 +2910,129 @@ class SocialPlanResult {
   final List<AttributeChange> attributeChanges;
   final List<LedgerEntry> ledgerEntries;
 }
+
+// ---------------------------------------------------------------------------
+// §12.9 D59 — çakışan sosyal planlar (iki taraflı seçim)
+// ---------------------------------------------------------------------------
+
+/// Çakışmanın bir yakası. `SocialPlan`/`SocialOffer`'ın aksine `costs` ve
+/// deltalar yok: çakışma hiçbir şey harcamıyor (D60) ve ödül tablosu tel
+/// üzerine çıkmıyor (§5.7, §5.4 R4). Barların oynadığı sayılar seçimden
+/// **sonra** `SocialConflictResult.relationshipChanges`'ten geliyor.
+class SocialConflictSide {
+  const SocialConflictSide({
+    required this.refId,
+    required this.relationshipId,
+    required this.templateId,
+    required this.title,
+    required this.body,
+    this.relationship,
+  });
+
+  factory SocialConflictSide.fromJson(Map<String, dynamic> json) {
+    final relationship = json['relationship'] as Map<String, dynamic>?;
+    return SocialConflictSide(
+      refId: json['ref_id'] as String,
+      relationshipId: json['relationship_id'] as String,
+      templateId: json['template_id'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      body: json['body'] as String? ?? '',
+      relationship: relationship == null
+          ? null
+          : SocialOfferContact.fromJson(relationship),
+    );
+  }
+
+  /// `source`'a göre bir `plan_id` ya da `offer_id`; seçim bununla yapılıyor.
+  final String refId;
+
+  final String relationshipId;
+  final String templateId;
+  final String title;
+  final String body;
+  final SocialOfferContact? relationship;
+}
+
+/// Aynı akşamı isteyen iki davet. `sides` daima iki elemanlıdır.
+class SocialConflict {
+  const SocialConflict({
+    required this.conflictId,
+    required this.source,
+    required this.dueOn,
+    required this.status,
+    required this.sides,
+    this.chosenRef,
+  });
+
+  factory SocialConflict.fromJson(Map<String, dynamic> json) {
+    return SocialConflict(
+      conflictId: json['conflict_id'] as String,
+      source: json['source'] as String,
+      dueOn: json['due_on'] as String,
+      status: json['status'] as String,
+      chosenRef: json['chosen_ref'] as String?,
+      sides: ((json['sides'] as List<dynamic>?) ?? const [])
+          .map((e) => SocialConflictSide.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+    );
+  }
+
+  final String conflictId;
+
+  /// `'plan'` — ikisine de söz verilmişti, elenen ağır öder; `'offer'` — iki
+  /// kişi birbirinden habersiz sormuş, elenen hafif atlatır.
+  final String source;
+
+  final String dueOn;
+  final String status;
+  final String? chosenRef;
+  final List<SocialConflictSide> sides;
+
+  bool get isOpen => status == 'open';
+}
+
+/// `choose` yanıtı — R5/R6 zarfı, `offer` yerine `conflict`.
+///
+/// `relationshipChanges` **iki elemanlıdır** (INV-52): biri seçilen tarafın
+/// artısı, biri elenenin eksisi. Ekranın iki barı doğrudan bunların
+/// `before`/`after`'ından oynuyor.
+class SocialConflictResult {
+  const SocialConflictResult({
+    required this.careerState,
+    required this.conflict,
+    required this.relationshipChanges,
+    required this.attributeChanges,
+    required this.ledgerEntries,
+  });
+
+  factory SocialConflictResult.fromJson(Map<String, dynamic> json) {
+    return SocialConflictResult(
+      careerState:
+          CareerState.fromJson(json['career_state'] as Map<String, dynamic>),
+      conflict:
+          SocialConflict.fromJson(json['conflict'] as Map<String, dynamic>),
+      relationshipChanges:
+          ((json['relationship_changes'] as List<dynamic>?) ?? const [])
+              .map((e) => RelationshipChange.fromJson(e as Map<String, dynamic>))
+              .toList(growable: false),
+      attributeChanges: ((json['attribute_changes'] as List<dynamic>?) ?? const [])
+          .map((e) => AttributeChange.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+      ledgerEntries: _parseLedgerEntries(json['ledger_entries']),
+    );
+  }
+
+  final CareerState careerState;
+  final SocialConflict conflict;
+  final List<RelationshipChange> relationshipChanges;
+  final List<AttributeChange> attributeChanges;
+  final List<LedgerEntry> ledgerEntries;
+
+  /// Bu ilişkinin bu seçimde nereden nereye gittiği; yoksa null.
+  RelationshipChange? changeFor(String relationshipId) {
+    for (final change in relationshipChanges) {
+      if (change.relationshipId == relationshipId) return change;
+    }
+    return null;
+  }
+}

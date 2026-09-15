@@ -115,6 +115,9 @@ def _resolve(career_id: str, offer_id: str, decision: str, conn: sqlite3.Connect
         raise errors.social_offer_not_found(offer_id)
     if offer["status"] != "open":
         raise errors.social_offer_not_open(offer_id)
+    # INV-53: same rule for an offer that was opened as one side of a pair.
+    if offer_id in social.conflict_member_refs(conn, career_id):
+        raise errors.social_conflict_member(offer_id)
 
     template = social.template(offer["template_id"])
     if template is None:
@@ -206,6 +209,9 @@ def attend_plan(career_id: str, plan_id: str, conn: sqlite3.Connection = Depends
         raise errors.social_plan_not_found(plan_id)
     if plan["status"] != social.PLAN_PENDING:
         raise errors.social_plan_not_open(plan_id)
+    # INV-53: half of an open conflict is not answerable on its own.
+    if plan_id in social.conflict_member_refs(conn, career_id):
+        raise errors.social_conflict_member(plan_id)
 
     template = social.template(plan["template_id"])
     branch = template["accept"] if template else {"effects": {}}
@@ -248,6 +254,9 @@ def skip_plan(career_id: str, plan_id: str, conn: sqlite3.Connection = Depends(g
         raise errors.social_plan_not_found(plan_id)
     if plan["status"] != social.PLAN_PENDING:
         raise errors.social_plan_not_open(plan_id)
+    # INV-53: half of an open conflict is not answerable on its own.
+    if plan_id in social.conflict_member_refs(conn, career_id):
+        raise errors.social_conflict_member(plan_id)
 
     current_date = conn.execute(
         "SELECT game_date FROM career_state WHERE career_id = ?", (career_id,)
@@ -269,4 +278,129 @@ def skip_plan(career_id: str, plan_id: str, conn: sqlite3.Connection = Depends(g
         "relationship_changes": [relationship_change],
         "attribute_changes": [],
         "ledger_entries": [],
+    }
+
+
+# --- conflicts (§12.9, D59) ------------------------------------------------
+
+def _public_conflict(conn: sqlite3.Connection, career_id: str, conflict: dict) -> dict:
+    """Both halves, each with the person behind it.
+
+    Neither `costs` nor the deltas travel, and for once those are the same
+    reason rather than two. The deltas stay behind for `_public`'s reason — a
+    payoff table on the wire is a payoff table the player can read, and this
+    screen would be the easiest place in the game to read one. `costs` stay
+    behind because a conflict spends nothing (D60): printing "2 sa · 20
+    enerji" on a card that will charge neither would be a lie the UI told on
+    the server's behalf.
+    """
+    return {
+        **conflict,
+        "sides": [
+            {**side, "relationship": _relationship_ref(conn, career_id, side["relationship_id"])}
+            for side in conflict["sides"]
+        ],
+    }
+
+
+@router.get("/conflicts")
+def list_conflicts(career_id: str, conn: sqlite3.Connection = Depends(get_db)):
+    """Open conflicts — at most one, but a list for the same reason /offers
+    and /plans are lists: the caller loops either way and a naked object
+    would need a null case."""
+    serializers.require_career(conn, career_id)
+    on_date = conn.execute(
+        "SELECT game_date FROM career_state WHERE career_id = ?", (career_id,)
+    ).fetchone()["game_date"]
+    # Asking creates the plan-vs-plan conflict if today has one waiting, the
+    # same lazy-and-sticky write T1 does; the commit is ours to make.
+    social.conflict_for_today(conn, career_id, on_date)
+    conflicts = social.list_open_conflicts(conn, career_id)
+    conn.commit()
+    return {"conflicts": [_public_conflict(conn, career_id, c) for c in conflicts]}
+
+
+@router.post("/conflicts/{conflict_id}/choose/{ref_id}")
+def choose_conflict(
+    career_id: str, conflict_id: str, ref_id: str,
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    """Pick the evening. The other one is closed in the same transaction
+    (INV-52) and the response carries BOTH relationship changes, which is what
+    lets the screen raise one bar while it drops the other.
+
+    **Spends nothing and checks nothing** (D60). The answer is mandatory, so
+    INV-40's argument applies with full force: a player out of time, money and
+    attributes has to be able to get through this door, and here even the
+    escape hatch is a choice that costs.
+    """
+    serializers.require_career(conn, career_id)
+
+    conflict = social.get_conflict(conn, career_id, conflict_id)
+    if conflict is None:
+        raise errors.social_conflict_not_found(conflict_id)
+    if conflict["status"] != social.CONFLICT_OPEN:
+        raise errors.social_conflict_not_open(conflict_id)
+
+    refs = [side["ref_id"] for side in conflict["sides"]]
+    if ref_id not in refs:
+        raise errors.invalid_request(
+            f"{ref_id!r} is not a side of social conflict {conflict_id!r}; "
+            f"expected one of {refs}"
+        )
+    rejected_ref = next(r for r in refs if r != ref_id)
+    chosen = next(s for s in conflict["sides"] if s["ref_id"] == ref_id)
+    rejected = next(s for s in conflict["sides"] if s["ref_id"] == rejected_ref)
+
+    current_date = conn.execute(
+        "SELECT game_date FROM career_state WHERE career_id = ?", (career_id,)
+    ).fetchone()["game_date"]
+    happened_at = f"{current_date}T12:00:00+03:00"
+    source = conflict["source"]
+
+    chosen_template = social.template(chosen["template_id"]) or {}
+    rejected_template = social.template(rejected["template_id"]) or {}
+
+    if source == social.CONFLICT_PLAN:
+        # The template's own accept delta was already paid the day the offer
+        # was accepted (§12.8), so the chosen side moves by the flat
+        # turning-up bonus instead; the rejected one is a broken promise.
+        social.mark_plan_done(conn, career_id, ref_id)
+        social.mark_plan_missed(conn, career_id, rejected_ref)
+        chosen_delta = social.CHOSEN_CONFLICT_RELATIONSHIP_DELTA
+        rejected_delta = social.MISSED_PLAN_RELATIONSHIP_DELTA
+    else:
+        # Nothing was promised: this is an ordinary accept and an ordinary
+        # decline that happened to arrive on the same evening, which is why
+        # the loser here gets off so much more lightly than above.
+        social.resolve(conn, career_id, ref_id, "accept", current_date)
+        social.resolve(conn, career_id, rejected_ref, "decline", current_date)
+        chosen_delta = chosen_template.get("accept", {}).get("relationship_delta", 0)
+        rejected_delta = rejected_template.get("decline", {}).get("relationship_delta", 0)
+
+    attribute_changes, ledger_entries = _apply_effects(
+        conn, career_id, chosen_template.get("accept", {}).get("effects", {}),
+        f"social_conflict:{source}:chosen", happened_at,
+    )
+
+    relationship_changes = [
+        relationships_domain.apply_delta(
+            conn, career_id, chosen["relationship_id"], chosen_delta,
+            f"social_conflict:{source}:chosen", happened_at,
+        ),
+        relationships_domain.apply_delta(
+            conn, career_id, rejected["relationship_id"], rejected_delta,
+            f"social_conflict:{source}:rejected", happened_at,
+        ),
+    ]
+
+    resolved = social.resolve_conflict(conn, career_id, conflict_id, ref_id)
+    conn.commit()
+
+    return {
+        "career_state": serializers.fetch_career_state(conn, career_id),
+        "conflict": _public_conflict(conn, career_id, resolved),
+        "relationship_changes": relationship_changes,
+        "attribute_changes": attribute_changes,
+        "ledger_entries": ledger_entries,
     }

@@ -35,7 +35,11 @@ import sqlite3
 from typing import List, Optional
 
 from api import config
-from api.ids import new_social_offer_id, new_social_plan_id
+from api.ids import (
+    new_social_conflict_id,
+    new_social_offer_id,
+    new_social_plan_id,
+)
 from content.social_offers import SOCIAL_OFFERS
 from domain import requirements
 
@@ -52,6 +56,19 @@ PLAN_MISSED = "missed"
 # reads worse than never having made one, the same relationship sponsorship
 # obligations already put on a missed appearance (MISSED_MEDIA_DELTA).
 MISSED_PLAN_RELATIONSHIP_DELTA = -12
+
+CONFLICT_OPEN = "open"
+CONFLICT_RESOLVED = "resolved"
+CONFLICT_PLAN = "plan"
+CONFLICT_OFFER = "offer"
+
+# §12.9/D59 - what showing up to the one you picked is worth. In a plan
+# conflict the template's own `accept` delta was already paid the day the
+# offer was accepted (§12.8), so without this the chosen side would move by
+# zero and the screen would show one bar falling and none rising. Flat rather
+# than per-template: what is being rewarded is choosing, and that is the same
+# act whichever evening it was.
+CHOSEN_CONFLICT_RELATIONSHIP_DELTA = 4
 
 
 def template(template_id: str) -> Optional[dict]:
@@ -193,13 +210,22 @@ def maybe_generate(
         return None
 
     tpl = _weighted_pick(rng, candidates)
+    return get(conn, career_id, _insert_offer(conn, career_id, tpl, on_date))
+
+
+def _insert_offer(
+    conn: sqlite3.Connection, career_id: str, tpl: dict, on_date: str
+) -> str:
+    """One `social_offer` row from a chosen template. Extracted because §12.9's
+    conflict roll opens two of them in a breath and the INSERT should have one
+    author."""
     offer_id = new_social_offer_id()
     conn.execute(
         "INSERT INTO social_offer (career_id, offer_id, template_id, relationship_id, "
         "opened_on, status, resolved_on) VALUES (?, ?, ?, ?, ?, 'open', NULL)",
         (career_id, offer_id, tpl["template_id"], tpl["relationship_id"], on_date),
     )
-    return get(conn, career_id, offer_id)
+    return offer_id
 
 
 def resolve(
@@ -293,3 +319,209 @@ def mark_plan_missed(conn: sqlite3.Connection, career_id: str, plan_id: str) -> 
         "UPDATE social_plan SET status = ? WHERE career_id = ? AND plan_id = ?",
         (PLAN_MISSED, career_id, plan_id),
     )
+
+
+# --- social conflicts (§12.9, D59) -----------------------------------------
+#
+# Two invitations for the same evening and one player. The row below stores
+# the dilemma itself; the two halves stay where they already live, in
+# `social_plan` or `social_offer`, and `source` says which.
+#
+# Two ways one is born, and they are deliberately lopsided:
+#
+#   - `plan`  - two plans fall due on the same day. CERTAIN, no dice. Both
+#               were promised, so the one dropped takes the full missed-plan
+#               penalty (-12).
+#   - `offer` - a day with no plan due rolls SOCIAL_CONFLICT_DAILY_CHANCE and
+#               opens TWO offers instead of one. Nobody was promised anything,
+#               so the one turned down only takes its template's own `decline`
+#               delta (-1 to -5). This is the narrowing of INV-39: at most one
+#               open offer, OR one conflict pair.
+#
+# The resolution spends nothing (D60). A mandatory answer that can fail on
+# budget is INV-40's soft-lock with extra steps.
+
+def _conflict_side(
+    conn: sqlite3.Connection, career_id: str, source: str, ref_id: str
+) -> Optional[dict]:
+    """One half, read out of whichever table `source` names. The two shapes
+    are flattened to the same keys here so the router and FE never branch on
+    `source` to read a name."""
+    if source == CONFLICT_PLAN:
+        row = get_plan(conn, career_id, ref_id)
+        key = "plan_id"
+    else:
+        row = get(conn, career_id, ref_id)
+        key = "offer_id"
+    if row is None:
+        return None
+    return {
+        "ref_id": row[key],
+        "relationship_id": row["relationship_id"],
+        "template_id": row["template_id"],
+        "title": row["title"],
+        "body": row["body"],
+    }
+
+
+def _row_to_conflict(conn: sqlite3.Connection, career_id: str, row: sqlite3.Row) -> dict:
+    sides = [
+        _conflict_side(conn, career_id, row["source"], row[col])
+        for col in ("left_ref", "right_ref")
+    ]
+    return {
+        "conflict_id": row["conflict_id"],
+        "source": row["source"],
+        "due_on": row["due_on"],
+        "status": row["status"],
+        "chosen_ref": row["chosen_ref"],
+        "sides": [s for s in sides if s is not None],
+    }
+
+
+def get_conflict(
+    conn: sqlite3.Connection, career_id: str, conflict_id: str
+) -> Optional[dict]:
+    row = conn.execute(
+        "SELECT * FROM social_conflict WHERE career_id = ? AND conflict_id = ?",
+        (career_id, conflict_id),
+    ).fetchone()
+    return _row_to_conflict(conn, career_id, row) if row else None
+
+
+def list_open_conflicts(conn: sqlite3.Connection, career_id: str) -> List[dict]:
+    rows = conn.execute(
+        "SELECT * FROM social_conflict WHERE career_id = ? AND status = ? "
+        "ORDER BY due_on ASC, conflict_id ASC",
+        (career_id, CONFLICT_OPEN),
+    ).fetchall()
+    return [_row_to_conflict(conn, career_id, r) for r in rows]
+
+
+def open_conflict(conn: sqlite3.Connection, career_id: str) -> Optional[dict]:
+    """The one open conflict, if any. Singular by construction: every creation
+    path below refuses to add a second while one is open, the same way INV-39
+    keeps offers to one."""
+    conflicts = list_open_conflicts(conn, career_id)
+    return conflicts[0] if conflicts else None
+
+
+def conflict_member_refs(conn: sqlite3.Connection, career_id: str) -> set:
+    """Every ref currently locked inside an open conflict.
+
+    Two callers, both of which would otherwise count the same evening twice:
+    the day loop suppresses the members' own `social_offer`/`social_plan_due`
+    events so the day stops once, and the single-answer endpoints refuse a ref
+    that appears here (INV-53)."""
+    rows = conn.execute(
+        "SELECT left_ref, right_ref FROM social_conflict WHERE career_id = ? AND status = ?",
+        (career_id, CONFLICT_OPEN),
+    ).fetchall()
+    return {r["left_ref"] for r in rows} | {r["right_ref"] for r in rows}
+
+
+def _create_conflict(
+    conn: sqlite3.Connection, career_id: str, source: str, due_on: str,
+    left_ref: str, right_ref: str,
+) -> dict:
+    conflict_id = new_social_conflict_id()
+    conn.execute(
+        "INSERT INTO social_conflict (career_id, conflict_id, source, due_on, "
+        "left_ref, right_ref, status, chosen_ref) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)",
+        (career_id, conflict_id, source, due_on, left_ref, right_ref, CONFLICT_OPEN),
+    )
+    return get_conflict(conn, career_id, conflict_id)
+
+
+def conflict_for_today(
+    conn: sqlite3.Connection, career_id: str, on_date: str
+) -> Optional[dict]:
+    """The conflict standing in the player's way today, creating the plan-vs-plan
+    one on first ask.
+
+    **Lazy and sticky**, the way §12.2 decides squad status: the first caller
+    computes it, the row is written, everyone after reads it. T1's event list
+    and T3's door gate have to agree about the same evening - deciding afresh
+    on each call would let the calendar show a conflict the gate does not know
+    about. It rolls no dice, so there is nothing to keep deterministic here;
+    the stickiness is about the two callers, not about the seed.
+
+    Three plans due at once take the first two in the order `list_due_plans`
+    already fixes; the third stays a plain pending plan and gets its turn once
+    this conflict is answered.
+    """
+    existing = open_conflict(conn, career_id)
+    if existing:
+        return existing
+
+    due = list_due_plans(conn, career_id, on_date)
+    if len(due) < 2:
+        return None
+    return _create_conflict(
+        conn, career_id, CONFLICT_PLAN, on_date, due[0]["plan_id"], due[1]["plan_id"]
+    )
+
+
+def maybe_generate_conflict(
+    conn: sqlite3.Connection, career_id: str, on_date: str, seed: int
+) -> Optional[dict]:
+    """The other source: two people inviting you to the same evening without
+    knowing about each other.
+
+    Rolled on its own namespace (`:social_conflict:`) rather than by drawing
+    more numbers from `maybe_generate`'s stream - an extra draw there would
+    shift the template every existing seeded test picks, and the two rolls
+    genuinely are independent questions.
+
+    Skipped entirely on a day that already has a plan due: that day's conflict
+    is the certain one, and `conflict_for_today` owns it.
+    """
+    if open_conflict(conn, career_id):
+        return None
+    if conn.execute(
+        "SELECT 1 FROM social_offer WHERE career_id = ? AND status = 'open' LIMIT 1",
+        (career_id,),
+    ).fetchone():
+        return None  # INV-39
+    if list_due_plans(conn, career_id, on_date):
+        return None
+
+    rng = random.Random(f"{seed}:social_conflict:{on_date}")
+    if rng.random() >= config.SOCIAL_CONFLICT_DAILY_CHANCE:
+        return None
+
+    scores = {
+        r["relationship_id"]: r["score"]
+        for r in conn.execute(
+            "SELECT relationship_id, score FROM relationship WHERE career_id = ?",
+            (career_id,),
+        ).fetchall()
+    }
+    candidates = _eligible(conn, career_id, on_date, scores)
+    if not candidates:
+        return None
+
+    first = _weighted_pick(rng, candidates)
+    # The rival has to be a different person - "choose between the coach and
+    # the coach" is not a dilemma, it is a bug.
+    rivals = [t for t in candidates if t["relationship_id"] != first["relationship_id"]]
+    if not rivals:
+        return None
+    second = _weighted_pick(rng, rivals)
+
+    return _create_conflict(
+        conn, career_id, CONFLICT_OFFER, on_date,
+        _insert_offer(conn, career_id, first, on_date),
+        _insert_offer(conn, career_id, second, on_date),
+    )
+
+
+def resolve_conflict(
+    conn: sqlite3.Connection, career_id: str, conflict_id: str, chosen_ref: str
+) -> dict:
+    conn.execute(
+        "UPDATE social_conflict SET status = ?, chosen_ref = ? "
+        "WHERE career_id = ? AND conflict_id = ?",
+        (CONFLICT_RESOLVED, chosen_ref, career_id, conflict_id),
+    )
+    return get_conflict(conn, career_id, conflict_id)

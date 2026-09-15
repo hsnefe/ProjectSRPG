@@ -3089,6 +3089,7 @@ numarası **artmaz**.
 | §3.4 | `relationship.traits` yalnızca tohumlamada yazılır | `relationships.apply_trait_delta()` tek yazma yolu olarak eklendi (§12.1) |
 | §11.13 | "Kadro modeli ve NPC transferleri" kapsam dışı | **Yalnızca NPC transferi** kapsam dışı kalır |
 | §6.3 D54 | "Süre yok; geldiği gün cevaplanır" | Yalnızca `plan_days_ahead` alanı olmayan şablonlar için geçerli kalır; bu alanı taşıyan bir şablonun kabulü anında çözülmez, ileri tarihli bir `social_plan` randevusu yazar (§12.8) |
+| §6.3 INV-39 | "Aynı anda en fazla bir açık teklif" | En fazla bir açık teklif **ya da bir çakışma çifti**; çift tek bir kararla açılıp tek bir kararla kapanır (§12.9) |
 
 **D4 kaldırılmadı.** Bir kariyerde hâlâ tam olarak bir `player` satırı vardır
 (`is_user = 1`); 32 takımın kadrosu, NPC oyuncuları ve derinliği yoktur ve
@@ -3442,7 +3443,7 @@ CREATE TABLE social_plan (
 
 `content/social_offers.py`'de bir şablonun `plan_days_ahead: int` alanı
 (pozitif tam sayı) varsa, o şablonun kabulü bu bölümdeki davranışı alır.
-Alan yoksa hiçbir şey değişmez — mevcut yedi şablondan altısı bugün olduğu
+Alan yoksa hiçbir şey değişmez — mevcut sekiz şablondan yedisi bugün olduğu
 gibi anında çözülmeye devam eder; yalnızca `coach_extra_session`
 `plan_days_ahead: 1` taşır.
 
@@ -3487,3 +3488,118 @@ ekler ve bu tür `STOP_EVENT_KINDS`'tadır — sponsorluk randevusu gibi
 | 404 | `social_plan_not_found` | Bilinmeyen `plan_id` |
 | 409 | `social_plan_not_open` | Plan zaten `done`/`missed` iken tekrar `attend`/`skip` çağrıldı |
 | 409 | `social_plan_pending` | Cevaplanmamış bir sosyal plan varken `advance` çağrıldı; mesaj `plan_id` taşır |
+
+---
+
+### 12.9 Çakışan sosyal planlar (iki taraflı seçim)
+
+§12.8 bir akşamı ileriye taşıdı ama hâlâ tek bir akşamdı. Aynı güne iki davet
+düşebilir ve oyuncu ikisinde birden olamaz. Bu bölüm o ikilemi mekanikleştiriyor:
+iki taraf, tek bir seçim, tek bir işlem.
+
+Çakışma **iki kaynaktan** doğuyor ve ikisi bilerek eşit değil:
+
+- **Planlı çakışma — kesin.** Aynı güne vadesi gelen iki `social_plan` varsa
+  çakışma zar atmadan kurulur. İkisine de söz verilmişti; biri mutlaka
+  kırılacak, o yüzden elenen taraf `MISSED_PLAN_RELATIONSHIP_DELTA`'nın tamamını
+  (−12) yer. Seçilen tarafın şablon deltası kabul günü zaten ödenmişti (§12.8),
+  bu yüzden ona sabit bir "geldin" artısı yazılır
+  (`CHOSEN_CONFLICT_RELATIONSHIP_DELTA`, +4) — yoksa ekranın bir barı yükselmez,
+  yalnızca biri düşerdi.
+- **Kendiliğinden çakışma — düşük ihtimalli.** Hiç plan olmayan bir gün
+  `SOCIAL_CONFLICT_DAILY_CHANCE` ile tek teklif yerine **iki** teklif açabilir:
+  iki kişi birbirinden habersiz aynı akşamı istemiştir. Kimseye söz
+  verilmediği için elenen taraf yalnızca kendi şablonunun `decline` deltasını
+  (−1…−5) alır. Zar `SOCIAL_OFFER_DAILY_CHANCE`'in dörtte biri kadardır ve
+  kendi ad alanından (`{seed}:social_conflict:{on_date}`) türer — tekli teklif
+  akışına bir çekiliş eklemek mevcut her zırlanmış seçimi kaydırırdı (INV-7).
+
+İki taraf daima **farklı ilişkilerdir**; aynı kişiyle aynı kişi arasında seçim
+bir ikilem değil, bir hatadır.
+
+Karar **tembel ve yapışkan** kurulur (§12.2'nin kadro kararıyla aynı gerekçe):
+ilk soran yazar, sonrakiler okur. T1'in olay listesi ile T3'ün kapısı aynı akşam
+hakkında anlaşmak zorunda; her çağrıda yeniden karar verilse takvim ile kapı
+ayrışırdı.
+
+#### Şema — `013_social_conflicts.sql`
+
+```sql
+CREATE TABLE social_conflict (
+  career_id   TEXT NOT NULL REFERENCES career(career_id) ON DELETE CASCADE,
+  conflict_id TEXT NOT NULL,          -- 'scf_' + 12 hex
+  source      TEXT NOT NULL,          -- 'plan' | 'offer'
+  due_on      TEXT NOT NULL,          -- 'YYYY-MM-DD'
+  left_ref    TEXT NOT NULL,          -- social_plan.plan_id | social_offer.offer_id
+  right_ref   TEXT NOT NULL,
+  status      TEXT NOT NULL,          -- 'open' | 'resolved'
+  chosen_ref  TEXT                    -- çözülünce seçilen taraf; açıkken NULL
+);
+```
+
+Taraflar kendi tablolarında kalır; `source` hangisi olduğunu söyler. `left_ref`
+ve `right_ref` koşullu olarak iki farklı tabloyu gösterdiği için FK yoktur —
+`social_plan.offer_id` ve `sponsorship_obligation.deal_id` ile aynı gerekçe.
+
+#### Uçlar
+
+| # | Yöntem | Yol | Açıklama |
+|---|---|---|---|
+| — | `GET` | `/careers/{cid}/social/conflicts` | Açık çakışma (en fazla bir tane); sorulması planlı çakışmayı oluşturur |
+| — | `POST` | `/careers/{cid}/social/conflicts/{conflict_id}/choose/{ref_id}` | Tarafı seç; diğer taraf aynı işlemde kapanır |
+
+Seçim gövdede değil yolda — R5/R6'nın `accept`/`decline`'ı ile aynı gerekçe
+(§5.4): router'ın zaten imkânsız olduğunu bildiği üçüncü bir değeri reddetmek
+için şema gerekmesin.
+
+Yanıt yine R3/R5/R6 zarfıdır (`career_state` + `relationship_changes` +
+`attribute_changes` + `ledger_entries`, INV-18) ve `offer`/`plan` yerine
+`conflict` taşır. **`relationship_changes` tam iki eleman taşır** — biri artı,
+biri eksi; ekranın iki barı doğrudan bu `before`/`after` çiftlerinden oynar.
+
+`GET /conflicts`'in taraf satırları `ref_id`, `relationship_id`, `title`, `body`
+ve `relationship` blokunu taşır. **Ne deltalar ne `costs` gönderilir.** Deltalar
+§5.7'nin ve §5.4 R4'ün gerekçesiyle dışarıda: ödül tablosunu yayınlamak
+sürprizi bozar, üstelik bu ekran onu okumanın en kolay yeri olurdu. `costs`
+dışarıda çünkü çakışma hiçbir şey harcamıyor (D60); harcanmayacak bir bütçeyi
+kartta yazmak arayüzün sunucu adına söylediği bir yalan olurdu.
+
+#### Gün döngüsü kapısı
+
+`list_events()` açık çakışmayı `{"kind": "social_conflict_due", ...}` olarak
+ekler ve bu tür `STOP_EVENT_KINDS`'tadır — `social_plan_due` gibi seviye
+tetiklidir, cevaplanana kadar her gün durdurur. Çakışmanın **iki üyesi için
+kendi `social_offer`/`social_plan_due` olayları listeye konmaz**: aynı akşam iki
+kez bildirilirse gün iki kez durur ve `stop_reason` hangi ekranın açılacağını
+söyleyemez.
+
+`POST /advance` kapısında `social_conflict_pending`, `social_offer_pending` ve
+`social_plan_pending`'den **önce** gelir. Çakışmanın tarafları zaten açık bir
+teklif ya da vadesi gelmiş bir plandır; alttaki kapılar önce tetiklenirse oyuncu
+karar iki akşam hakkındayken tek akşam gösteren ekrana yönlendirilir.
+
+#### Yeni kararlar
+
+| # | Konu | Karar | Gerekçe |
+|---|---|---|---|
+| D59 | Çakışmanın doğuşu | **Aynı güne düşen iki plan kesin çakışma; plansız gün `SOCIAL_CONFLICT_DAILY_CHANCE` ile düşük ihtimalli çakışma** | Söz verilmiş iki randevu zaten çakışmıştır, zara bırakılacak bir şey yok. Plansız gündeki çakışma ise dünyanın oyuncudan habersiz işlediğinin kanıtı — ama nadir olmalı, ve kimseye söz verilmediği için elenen tarafın cezası kendi `decline` deltasıyla sınırlı kalmalı |
+| D60 | Çakışmanın bedeli | **Çözüm gün bütçesinden hiçbir şey harcamaz ve `requires` kontrol etmez** | Cevap zorunlu (D53). INV-40 "ret her zaman mümkün olmalı" derken tek çıkışın bedelsiz olmasını kastediyordu; burada **iki** çıkış da bedelli olsaydı, günü bitmiş bir oyuncu ikisini de veremez ve kariyer kapının arkasında kilitlenirdi |
+
+#### Yeni invariant'lar
+
+| # | Garanti |
+|---|---|
+| INV-52 | Bir çakışma tek işlemde çözülür: tam olarak bir taraf seçilir, iki taraf da aynı transaction'da kapanır ve yanıtın `relationship_changes`'i tam iki eleman taşır |
+| INV-53 | Açık bir çakışmanın üyeleri kendi başlarına `attend`/`skip`/`accept`/`decline` edilemez; plan çakışmasında elenen tarafın cezası teklif çakışmasınınkinden daima ağırdır |
+
+#### Yeni hata kodları
+
+| HTTP | `code` | Ne zaman |
+|---|---|---|
+| 404 | `social_conflict_not_found` | Bilinmeyen `conflict_id` |
+| 409 | `social_conflict_not_open` | Çakışma zaten çözülmüşken tekrar `choose` çağrıldı |
+| 409 | `social_conflict_pending` | Cevaplanmamış bir çakışma varken `advance` çağrıldı; mesaj `conflict_id` taşır |
+| 409 | `social_conflict_member` | Açık bir çakışmanın bir tarafı tek başına cevaplanmak istendi (INV-53) |
+
+Tarafı olmayan bir `ref_id` için yeni kod yok: mevcut `422 invalid_request`,
+mesajında işe yarayacak iki ref'i sayar (§1.3).

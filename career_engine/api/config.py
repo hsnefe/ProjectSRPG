@@ -128,6 +128,13 @@ MAX_CONDITION_RECOVERY_PER_DAY = 12
 # caps the worst case regardless.
 SOCIAL_OFFER_DAILY_CHANCE = 0.12
 
+# §12.9 D59 - the chance that a day with no plan due brings TWO offers at once
+# instead of one. Deliberately a quarter of the single-offer chance: two people
+# inviting you to the same evening without knowing about each other is a thing
+# that should happen a few times a season, not weekly. The other source of a
+# conflict — two plans falling on the same day — is certain and rolls nothing.
+SOCIAL_CONFLICT_DAILY_CHANCE = 0.03
+
 # §5.3 W5 - the widest calendar range one request may ask for. Two months
 # plus a couple of days: enough that a caller paging month by month never
 # hits it, small enough that "give me the whole season" can't be a single

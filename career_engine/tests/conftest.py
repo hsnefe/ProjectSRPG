@@ -28,6 +28,25 @@ def social_offers_off(monkeypatch):
     from api import config
 
     monkeypatch.setattr(config, "SOCIAL_OFFER_DAILY_CHANCE", 0.0)
+    # §12.9/D59 - the two-invitation roll rides along for the same reason,
+    # and it stops the loop harder than a single offer does.
+    monkeypatch.setattr(config, "SOCIAL_CONFLICT_DAILY_CHANCE", 0.0)
+
+
+@pytest.fixture(autouse=True)
+def sponsorship_offers_off(monkeypatch):
+    """The sponsorship roll is off by default too, for `social_offers_off`'s
+    reason: it is a random daily event that stops the advance loop, so any
+    test walking the calendar was quietly also testing whether a brand called
+    that week. Nothing in the suite drives it through the dice - the tests
+    that care insert their own deal rows.
+
+    It lives in `domain/sponsorship` rather than `api.config` because that is
+    where it was written; the patch target follows.
+    """
+    from domain import sponsorship
+
+    monkeypatch.setattr(sponsorship, "DAILY_CHANCE", 0.0)
 
 
 @pytest.fixture

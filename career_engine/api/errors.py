@@ -90,6 +90,35 @@ def social_plan_pending(plan_id: str) -> ApiError:
     return ApiError(409, "social_plan_pending", f"social plan {plan_id!r} is due today")
 
 
+def social_conflict_not_found(conflict_id: str) -> ApiError:
+    return ApiError(404, "social_conflict_not_found", f"no social conflict {conflict_id!r}")
+
+
+def social_conflict_not_open(conflict_id: str) -> ApiError:
+    return ApiError(
+        409, "social_conflict_not_open", f"social conflict {conflict_id!r} is already resolved"
+    )
+
+
+def social_conflict_pending(conflict_id: str) -> ApiError:
+    """§12.9/D59 - the third shape of D53's mandatory answer. Raised BEFORE
+    the offer and plan gates: a conflict's two sides are themselves an open
+    offer or a due plan, so those gates would fire too and send the player to
+    the single-decision screen instead of the one that shows both."""
+    return ApiError(
+        409, "social_conflict_pending", f"social conflict {conflict_id!r} is waiting for a choice"
+    )
+
+
+def social_conflict_member(ref_id: str) -> ApiError:
+    """§12.9/INV-53 - a side of an open conflict cannot be answered on its
+    own. Accepting one half would leave the other half's penalty unwritten
+    and the conflict row open forever."""
+    return ApiError(
+        409, "social_conflict_member", f"{ref_id!r} belongs to an open social conflict"
+    )
+
+
 def match_day_unplayed(fixture_id: str) -> ApiError:
     """§6.1 D57 - time cannot advance while the user's own match today is
     still 'scheduled'. Replaces the earlier "missed match" auto-play: the

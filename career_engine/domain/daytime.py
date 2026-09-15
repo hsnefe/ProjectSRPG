@@ -131,6 +131,9 @@ STOP_EVENT_KINDS = {
     # reasoning as a sponsorship obligation: due today, not skippable by
     # advancing past it silently.
     "social_plan_due",
+    # §12.9/D59 - two invitations for one evening. Level-triggered like the
+    # plan above: it stands there until one of them is chosen.
+    "social_conflict_due",
 }
 
 
@@ -234,7 +237,16 @@ def list_events(
         if shortfall > 0:
             events.append({"kind": "upkeep_warning", "ref_id": None, "shortfall": shortfall})
 
+    # SS12.9/D59 - asked first because it decides what the two blocks below
+    # are allowed to report. `conflict_for_today` is lazy and sticky: it
+    # writes the plan-vs-plan conflict on first ask so T1 here and T3's door
+    # gate cannot disagree about the same evening.
+    conflict = social.conflict_for_today(conn, career_id, on_date)
+    locked = social.conflict_member_refs(conn, career_id)
+
     for offer in social.list_open(conn, career_id):
+        if offer["offer_id"] in locked:
+            continue  # its evening is reported once, as the conflict
         events.append({
             "kind": "social_offer",
             "ref_id": offer["offer_id"],
@@ -243,11 +255,21 @@ def list_events(
         })
 
     for plan in social.list_due_plans(conn, career_id, on_date):
+        if plan["plan_id"] in locked:
+            continue
         events.append({
             "kind": "social_plan_due",
             "ref_id": plan["plan_id"],
             "relationship_id": plan["relationship_id"],
             "due_on": plan["due_on"],
+        })
+
+    if conflict:
+        events.append({
+            "kind": "social_conflict_due",
+            "ref_id": conflict["conflict_id"],
+            "source": conflict["source"],
+            "due_on": conflict["due_on"],
         })
 
     low_rows = conn.execute(
@@ -495,8 +517,12 @@ def resolve_pending_today(conn: sqlite3.Connection, career_id: str, on_date: str
 
     Idempotent: _simulate_day_fixtures only touches still-'scheduled' rows,
     so calling this again for an already-resolved date is a no-op."""
-    # §12.7 - one sponsorship roll a day, after the social one so the two
-    # cannot both open on the same morning and stack two decisions.
+    # §12.7 - one sponsorship roll a day. `events` is local and travels out
+    # in the return below: it used to be appended to a name that did not
+    # exist here, so every day the roll actually hit raised NameError out of
+    # T3, and a fixed append would still have been dropped by a return value
+    # that had no such key.
+    events = []
     deal = sponsorship.maybe_generate(conn, career_id, on_date, seed)
     if deal:
         events.append({"kind": "sponsorship_offer", "ref_id": deal["deal_id"]})
@@ -507,6 +533,7 @@ def resolve_pending_today(conn: sqlite3.Connection, career_id: str, on_date: str
     if cup_round:
         _draw_cup_round(conn, career_id, cup_round["round_no"], on_date, seed)
     return {
+        "events": events,
         "fixtures_simulated": sim["count"],
         "competitions_touched": sim["competitions"],
         "news_created": [],
@@ -558,14 +585,28 @@ def process_day(conn: sqlite3.Connection, career_id: str, on_date: str, seed: in
     # condition the player will actually have, and BEFORE list_events is
     # re-read below — a freshly opened offer has to be in the events the
     # caller stops on, or the day it arrived would pass unremarked.
-    offer = social.maybe_generate(conn, career_id, on_date, seed)
-    if offer:
+    # §12.9/D59: the two-invitation roll goes FIRST. It opens two offers at
+    # once, so leaving it until after the single roll would mean INV-39 (one
+    # open offer) had already eaten the day. Its own namespaced RNG keeps the
+    # single roll's stream untouched on every day it does not fire.
+    conflict = social.maybe_generate_conflict(conn, career_id, on_date, seed)
+    offer = None
+    if conflict:
         events.append({
-            "kind": "social_offer",
-            "ref_id": offer["offer_id"],
-            "relationship_id": offer["relationship_id"],
-            "opened_on": offer["opened_on"],
+            "kind": "social_conflict_due",
+            "ref_id": conflict["conflict_id"],
+            "source": conflict["source"],
+            "due_on": conflict["due_on"],
         })
+    else:
+        offer = social.maybe_generate(conn, career_id, on_date, seed)
+        if offer:
+            events.append({
+                "kind": "social_offer",
+                "ref_id": offer["offer_id"],
+                "relationship_id": offer["relationship_id"],
+                "opened_on": offer["opened_on"],
+            })
 
     sim = _simulate_day_fixtures(conn, career_id, on_date, seed)
 
@@ -576,6 +617,7 @@ def process_day(conn: sqlite3.Connection, career_id: str, on_date: str, seed: in
     return {
         "events": events,
         "social_offer": offer,
+        "social_conflict": conflict,
         "condition_recovery": recovery,
         "ledger_entries": ledger_entries,
         "news_created": news_created,

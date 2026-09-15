@@ -14,6 +14,7 @@ import 'package:project_srpg/screens/training_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/screens/social_offer_screen.dart';
 import 'package:project_srpg/screens/social_plan_screen.dart';
+import 'package:project_srpg/screens/social_conflict_screen.dart';
 import 'package:project_srpg/screens/sponsorship_screen.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/date_labels.dart';
@@ -167,6 +168,7 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
     var seasonRolloverDue = false;
     var sponsorshipDue = false;
     var socialPlanDue = false;
+    var socialConflictDue = false;
     try {
       final careerId = await _session.resolve();
       while (mounted && token == _advanceToken && _overlayDays < _maxLoopDays) {
@@ -207,6 +209,8 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
           sponsorshipDue = true;
         } else if (e.code == 'social_plan_pending') {
           socialPlanDue = true;
+        } else if (e.code == 'social_conflict_pending') {
+          socialConflictDue = true;
         } else {
           messenger.showSnackBar(
             SnackBar(content: Text(e.message ?? 'Gün ilerletilemedi.')),
@@ -231,6 +235,14 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
       await _openSponsorships();
       return;
     }
+    // §12.9/D59 · iki davet aynı akşama düşmüş. Plan kapısından ÖNCE, sunucu
+    // da kapıları bu sırayla diziyor: çakışmanın iki tarafı zaten birer plan
+    // ya da teklif, onları önce okursak karar iki akşam hakkındayken tek
+    // akşam gösteren ekranı açarız.
+    if (socialConflictDue) {
+      await _openConflict();
+      return;
+    }
     // §12.8/D58 · söz verilen bir plan varken gün ilerlemiyor — aynı okuma,
     // aynı arka kapı biçimi.
     if (socialPlanDue) {
@@ -249,12 +261,59 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
 
     // (b) Döngü bir teklifte durdu; `stopped_events` kimliği taşıyor, yani
     // hangi teklifin açılacağını öğrenmek için T1'i yeniden çağırmak gerekmez.
+    if (last.stopReason == 'social_conflict_due') {
+      await _openConflict();
+      return;
+    }
+
     final offerId = last.stopReason == 'social_offer' ? last.stoppedOfferId : null;
     if (offerId != null) {
       await _openOffer(offerId);
       return;
     }
     messenger.showSnackBar(SnackBar(content: Text(_advanceSummary(last))));
+  }
+
+  /// §12.9/D59 · açık çakışmayı çeker ve butonsuz seçim ekranını açar.
+  ///
+  /// `_openOffer`'ın ikizi, iki farkla: kimlik taşınmıyor (aynı anda en fazla
+  /// bir çakışma açık olabilir, INV-52) ve sonuçta SnackBar yok — deltalar
+  /// ekranın kendi barlarında görüldü.
+  Future<void> _openConflict() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final player = PlayerScope.of(context);
+    try {
+      final careerId = await _session.resolve();
+      final conflicts = await _session.client.socialConflicts(careerId);
+      if (!mounted) return;
+      if (conflicts.isEmpty) {
+        // Başka bir yerde cevaplanmış; açılamayan bir ekranın hatası
+        // kullanıcının çözebileceği bir şey değil.
+        setState(() => _dayFuture = _loadDay());
+        return;
+      }
+
+      final result = await showSocialConflictScreen(
+        context,
+        session: _session,
+        conflict: conflicts.first,
+      );
+      if (!mounted || result == null) return;
+
+      player.applyServerUpdate(
+        careerState: result.careerState,
+        attributeChanges: result.attributeChanges,
+      );
+      setState(() {
+        _hubFuture = _loadHub();
+        _dayFuture = _loadDay();
+      });
+    } on CareerApiException catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Çakışma açılamadı.')),
+      );
+    }
   }
 
   /// R4 ile teklifi çeker ve kapatılamayan modalı açar (§5.4, D53).

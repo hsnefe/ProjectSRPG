@@ -500,6 +500,34 @@ class CareerApiClient {
   }
 
   // ---------------------------------------------------------------------
+  // §12.9 D59 Çakışan sosyal planlar
+  // ---------------------------------------------------------------------
+
+  /// `GET /careers/{cid}/social/conflicts` — açık çakışma. En fazla bir
+  /// tane olabilir ama ucı liste döndürüyor; sormak, bugüne iki plan
+  /// düşmüşse çakışmayı sunucuda oluşturur.
+  Future<List<SocialConflict>> socialConflicts(String careerId) async {
+    final body = await _get('/careers/$careerId/social/conflicts');
+    return (body['conflicts'] as List<dynamic>)
+        .map((e) => SocialConflict.fromJson(e as Map<String, dynamic>))
+        .toList(growable: false);
+  }
+
+  /// Tarafı seç — diğeri aynı işlemde kapanır ve yanıt **iki** ilişki
+  /// değişimi taşır (INV-52). Hiçbir şey harcamaz, hiçbir eşik
+  /// kontrol etmez (D60), yani bütçe yüzünden 409 atmaz.
+  Future<SocialConflictResult> chooseSocialConflict(
+    String careerId,
+    String conflictId,
+    String refId,
+  ) async {
+    final body = await _post(
+      '/careers/$careerId/social/conflicts/$conflictId/choose/$refId',
+    );
+    return SocialConflictResult.fromJson(body);
+  }
+
+  // ---------------------------------------------------------------------
   // §5.5 Zaman — T1-T4
   // ---------------------------------------------------------------------
 

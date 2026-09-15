@@ -193,6 +193,13 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
     # on again each day. Refusing at the door is a clearer failure than a
     # loop that advances zero days and reports "none" — and it makes the
     # mandatory answer recoverable if the app dies with the modal on screen.
+    # §12.9/D59 - before both gates below, because a conflict's two sides ARE
+    # an open offer or a due plan: let those fire first and the player is sent
+    # to a screen that shows one evening when the decision is about two.
+    conflict = social.conflict_for_today(conn, career_id, current_date)
+    if conflict:
+        raise errors.social_conflict_pending(conflict["conflict_id"])
+
     pending_offers = social.list_open(conn, career_id)
     if pending_offers:
         raise errors.social_offer_pending(pending_offers[0]["offer_id"])
@@ -236,6 +243,10 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
     fixtures_total += today_catchup["fixtures_simulated"]
     competitions_total |= today_catchup["competitions_touched"]
     news_created += today_catchup["news_created"]
+    # A sponsorship offer rolled for the day being closed out belongs to the
+    # caller's event list too; the loop below only reports days it advanced
+    # INTO, and this one it is leaving.
+    catchup_events = today_catchup["events"]
 
     for _ in range(config.MAX_ADVANCE_DAYS):
         next_date = (_dt.date.fromisoformat(current_date) + _dt.timedelta(days=1)).isoformat()
@@ -271,12 +282,13 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
         "days_advanced": days_advanced,
         "stopped_on": current_date,
         "stop_reason": stop_reason,
-        # §5.5 T3 - the full event list for the day the loop stopped on, not
-        # just the winning kind. `stop_reason` alone is a label; the caller
+        # §5.5 T3 - the full event list for the day the loop stopped on, plus
+        # anything that rolled for the day being left behind (a sponsorship
+        # offer can), not just the winning kind. `stop_reason` alone is a label; the caller
         # that has to open something (a fixture, an offer) needs the ref_id
         # that comes with it, and fetching T1 again to get it would be a
         # second round trip for data this call already had in hand.
-        "stopped_events": stopped_events,
+        "stopped_events": catchup_events + stopped_events,
         # §6.6 - what the run cost or paid in condition. FE animates the bar
         # per call without keeping its own copy of the previous value.
         "condition_before": condition_before,
