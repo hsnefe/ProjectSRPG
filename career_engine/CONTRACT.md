@@ -2001,7 +2001,14 @@ olmasının sebebini (D23: istemci kendine puan yazdıramaz) anlamsızlaştırı
 
 `drill` alanı [`training_result.dart:23`](../lib/game/training_result.dart)'teki
 `TrainingDrill?` enum'ının string karşılığıdır; `null` olan kart FE'de "Yakında"
-görünür.
+görünür. BE bu string'i doğrulamaz — tek kaynağı FE enum'ı olduğu için buraya
+ikinci bir nüsha konmadı; yazım hatası kartı sessizce "Yakında" yapar.
+
+v1.6 itibarıyla yedi `saha` kartının yedisinin de mini-oyunu var; `mudahale`
+kartı `tackling` drill'ini açıyor (baskı zinciri — `lib/game/tackle_game.dart`).
+Aynı oyun maç içinde de oynanıyor: `tackle_hard` ve `high_press` teklifleri
+`resolution:"minigame"`, `minigame:"tackle"` geliyor (`../API_CONTRACT.md` §7.3).
+`null` kalan tek aile artık `kişi`.
 
 > ℹ️ Kişi antrenmanları için FE'de hazır bir yer var: antrenman ekranının ikinci
 > sekmesi ([`training_screen.dart:111`](../lib/screens/training_screen.dart)
