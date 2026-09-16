@@ -106,7 +106,8 @@ class _Backend {
             'current_date': '2026-08-19', 'season_id': '25/26',
             'money': 48200, 'condition': 80, 'day_budget': {'time': 720.0},
           },
-          'attributes': const <dynamic>[], 'fame': const <dynamic>[],
+          'attributes': const <dynamic>[], 'tactics': const <dynamic>[],
+          'fame': const <dynamic>[],
         });
       }
       if (request.url.path == '/careers/car_1/calendar') {

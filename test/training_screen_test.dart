@@ -16,11 +16,11 @@ import 'package:project_srpg/screens/tackle_training_screen.dart';
 import 'package:project_srpg/screens/training_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 
-/// N3 `training` kataloğu — career_engine/catalog/training.py'nin 12
-/// kaleminin aynısı (7 saha + 5 kişi). Elle tutulan bir ayna olduğu için
-/// katalog değiştikçe burası da güncellenmeli: literal kendi kendine
-/// yettiğinden, saptığında testler sessizce eski davranışı doğrulamaya
-/// devam eder.
+/// N3 `training` kataloğu — career_engine/catalog/training.py'nin 15
+/// kaleminin aynısı (7 saha + 5 kişi + 3 taktik). Elle tutulan bir ayna
+/// olduğu için katalog değiştikçe burası da güncellenmeli: literal kendi
+/// kendine yettiğinden, saptığında testler sessizce eski davranışı
+/// doğrulamaya devam eder.
 const _trainingItems = [
   {
     'catalog_id': 'kondisyon-kosusu', 'title': 'Kondisyon Koşusu',
@@ -95,6 +95,24 @@ const _trainingItems = [
     'costs': {'time': 60, 'energy': 10},
     'effects': {'attribute:resourcefulness': 0.8, 'money': -7},
   },
+  {
+    'catalog_id': 'gegenpress', 'title': 'Gegenpress',
+    'description': '…', 'family': 'taktik', 'drill': null,
+    'costs': {'time': 60, 'energy': 8},
+    'effects': {'tactic:gegenpress': 0.8},
+  },
+  {
+    'catalog_id': 'pozisyonel-oyun', 'title': 'Pozisyonel Oyun',
+    'description': '…', 'family': 'taktik', 'drill': null,
+    'costs': {'time': 75, 'energy': 6},
+    'effects': {'tactic:pozisyonel_oyun': 0.8},
+  },
+  {
+    'catalog_id': 'derin-blok', 'title': 'Derin Blok',
+    'description': '…', 'family': 'taktik', 'drill': null,
+    'costs': {'time': 45, 'energy': 5},
+    'effects': {'tactic:derin_blok': 0.8},
+  },
 ];
 
 http.Response _json(Object body) => http.Response(
@@ -163,6 +181,69 @@ CareerSession _gatedTrainingSession({required int confidenceLevel}) {
   return CareerSession(client: CareerApiClient(httpClient: mock, baseUrl: 'http://test'));
 }
 
+/// Taktik kartının mini-oyunu olmadan doğrudan uygulanmasını sınamak için:
+/// `/careers`, P1 VE `POST /actions`'ın hepsini gerçek bir round-trip'e
+/// yetecek kadar sahte döndürür. [postedCatalogIds] her `POST /actions`
+/// çağrısının `catalog_id`'sini biriktirir — testin "mini-oyun açılmadı,
+/// doğrudan uygulandı" iddiasının kanıtı.
+CareerSession _tacticalTrainingSession({required List<String> postedCatalogIds}) {
+  final mock = MockClient((request) async {
+    if (request.url.path == '/catalog/training') {
+      return _json({'items': _trainingItems});
+    }
+    if (request.url.path == '/careers') {
+      return _json({
+        'careers': [
+          {
+            'career_id': 'car_test', 'player_name': 'Efe Kaan',
+            'season_id': '25/26', 'current_date': '2026-08-05',
+          }
+        ],
+      });
+    }
+    if (request.url.path == '/careers/car_test/player') {
+      return _json({
+        'player_id': 'p_user', 'name': 'Efe Kaan', 'position': 'Orta saha',
+        'birth_date': '2004-08-19', 'age': 21,
+        'team': {
+          'team_id': 't_ykz', 'name': 'FK Yıldız', 'short_name': 'YKZ',
+          'color_primary': '#1E6FD9', 'color_secondary': '#FFFFFF',
+        },
+        'career_state': {
+          'current_date': '2026-08-05', 'season_id': '25/26',
+          'money': 48200, 'condition': 72, 'day_budget': {'time': 720.0},
+        },
+        'attributes': const [],
+        'tactics': [
+          {'key': 'gegenpress', 'value': 12.0},
+        ],
+        'fame': const [], 'market_value': null,
+      });
+    }
+    if (request.method == 'POST' &&
+        request.url.path == '/careers/car_test/actions') {
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      postedCatalogIds.add(body['catalog_id'] as String);
+      return _json({
+        'career_state': {
+          'current_date': '2026-08-05', 'season_id': '25/26',
+          'money': 48200, 'condition': 72, 'day_budget': {'time': 660.0},
+        },
+        'applied_costs': {'time': 60, 'energy': 8},
+        'applied_effects': {'tactic:gegenpress': 0.8},
+        'attribute_changes': const [],
+        'tactic_changes': [
+          {'key': 'gegenpress', 'before': 12.0, 'after': 12.8},
+        ],
+        'relationship_changes': const [],
+        'ledger_entries': const [],
+      });
+    }
+    return http.Response('unexpected ${request.url}', 404);
+  });
+  return CareerSession(client: CareerApiClient(httpClient: mock, baseUrl: 'http://test'));
+}
+
 Widget _wrap(Widget home, {CareerSession? session}) => PlayerScope(
       session: session,
       child: MaterialApp(
@@ -184,6 +265,14 @@ Finder _startButton(String title) => find.descendant(
 
 OutlinedButton _button(WidgetTester tester, String title) =>
     tester.widget<OutlinedButton>(_startButton(title));
+
+LinearProgressIndicator _progressBar(WidgetTester tester, String title) =>
+    tester.widget<LinearProgressIndicator>(
+      find.descendant(
+        of: find.ancestor(of: find.text(title), matching: _card),
+        matching: find.byType(LinearProgressIndicator),
+      ),
+    );
 
 /// Antrenman kartının butonunu tıklanabilir hale getirir. Listenin sonundaki
 /// kartlar ekrana yarım sığdığı için başlığı görmek yetmiyor — butonun
@@ -388,5 +477,63 @@ void main() {
     // Mini-oyunu olmadığı için hâlâ 'Yakında' — kilit kalkınca kartın
     // kendi eksiği geri görünür, ikisi karışmaz.
     expect(find.text('Yakında'), findsWidgets);
+  });
+
+  group('taktik sekmesi (§12.11)', () {
+    testWidgets('taktik ailesindeki üç kalemi listeler', (tester) async {
+      await tester.pumpWidget(
+        _wrap(TrainingScreen(session: _trainingSession())),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Taktik'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Gegenpress'), findsOneWidget);
+      expect(find.text('Pozisyonel Oyun'), findsOneWidget);
+      expect(find.text('Derin Blok'), findsOneWidget);
+      // Kondisyon Koşusu 'saha' ailesinde — taktik sekmede görünmemeli.
+      expect(find.text('Kondisyon Koşusu'), findsNothing);
+    });
+
+    testWidgets('mini-oyunu olmasa da Başla yazar ve tıklanabilir',
+        (tester) async {
+      await tester.pumpWidget(
+        _wrap(TrainingScreen(session: _trainingSession())),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Taktik'));
+      await tester.pumpAndSettle();
+
+      // Kişi kalemlerinin aksine (drill:null → Yakında), taktik kalemleri
+      // drill:null olsa da tıklanabilir — §12.11'in ayırdığı nokta.
+      expect(_button(tester, 'Gegenpress').onPressed, isNotNull);
+      expect(find.text('Yakında'), findsNothing);
+    });
+
+    testWidgets(
+        'Başla mini-oyun açmadan doğrudan uygular ve ilerlemeyi günceller',
+        (tester) async {
+      final posted = <String>[];
+      final session = _tacticalTrainingSession(postedCatalogIds: posted);
+      await tester.pumpWidget(
+        _wrap(TrainingScreen(session: session), session: session),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Taktik'));
+      await tester.pumpAndSettle();
+
+      final before = _progressBar(tester, 'Gegenpress').value;
+      expect(before, closeTo(0.12, 1e-9)); // P1: gegenpress 12.0/100
+
+      await tester.tap(_startButton('Gegenpress'));
+      await tester.pumpAndSettle();
+
+      // Doğrudan uygulandı: ekran hâlâ TrainingScreen, hiçbir mini-oyun
+      // ekranı açılmadı.
+      expect(posted, ['gegenpress']);
+      expect(find.byType(TrainingScreen), findsOneWidget);
+      expect(_progressBar(tester, 'Gegenpress').value, closeTo(0.128, 1e-9));
+    });
   });
 }

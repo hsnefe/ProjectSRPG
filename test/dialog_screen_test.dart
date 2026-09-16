@@ -104,6 +104,7 @@ CareerSession _gatedSession({required int confidenceLevel}) {
             'value': confidenceLevel * 10.0, 'level': confidenceLevel,
           },
         ],
+        'tactics': const [],
         'fame': const [], 'market_value': null,
       });
     }

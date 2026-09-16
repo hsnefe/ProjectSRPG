@@ -31,6 +31,7 @@ class PlayerState extends ChangeNotifier {
   int _condition = 72;
   int _money = 48200;
   List<PlayerAttribute> _attributes = const [];
+  List<PlayerTactic> _tactics = const [];
 
   /// Oyuncunun kimliği — P1'den.
   String get name => _name;
@@ -74,6 +75,17 @@ class PlayerState extends ChangeNotifier {
     return 0;
   }
 
+  /// §12.11'in üç taktik yeterliliği — [PlayerAttribute]'un aksine bir
+  /// seviye ölçeği yok, `requires` bunu bugün karşılaştırmıyor.
+  List<PlayerTactic> get tactics => _tactics;
+
+  double tacticProficiency(String key) {
+    for (final t in _tactics) {
+      if (t.key == key) return t.value;
+    }
+    return 0;
+  }
+
   /// P1'i çeker ve alanları doldurur. Hata durumunda sessizce vazgeçer —
   /// ekranlar boş/varsayılan değerlerle kalır, kritik bir akışı bloklamaz;
   /// [PlayerScope] uygulama açılışında bir kez, sihirbaz da yeni kariyeri
@@ -94,6 +106,7 @@ class PlayerState extends ChangeNotifier {
       _condition = profile.careerState.condition;
       _money = profile.careerState.money;
       _attributes = profile.attributes;
+      _tactics = profile.tactics;
       _loaded = true;
       notifyListeners();
     } catch (_) {
@@ -109,6 +122,7 @@ class PlayerState extends ChangeNotifier {
   void applyServerUpdate({
     CareerState? careerState,
     List<AttributeChange> attributeChanges = const [],
+    List<TacticChange> tacticChanges = const [],
   }) {
     if (careerState != null) {
       _condition = careerState.condition;
@@ -131,6 +145,16 @@ class PlayerState extends ChangeNotifier {
         }
       }
       _attributes = updated;
+    }
+    if (tacticChanges.isNotEmpty) {
+      final updated = [..._tactics];
+      for (final change in tacticChanges) {
+        final index = updated.indexWhere((t) => t.key == change.key);
+        if (index != -1) {
+          updated[index] = PlayerTactic(key: change.key, value: change.after);
+        }
+      }
+      _tactics = updated;
     }
     notifyListeners();
   }

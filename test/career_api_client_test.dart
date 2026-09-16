@@ -50,6 +50,9 @@ void main() {
             {'key': 'condition', 'family': 'saha', 'value': 64.0, 'level': 6},
             {'key': 'shooting', 'family': 'saha', 'value': 50.0, 'level': 5},
           ],
+          'tactics': [
+            {'key': 'gegenpress', 'value': 12.0},
+          ],
           'fame': [
             {'scope': 'overall', 'value': 0.0}
           ],
@@ -88,6 +91,7 @@ void main() {
               'money': 0, 'condition': 72, 'day_budget': {'time': 720.0},
             },
             'attributes': const [],
+            'tactics': const [],
             'fame': const [],
             'market_value': null,
           }));

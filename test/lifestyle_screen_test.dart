@@ -192,6 +192,7 @@ CareerSession _gatedLifestyleSession({
             'value': charismaLevel * 10.0, 'level': charismaLevel,
           },
         ],
+        'tactics': const [],
         'fame': const [], 'market_value': null,
       });
     }

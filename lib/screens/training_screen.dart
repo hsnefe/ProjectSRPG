@@ -17,12 +17,13 @@ import 'package:project_srpg/state/player_state.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/animated_condition_bar.dart';
 
-enum _TrainingTab { physical, personal }
+enum _TrainingTab { physical, personal, tactical }
 
 class _TrainingItem {
   const _TrainingItem({
     required this.catalogId,
     required this.title,
+    required this.family,
     required this.progress,
     required this.energy,
     required this.icon,
@@ -33,6 +34,10 @@ class _TrainingItem {
 
   final String catalogId;
   final String title;
+
+  /// 'saha' | 'kişi' | 'taktik' — §12.11'in `onStart` ayrımı bunun üzerinden
+  /// yapılır (bkz. build()'daki `itemBuilder`).
+  final String family;
 
   /// Oyuncunun bu antrenmanın hedeflediği niteliği ne kadar geliştirdiği,
   /// 0-1 arası — P1'deki ilgili `attribute` değerinden türetilir (N3 kartın
@@ -83,6 +88,9 @@ const _iconByCatalogId = {
   'ozguven-koclugu': Icons.psychology_outlined,
   'satranc-kulubu': Icons.extension_outlined,
   'kriz-simulasyonu': Icons.bolt_outlined,
+  'gegenpress': Icons.compress,
+  'pozisyonel-oyun': Icons.grid_view,
+  'derin-blok': Icons.shield_outlined,
 };
 
 /// `effects` haritasındaki `attribute:<key>` anahtarını bulur — kartın hangi
@@ -94,6 +102,15 @@ String? _targetAttributeOf(api.CatalogItem item) {
   return null;
 }
 
+/// §12.11 · `effects` haritasındaki `tactic:<key>` anahtarını bulur —
+/// [_targetAttributeOf]'un taktik kartları için karşılığı.
+String? _targetTacticOf(api.CatalogItem item) {
+  for (final key in item.effects.keys) {
+    if (key.startsWith('tactic:')) return key.substring('tactic:'.length);
+  }
+  return null;
+}
+
 Color _barColorFor(double progress) {
   if (progress >= 0.75) return AppColors.success;
   if (progress >= 0.4) return AppColors.accent;
@@ -101,11 +118,17 @@ Color _barColorFor(double progress) {
 }
 
 _TrainingItem _toTrainingItem(api.CatalogItem item, PlayerState player) {
-  final targetKey = _targetAttributeOf(item);
-  final progress = targetKey == null ? 0.0 : player.attribute(targetKey) / 100;
+  final attributeKey = _targetAttributeOf(item);
+  final tacticKey = _targetTacticOf(item);
+  final progress = attributeKey != null
+      ? player.attribute(attributeKey) / 100
+      : tacticKey != null
+          ? player.tacticProficiency(tacticKey) / 100
+          : 0.0;
   return _TrainingItem(
     catalogId: item.catalogId,
     title: item.title,
+    family: item.family ?? '',
     progress: progress.clamp(0, 1),
     energy: (item.costs['energy'] ?? 0).toInt(),
     icon: _iconByCatalogId[item.catalogId] ?? Icons.fitness_center,
@@ -171,21 +194,28 @@ class _TrainingScreenState extends State<TrainingScreen> {
     await _applyResult(item.catalogId, result);
   }
 
-  /// T2 · `POST /careers/{cid}/actions` — mini-oyunun sonucunu uygular.
-  /// Bütçe/para yetmezse (`409`) BE hiçbir şey yazmaz (INV-3/4); burada da
-  /// yalnızca bir uyarı gösterip vazgeçilir.
-  Future<void> _applyResult(String catalogId, TrainingResult result) async {
+  /// §12.11 · taktik kartlarının "Başla"sı: mini-oyun ekranı açmadan
+  /// doğrudan [_applyResult]'a düşer — kartın kendi `drill`'i zaten yok.
+  Future<void> _startDirect(_TrainingItem item) => _applyResult(item.catalogId, null);
+
+  /// T2 · `POST /careers/{cid}/actions` — bir aktivitenin sonucunu uygular.
+  /// [result] `null` ise mini-oyunsuz bir kart (taktik, §12.11): BE zaten
+  /// `body.result`'ı hiç okumadan `effects`'i uyguluyor. Bütçe/para yetmezse
+  /// (`409`) BE hiçbir şey yazmaz (INV-3/4); burada da yalnızca bir uyarı
+  /// gösterip vazgeçilir.
+  Future<void> _applyResult(String catalogId, TrainingResult? result) async {
     final player = PlayerScope.of(context);
     try {
       final careerId = await _session.resolve();
       final actionResult = await _session.client.postAction(
         careerId,
         catalogId: catalogId,
-        result: {'minigame_score': result.score},
+        result: result == null ? null : {'minigame_score': result.score},
       );
       player.applyServerUpdate(
         careerState: actionResult.careerState,
         attributeChanges: actionResult.attributeChanges,
+        tacticChanges: actionResult.tacticChanges,
       );
     } on CareerApiException catch (e) {
       if (!mounted) return;
@@ -265,11 +295,13 @@ class _TrainingScreenState extends State<TrainingScreen> {
                             }
 
                             final player = PlayerScope.of(context);
+                            final familyForTab = switch (_tab) {
+                              _TrainingTab.physical => 'saha',
+                              _TrainingTab.personal => 'kişi',
+                              _TrainingTab.tactical => 'taktik',
+                            };
                             final items = snapshot.data!.items
-                                .where((i) => i.family ==
-                                    (_tab == _TrainingTab.physical
-                                        ? 'saha'
-                                        : 'kişi'))
+                                .where((i) => i.family == familyForTab)
                                 .map((i) => _toTrainingItem(i, player))
                                 .toList(growable: false);
 
@@ -278,13 +310,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
                               switchInCurve: Curves.easeOutCubic,
                               switchOutCurve: Curves.easeInCubic,
                               transitionBuilder: (child, animation) {
+                                // Üç sekme, orta (personal) merkez: fiziksel
+                                // soldan, taktik sağdan kayar.
                                 final offset = Tween<Offset>(
-                                  begin: Offset(
-                                    _tab == _TrainingTab.physical
-                                        ? -0.06
-                                        : 0.06,
-                                    0,
-                                  ),
+                                  begin: Offset((_tab.index - 1) * 0.06, 0),
                                   end: Offset.zero,
                                 ).animate(animation);
                                 return FadeTransition(
@@ -317,10 +346,19 @@ class _TrainingScreenState extends State<TrainingScreen> {
                                         final item = items[index];
                                         return _TrainingCard(
                                           item: item,
-                                          onStart:
-                                              (item.drill == null || item.locked)
-                                                  ? null
-                                                  : () => _start(item),
+                                          onStart: item.locked
+                                              ? null
+                                              : item.drill != null
+                                                  ? () => _start(item)
+                                                  // §12.11: kişi kalemleri
+                                                  // drill:null'da Yakında
+                                                  // kalır (kapsam dışı);
+                                                  // taktik kalemleri aynı
+                                                  // drill:null'da doğrudan
+                                                  // uygulanır.
+                                                  : item.family == 'taktik'
+                                                      ? () => _startDirect(item)
+                                                      : null,
                                         );
                                       },
                                     ),
@@ -406,7 +444,11 @@ class _TabToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     const height = 30.0;
     const padding = 2.0;
-    const segmentWidth = 78.0;
+    const segmentWidth = 70.0;
+    const segmentCount = 3;
+
+    // Üç eşit dilim: -1 (sol uç) ile +1 (sağ uç) arası, index'e göre.
+    final alignX = -1.0 + tab.index * (2.0 / (segmentCount - 1));
 
     return Container(
       height: height,
@@ -416,15 +458,13 @@ class _TabToggle extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: SizedBox(
-        width: segmentWidth * 2,
+        width: segmentWidth * segmentCount,
         child: Stack(
           children: [
             AnimatedAlign(
               duration: const Duration(milliseconds: 240),
               curve: Curves.easeOutCubic,
-              alignment: tab == _TrainingTab.physical
-                  ? Alignment.centerLeft
-                  : Alignment.centerRight,
+              alignment: Alignment(alignX, 0),
               child: Container(
                 width: segmentWidth,
                 height: height - padding * 2,
@@ -447,6 +487,12 @@ class _TabToggle extends StatelessWidget {
                   label: 'Kişisel',
                   selected: tab == _TrainingTab.personal,
                   onTap: () => onChanged(_TrainingTab.personal),
+                ),
+                _ToggleLabel(
+                  width: segmentWidth,
+                  label: 'Taktik',
+                  selected: tab == _TrainingTab.tactical,
+                  onTap: () => onChanged(_TrainingTab.tactical),
                 ),
               ],
             ),

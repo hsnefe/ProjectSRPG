@@ -1290,6 +1290,23 @@ class PlayerAttribute {
   final int level;
 }
 
+/// P1 `tactics[]` satırı — §12.11. [PlayerAttribute]'un aksine ne bir
+/// `family` ayrımı ne de bir `level` ölçeği taşır; taktik kartlarının
+/// hiçbiri kilitli değil, karşılaştırılacak bir eşik yok.
+class PlayerTactic {
+  const PlayerTactic({required this.key, required this.value});
+
+  factory PlayerTactic.fromJson(Map<String, dynamic> json) {
+    return PlayerTactic(
+      key: json['key'] as String,
+      value: (json['value'] as num).toDouble(),
+    );
+  }
+
+  final String key;
+  final double value;
+}
+
 /// P1 `fame[]` satırı — D35, anlamı ⟦AÇIK-9⟧.
 class FameEntry {
   const FameEntry({required this.scope, required this.value});
@@ -1331,6 +1348,7 @@ class PlayerProfile {
     required this.team,
     required this.careerState,
     required this.attributes,
+    required this.tactics,
     required this.fame,
     this.marketValue,
   });
@@ -1349,6 +1367,9 @@ class PlayerProfile {
       attributes: (json['attributes'] as List<dynamic>)
           .map((e) => PlayerAttribute.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
+      tactics: (json['tactics'] as List<dynamic>)
+          .map((e) => PlayerTactic.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
       fame: (json['fame'] as List<dynamic>)
           .map((e) => FameEntry.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
@@ -1365,12 +1386,17 @@ class PlayerProfile {
   final TeamRef team;
   final CareerState careerState;
   final List<PlayerAttribute> attributes;
+  final List<PlayerTactic> tactics;
   final List<FameEntry> fame;
   final MarketValue? marketValue;
 
   double attribute(String key) =>
       attributes.firstWhere((a) => a.key == key, orElse: () =>
           const PlayerAttribute(key: '', family: '', value: 0, level: 0)).value;
+
+  double tacticProficiency(String key) =>
+      tactics.firstWhere((t) => t.key == key,
+          orElse: () => const PlayerTactic(key: '', value: 0)).value;
 }
 
 /// P2 `rows[]` satırı — bir (sezon, müsabaka) kesiti.
@@ -1826,6 +1852,28 @@ class AttributeChange {
   final int levelAfter;
 }
 
+/// T2 `tactic_changes[]` satırı — §12.11. [AttributeChange]'in aksine bir
+/// seviye çifti taşımaz; taktik yeterliliğinin bir seviye ölçeği yok.
+class TacticChange {
+  const TacticChange({
+    required this.key,
+    required this.before,
+    required this.after,
+  });
+
+  factory TacticChange.fromJson(Map<String, dynamic> json) {
+    return TacticChange(
+      key: json['key'] as String,
+      before: (json['before'] as num).toDouble(),
+      after: (json['after'] as num).toDouble(),
+    );
+  }
+
+  final String key;
+  final double before;
+  final double after;
+}
+
 /// R3 · `POST /careers/{cid}/relationships/{rid}/interact`.
 class InteractResult {
   const InteractResult({
@@ -1992,6 +2040,7 @@ class ActionResult {
     required this.appliedCosts,
     required this.appliedEffects,
     required this.attributeChanges,
+    required this.tacticChanges,
     required this.relationshipChanges,
     required this.ledgerEntries,
   });
@@ -2007,6 +2056,9 @@ class ActionResult {
       attributeChanges: ((json['attribute_changes'] as List<dynamic>?) ?? const [])
           .map((e) => AttributeChange.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
+      tacticChanges: ((json['tactic_changes'] as List<dynamic>?) ?? const [])
+          .map((e) => TacticChange.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
       relationshipChanges: ((json['relationship_changes'] as List<dynamic>?) ?? const [])
           .map((e) => RelationshipChange.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
@@ -2018,6 +2070,7 @@ class ActionResult {
   final Map<String, double> appliedCosts;
   final Map<String, dynamic> appliedEffects;
   final List<AttributeChange> attributeChanges;
+  final List<TacticChange> tacticChanges;
   final List<RelationshipChange> relationshipChanges;
   final List<LedgerEntry> ledgerEntries;
 }
@@ -2468,18 +2521,20 @@ class CatalogItem {
   /// Günün bütçesinden çeker (§6.2) — `time`/`energy`.
   final Map<String, double> costs;
 
-  /// Dünyayı değiştirir: `attribute:<key>` · `condition` · `energy` · `money`
-  /// · `fame:<scope>` · `relationship:<rid>`. Değeri `null` olan anahtar henüz
-  /// aktif değildir (⟦AÇIK-9⟧ vb.) — uygulanmaz.
+  /// Dünyayı değiştirir: `attribute:<key>` · `tactic:<key>` · `condition` ·
+  /// `energy` · `money` · `fame:<scope>` · `relationship:<rid>`. Değeri
+  /// `null` olan anahtar henüz aktif değildir (⟦AÇIK-9⟧ vb.) — uygulanmaz.
   final Map<String, dynamic> effects;
 
   final Map<String, dynamic> raw;
 
-  /// `training` kataloğu — 'saha' | 'kişi'.
+  /// `training` kataloğu — 'saha' | 'kişi' | 'taktik'.
   String? get family => raw['family'] as String?;
 
   /// `training` kataloğu — [TrainingDrill] enum string karşılığı; `null` ise
-  /// kart "Yakında" görünür.
+  /// mini-oyunu yok. `kişi` kalemleri bugün bu yüzden "Yakında" görünür;
+  /// `taktik` kalemleri de `drill: null` ama training_screen.dart onları
+  /// doğrudan uygular (§12.11) — ayrım `family`'de, burada değil.
   String? get drill => raw['drill'] as String?;
 
   /// `lifestyle` kataloğu — 'Tüm gece', '2 saat' gibi.
