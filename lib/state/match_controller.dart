@@ -31,6 +31,7 @@ class MatchController extends ChangeNotifier {
     required this.staminaCatalog,
     required this.directiveOptions,
     this.squadStatus = 'first_eleven',
+    this.coachInstruction,
     int? startCondition,
     MatchApiClient? apiClient,
     MatchStreamSource? streamSource,
@@ -51,6 +52,13 @@ class MatchController extends ChangeNotifier {
   /// §12.2 M1 · `first_eleven` | `bench`. `out` buraya hiç ulaşmaz — o
   /// fikstür M1'de teklif edilmiyor, arka plan simülasyonuna düşüyor.
   final String squadStatus;
+
+  /// §12.10 · antrenörün bu maç için verdiği talimat — M1 `coach_instruction
+  /// .focus`, wire'ın kendi ölçeğinde (`"attack"|"defend"|"tactical"|null`,
+  /// `null` = "farketmez"). `null` iken uyum **ölçülmez**, 1.0 sayılmaz:
+  /// aksi halde talimatı "farketmez" olan bir rol seçmek bedelsiz kalıcı bir
+  /// +1 olurdu.
+  final String? coachInstruction;
 
   /// Oyuncunun maça girdiği kondisyon — career_engine M1'in
   /// `engine_payload.user_condition`'ı (D38). Maç boyunca yalnızca bu sayı
@@ -86,6 +94,15 @@ class MatchController extends ChangeNotifier {
   /// `minutes_played`'ini veriyor.
   late int? _onMinute = squadStatus == 'first_eleven' ? 0 : null;
   int? _offMinute;
+
+  /// §12.10 · uyum biriktiricisi. `_lastJudgedMinute`/`_lastJudgedFocus`/
+  /// `_wasOnPitchAtLastTick` bir önceki tick'in "yargılanacak" durumunu
+  /// taşır — bkz. [_accrueCompliance].
+  int _compliantMinutes = 0;
+  int _judgedMinutes = 0;
+  int? _lastJudgedMinute;
+  String? _lastJudgedFocus;
+  bool _wasOnPitchAtLastTick = false;
 
   bool _disposed = false;
   InterventionOfferFrame? _activeOffer;
@@ -149,6 +166,13 @@ class MatchController extends ChangeNotifier {
     final off = _offMinute ?? (_finished ? _minute : _minute);
     return (off - on).clamp(0, 95);
   }
+
+  /// §12.10 · M2'nin `tactical_compliance`'ı, 0.0–1.0. Ölçülecek hiç dakika
+  /// yoksa `null` — alan gövdeye **hiç yazılmaz**. Bu, "ölçülmedi" ile "tam
+  /// uydu"yu ayırmak için: [coachInstruction] `null` olan ("farketmez") bir
+  /// rol 1.0 raporlasaydı, o rolü seçmek bedelsiz bir +1 olurdu.
+  double? get tacticalCompliance =>
+      _judgedMinutes <= 0 ? null : _compliantMinutes / _judgedMinutes;
 
   /// Maç boyunca sunulan teklif sayısı — kabul/ret/zaman aşımı ayrımı
   /// yapılmaz, `offer_id`'ye göre tekilleştirilir (E8 replay'i aynı teklifi
@@ -262,6 +286,9 @@ class MatchController extends ChangeNotifier {
         ),
       );
     }
+    // §12.10 · yalnızca `_applySubstitution`'dan SONRA — bu tick'in
+    // sahada-olma durumu ondan önce netleşmiş olmalı.
+    _accrueCompliance(tick);
 
     if (tick.finished) {
       // Backend maç sonu için ayrı bir yorum satırı göndermiyor (§10.8) —
@@ -324,6 +351,42 @@ class MatchController extends ChangeNotifier {
   /// (D38), maliyet §6.6'da ~30 puan; 45 "belirgin yorulmuş ama daha
   /// bitmemiş" demek.
   static const _substitutionConditionFloor = 45.0;
+
+  /// §12.10 · uyumu dakika dakika biriktirir.
+  ///
+  /// Ölçüm motorun bildirdiği `tick.directives.focus`'tan yapılır, FE'nin
+  /// **gönderdiği** değerden değil: E4 toleranslı bir uçtur (§6.1) —
+  /// tanınmayan bir `focus` sessizce eskisinde bırakılır — ve
+  /// [sendDirective] sonucu iyimser uygulamaz. Gönderdiğimizle ölçmek,
+  /// sunucunun reddettiği bir direktifle uyum kazanmak demek olurdu.
+  ///
+  /// Bir aralık **önceki** tick'in bildirdiği focus'a yazılır: E4'ün
+  /// `effective_from_minute`'ı `current + 1`'dir (§6.1) — 34'te gönderilen
+  /// direktif 35'ten itibaren geçerli. Aynı gerekçeyle sahada olma durumu da
+  /// önceki tick'in sonundaki durumdur: 60'ta oyuna giren oyuncu [59,60]
+  /// aralığından sorumlu değil, [60,61]'den itibaren sorumlu —
+  /// [minutesPlayed] ile aynı pencere.
+  void _accrueCompliance(TickFrame tick) {
+    final expected = coachInstruction;
+    final previousMinute = _lastJudgedMinute;
+    final previousFocus = _lastJudgedFocus;
+    final wasOnPitch = _wasOnPitchAtLastTick;
+
+    // E8 replay'i (§9.2) aynı tick'i yeniden yayabilir; imleç yalnızca ileri
+    // gider, yoksa geriye dönen bir replay sonraki gerçek tick'te sahte
+    // (hatta negatif) bir aralık yazardı.
+    if (previousMinute != null && tick.minute < previousMinute) return;
+
+    _lastJudgedMinute = tick.minute;
+    _lastJudgedFocus = tick.directives.focus;
+    _wasOnPitchAtLastTick = _onPitch;
+
+    if (expected == null || previousMinute == null || !wasOnPitch) return;
+    final span = tick.minute - previousMinute;
+    if (span <= 0) return; // aynı dakikanın yinelenen/replay zarfı
+    _judgedMinutes += span;
+    if (previousFocus == expected) _compliantMinutes += span;
+  }
 
   MatchSide get _userMatchSide =>
       userSide == 'home' ? MatchSide.home : MatchSide.away;

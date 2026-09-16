@@ -250,6 +250,9 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
         // §12.2 — yedek başlayan oyuncu sahaya girene kadar müdahale
         // teklifi almaz ve M2'ye `started: false` raporlanır.
         squadStatus: _squadStatus,
+        // §12.10 — uyum bunun karşısında ölçülüyor; `null` ("farketmez")
+        // kalırsa controller ölçmeyi kendiliğinden atlar.
+        coachInstruction: _coachInstruction?.focus,
         // D38 — maç oyuncunun kendi kondisyonundan başlar, 100'den değil.
         startCondition: _preMatchCondition,
       );

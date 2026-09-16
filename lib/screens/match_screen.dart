@@ -314,6 +314,11 @@ class _MatchScreenState extends State<MatchScreen> {
                   'outcome_key': e.outcomeKey,
                 })
             .toList(),
+        // §12.10 · yalnızca ölçülebildiyse. Sahaya hiç çıkmadıysa ya da
+        // talimat "farketmez" ise `null` döner ve alan hiç gönderilmez;
+        // BE yokluğu "ölçülmedi" sayar, "tam uydu" değil.
+        if (widget.controller.tacticalCompliance case final compliance?)
+          'tactical_compliance': compliance,
       };
       final careerId = await careerSession.resolve();
       result = await careerSession.client.reportMatchResult(
