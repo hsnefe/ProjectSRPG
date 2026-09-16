@@ -37,6 +37,12 @@ ATTRIBUTE_KEYS = {
     "resourcefulness": "kişi",
 }
 
+# §12.11 D63 - the fixed 3-key tactical-training catalog. Kept separate from
+# ATTRIBUTE_KEYS rather than a 13th/14th/15th entry in it: that set is
+# INV-21's closed space, tied to level()/requires, and a tactic has neither —
+# folding it in would mean three dead cells no requires threshold ever reads.
+TACTIC_KEYS = ("gegenpress", "pozisyonel_oyun", "derin_blok")
+
 # §3.2 - condition's ceiling never drops below the engine's own floor.
 CONDITION_FLOOR = 35.0
 CONDITION_CEILING = 100.0

@@ -2527,7 +2527,7 @@ uygulanabilir bir v1 için kapanmaları gerekir.
 |---|---|---|---|
 | ~~B-1~~ | ~~**v1 sözleşme ölçeği**~~ | **KAPANDI** — para birimi ₺'den **₭ (Kredi)**'ye geçti ve bütün ekonomi tek ölçekte yeniden katmanlandı (§6.5). FE'nin sabitleriyle çelişki kalmadı | §6.5 · `api/config.py` |
 | B-2 | **Ligin FE verisiyle eşlemesi** | FE'nin mevcut sabit ligi (Deniz SK · Anadolu FC · FK Yıldız) **1. Lig / tier 2** olarak yerleştirildi; Süper Lig'in 18 takımı yeni isim. **Bu bir varsayımdır, teyit bekliyor** | §3.3 · veri dosyası |
-| B-3 | **Kişi antrenmanlarının sekmesi** | D31 kalemleri için FE'de boş bir sekme hazır (`_tactical`, [`training_screen.dart:111`](../lib/screens/training_screen.dart)) ama adı "Taktik". İsimlendirme kararı | §5.7 · FE |
+| ~~B-3~~ | ~~**Kişi antrenmanlarının sekmesi**~~ | **KAPANDI** — ikinci sekme `_tactical`'dan `personal`/"Kişisel"e yeniden adlandırıldı; üçüncü bir sekme (`tactical`/"Taktik") §12.11'in kartlarıyla gerçek anlamıyla açıldı | §12.11 · FE |
 | B-4 | **Lig tablosu başlığı** | Artık hangi müsabakanın tablosuna bakıldığı değişken; başlık veriden gelmeli | §3.3 · FE |
 | B-5 | **Takım renkleri** | 18 + 14 takım için `color_primary` / `color_secondary` seçilecek (D17) | §3.3 · veri dosyası |
 | B-6 | **SQLite JSON1 sürüm kontrolü** | `json_extract()` 3.38+ gerektiriyor; kurulumda tek satırlık kontrol | §3.4 |
@@ -2544,8 +2544,8 @@ yeri gösterir. `grep "⟦" CONTRACT.md` hepsini bulur.
 | ⟦AÇIK-8⟧ | §5.2 P1 `market_value.current` | `compute_market_value()` formülü |
 | ⟦AÇIK-9⟧ | §5.2 P1 `fame[]` | Şöhretin boyutu, aralığı, kaynakları |
 | ⟦AÇIK-9⟧ | §5.7 N3 `effects["fame:overall"]` | Katalog kalemlerinin şöhret getirisi (bugün `null`) |
+| ⟦AÇIK-13⟧ | §12.11 | Taktik yeterliliğinin maça nasıl yansıyacağı — D37'nin ayırdığı "gelecekteki mini-oyun-zorluk kancası" |
 | ⟦B-1⟧ | §5.2 P3 sözleşme kalemleri | v1 başlangıç sözleşmesinin tier 2 ölçeği |
-| ⟦B-3⟧ | §5.7 N3 notu | FE'de kişi antrenmanlarının hangi sekmede duracağı |
 
 **Kural:** bu noktaların doldurulması **sürüm numarasını değiştirmez** ve FE
 deploy'u gerektirmez. Alan zaten şemada; FE onu bugün de okuyor, sadece değeri
@@ -3837,3 +3837,89 @@ emsal olurdu. **Yeni hata kodu yok** — `invalid_match_result` (422) ve
 değişiklik yok** — `tactical_compliance` bir career_engine M2 alanı;
 `focus` semantiği (§6.1/§6.2) zaten tam olarak ölçülen şey, motor teline
 hiçbir şey eklenmiyor.
+
+---
+
+### 12.11 Taktiksel antrenman
+
+Antrenman ekranının üçüncü ailesi: `saha`/`kişi`'nin yanına `taktik`
+katılıyor — Gegenpress, Pozisyonel Oyun, Derin Blok, her biri 0-100 arası
+bir yeterlilik. §5.7 N3'ün geri kalanından iki yönde ayrılıyor: kartların
+hiçbirinin `drill`'i yok (mini-oyun değil, bir çalışma seansı) ve hiçbiri
+`requires` taşımıyor (bilinçli olarak kilitsiz, kapsam dar tutuldu).
+
+#### Şema — `015_player_tactics.sql`
+
+```sql
+CREATE TABLE player_tactics (
+  career_id  TEXT NOT NULL REFERENCES career(career_id) ON DELETE CASCADE,
+  player_id  TEXT NOT NULL,
+  tactic_key TEXT NOT NULL,
+  value      REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (career_id, player_id, tactic_key)
+);
+```
+
+`player_attribute` ile aynı şekil ama ayrı tablo: `ATTRIBUTE_KEYS` INV-21'in
+kapalı 12'li kümesi, `level()`/`requires`'a bağlı; taktik yeterliliğinin
+ikisi de yok. `config.TACTIC_KEYS = ("gegenpress", "pozisyonel_oyun",
+"derin_blok")` yeni, ayrı bir sabit küme (D63).
+
+#### P1'e eklenen alan
+
+`GET /careers/{cid}/player` artık bir `tactics[]` de döndürüyor —
+`attributes[]`'la aynı "her zaman N satır" şekli:
+
+```jsonc
+"tactics": [
+  { "key": "gegenpress", "value": 12.0 },
+  { "key": "pozisyonel_oyun", "value": 0.0 },
+  { "key": "derin_blok", "value": 4.8 }
+]
+```
+
+Hiç antrenman yapılmamış bir anahtar `0.0` olarak döner, satır hiç
+eksilmez (INV-55).
+
+#### T2'ye eklenen alan
+
+`POST /careers/{cid}/actions`'ın yanıtı, `attribute_changes`'in yanına bir
+`tactic_changes[]` ekliyor — aynı şekil (`key`/`before`/`after`), seviye
+alanı yok çünkü taktik yeterliliğinin bir seviye ölçeği yok:
+
+```jsonc
+"tactic_changes": [
+  { "key": "gegenpress", "before": 11.2, "after": 12.0 }
+]
+```
+
+#### Kartın doğrudan uygulanması
+
+`drill: null` olan bir `kişi` kalemi FE'de bugün "Yakında" görünüyor ve
+tıklanamaz (mini-oyunu yok, uygulaması da yok) — ama bir `taktik` kalemi
+`drill: null` olsa da tıklanabilir: FE kartı doğrudan `POST
+/careers/{cid}/actions`'a gönderiyor, hiçbir mini-oyun ekranı açmadan. BE
+tarafında bu fark yok — `post_action` zaten `body.result`'ı hiç okumadan
+(`None` de olsa) `item["effects"]`'i uygular; ayrım tamamen FE'nin hangi
+kartı hangi butona bağladığında yaşıyor.
+
+#### Kapsam dışı
+
+Yeterliliğin maça nasıl yansıyacağı bu turda **yazılmıyor** — ⟦AÇIK-13⟧.
+D37/INV-26 zaten oyuncu niteliklerinin hiçbirinin motora giden rating'e
+girmediğini ve tek planlanan kanalın "gelecekteki bir mini-oyun-zorluk
+kancası" olduğunu söylüyor (AÇIK-1, §5.6); taktik yeterliliği de aynı
+kancayı bekleyecek, §12.10'un taze `tactical_compliance`/`tactical_fit`
+hattına bu turda dokunmuyor.
+
+#### Yeni kararlar
+
+| # | Konu | Karar | Gerekçe |
+|---|---|---|---|
+| D63 | `player_tactics`'in ayrı bir tablo/modül olması | **`player_attribute`'a eklenmedi; kendi tablosu, kendi `domain/tactics.py`'si var** | `ATTRIBUTE_KEYS` INV-21'in kapalı kümesi, `level()`/`requires` onun üzerine kurulu; taktik yeterliliğinin ikisi de yok. Oraya eklemek ya kümeyi 15'e genişletip üç ölü hücre bırakırdı ya da aynı satırlardan ikinci bir invariant çıkarmayı gerektirirdi. `domain/tactics.py`, `attributes.py`'nin `apply_delta` şeklini birebir izliyor (kayıt yok — CONTRACT.md kişi başına bir denetim izi istemiyor, `attributes.py` da aynı gerekçeyle izlemiyor) |
+
+#### Yeni invariant'lar
+
+| # | Garanti |
+|---|---|
+| INV-55 | P1'in `tactics[]`'i her zaman tam `len(TACTIC_KEYS)` (3) satır taşır, hiç antrenman yapılmamış bir anahtar için bile — `attributes[]`'in INV-21'iyle aynı şekil |

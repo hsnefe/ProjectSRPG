@@ -43,6 +43,21 @@ def get_player(career_id: str, conn: sqlite3.Connection = Depends(get_db)):
         for key, family in config.ATTRIBUTE_KEYS.items()
     ]
 
+    tactic_rows = {
+        r["tactic_key"]: r["value"]
+        for r in conn.execute(
+            "SELECT tactic_key, value FROM player_tactics WHERE career_id = ? AND player_id = ?",
+            (career_id, player_row["player_id"]),
+        ).fetchall()
+    }
+    # INV-55: always len(TACTIC_KEYS) rows, same "always N rows" shape as
+    # the attributes block above — a tactic never trained reads 0.0, not
+    # absent.
+    tactics = [
+        {"key": key, "value": tactic_rows.get(key, 0.0)}
+        for key in config.TACTIC_KEYS
+    ]
+
     fame_rows = conn.execute(
         "SELECT scope, value FROM player_fame WHERE career_id = ? AND player_id = ?",
         (career_id, player_row["player_id"]),
@@ -60,6 +75,7 @@ def get_player(career_id: str, conn: sqlite3.Connection = Depends(get_db)):
         "team": serializers.fetch_team_ref(conn, career_id, player_row["team_id"]),
         "career_state": serializers.fetch_career_state(conn, career_id),
         "attributes": attributes,
+        "tactics": tactics,
         "fame": fame,
         "market_value": market_value,
     }

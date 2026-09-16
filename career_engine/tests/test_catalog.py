@@ -20,6 +20,17 @@ def test_training_catalog_covers_every_attribute():
     assert keys == set(ATTRIBUTE_KEYS)
 
 
+def test_training_catalog_covers_every_tactic():
+    keys = {
+        e.split(":", 1)[1]
+        for item in TRAINING_ITEMS
+        for e in item["effects"]
+        if e.startswith("tactic:")
+    }
+    from api.config import TACTIC_KEYS
+    assert keys == set(TACTIC_KEYS)
+
+
 def test_validate_catalog_rejects_unknown_effect_key():
     with pytest.raises(ValueError):
         validate_catalog(
@@ -41,12 +52,20 @@ def test_validate_catalog_rejects_unknown_attribute_in_effect():
         )
 
 
+def test_validate_catalog_rejects_unknown_tactic_in_effect():
+    with pytest.raises(ValueError):
+        validate_catalog(
+            [{"catalog_id": "x", "costs": {}, "effects": {"tactic:tiki_taka": 1}}], "test"
+        )
+
+
 def test_validate_catalog_accepts_all_documented_anchor_shapes():
     validate_catalog(
         [{
             "catalog_id": "x", "costs": {"time": 10, "energy": 5},
             "effects": {
-                "attribute:shooting": 1.0, "condition": 5, "energy": 3,
+                "attribute:shooting": 1.0, "tactic:gegenpress": 0.8,
+                "condition": 5, "energy": 3,
                 "money": -100, "fame:overall": 1, "relationship:coach": 2,
             },
         }],

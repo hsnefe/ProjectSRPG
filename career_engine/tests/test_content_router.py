@@ -124,8 +124,8 @@ def test_get_catalog_training(api_client):
     resp = api_client.get("/catalog/training")
     assert resp.status_code == 200
     items = resp.json()["items"]
-    assert len(items) == 12
-    assert {i["catalog_id"] for i in items} >= {"sut", "kondisyon-kosusu", "mudahale"}
+    assert len(items) == 15
+    assert {i["catalog_id"] for i in items} >= {"sut", "kondisyon-kosusu", "mudahale", "gegenpress"}
 
 
 def test_get_catalog_lifestyle(api_client):

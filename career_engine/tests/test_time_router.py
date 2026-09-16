@@ -71,6 +71,21 @@ def test_post_action_training_spends_budget_and_applies_effects(api_client, crea
     assert body["career_state"]["day_budget"]["energy"] == 100 - 18
 
 
+# §12.11 - tactic cards apply directly (no minigame_score in the request,
+# same as a kişi item) but write to tactic_changes, not attribute_changes.
+def test_post_action_tactic_training_applies_directly(api_client, created_career):
+    career_id = created_career["career_id"]
+    resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "gegenpress"})
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["tactic_changes"] == [{"key": "gegenpress", "before": 0.0, "after": 0.8}]
+    assert body["attribute_changes"] == []
+
+    player = api_client.get(f"/careers/{career_id}/player").json()
+    assert {"key": "gegenpress", "value": 0.8} in player["tactics"]
+
+
 def test_post_action_unknown_catalog_id_errors(api_client, created_career):
     resp = api_client.post(f"/careers/{created_career['career_id']}/actions", json={"catalog_id": "does-not-exist"})
     assert resp.status_code == 422

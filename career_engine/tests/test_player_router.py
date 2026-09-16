@@ -1,7 +1,7 @@
 import pytest
 
 from api import config
-from api.config import ATTRIBUTE_KEYS
+from api.config import ATTRIBUTE_KEYS, TACTIC_KEYS
 from tests.conftest import create_career
 
 
@@ -27,6 +27,13 @@ def test_get_player_returns_every_attribute(api_client, created_career):
     # INV-10: the attribute is career_state.condition's ceiling, so the two
     # start equal.
     assert condition_attr["value"] == float(config.STARTING_CONDITION)
+
+
+def test_get_player_returns_every_tactic_untrained(api_client, created_career):
+    # INV-55: a fresh career's tactics[] has exactly len(TACTIC_KEYS) rows,
+    # every one at 0.0 — same "always N rows" shape as attributes[].
+    body = api_client.get(f"/careers/{created_career['career_id']}/player").json()
+    assert body["tactics"] == [{"key": key, "value": 0.0} for key in TACTIC_KEYS]
 
 
 def test_get_player_fame_defaults_to_zero(api_client, created_career):

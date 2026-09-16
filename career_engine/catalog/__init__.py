@@ -10,9 +10,10 @@ need the softer runtime-skip behavior instead — not needed for v1.
 """
 import re
 
-from api.config import ATTRIBUTE_KEYS
+from api.config import ATTRIBUTE_KEYS, TACTIC_KEYS
 
 _ATTRIBUTE_KEY = re.compile(r"^attribute:(\w+)$")
+_TACTIC_KEY = re.compile(r"^tactic:(\w+)$")
 _FAME_KEY = re.compile(r"^fame:(\w+)$")
 _RELATIONSHIP_KEY = re.compile(r"^relationship:(\w+)$")
 _SIMPLE_EFFECT_KEYS = {"condition", "energy", "money"}
@@ -44,6 +45,9 @@ def _is_known_effect_key(key: str) -> bool:
     m = _ATTRIBUTE_KEY.match(key)
     if m:
         return m.group(1) in ATTRIBUTE_KEYS
+    m = _TACTIC_KEY.match(key)
+    if m:
+        return m.group(1) in TACTIC_KEYS
     return bool(_FAME_KEY.match(key) or _RELATIONSHIP_KEY.match(key))
 
 

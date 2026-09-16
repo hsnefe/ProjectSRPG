@@ -12,6 +12,12 @@ Six saha items match training_screen.dart's six physical cards verbatim
 (same energy costs); five kişi items are new (D31) — one per kişi
 attribute. 'Müdahale' joined them when tackling became an attribute, so
 every one of the 12 §5.2 attributes still has exactly one training path.
+
+Three taktik items (§12.11, D63) round the file out — one per
+config.TACTIC_KEYS entry, same placeholder-economy caveat. Unlike the kişi
+items they carry no `requires` (kept unlocked on purpose, §12.11) and no
+`drill` — a tactic card applies directly (no mini-oyun) the moment
+training_screen.dart's 'taktik' tab wires it to postAction.
 """
 
 TRAINING_ITEMS = [
@@ -106,9 +112,31 @@ TRAINING_ITEMS = [
         "costs": {"time": 60, "energy": 10},
         "effects": {"attribute:resourcefulness": 0.8, "money": -7},
     },
+    # --- taktik: §12.11, D63, bir kartı olmayan üç yeterlilik ---
+    {
+        "catalog_id": "gegenpress", "title": "Gegenpress",
+        "description": "Topu kaybettiğin anda yüksek hatta baskıyı çalış.",
+        "family": "taktik", "drill": None,
+        "costs": {"time": 60, "energy": 8},
+        "effects": {"tactic:gegenpress": 0.8},
+    },
+    {
+        "catalog_id": "pozisyonel-oyun", "title": "Pozisyonel Oyun",
+        "description": "Topsuz konumlanmayı ve saha genişliğini çalış.",
+        "family": "taktik", "drill": None,
+        "costs": {"time": 75, "energy": 6},
+        "effects": {"tactic:pozisyonel_oyun": 0.8},
+    },
+    {
+        "catalog_id": "derin-blok", "title": "Derin Blok",
+        "description": "Geri çekilip alanı daraltmayı ve geçişi çalış.",
+        "family": "taktik", "drill": None,
+        "costs": {"time": 45, "energy": 5},
+        "effects": {"tactic:derin_blok": 0.8},
+    },
 ]
 
-assert len(TRAINING_ITEMS) == 12
+assert len(TRAINING_ITEMS) == 15
 assert len({i["catalog_id"] for i in TRAINING_ITEMS}) == len(TRAINING_ITEMS)
 
 from catalog import validate_catalog  # noqa: E402 (after data, INV-28)

@@ -16,6 +16,7 @@ from domain import attributes, condition, day_budget, daytime, fame, requirement
 from domain import relationships as relationships_domain
 from domain import season as season_mod
 from domain import sponsorship
+from domain import tactics
 from domain import wallet
 
 router = APIRouter(prefix="/careers/{career_id}", tags=["time"])
@@ -82,6 +83,7 @@ def post_action(career_id: str, body: ActionRequest, conn: sqlite3.Connection = 
     day_budget.spend(conn, career_id, item["costs"])
 
     attribute_changes = []
+    tactic_changes = []
     relationship_changes = []
     ledger_entries = []
     reason = f"{source}:{body.catalog_id}"
@@ -92,6 +94,10 @@ def post_action(career_id: str, body: ActionRequest, conn: sqlite3.Connection = 
         if key.startswith("attribute:"):
             attribute_changes.append(
                 attributes.apply_delta(conn, career_id, config.USER_PLAYER_ID, key.split(":", 1)[1], value)
+            )
+        elif key.startswith("tactic:"):
+            tactic_changes.append(
+                tactics.apply_delta(conn, career_id, config.USER_PLAYER_ID, key.split(":", 1)[1], value)
             )
         elif key == "condition":
             condition.apply_delta(conn, career_id, value)
@@ -124,6 +130,7 @@ def post_action(career_id: str, body: ActionRequest, conn: sqlite3.Connection = 
         "applied_costs": item["costs"],
         "applied_effects": item["effects"],
         "attribute_changes": attribute_changes,
+        "tactic_changes": tactic_changes,
         "relationship_changes": relationship_changes,
         "ledger_entries": ledger_entries,
     }
