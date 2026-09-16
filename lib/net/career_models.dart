@@ -2138,10 +2138,12 @@ class NextCareerMatch {
     required this.userSide,
     this.squadStatus = 'first_eleven',
     this.formationId,
+    this.coachInstruction,
     required this.enginePayload,
   });
 
   factory NextCareerMatch.fromJson(Map<String, dynamic> json) {
+    final instruction = json['coach_instruction'] as Map<String, dynamic>?;
     return NextCareerMatch(
       fixtureId: json['fixture_id'] as String,
       competition:
@@ -2150,6 +2152,8 @@ class NextCareerMatch {
       userSide: json['user_side'] as String,
       squadStatus: json['squad_status'] as String? ?? 'first_eleven',
       formationId: json['formation_id'] as String?,
+      coachInstruction:
+          instruction == null ? null : CoachInstruction.fromJson(instruction),
       enginePayload: json['engine_payload'] as Map<String, dynamic>,
     );
   }
@@ -2169,9 +2173,54 @@ class NextCareerMatch {
   /// çökmemeli — o durumda varsayılan diziliş çizilir.
   final String? formationId;
 
-  /// `engine_payload` motora olduğu gibi POST'lanır; [formationId] onun
-  /// dışındadır, motor diziliş bilmez.
+  /// §12.10 · antrenörün bu maç için beklediği oyun tarzı. Nullable: alanı
+  /// tanımayan bir sürüme karşı ekran çökmemeli — `pre_match_screen.dart`
+  /// bu durumda eski yoluna, C3'e (hub) düşer.
+  final CoachInstruction? coachInstruction;
+
+  /// `engine_payload` motora olduğu gibi POST'lanır; [formationId] ve
+  /// [coachInstruction] onun dışındadır, motor ne diziliş ne rol bilir.
   final Map<String, dynamic> enginePayload;
+}
+
+/// M1 `coach_instruction` — §12.10. `role_name`/`position` FE'nin bunun için
+/// ayrıca C3'e (hub) gitmesini gerektiren alanlardı; artık M1'de geliyor.
+class CoachInstruction {
+  const CoachInstruction({
+    required this.focus,
+    required this.label,
+    required this.roleId,
+    required this.roleName,
+    required this.position,
+    required this.source,
+  });
+
+  factory CoachInstruction.fromJson(Map<String, dynamic> json) {
+    return CoachInstruction(
+      focus: json['focus'] as String?,
+      label: json['label'] as String,
+      roleId: json['role_id'] as String?,
+      roleName: json['role_name'] as String?,
+      position: json['position'] as String?,
+      source: json['source'] as String,
+    );
+  }
+
+  /// `"attack"|"defend"|"tactical"|null` — API_CONTRACT §6.1'in `focus`'uyla
+  /// aynı ölçek; `null` = "farketmez".
+  final String? focus;
+
+  /// Türkçe etiket — `Hücum`/`Savunma`/`Taktik`/`Farketmez`, §8.1'in
+  /// `directive_options.focus` etiketleriyle aynı dört string.
+  final String label;
+
+  final String? roleId;
+  final String? roleName;
+  final String? position;
+
+  /// `"role"` | `"coach_talk"` — talimat rolden mi türedi, yoksa kabul
+  /// edilmiş bir M4 talebiyle mi değişti.
+  final String source;
 }
 
 /// M2/M3 `fixture` alt nesnesi.

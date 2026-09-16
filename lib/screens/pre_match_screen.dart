@@ -47,6 +47,11 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
   String? _playerPosition;
   String? _playerRole;
 
+  /// §12.10 · M1'in yeni alanı — antrenörün bu maç için beklediği oyun
+  /// tarzı. `null` kalırsa (eski bir career_engine sürümü) kart o satırı
+  /// hiç göstermez, akış kırılmaz.
+  CoachInstruction? _coachInstruction;
+
   /// §12.1 M4 · maç başına bir konuşma hakkı var; kullanıldıysa buton kapanır
   /// (sunucu da `409 coach_talk_already_done` ile reddeder, bu yalnızca
   /// kullanıcıya kapalı bir kapıyı tıklatmamak için).
@@ -72,6 +77,7 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
       _daysUntilMatch = null;
       _next = null;
       _formationId = null;
+      _coachInstruction = null;
     });
     try {
       final careerId = await _careerSession.resolve();
@@ -83,6 +89,7 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
         _fixtureId = careerMatch.fixtureId;
         _formationId = careerMatch.formationId;
         _squadStatus = careerMatch.squadStatus;
+        _coachInstruction = careerMatch.coachInstruction;
         _preMatchCondition =
             careerMatch.enginePayload['user_condition'] as int?;
         // E11'in kendi kickoff_at'i motorun dolgu değeri (§8.1a) — gösterimde
@@ -305,10 +312,16 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
         ),
         _TacticsRow(
           tacticLabel: next.teamTactic.label,
-          roleLabel: _roleName ??
+          // §12.10 · M1'in `coach_instruction.role_name`'i C3'ün aynı
+          // alanının aynısı, ama ikinci bir istek beklemeden gelir — o
+          // yüzden önce o denenir.
+          roleLabel: _coachInstruction?.roleName ??
+              _roleName ??
               _playerPosition ??
               PlayerScope.of(context).position,
         ),
+        if (_coachInstruction case final instruction?)
+          _CoachInstructionRow(instruction: instruction),
         _SquadStatusRow(status: _squadStatus),
         const _ConditionBar(),
         _ActionRow(
@@ -587,6 +600,29 @@ class _TacticsRow extends StatelessWidget {
             child: _InfoTile(label: 'Bireysel rol', value: roleLabel),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// §12.10 · antrenörün bu maç için beklediği oyun tarzı. `source` kartın
+/// başlığını belirler: rolden gelen bir varsayılan "Bugün beklenen" diye
+/// tarafsız durur, kabul edilmiş bir M4 talebi "Antrenörün planı" diyerek
+/// oyuncunun bunu kazandığını hatırlatır.
+class _CoachInstructionRow extends StatelessWidget {
+  const _CoachInstructionRow({required this.instruction});
+
+  final CoachInstruction instruction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+      child: _InfoTile(
+        label: instruction.source == 'coach_talk'
+            ? 'Antrenörün planı'
+            : 'Bugün beklenen',
+        value: instruction.label,
       ),
     );
   }

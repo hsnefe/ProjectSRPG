@@ -27,7 +27,11 @@ const _careersListBody = {
   ],
 };
 
-Map<String, dynamic> _m1Body({String fixtureId = 'f_1'}) => {
+Map<String, dynamic> _m1Body({
+  String fixtureId = 'f_1',
+  Map<String, dynamic>? coachInstruction,
+}) =>
+    {
       'fixture_id': fixtureId,
       'competition': {
         'competition_id': 'c_lig2', 'kind': 'league', 'name': '1. Lig',
@@ -35,6 +39,9 @@ Map<String, dynamic> _m1Body({String fixtureId = 'f_1'}) => {
       'kickoff_at': '2026-08-22T20:00:00+03:00', // bir Cumartesi
       'user_side': 'home',
       'formation_id': '4-2-3-1',
+      // §12.10 · opsiyonel: eski şekilli bir gövdenin hâlâ ayrıştığını
+      // kanıtlamak için varsayılan `_m1Body()` çağrıları bunu hiç eklemiyor.
+      if (coachInstruction != null) 'coach_instruction': coachInstruction,
       'engine_payload': {
         'teams': {
           'home': {
@@ -157,6 +164,47 @@ void main() {
     final board = tester.widget<FormationBoard>(find.byType(FormationBoard));
     expect(board.formation.id, '4-2-3-1');
     expect(find.byType(FormationBoard), findsOneWidget);
+  });
+
+  testWidgets(
+      'M1 coach_instruction kartta gösterilir, rol adı hub\'ınkinin önüne geçer',
+      (tester) async {
+    _useTallView(tester);
+    final careerMock = MockClient((request) async {
+      if (request.url.path == '/careers') return _json(_careersListBody);
+      if (request.url.path == '/careers/car_test/matches/next') {
+        return _json(_m1Body(coachInstruction: {
+          'focus': 'tactical', 'label': 'Taktik',
+          'role_id': 'regista', 'role_name': 'Regista',
+          'position': 'Orta saha', 'source': 'role',
+        }));
+      }
+      // C3 hâlâ çağrılıyor (bu turda kaldırılmıyor — bkz. plan'ın opsiyonel
+      // temizlik commit'i); yalnızca kartın gösterdiği rol adı artık onun
+      // 'Oyun Kurucu'suna değil M1'in 'Regista'sına bağlı.
+      if (request.url.path == '/careers/car_test') {
+        return _json(_hubBodyWithDaysUntil(0));
+      }
+      return http.Response('unexpected ${request.url}', 404);
+    });
+    final matchMock = MockClient((request) async {
+      if (request.url.path == '/matches') return _json(_e11Body, status: 201);
+      return http.Response('unexpected ${request.url}', 404);
+    });
+
+    await tester.pumpWidget(_wrap(PreMatchScreen(
+      session: CareerSession(
+        client: CareerApiClient(httpClient: careerMock, baseUrl: 'http://test'),
+      ),
+      matchApiClient:
+          MatchApiClient(httpClient: matchMock, baseUrl: 'http://test'),
+    )));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bugün beklenen'), findsOneWidget);
+    expect(find.text('Taktik'), findsOneWidget);
+    expect(find.text('Regista'), findsOneWidget);
+    expect(find.text('Oyun Kurucu'), findsNothing);
   });
 
   testWidgets('409 match_in_progress otomatik M3 ile kurtarılıp M1 tekrarlanır',

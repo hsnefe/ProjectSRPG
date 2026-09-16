@@ -12,7 +12,8 @@ from typing import Optional
 
 from api import config, errors, serializers
 from catalog.match_actions import ACTION_SCHEMAS, OUTCOME_SETS, is_assist, is_goal
-from domain import condition, daytime, formulas, relationships, squad, wallet
+from domain import condition, daytime, formulas, instructions, relationships, squad, wallet
+from worlddata import positions
 from worlddata.formations import DEFAULT_FORMATION
 from worlddata.teams import ALL_TEAMS
 
@@ -109,6 +110,24 @@ def build_next_match_payload(conn: sqlite3.Connection, career_id: str) -> dict:
         conn.commit()  # keep the decision; it is what the day loop will read
         raise _not_match_day(conn, career_id, user_team_id, game_date)
 
+    # §12.10 - the coach's instruction, frozen only once we know this
+    # fixture is actually being played (the gate above already raised for
+    # an 'out' user, and an instruction frozen for a match that never
+    # happens is a stray write no one reads).
+    role_row = conn.execute(
+        "SELECT role FROM player WHERE career_id = ? AND player_id = ?",
+        (career_id, config.USER_PLAYER_ID),
+    ).fetchone()
+    role_id = role_row["role"] if role_row is not None else None
+    role = positions.get_role(role_id)
+    instruction = instructions.instruction_for(conn, career_id, fixture["fixture_id"])
+    # A frozen value that no longer matches what the CURRENT role would
+    # derive can only mean a granted M4 request changed it (coach_talk.py) —
+    # instructions.py never changes on its own once frozen (INV-54).
+    instruction_source = (
+        "role" if instruction == positions.instruction_for_role(role_id) else "coach_talk"
+    )
+
     home_row = _team_row(conn, career_id, fixture["home_team_id"])
     away_row = _team_row(conn, career_id, fixture["away_team_id"])
     user_side = "home" if fixture["home_team_id"] == user_team_id else "away"
@@ -127,6 +146,21 @@ def build_next_match_payload(conn: sqlite3.Connection, career_id: str) -> dict:
         # Kullanıcının takımının dizilişi. `engine_payload`'ın **dışında**:
         # o gövde motora olduğu gibi POST'lanıyor ve motor diziliş bilmiyor.
         "formation_id": _formation_for(user_team_id),
+        # §12.10 - antrenörün bu maç için beklediği oyun tarzı. Rolden
+        # türetilir, kabul edilmiş bir M4 `request_instruction` (ya da rolü
+        # değiştiren bir `request_role`/`request_position`) değiştirebilir.
+        # `engine_payload`'ın DIŞINDA, `formation_id` ile aynı gerekçeyle:
+        # motor rol kavramını bilmiyor. `role_name`/`position`, FE'nin
+        # bugüne kadar bunun için ayrıca C3'e (hub) gitmesini gerektiren
+        # alanlar — burada gelince o ikinci çağrıya gerek kalmıyor.
+        "coach_instruction": {
+            "focus": instructions.focus_wire(instruction),
+            "label": instructions.label(instruction),
+            "role_id": role_id,
+            "role_name": role["name"] if role else None,
+            "position": role["position"] if role else None,
+            "source": instruction_source,
+        },
         "engine_payload": {
             "teams": {
                 "home": _team_engine_fields(home_row),

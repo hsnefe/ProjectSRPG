@@ -64,6 +64,26 @@ def test_get_next_match_names_the_user_teams_formation(api_client, created_caree
     assert "formation" not in str(body["engine_payload"])
 
 
+def test_get_next_match_carries_the_coach_instruction_outside_engine_payload(
+    api_client, created_career,
+):
+    """§12.10 - CAREER_PAYLOAD's role is 'merkez_orta_saha', whose default
+    instruction is 'tactical' (worlddata/positions.py). Motor rol kavramını
+    bilmiyor, o yüzden `engine_payload`'ın dışında (`formation_id` ile aynı
+    gerekçe)."""
+    career_id = created_career["career_id"]
+    body = api_client.get(f"/careers/{career_id}/matches/next").json()
+
+    instruction = body["coach_instruction"]
+    assert instruction["focus"] == "tactical"
+    assert instruction["label"] == "Taktik"
+    assert instruction["role_id"] == "merkez_orta_saha"
+    assert instruction["role_name"] == "Merkez Orta Saha"
+    assert instruction["position"] == "Orta saha"
+    assert instruction["source"] == "role"
+    assert "coach_instruction" not in str(body["engine_payload"])
+
+
 def test_get_next_match_is_refused_before_the_match_day(api_client, mock_engine):
     """§6.1 - a fresh career opens on a preparation week, so M1 has nothing
     to hand out yet and says how far off the match is."""
