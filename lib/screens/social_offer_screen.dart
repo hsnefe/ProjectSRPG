@@ -183,6 +183,7 @@ class _SocialOfferScreenState extends State<SocialOfferScreen> {
                         _HeaderStrip(openedOn: offer.openedOn),
                         _SceneSection(
                           relationshipId: offer.relationshipId,
+                          templateId: offer.templateId,
                           presentation: presentation,
                           contact: offer.relationship,
                         ),
@@ -499,17 +500,23 @@ class _HeaderStrip extends StatelessWidget {
 class _SceneSection extends StatelessWidget {
   const _SceneSection({
     required this.relationshipId,
+    required this.templateId,
     required this.presentation,
     required this.contact,
   });
 
   final String relationshipId;
+
+  /// §4.1 · Mekânsal bağımlılık — bazı şablonlar ilişkinin varsayılan
+  /// sahnesinden farklı bir yerde geçer (bkz. `sceneFor`).
+  final String templateId;
   final RelationshipPresentation presentation;
   final api.SocialOfferContact? contact;
 
   @override
   Widget build(BuildContext context) {
     final tint = presentation.tint;
+    final scene = sceneFor(relationshipId: relationshipId, templateId: templateId);
 
     return SizedBox(
       height: 240,
@@ -517,7 +524,7 @@ class _SceneSection extends StatelessWidget {
       child: Stack(
         children: [
           Positioned.fill(
-            child: DialogueBackdrop(scene: presentation.scene, tint: tint),
+            child: DialogueBackdrop(scene: scene, tint: tint),
           ),
           Positioned.fill(
             child: CharacterPortrait(

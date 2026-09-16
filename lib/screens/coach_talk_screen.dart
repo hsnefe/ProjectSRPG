@@ -7,6 +7,7 @@ import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/character_portrait.dart';
 import 'package:project_srpg/widgets/delta_row.dart';
 import 'package:project_srpg/widgets/dialogue_backdrop.dart';
+import 'package:project_srpg/widgets/relationship_presentation.dart';
 import 'package:project_srpg/widgets/typewriter_text.dart';
 
 /// §12.1 M4 — maç öncesi antrenör konuşması.
@@ -137,9 +138,13 @@ class _CoachTalkScreenState extends State<CoachTalkScreen> {
                 width: double.infinity,
                 child: Stack(
                   children: [
-                    const Positioned.fill(
+                    // §4.1 · Sabit bir DialogueScene.lockerRoom yerine tek
+                    // kaynaktan (coach-talk'ın kendi şablon kavramı yok, bu
+                    // yüzden templateId'siz) — bugün aynı değeri veriyor ama
+                    // artık relationship_presentation.dart'ın tek noktasından.
+                    Positioned.fill(
                       child: DialogueBackdrop(
-                        scene: DialogueScene.lockerRoom,
+                        scene: presentationForRelationship('coach').scene,
                         tint: AppColors.accent,
                       ),
                     ),

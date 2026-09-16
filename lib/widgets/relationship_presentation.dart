@@ -78,3 +78,25 @@ const kDefaultRelationshipPresentation = RelationshipPresentation(
 RelationshipPresentation presentationForRelationship(String relationshipId) =>
     _presentationByRelationshipId[relationshipId] ??
     kDefaultRelationshipPresentation;
+
+/// §4.1 · Mekânsal bağımlılık — bir sosyal teklif şablonu, ilişkinin
+/// varsayılan sahnesinden FARKLI bir yerde geçiyorsa burada eziliyor.
+/// Yalnızca gerçek anlamda farklı ve daha uygun olan üç şablon eşlendi
+/// ("fazladan idman" soyunma odasında değil sahada geçer, "takım yemeği" ve
+/// "akşam planı" antrenman sahasında/evde değil bir kafede) — geri kalanı
+/// zaten ilişkisinin varsayılanına uyuyor. `cafe` sahnesi bugüne kadar
+/// hiçbir ilişkiye bağlı değildi; ilk gerçek kullanımı burada.
+const _sceneByTemplateId = {
+  'coach_extra_session': DialogueScene.trainingGround,
+  'team_dinner': DialogueScene.cafe,
+  'partner_evening_out': DialogueScene.cafe,
+};
+
+/// Bir konuşmanın arka planı: önce şablonun kendine özgü bir sahnesi var mı
+/// bakılır, yoksa ilişkinin varsayılanına düşülür — dosyanın kendi eski
+/// notunun ("sahne ilişki türünden ya da sosyal olayın şablonundan seçilir")
+/// artık gerçekten uyguladığı hâli.
+DialogueScene sceneFor({required String relationshipId, String? templateId}) {
+  final override = templateId == null ? null : _sceneByTemplateId[templateId];
+  return override ?? presentationForRelationship(relationshipId).scene;
+}

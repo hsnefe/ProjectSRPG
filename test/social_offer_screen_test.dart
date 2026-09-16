@@ -8,6 +8,7 @@ import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/social_offer_screen.dart';
+import 'package:project_srpg/widgets/dialogue_backdrop.dart';
 
 http.Response _json(Object body, {int status = 200}) => http.Response(
       jsonEncode(body),
@@ -175,6 +176,48 @@ void main() {
     expect(find.text('Antrenör Mert'), findsOneWidget);
     expect(find.text('ANTRENÖR'), findsOneWidget);
     expect(find.text('70'), findsOneWidget);
+  });
+
+  group('§4.1 mekânsal bağımlılık', () {
+    testWidgets('coach_extra_session soyunma odası yerine sahada geçer',
+        (tester) async {
+      // _offer()'ın varsayılanı zaten 'coach_extra_session' — coach'ın
+      // kendi varsayılanı (lockerRoom) burada ezilmiş olmalı.
+      await _open(tester, _Backend());
+
+      final backdrop = tester.widget<DialogueBackdrop>(
+        find.byType(DialogueBackdrop),
+      );
+      expect(backdrop.scene, DialogueScene.trainingGround);
+    });
+
+    testWidgets('eşlenmeyen bir şablon ilişkinin varsayılan sahnesini kullanır',
+        (tester) async {
+      final offer = api.SocialOffer.fromJson({
+        'offer_id': 'so_2',
+        'template_id': 'coach_video_review',
+        'relationship_id': 'coach',
+        'relationship': {
+          'relationship_id': 'coach', 'kind': 'coach', 'category': 'Antrenör',
+          'score': 70, 'person_name': 'Mert Çalışkan', 'contact_name': 'Antrenör Mert',
+        },
+        'title': 'Video toplantısı',
+        'body': '...',
+        'accept_label': 'İzleyelim',
+        'decline_label': 'Gerek yok',
+        'costs': const <String, dynamic>{'time': 90},
+        'requires': const <String, dynamic>{},
+        'opened_on': '2026-08-19',
+        'status': 'open',
+        'resolved_on': null,
+      });
+      await _open(tester, _Backend(), offer: offer);
+
+      final backdrop = tester.widget<DialogueBackdrop>(
+        find.byType(DialogueBackdrop),
+      );
+      expect(backdrop.scene, DialogueScene.lockerRoom);
+    });
   });
 
   testWidgets('maliyet ayrı rozetlerde okunabilir birimlerle gösterilir',

@@ -276,6 +276,8 @@ class _SideCard extends StatelessWidget {
     final presentation = presentationForRelationship(side.relationshipId);
     final tint = presentation.tint;
     final contact = side.relationship;
+    // §4.1 · Mekânsal bağımlılık — bkz. sceneFor.
+    final scene = sceneFor(relationshipId: side.relationshipId, templateId: side.templateId);
 
     final decided = change != null;
     final before = change?.before ?? contact?.score ?? 0;
@@ -324,7 +326,7 @@ class _SideCard extends StatelessWidget {
                   children: [
                     Positioned.fill(
                       child: DialogueBackdrop(
-                        scene: presentation.scene,
+                        scene: scene,
                         tint: tint,
                       ),
                     ),
