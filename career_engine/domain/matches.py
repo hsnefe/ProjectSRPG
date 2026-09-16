@@ -251,6 +251,27 @@ def validate_result(body: dict, pre_match_condition: int) -> None:
         if started and minutes_played == 0:
             raise errors.invalid_match_result("a starter cannot have played 0 minutes")
 
+    # §12.10 - how much of his own minutes the user spent on the focus the
+    # coach asked for. Optional three ways over: a body written before
+    # §12.10, a substitute who never came on, and a role whose instruction
+    # is "farketmez" all omit it - absent means "not measured", never
+    # "fully compliant" (see _match_relationship_deltas / _compliance_term).
+    tactical_compliance = body.get("tactical_compliance")
+    if tactical_compliance is not None:
+        # bool subclasses int in Python, so a bare (int, float) check would
+        # let `True` through, and 0.0 <= True <= 1.0 would then pass too.
+        if isinstance(tactical_compliance, bool) or not isinstance(tactical_compliance, (int, float)):
+            raise errors.invalid_match_result("tactical_compliance must be a number in 0.0-1.0")
+        if not (0.0 <= tactical_compliance <= 1.0):
+            raise errors.invalid_match_result("tactical_compliance must be a number in 0.0-1.0")
+        # Same default apply_result itself uses below (minutes_played absent
+        # -> 95 if started else 0) - checked against the EFFECTIVE minutes,
+        # not just the raw field, or an absent minutes_played with
+        # started:false would slip a compliance value past a 0-minute match.
+        effective_minutes = minutes_played if minutes_played is not None else (95 if started else 0)
+        if effective_minutes == 0:
+            raise errors.invalid_match_result("tactical_compliance requires minutes_played above 0")
+
     final_condition = body["final_condition"]
     if not isinstance(final_condition, int) or not (35 <= final_condition <= 100):
         raise errors.invalid_match_result("final_condition must be an integer in 35-100")
@@ -322,9 +343,11 @@ def apply_result(conn: sqlite3.Connection, career_id: str, fixture_id: str, body
     goal_count = sum(1 for iv in interventions if is_goal(iv["action_key"], iv["outcome_key"]))
     assist_count = sum(1 for iv in interventions if is_assist(iv["action_key"], iv["outcome_key"]))
 
+    tactical_compliance = body.get("tactical_compliance")
     deltas, match_result = _match_relationship_deltas(
         body["score"], user_side, opponent_side,
         body.get("user_cards") or {"yellow": 0, "red": 0}, goal_count,
+        tactical_compliance,
     )
     relationship_changes = [
         relationships.apply_delta(
@@ -332,6 +355,24 @@ def apply_result(conn: sqlite3.Connection, career_id: str, fixture_id: str, body
         )
         for rel_id, delta in deltas.items()
     ]
+
+    # §12.10 - `tactical_fit` was declared in §3.4 and written by nothing:
+    # exactly the state `trust` was in before §12.1. It moves toward what
+    # the player actually did rather than being replaced by it, a quarter
+    # of the way each match, so one game cannot redefine how the coach
+    # reads him and roughly a month of matches can. A running pull, not a
+    # fixed delta like a coach-talk trust change: a conversation is an
+    # event, a fit is an average, and a fixed delta would saturate at 0/1
+    # within a handful of matches and stop carrying information.
+    # relationships.TRAIT_BOUNDS already clamps to [0.0, 1.0].
+    TACTICAL_FIT_PULL = 0.25
+    trait_changes = []
+    if tactical_compliance is not None and minutes > 0:
+        current_fit = relationships.get_traits(conn, career_id, "coach")["tactical_fit"]
+        trait_changes = relationships.apply_trait_delta(
+            conn, career_id, "coach",
+            tactical_fit=TACTICAL_FIT_PULL * (tactical_compliance - current_fit),
+        )
 
     ledger_entries = []
     contract = conn.execute(
@@ -400,13 +441,45 @@ def apply_result(conn: sqlite3.Connection, career_id: str, fixture_id: str, body
             "minutes": minutes,
         },
         "relationship_changes": relationship_changes,
+        "trait_changes": trait_changes,
         "ledger_entries": ledger_entries,
         "news_created": [news_id],
     }
 
 
+def _compliance_term(ratio: Optional[float]) -> int:
+    """§12.10 - did you do the job he gave you.
+
+    Three bands, not a continuous curve. FE reports a ratio over roughly
+    ninety inter-tick spans; a smooth term would make a one-minute slip in
+    that count visible in the coach's reaction, and a coach does not notice
+    a minute. The dead band in the middle (0.50-0.80) keeps the common
+    case - a player who switches focus once or twice across the match -
+    neutral, so the base win/draw/loss signal doesn't get buried under noise.
+
+    `None` is "not measured", not "fully compliant" - see
+    _match_relationship_deltas' own docstring on why reporting 1.0 for an
+    unmeasured "farketmez" role would be a free +1.
+
+    +1 at >=0.80 is deliberately the same size as `+1 if goal_count >= 1`:
+    doing what you were told all match is worth exactly what scoring is
+    worth to the coach. -2 at <0.50 matches `-2 if reds >= 1` - half a
+    match spent ignoring the plan is a discipline problem of the same class
+    as a sending-off, and the -2/+1 asymmetry echoes §12.1's own
+    (GRANTED_TRUST -5.0 vs REFUSED_TRUST -2.0): the coach is always harsher
+    downward."""
+    if ratio is None:
+        return 0
+    if ratio >= 0.80:
+        return 1
+    if ratio >= 0.50:
+        return 0
+    return -2
+
+
 def _match_relationship_deltas(
     score: dict, user_side: str, opponent_side: str, user_cards: dict, goal_count: int,
+    tactical_compliance: Optional[float] = None,
 ) -> tuple:
     """New M2 behavior: coach/team/fans/media each react to this one match,
     clamped to ±5. partner/family are deliberately untouched - the feature
@@ -437,7 +510,17 @@ def _match_relationship_deltas(
     rather than a stub: match_engine books an anonymous defender and never
     puts the carded player's identity on the wire, so the user cannot be
     sent off. The field is where FE writes the real count the day the
-    engine attributes a card."""
+    engine attributes a card.
+
+    §12.10 - `tactical_compliance` only ever touches `coach`, through
+    _compliance_term(). Fans never see a tactical instruction and media has
+    no individual-player layer to report one on (API_CONTRACT signature
+    item 1); team-mates arguably could, but this feature shouldn't grow a
+    second consumer in its first round. Reporting compliance is free -
+    obeying it is not: `focus` skews which action the engine offers through
+    `role_fit` in [0.35, 1.75] (API_CONTRACT §6.2), so a striker told
+    "defend" genuinely sees fewer shooting offers. Without that cost this
+    term would just be a role-choice bonus, not a mechanic."""
     user_goals, opp_goals = score[user_side], score[opponent_side]
     result = "win" if user_goals > opp_goals else "loss" if user_goals < opp_goals else "draw"
     reds, yellows = user_cards["red"], user_cards["yellow"]
@@ -450,6 +533,7 @@ def _match_relationship_deltas(
     coach += 1 if goal_count >= 1 else 0
     coach -= 2 if reds >= 1 else 0
     coach -= 1 if yellows >= 2 else 0
+    coach += _compliance_term(tactical_compliance)
 
     team = {"win": 2, "draw": 0, "loss": -1}[result]
     team += 1 if goal_count >= 1 else 0
