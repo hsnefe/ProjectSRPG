@@ -313,4 +313,42 @@ void main() {
     expect(rolesForPosition('Kaleci'), isEmpty);
     expect(rolesForPosition('Defans'), contains('stoper'));
   });
+
+  // `worlddata/positions.py`'nin ROLES listesinin elle senkron tutulan FE
+  // kopyası burada test edilmiyor olsaydı bu üç liste sessizce kayabilirdi
+  // (nitekim Forvet ve Orta saha kaymıştı). Backend'te bir rol eklenip/
+  // kaldırıldığında bu test kırılır ve buradaki listelerin de güncellenmesi
+  // gerektiğini hatırlatır.
+  test('rolesForPosition her pozisyon için backend rol kataloğuyla birebir eşleşir', () {
+    expect(rolesForPosition('Defans'), [
+      'stoper',
+      'ileri_cikan_stoper',
+      'libero',
+      'bek',
+      'kanat_bek',
+      'oyun_kuran_kanat_bek',
+      'yaratici_kanat_bek',
+    ]);
+    expect(rolesForPosition('Orta saha'), [
+      'defansif_orta_saha',
+      'yari_bek',
+      'regista',
+      'merkez_orta_saha',
+      'oyun_kurucu',
+      'box_to_box',
+      'mezzala',
+      'ofansif_orta_saha',
+      'gelismis_oyun_kurucu',
+      'shadow_striker',
+      'kanat',
+      'ic_kanat',
+    ]);
+    expect(rolesForPosition('Forvet'), [
+      'forvet',
+      'hedef_adam',
+      'firsatci_forvet',
+      'pres_yapan_forvet',
+      'derine_gelen_forvet',
+    ]);
+  });
 }
