@@ -1,0 +1,15 @@
+-- §12.10 Kullanıcının bu maçtaki antrenör talimatı.
+--
+-- `010_squad_status.sql`'in aynı deseni: karar bir fikstüre birebir bağlı ve
+-- kullanıcı başına tektir (D4 korunuyor), o yüzden ayrı bir tablo değil tek
+-- kolon.
+--
+-- NULL = "henüz sorulmadı". Karar tembel veriliyor (domain/instructions.py),
+-- geçmiş fikstürlerin satırları NULL kalır ve öyle okunur.
+--
+-- Değer kümesi API_CONTRACT §6.1'in `focus`'uyla aynı, tek farkla: oradaki
+-- `null` ("farketmez") burada 'any' string'i olarak yazılır — SQL NULL bu
+-- kolonda zaten "karar verilmedi" demek, iki farklı yokluk aynı hücreye
+-- sığmaz. 'any' §6.1'in kendi alias listesinde tanımlı bir değer
+-- (worlddata/positions.py'nin INSTRUCTIONS'ı da aynı dört değeri taşır).
+ALTER TABLE fixture ADD COLUMN user_match_instruction TEXT;   -- 'attack'|'defend'|'tactical'|'any'
