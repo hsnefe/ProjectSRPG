@@ -171,10 +171,17 @@ Future<void> _emitTick(
   await tester.pump();
 }
 
-/// Emits an intervention offer and pumps three times: once for the stream's
-/// microtask delivery, once for the frame whose post-frame callback opens
-/// the dialog (`_MatchScreenState._openOfferDialog`), and once more so the
-/// pushed route actually builds its content.
+/// Emits an intervention offer and pumps four times: once for the stream's
+/// microtask delivery, once for the frame whose post-frame callback routes
+/// the offer (`_MatchScreenState._openOffer` — panel for `engine`, mini oyun
+/// doğrudan `minigame` için, §0 v1.7), once more with the
+/// `MaterialPageRoute`'un varsayılan geçiş süresi kadar so a pushed route's
+/// builder actually runs, and a final plain pump because `Overlay`'in kendi
+/// entry ekleme mekanizması bir kare daha geriden geliyor - `route builder`
+/// çağrıldıktan HEMEN sonraki pump'ta bile `find.byType` widget'ı henüz
+/// bulamıyor, ancak bir pump sonra buluyor (deneysel olarak doğrulandı).
+/// Yalnızca modal açan `engine` teklifleri için bu son pump zararsız bir
+/// no-op'tur.
 Future<void> _emitOffer(
   WidgetTester tester,
   _FakeSseClient source,
@@ -183,6 +190,7 @@ Future<void> _emitOffer(
   source.controller.add(MatchInterventionMessage(offer));
   await tester.pump();
   await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
   await tester.pump();
 }
 
@@ -410,7 +418,8 @@ void main() {
   });
 
   group('müdahale teklifi modalı', () {
-    testWidgets('opens with the prompt, risk hint and two buttons',
+    testWidgets(
+        'bir engine teklifi panelle açılır: prompt, risk uyarısı, iki buton',
         (tester) async {
       final source = _FakeSseClient();
       await _pumpMatchScreen(tester, _buildController(source));
@@ -447,7 +456,8 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('Müdahale et closes the dialog and posts action:intervene',
+    testWidgets(
+        'Müdahale et (engine teklifinde) paneli kapatır ve action:intervene POST\'lar',
         (tester) async {
       final source = _FakeSseClient();
       final requests = <http.Request>[];
@@ -518,7 +528,49 @@ void main() {
       expect(find.text('Geri ekran'), findsOneWidget);
     });
 
-    testWidgets('Müdahale et on a minigame offer opens the shot screen, not a POST',
+    testWidgets(
+        'a stream error while a minigame screen is open closes the screen and the match screen',
+        (tester) async {
+      final source = _FakeSseClient();
+      final controller = _buildController(source);
+
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: Text('Geri ekran'))),
+      );
+      final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+      navigator.push(
+        MaterialPageRoute<void>(builder: (_) => MatchScreen(controller: controller)),
+      );
+      await tester.pumpAndSettle();
+
+      // §0 v1.7 · `minigame` teklifi paneli atlayıp doğrudan mini oyunu açar.
+      await _emitOffer(tester, source, _minigameOffer());
+      expect(find.byType(InterventionShotScreen), findsOneWidget);
+
+      // Aynı regresyon, bu kez açık olan panel değil mini oyun ekranı:
+      // `_handleConnectionError` önce onu kapatmalı, sonra maç ekranını -
+      // yoksa `maybePop` yalnızca üstteki route'u (mini oyunu) kapatır ve
+      // kullanıcı canlı bir SSE hatasıyla çıkışsız bir ekranda kalır.
+      source.controller.addError(
+        MatchStreamException(404, code: 'match_not_found'),
+      );
+      // GameWidget'ın kendi Flame ticker'ı yüzünden `pumpAndSettle` hiç
+      // oturmaz (bkz. aşağıdaki mini oyun testlerindeki aynı gerekçe) -
+      // sınırlı sayıda `pump` kullanılıyor.
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      expect(find.byType(InterventionShotScreen), findsNothing);
+
+      await tester.pump(const Duration(milliseconds: 1000));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Geri ekran'), findsOneWidget);
+    });
+
+    testWidgets(
+        'bir minigame teklifi paneli atlayıp doğrudan şut ekranını açar',
         (tester) async {
       final source = _FakeSseClient();
       final requests = <http.Request>[];
@@ -529,10 +581,8 @@ void main() {
 
       await _emitOffer(tester, source, _minigameOffer());
 
-      await tester.tap(find.text('Müdahale et'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300)); // push geçişi
-
+      // §0 v1.7 · panel hiç açılmaz, "Müdahale et"e basmaya gerek yok.
+      expect(find.byType(InterventionOfferModal), findsNothing);
       expect(find.byType(InterventionShotScreen), findsOneWidget);
       // Sonuç henüz gelmedi - motora hiçbir POST atılmamalı.
       expect(requests.where((r) => r.url.path.endsWith('/intervention')), isEmpty);
@@ -540,7 +590,8 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('minigame:"tackle" teklifi şut değil müdahale ekranını açar',
+    testWidgets(
+        'minigame:"tackle" teklifi paneli atlayıp şut değil müdahale ekranını açar',
         (tester) async {
       final source = _FakeSseClient();
       final requests = <http.Request>[];
@@ -559,10 +610,7 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('Müdahale et'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-
+      expect(find.byType(InterventionOfferModal), findsNothing);
       expect(find.byType(InterventionTackleScreen), findsOneWidget);
       expect(find.byType(InterventionShotScreen), findsNothing);
       expect(requests.where((r) => r.url.path.endsWith('/intervention')), isEmpty);
@@ -572,7 +620,8 @@ void main() {
 
     // §7.2 `minigame`'i serbest bir string olarak tanımlıyor: motorun ileride
     // ekleyeceği bir değer yüzünden teklif açıkta kalmamalı.
-    testWidgets('tanınmayan bir minigame değeri şut ekranına düşer',
+    testWidgets(
+        'tanınmayan bir minigame değeri panelsiz şut ekranına düşer',
         (tester) async {
       final source = _FakeSseClient();
       await _pumpMatchScreen(tester, _buildController(source));
@@ -580,17 +629,12 @@ void main() {
       await _emitOffer(
           tester, source, _minigameOffer(minigame: 'henuz_olmayan_oyun'));
 
-      await tester.tap(find.text('Müdahale et'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-
       expect(find.byType(InterventionShotScreen), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('abandoning the shot screen (back button) posts nothing',
-        (tester) async {
+    testWidgets('mini oyun ekranı terk edilemez', (tester) async {
       final source = _FakeSseClient();
       final requests = <http.Request>[];
       await _pumpMatchScreen(
@@ -599,24 +643,58 @@ void main() {
       );
 
       await _emitOffer(tester, source, _minigameOffer());
-      await tester.tap(find.text('Müdahale et'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
       expect(find.byType(InterventionShotScreen), findsOneWidget);
 
-      // Geri tuşuna gerçek bir dokunuşla değil (GameWidget kendi Flame
-      // ticker'ını sürekli çalıştırdığı için hem `pumpAndSettle` hiç oturmaz
-      // hem de gesture hedefleme GameWidget'ın kendi InputLayer'ıyla
-      // çakışabiliyor - bkz. intervention_shot_screen_test.dart'taki aynı
-      // ekranın izole testinde bu çakışma yok, oradaki tap güvenilir çalışıyor)
-      // doğrudan Navigator üzerinden pop ederek - `GameHeaderBar`'ın kendi
-      // `onPressed`'inin yaptığı ile birebir aynı çağrı.
-      Navigator.of(tester.element(find.byType(InterventionShotScreen))).pop();
+      // §0 v1.7 · geri oku hiç çizilmiyor (`showBack: false`).
+      expect(
+        find.descendant(
+          of: find.byType(InterventionShotScreen),
+          matching: find.byIcon(Icons.chevron_left),
+        ),
+        findsNothing,
+      );
+
+      // Sistem geri hareketi de `PopScope(canPop:false)` tarafından yutulur -
+      // `social_conflict_screen_test.dart`'taki aynı idiom. `pumpAndSettle`
+      // burada kullanılmıyor: GameWidget kendi Flame ticker'ını sürekli
+      // çalıştırdığı için hiç oturmaz.
+      await tester.binding.handlePopRoute();
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      expect(find.byType(InterventionShotScreen), findsOneWidget);
+      expect(requests.where((r) => r.url.path.endsWith('/intervention')), isEmpty);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets(
+        'sunucunun emniyet zaman aşımı açık mini oyunu POST atmadan kapatır',
+        (tester) async {
+      // §0 v1.7'nin en önemli testi: mini oyunun çıkışı olmadığı ve FE'nin
+      // artık kendi geri sayımı olmadığı için BE'nin 180 sn'lik emniyet
+      // süresi bu ekrandan çıkmanın TEK yolu haline geldi. Bir düz tick bunu
+      // simüle eder (`MatchController._onMessage` her tick'te `activeOffer`'ı
+      // temizler) - ekran POST atmadan kapanmalı, `MatchScreen`'in kendisi
+      // değil.
+      final source = _FakeSseClient();
+      final requests = <http.Request>[];
+      await _pumpMatchScreen(
+        tester,
+        _buildController(source, recordedRequests: requests),
+      );
+
+      await _emitOffer(tester, source, _minigameOffer());
+      expect(find.byType(InterventionShotScreen), findsOneWidget);
+
+      await _emitTick(tester, source, _tick(minute: 64));
       for (var i = 0; i < 10; i++) {
         await tester.pump(const Duration(milliseconds: 50));
       }
 
       expect(find.byType(InterventionShotScreen), findsNothing);
+      expect(find.byType(MatchScreen), findsOneWidget);
       expect(requests.where((r) => r.url.path.endsWith('/intervention')), isEmpty);
 
       await tester.pumpWidget(const SizedBox.shrink());
@@ -799,10 +877,15 @@ void main() {
       await tester.pump();
 
       await _emitTick(tester, source, _tick(minute: 1, stamina: 100));
-      // İki teklif sunuldu, biri kabul edilip şuta çevrildi. İkincisi
-      // yanıtsız kaldı (sunucunun emniyet zaman aşımı bir sonraki tick'te
-      // paneli kapatıyor) - "fırsat" sayacı yine de ikisini de sayar.
-      await _emitOffer(tester, source, _minigameOffer());
+      // İki teklif sunuldu, biri kabul edilip şuta çevrildi (sonucu burada
+      // `resolvedIntervention`'la doğrudan simüle ediliyor - bu test M2
+      // gövdesi hakkında, mini oyun ekranının kendisi ayrı testlerde
+      // kanıtlanıyor, o yüzden `_offer()` (engine) kullanılıyor: `_minigameOffer()`
+      // gerçek bir Flame `GameWidget` açardı ve aşağıdaki `pumpAndSettle`
+      // onun ticker'ı yüzünden hiç oturmazdı). İkincisi yanıtsız kaldı
+      // (sunucunun emniyet zaman aşımı bir sonraki tick'te paneli kapatıyor)
+      // - "fırsat" sayacı yine de ikisini de sayar.
+      await _emitOffer(tester, source, _offer(actionKey: 'finish_power'));
       await _emitTick(tester, source, _tick(
         minute: 63,
         stamina: 90,

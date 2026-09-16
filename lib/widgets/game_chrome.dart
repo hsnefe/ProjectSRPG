@@ -11,11 +11,25 @@ import 'package:project_srpg/theme/app_colors.dart';
 /// nüsha duruyor, ayrışan kısım kendi ekranında kalıyor.
 
 /// Geri çıkışlı başlık çubuğu.
+///
+/// `showBack: false` — §0 v1.7: zorunlu müdahale mini oyunlarının çıkışı
+/// yok, o yüzden geri oku hiç çizilmiyor (`PopScope(canPop:false)` sistem
+/// geri hareketini zaten yutuyor, ama chevron'un kendisi de kullanıcıya
+/// yanlış bir "buradan çıkabilirsin" sözü vermemeli). [leading] varsa onun
+/// yerine geçer — müdahale ekranlarının kullandığı dakika çipi gibi.
 class GameHeaderBar extends StatelessWidget {
-  const GameHeaderBar({super.key, required this.title, this.trailing});
+  const GameHeaderBar({
+    super.key,
+    required this.title,
+    this.trailing,
+    this.leading,
+    this.showBack = true,
+  });
 
   final String title;
   final Widget? trailing;
+  final Widget? leading;
+  final bool showBack;
 
   @override
   Widget build(BuildContext context) {
@@ -28,16 +42,19 @@ class GameHeaderBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            icon: const Icon(
-              Icons.chevron_left,
-              size: 24,
-              color: AppColors.textMuted,
-            ),
-          ),
+          if (showBack)
+            IconButton(
+              onPressed: () => Navigator.of(context).pop(),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              icon: const Icon(
+                Icons.chevron_left,
+                size: 24,
+                color: AppColors.textMuted,
+              ),
+            )
+          else
+            leading ?? const SizedBox(width: 24),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -101,6 +118,77 @@ class GameBriefBar extends StatelessWidget {
               color: AppColors.textMuted,
               fontSize: 11,
               height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Dakika çipi — modalın (`intervention_offer_modal.dart`) kendi başlık
+/// satırında çizdiği çipin aynısı. §0 v1.7: müdahale mini oyunları artık
+/// panelsiz açılıyor, `GameHeaderBar`'ın `showBack:false` ile boşalan
+/// `leading` slotunu bununla dolduruyorlar — modalın taşıdığı dakika bilgisi
+/// böylece mini oyun ekranında da kayıp gitmiyor.
+class MinigameMinuteChip extends StatelessWidget {
+  const MinigameMinuteChip({super.key, required this.minute});
+
+  final int minute;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.surface1,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        "$minute'",
+        style: const TextStyle(
+          color: AppColors.textMuted,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+/// §7.5 · aksiyonun kart üreten dalını söyleyen kırmızı uyarı şeridi.
+///
+/// `intervention_offer_modal.dart`'tan buraya taşındı (§0 v1.7): `tackle_hard`
+/// hem `minigame` hem §7.5'in `risk_hint` taşıyan üç aksiyonundan biri — panel
+/// yalnızca `engine` teklifleri için kaldığından, uyarıyı gösterecek başka
+/// yer yok. Modal da bunu çağırıyor, iki yol tek renderer'ı paylaşıyor.
+class GameRiskBar extends StatelessWidget {
+  const GameRiskBar({super.key, required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: AppColors.dangerBg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.warning_amber_rounded, size: 14, color: AppColors.danger),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: AppColors.danger,
+                fontSize: 11,
+                height: 1.3,
+              ),
             ),
           ),
         ],

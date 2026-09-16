@@ -184,7 +184,8 @@ void main() {
       expect(find.text('Forvet ceza sahasında topla buluştu'), findsOneWidget);
     });
 
-    testWidgets('back button pops null (no attempt taken)', (tester) async {
+    testWidgets('geri tuşu yoktur, ekran terk edilemez (§0 v1.7)',
+        (tester) async {
       InterventionShotResult? result = (outcomeKey: 'unset', rawLabel: 'unset');
       await tester.pumpWidget(MaterialApp(
         home: Builder(
@@ -202,10 +203,15 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300)); // push geçişi
 
-      await tester.tap(find.byType(IconButton).first); // GameHeaderBar'ın geri oku
+      // `GameHeaderBar(showBack: false)` — geri oku hiç çizilmez.
+      expect(find.byType(IconButton), findsNothing);
+
+      // Sistem geri hareketi de `PopScope(canPop:false)` tarafından yutulur.
+      await tester.binding.handlePopRoute();
       await tester.pump();
 
-      expect(result, isNull);
+      expect(find.byType(InterventionShotScreen), findsOneWidget);
+      expect(result, (outcomeKey: 'unset', rawLabel: 'unset')); // hiç değişmedi
     });
 
     testWidgets('a resolved goal pops with (outcomeKey: great, rawLabel: GOL!)',

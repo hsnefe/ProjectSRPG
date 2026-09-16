@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:project_srpg/net/match_models.dart';
 import 'package:project_srpg/theme/app_colors.dart';
+import 'package:project_srpg/widgets/game_chrome.dart';
 
 /// Kullanıcının bir müdahale teklifine verdiği yanıt — `null` yalnızca
 /// programatik bir kapanışta döner (ör. akış hatası ekranı kapatıyor).
@@ -12,12 +13,12 @@ enum InterventionChoice { intervene, decline, timeout }
 /// Motorun `intervention_offer` yayınladığı anda ekranın ortasında açılan,
 /// dışarı tıklanarak kapatılamayan karar paneli (§7.2).
 ///
-/// `outcome_keys`/`minigame` alanları ayrıştırılıyor ama panel onları
-/// göstermiyor: §7.2 [İ-A2] paneli iki butonla sınırlıyor ("Müdahale et" /
-/// "Vazgeç"), aşama 2 yok. Minigame teklifleri de bu panelden geçiyor —
-/// "Müdahale et" onlarda POST atmak yerine tam ekran şut ekranını açıyor
-/// (`match_screen.dart`), dolayısıyla widget'ın kendisi ikisini ayırt
-/// etmek zorunda değil.
+/// §0 v1.7'den beri yalnızca `resolution:"engine"` teklifleri buradan geçer
+/// — `match_screen.dart::_openOffer` `minigame` tekliflerini panele hiç
+/// uğratmadan doğrudan ilgili mini oyuna yönlendiriyor. `outcome_keys`/
+/// `minigame` alanları hâlâ ayrıştırılıyor ama panel onları göstermiyor:
+/// §7.2 [İ-A2] paneli iki butonla sınırlıyor ("Müdahale et" / "Vazgeç"),
+/// aşama 2 yok.
 Future<InterventionChoice?> showInterventionOffer(
   BuildContext context, {
   required InterventionOfferFrame offer,
@@ -208,34 +209,9 @@ class _InterventionOfferModalState extends State<InterventionOfferModal> {
                         height: 1.4,
                       ),
                     ),
-                    if (offer.riskHint != null) ...[
+                    if (offer.riskHint case final hint?) ...[
                       const SizedBox(height: 10),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                        decoration: BoxDecoration(
-                          color: AppColors.dangerBg,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(Icons.warning_amber_rounded,
-                                size: 14, color: AppColors.danger),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                offer.riskHint!,
-                                style: const TextStyle(
-                                  color: AppColors.danger,
-                                  fontSize: 11,
-                                  height: 1.3,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      GameRiskBar(text: hint),
                     ],
                     const SizedBox(height: 16),
                     Row(

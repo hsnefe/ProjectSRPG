@@ -68,16 +68,22 @@ class _MatchScreenState extends State<MatchScreen> {
   bool _handledConnectionError = false;
   bool _reporting = false;
 
-  /// Modalın açık kaldığı teklifin `offer_id`'si — sunucu aynı anda en fazla
-  /// bir açık teklife izin verdiği için `Set` değil tek değer yeterli.
-  /// `_openOfferDialog`'un aynı teklif için iki kez modal açmasını önler.
+  /// Açık kalan teklifin `offer_id`'si — sunucu aynı anda en fazla bir açık
+  /// teklife izin verdiği için `Set` değil tek değer yeterli. `_openOffer`'ın
+  /// aynı teklif için iki kez ekran/panel açmasını önler.
   String? _shownOfferId;
   bool _offerDialogOpen = false;
 
-  /// `_resolveViaMinigame`'in tam ekran mini oyununu push'lu tuttuğu süre
-  /// boyunca `true` — bir bağlantı hatası o pencerede gelirse önce bu ekran,
-  /// sonra maç ekranı kapanmalı.
-  bool _minigameScreenOpen = false;
+  /// `_resolveViaMinigame`'in push ettiği route — `null` değilse bir mini
+  /// oyun ekranı açık demektir. Route'un kendisini (yalnızca bir bayrağı
+  /// değil) tutmak `_dismissMinigameScreen`'in **doğru** route'u hedeflemesini
+  /// sağlar: `Navigator.pop()` her zaman tepedekini kapatır, oysa oyun
+  /// kendini pop ettiği an ile `await push`'un çözülmesi arasındaki dar
+  /// pencerede bir tick gelip ikinci bir "kapat" tetiklerse, ambient bir pop
+  /// yanlışlıkla `MatchScreen`'in kendisini kapatabilirdi (§0 v1.7: sunucunun
+  /// 180 sn'lik emniyet süresi artık ulaşılabilir bir yol, bu pencere artık
+  /// olası). `route.isActive` bu yarışı kapatır.
+  MaterialPageRoute<_MinigameAnswer>? _minigameRoute;
 
   @override
   void initState() {
@@ -113,11 +119,15 @@ class _MatchScreenState extends State<MatchScreen> {
       _shownOfferId = offer.offerId;
       // notifyListeners bir build'in içinden gelebilir; mevcut kaydırma
       // bloğuyla aynı idiom kullanılıyor.
-      WidgetsBinding.instance.addPostFrameCallback((_) => _openOfferDialog(offer));
-    } else if (offer == null && _offerDialogOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _openOffer(offer));
+    } else if (offer == null) {
       // activeOffer, bizim yanıtımız DIŞINDA bir yolla temizlendi - sunucunun
-      // 180 sn emniyet zaman aşımı devreye girdi (ya da maç bitti). Panel
-      // hâlâ ekrandaysa kapatılır; hiçbir POST atılmaz, karar zaten verilmiş.
+      // 180 sn emniyet zaman aşımı devreye girdi (ya da maç bitti). Açık olan
+      // ne varsa kapatılır; hiçbir POST atılmaz, karar zaten verilmiş. §0
+      // v1.7 ile mini oyun ekranı da bu yola girdi: FE'nin artık geri sayımı
+      // olmadığı için bu emniyet süresi ulaşılabilir bir yol haline geldi.
+      // İkisi de no-op olduğunda çağırmak zararsız.
+      _dismissMinigameScreen();
       _dismissOfferDialog();
     }
 
@@ -128,13 +138,28 @@ class _MatchScreenState extends State<MatchScreen> {
     }
   }
 
-  /// `intervention_offer` teklifini modalla gösterir ve dönen karara göre
-  /// `MatchController`'ı yanıtlar (§7.2).
-  Future<void> _openOfferDialog(InterventionOfferFrame offer) async {
+  /// Teklifi çözüm yoluna göre yönlendirir (§7.2, §0 v1.7).
+  /// `engine` → karar paneli (geri sayım, risk_hint, iki buton, §7.2 [İ-A2]).
+  /// `minigame` → panel YOK, ilgili mini oyun doğrudan açılır ve çıkışı yoktur.
+  Future<void> _openOffer(InterventionOfferFrame offer) async {
     if (!mounted) return;
     // Kare arasında bir tick gelip teklifi kapatmış olabilir (sunucunun kendi
-    // emniyet zaman aşımı) - ölü bir panel açmayalım.
+    // emniyet zaman aşımı) - ölü bir panel/ekran açmayalım.
     if (widget.controller.activeOffer?.offerId != offer.offerId) return;
+
+    if (offer.resolution == 'minigame') {
+      await _resolveViaMinigame(offer);
+    } else {
+      await _openOfferDialog(offer);
+    }
+  }
+
+  /// `intervention_offer` teklifini modalla gösterir ve dönen karara göre
+  /// `MatchController`'ı yanıtlar (§7.2). Yalnızca `resolution:"engine"`
+  /// teklifleri için çağrılır — `minigame` teklifleri `_openOffer` tarafından
+  /// buraya hiç uğratılmadan `_resolveViaMinigame`'e yönlendirilir.
+  Future<void> _openOfferDialog(InterventionOfferFrame offer) async {
+    if (!mounted) return;
 
     _offerDialogOpen = true;
     final choice = await showInterventionOffer(context, offer: offer);
@@ -143,11 +168,7 @@ class _MatchScreenState extends State<MatchScreen> {
 
     switch (choice) {
       case InterventionChoice.intervene:
-        if (offer.resolution == 'minigame') {
-          await _resolveViaMinigame(offer);
-        } else {
-          await widget.controller.acceptOffer();
-        }
+        await widget.controller.acceptOffer();
       case InterventionChoice.decline:
         await widget.controller.declineOffer(reason: 'user');
       case InterventionChoice.timeout:
@@ -159,27 +180,33 @@ class _MatchScreenState extends State<MatchScreen> {
     }
   }
 
-  /// `resolution:"minigame"` bir teklif kabul edildiğinde teklifin `minigame`
+  /// `resolution:"minigame"` bir teklif geldiğinde teklifin `minigame`
   /// alanına göre ilgili tam ekran oyunu açar, sonucu bekler, dönen
-  /// `outcome_key`/`minigame_result` ile controller'ı yanıtlar. Ekran `null`
-  /// döndürürse (kullanıcı hiç oynamadan geri çıktı) hiçbir şey yapılmaz —
-  /// teklif sunucuda açık kalır, 180 sn'de kendiliğinden `decline` olur
-  /// (§7.2/§9.2).
+  /// `outcome_key`/`minigame_result` ile controller'ı yanıtlar.
+  ///
+  /// **Mini oyunun çıkışı yoktur (§0 v1.7)** — ekranların kendisi hiçbir
+  /// zaman `null` döndürmez, `_maybeFinish` daima dolu bir kayıt pop'lar.
+  /// `result == null` yalnızca `_dismissMinigameScreen`'in bu ekranı
+  /// **bizim tarafımızdan** kapattığı anlamına gelir (sunucunun 180 sn'lik
+  /// emniyet süresi doldu, ya da akış koptu) — teklif o noktada zaten kapalı
+  /// olduğundan bir POST 409 `offer_closed` alırdı, o yüzden atılmaz. "Bizim
+  /// tarafımızdan kapatma" ile "normal bitiş" ayrımı bir bayrakla değil, pop
+  /// değerinin kendisiyle yapılıyor: ekranların `_maybeFinish`'i dışında
+  /// hiçbir yer pop çağırmıyor.
   ///
   /// Tanınmayan bir `minigame` değeri şut ekranına düşer: §7.2 alanı serbest
   /// bir string olarak tanımlıyor ve motorun ileride ekleyeceği bir değer
   /// yüzünden teklifi açıkta bırakmak akışı kırmak olurdu.
   Future<void> _resolveViaMinigame(InterventionOfferFrame offer) async {
     if (!mounted) return;
-    _minigameScreenOpen = true;
-    final result = await Navigator.of(context).push<_MinigameAnswer>(
-      MaterialPageRoute(
-        builder: (_) => offer.minigame == 'tackle'
-            ? InterventionTackleScreen(offer: offer)
-            : InterventionShotScreen(offer: offer),
-      ),
+    final route = MaterialPageRoute<_MinigameAnswer>(
+      builder: (_) => offer.minigame == 'tackle'
+          ? InterventionTackleScreen(offer: offer)
+          : InterventionShotScreen(offer: offer),
     );
-    _minigameScreenOpen = false;
+    _minigameRoute = route;
+    final result = await Navigator.of(context).push(route);
+    _minigameRoute = null;
     if (!mounted || result == null) return;
     await widget.controller.acceptOffer(
       outcomeKey: result.outcomeKey,
@@ -195,22 +222,29 @@ class _MatchScreenState extends State<MatchScreen> {
     Navigator.of(context).pop();
   }
 
-  /// Açık mini-oyun ekranını programatik olarak kapatır (`null` döndürerek —
-  /// `_resolveViaMinigame` bu durumda hiç POST atmaz).
+  /// Açık mini-oyun ekranını programatik olarak kapatır. `Navigator.pop()`
+  /// yerine tutulan route'u hedefleyerek: oyun kendini pop ettiği an ile
+  /// `_resolveViaMinigame`'in `await push`'unun çözülmesi arasında dar bir
+  /// pencere var, o pencerede bir tick gelirse `route.isActive` artık
+  /// `false`'dur ve bu çağrı no-op'a düşer — tepedeki (olabilecek başka)
+  /// route'u yanlışlıkla kapatmaz.
   void _dismissMinigameScreen() {
-    if (!_minigameScreenOpen) return;
-    _minigameScreenOpen = false;
-    Navigator.of(context).pop();
+    final route = _minigameRoute;
+    if (route == null || !route.isActive) return;
+    _minigameRoute = null;
+    Navigator.of(context).removeRoute(route);
   }
 
   /// SSE akışı koptuğunda/404 döndüğünde (reconnect bu turda yok, §9.1) —
   /// kullanıcıya mesajı gösterip bir önceki ekrana döner.
   ///
   /// ⚠️ Açık bir müdahale paneli/mini oyun ekranı varken önce onları kapatmak
-  /// şart: panel `PopScope(canPop:false)` ile geri tuşunu yutuyor, şut
-  /// ekranı da ayrı bir push'lu route; aşağıdaki `maybePop` bunlardan biri
-  /// üstteyken çağrılırsa ekranı değil o route'u kapatır ve kullanıcı canlı
-  /// bir SSE hatasıyla çıkışsız bir ekranda kalır.
+  /// şart: ikisi de `PopScope(canPop:false)` ile sistem geri hareketini
+  /// yutuyor (panel §7.2, mini oyun §0 v1.7) ve mini oyun ayrıca kendi
+  /// push'lu route'unda; aşağıdaki `maybePop` bunlardan biri üstteyken
+  /// çağrılırsa ekranı değil o route'u kapatır ve kullanıcı canlı bir SSE
+  /// hatasıyla çıkışsız bir ekranda kalır. Sıra önemli: önce mini oyun, sonra
+  /// panel — ikisi aynı anda açık olamaz ama kod bu varsayıma dayanmıyor.
   void _handleConnectionError(String message) {
     _dismissMinigameScreen();
     _dismissOfferDialog();

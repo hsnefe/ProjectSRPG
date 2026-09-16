@@ -324,6 +324,11 @@ void main() {
       expect(body['minigame_result'], 'PAS TUTTU');
     });
 
+    // §0 v1.7 · `declineOffer` yalnızca `resolution:"engine"` teklifleri için
+    // çağrılır (`match_screen.dart::_openOfferDialog`, "Vazgeç" ve timeout
+    // dalları). `minigame` teklifleri artık panelsiz açılıyor ve çıkışsız,
+    // o yüzden FE tarafında hiç `decline` üretmiyor — metodun kendisi
+    // controller seviyesinde hâlâ var ve test ediliyor.
     test('declineOffer sends the given reason', () async {
       final source = _FakeStreamSource();
       final requests = <http.Request>[];
@@ -472,7 +477,8 @@ void main() {
 
       // Üç teklif sunuldu: biri kabul edilip çözümlendi, ikisi yanıtsız
       // kaldı. `interventions` (M2 defteri) yalnızca kabul edileni tutar,
-      // ama kullanıcı üç modal gördü.
+      // ama kullanıcıya üç teklif ulaştı (§0 v1.7 sonrası bu, teklifin
+      // çözümüne göre bir panel de olabilir, doğrudan açılan bir mini oyun da).
       source.controller.add(MatchInterventionMessage(_offer(offerId: 'off_1')));
       await pumpEventQueue();
       source.controller.add(MatchTickMessage(_tick(
@@ -501,8 +507,8 @@ void main() {
 
       source.controller.add(MatchInterventionMessage(_offer(offerId: 'off_1')));
       await pumpEventQueue();
-      // E8 replay'i aynı teklifi `resolved:true` ile geri verir - modal
-      // açılmaz ama fırsat zaten sayılmıştır.
+      // E8 replay'i aynı teklifi `resolved:true` ile geri verir - hiçbir
+      // panel/ekran açılmaz ama fırsat zaten sayılmıştır.
       source.controller.add(MatchInterventionMessage(InterventionOfferFrame(
         seq: 1, matchId: 'm_test', offerId: 'off_1', minute: 10,
         resolution: 'engine', actionKey: 'counter_attack', prompt: 'x',

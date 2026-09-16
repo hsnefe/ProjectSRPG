@@ -96,7 +96,28 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('geri tuşu hiç oynanmadan çıkarsa sonuç döndürmez',
+    testWidgets('risk_hint gösterilir (§7.5, panelden buraya taşındı)',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(home: InterventionTackleScreen(offer: _offer())),
+      );
+      await tester.pump();
+
+      // `_offer()`'ın varsayılan `riskHint`'i — `tackle_hard`ın kırmızı kart
+      // uyarısı. Artık modalda değil bu ekranda, prompt'un hemen altında.
+      expect(
+        find.descendant(
+          of: find.byType(GameRiskBar),
+          matching:
+              find.text('Kötü zamanlama doğrudan kırmızı kart getirir.'),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('geri tuşu yoktur, ekran terk edilemez (§0 v1.7)',
         (tester) async {
       InterventionTackleResult? popped;
       var returned = false;
@@ -125,20 +146,24 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.byType(InterventionTackleScreen), findsOneWidget);
 
-      await tester.tap(
+      // `GameHeaderBar(showBack: false)` — geri oku hiç çizilmez.
+      expect(
         find.descendant(
           of: find.byType(GameHeaderBar),
           matching: find.byType(IconButton),
         ),
+        findsNothing,
       );
+
+      // Sistem geri hareketi de `PopScope(canPop:false)` tarafından yutulur.
       // Canlı bir GameWidget yüzünden pumpAndSettle asla oturmaz.
+      await tester.binding.handlePopRoute();
       for (var i = 0; i < 10; i++) {
         await tester.pump(const Duration(milliseconds: 50));
       }
 
-      expect(find.byType(InterventionTackleScreen), findsNothing);
-      expect(returned, isTrue);
-      // null = çağıran hiç POST atmaz, teklif sunucuda açık kalır (§7.2/§9.2).
+      expect(find.byType(InterventionTackleScreen), findsOneWidget);
+      expect(returned, isFalse);
       expect(popped, isNull);
 
       await tester.pumpWidget(const SizedBox.shrink());

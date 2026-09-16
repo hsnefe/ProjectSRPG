@@ -47,9 +47,12 @@ InterventionTackleResult tackleResultOf(ShotGrade grade) => (
 ///
 /// **Tek deneme, geri alma yok** — oyunun kendisi zaten tek karşılaşmalık,
 /// antrenman kartıyla aynı sınıf hiçbir uyarlama olmadan kullanılıyor.
-/// Kullanıcı hiç oynamadan geri tuşuna basarsa `null` döner; çağıran
-/// (`match_screen.dart`) o zaman hiç POST atmaz, teklif sunucuda açık kalır ve
-/// 180 sn'lik emniyet süresi sonunda kendiliğinden `decline` olur (§7.2/§9.2).
+///
+/// **Çıkışı yoktur (§0 v1.7).** Geri oku çizilmez (`showBack: false`) ve
+/// `PopScope(canPop:false)` sistem geri hareketini yutar. Ekranın kendi
+/// kapanmayan tek yolu `match_screen.dart::_dismissMinigameScreen`'dir:
+/// sunucunun 180 sn'lik emniyet süresi dolup teklifi kendiliğinden `decline`
+/// ettiğinde, çağıran bu ekranı `removeRoute` ile kapatır ve hiç POST atmaz.
 class InterventionTackleScreen extends StatefulWidget {
   const InterventionTackleScreen({
     super.key,
@@ -122,56 +125,72 @@ class _InterventionTackleScreenState extends State<InterventionTackleScreen> {
   Widget build(BuildContext context) {
     final open = _game.phase == TacklePhase.window;
 
-    return Scaffold(
-      backgroundColor: AppColors.surface1,
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppColors.surface2,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border, width: 0.5),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Column(
-                    children: [
-                      // Başlık motorun kendi cümlesi (§7.2 `prompt`) — maçta o
-                      // an ne olduğunu söyleyen tek yetkili metin. Durumun
-                      // tarifi onun altında, çünkü o yalnızca sahneyi anlatıyor.
-                      GameHeaderBar(title: widget.offer.prompt),
-                      if (_scenario case final scenario?)
-                        GameBriefBar(
-                          title: scenario.title,
-                          text: scenario.brief,
+    // §0 v1.7 · zorunlu mini oyun, çıkışı yok — sistem geri hareketi burada
+    // yutulur; `showBack: false` de aynı sözü başlık çubuğunda tekrarlar.
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        backgroundColor: AppColors.surface1,
+        body: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppColors.surface2,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border, width: 0.5),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Column(
+                      children: [
+                        // Başlık motorun kendi cümlesi (§7.2 `prompt`) — maçta o
+                        // an ne olduğunu söyleyen tek yetkili metin. Durumun
+                        // tarifi onun altında, çünkü o yalnızca sahneyi anlatıyor.
+                        GameHeaderBar(
+                          title: widget.offer.prompt,
+                          showBack: false,
+                          leading: MinigameMinuteChip(minute: widget.offer.minute),
                         ),
-                      TackleGauges(game: _game),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: GameWidget(game: _game),
+                        // §7.5 · `tackle_hard`ın kırmızı kart uyarısı modaldan
+                        // buraya taşındı (§0 v1.7) — burada gösterilmesi daha
+                        // isabetli: modalda kararın ÖNCESİNDEydi ("müdahale
+                        // etmeli miyim"), burada kararın SIRASINDA — tam olarak
+                        // oyunun ölçtüğü zamanlama penceresi hakkında bir uyarı.
+                        if (widget.offer.riskHint case final hint?)
+                          GameRiskBar(text: hint),
+                        if (_scenario case final scenario?)
+                          GameBriefBar(
+                            title: scenario.title,
+                            text: scenario.brief,
+                          ),
+                        TackleGauges(game: _game),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: GameWidget(game: _game),
+                            ),
                           ),
                         ),
-                      ),
-                      TackleControls(game: _game, windowOpen: open),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-                        child: Text(
-                          _hint,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 12,
+                        TackleControls(game: _game, windowOpen: open),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+                          child: Text(
+                            _hint,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
