@@ -8,6 +8,7 @@ import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/state/player_state.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/activity_card.dart';
+import 'package:project_srpg/widgets/animated_condition_bar.dart';
 import 'package:project_srpg/net/money.dart';
 
 enum _LifestyleTab { individual, group }
@@ -287,55 +288,11 @@ class _HeaderSection extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          SizedBox(
-            width: 120,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Kondisyon',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '$condition/100',
-                      maxLines: 1,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(3),
-                  child: TweenAnimationBuilder<double>(
-                    duration: const Duration(milliseconds: 320),
-                    curve: Curves.easeOutCubic,
-                    tween: Tween<double>(end: condition / 100),
-                    builder: (context, value, _) {
-                      return LinearProgressIndicator(
-                        value: value,
-                        minHeight: 5,
-                        backgroundColor: AppColors.surface1,
-                        color: AppColors.success,
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
+          // §1.4 · training_screen.dart'la aynı paylaşılan widget — bu
+          // ekranın kendi TweenAnimationBuilder kopyası yalnızca barı
+          // animasyonlu yapıyordu, sayı doğrudan zıplıyordu ve bir
+          // aktivite sonrası fark hiç gösterilmiyordu.
+          AnimatedConditionBar(condition: condition, width: 120),
           const Spacer(),
           IconButton(
             onPressed: () => Navigator.of(context).push(

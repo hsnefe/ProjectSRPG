@@ -15,6 +15,7 @@ import 'package:project_srpg/screens/training_radar_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/state/player_state.dart';
 import 'package:project_srpg/theme/app_colors.dart';
+import 'package:project_srpg/widgets/animated_condition_bar.dart';
 
 enum _TrainingTab { physical, personal }
 
@@ -370,50 +371,10 @@ class _HeaderSection extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          SizedBox(
-            width: 120,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    // Etiket sıkışırsa kısalsın: sayı okunaklı kalmalı, 120
-                    // piksele sığmadığında taşan taraf yazı olmalı.
-                    const Flexible(
-                      child: Text(
-                        'Kondisyon',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$condition/100',
-                      maxLines: 1,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(3),
-                  child: LinearProgressIndicator(
-                    value: condition / 100,
-                    minHeight: 5,
-                    backgroundColor: AppColors.surface1,
-                    color: AppColors.success,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          // §1.4 · bir aktivite kondisyonu değiştirdiğinde bu bar doğrudan
+          // zıplamak yerine kayarak geçer ve farkı kısa süreliğine rozetle
+          // gösterir (bkz. AnimatedConditionBar).
+          AnimatedConditionBar(condition: condition, width: 120),
           const Spacer(),
           IconButton(
             onPressed: onExplore,
