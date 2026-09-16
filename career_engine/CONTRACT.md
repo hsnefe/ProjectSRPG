@@ -3103,7 +3103,7 @@ satırında tek bir kolon.
 
 ```jsonc
 // İstek
-{ "topic": "philosophy_accept",   // altı değerden biri, aşağıdaki tablo
+{ "topic": "philosophy_accept",   // yedi değerden biri, aşağıdaki tablo
   "value": null }                 // yalnızca talep konularında dolu
 
 // Yanıt
@@ -3115,7 +3115,9 @@ satırında tek bir kolon.
   "trait_changes":        [ { "key": "trust",
                               "before": 50.0, "after": 56.0, "delta": 6.0 } ],
   "condition_after": null,        // konu kondisyon oynatmıyorsa null
-  "player": null }                // talep kabul edildiyse {position, role}
+  "player": null,                 // talep kabul edildiyse {position, role}
+  "coach_instruction": null }     // §12.10 — yalnızca talimat gerçekten
+                                   // değiştiyse {focus, label} dolu gelir
 ```
 
 | `topic` | Ne yapar | `value` |
@@ -3124,6 +3126,7 @@ satırında tek bir kolon.
 | `style_accept` / `style_reject` | Oyun tarzını kabul/ret | yok |
 | `request_position` | Pozisyon değişikliği talebi | pozisyon adı |
 | `request_role` | Rol değişikliği talebi | `role_id` |
+| `request_instruction` | Bugünkü maç talimatını değiştirme talebi (§12.10) | `'attack'\|'defend'\|'tactical'\|'any'` |
 
 **İki sayı var ve aynı şey değiller.** `relationship.score` (§3.4) antrenörün
 seni **sevmesi**; `CoachTraits.trust` senin okumanı kendi planının önüne
@@ -3166,6 +3169,12 @@ aittir (`worlddata/positions.py`), dolayısıyla kabul edilen bir pozisyon
 talebi rolü öksüz bırakır; rol yeni pozisyonun ilk rolüne taşınır ve yanıt
 bunu `player` bloğunda söyler. İmkânsız bir çifti sessizce tutmak
 `role_belongs_to_position`'ı her sonraki okuyucu için bozardı.
+
+**Rol/pozisyon değişince talimat da yeniden türer (§12.10).** Kabul edilen
+bir `request_role`/`request_position`, o fikstürün donmuş talimatını yeni
+rolden yeniden hesaplayıp üzerine yazar — aksi halde antrenör seni Mezzala
+oynatmayı kabul edip hâlâ geride durmanı isterdi. Bu durumda da yanıtın
+`coach_instruction` alanı dolu gelir.
 
 ### 12.2 Kadro durumu
 
@@ -3603,3 +3612,228 @@ karar iki akşam hakkındayken tek akşam gösteren ekrana yönlendirilir.
 
 Tarafı olmayan bir `ref_id` için yeni kod yok: mevcut `422 invalid_request`,
 mesajında işe yarayacak iki ref'i sayar (§1.3).
+
+### 12.10 Taktik uyum
+
+`CoachTraits.tactical_fit` bu bölüme kadar **ölü veriydi** — §3.4
+tanımlıyordu, R1/R2 döndürüyordu, hiçbir kod yolu yazmıyordu. `trust`'ın
+§12.1'de kapatıldığı boşluğun aynısı, `CoachTraits`'in ikinci yarısı. Döngü
+şöyle kapanıyor:
+
+```text
+rol -> talimat -> maç -> uyum -> antrenör ilişkisi + tactical_fit
+```
+
+Antrenörün bir beklentisi vardı (`coach_talk_screen.dart`'ın açılış cümlesi
+bunu yıllardır söylüyordu: *"senden de o çerçevede oynamanı bekliyorum"*)
+ama karşılığında hiçbir mekanik yoktu. Bu bölüm üçünü ekliyor: beklentinin
+kendisi (talimat), ne kadar karşılandığının ölçümü (uyum) ve buna verilen
+tepki (antrenör ilişkisi + `tactical_fit`).
+
+#### Talimat nereden gelir
+
+Her rolün varsayılan bir talimatı var (`worlddata/positions.py`'nin
+`instruction` alanı) — API_CONTRACT §6.1'in `focus`'uyla aynı dört değer,
+`'any'` = "farketmez":
+
+| Grup | Rol | Talimat |
+|---|---|---|
+| DC | Stoper (`stoper`) | Savunma |
+| DC | İleri Çıkan Stoper (`ileri_cikan_stoper`) | Savunma |
+| DC | Libero (`libero`) | Taktik |
+| DL/DR | Bek (`bek`) | Savunma |
+| DL/DR | Kanat Bek (`kanat_bek`) | Savunma |
+| DL/DR | Oyun Kuran Kanat Bek (`oyun_kuran_kanat_bek`) | Taktik |
+| DL/DR | Yaratıcı Kanat Bek (`yaratici_kanat_bek`) | Hücum |
+| DM | Defansif Orta Saha (`defansif_orta_saha`) | Savunma |
+| DM | Yarı Bek (`yari_bek`) | Savunma |
+| DM | Regista (`regista`) | Taktik |
+| MC | Merkez Orta Saha (`merkez_orta_saha`) | Taktik |
+| MC | Oyun Kurucu (`oyun_kurucu`) | Taktik |
+| MC | Box-to-Box Orta Saha (`box_to_box`) | **Farketmez** |
+| MC | Mezzala (`mezzala`) | Hücum |
+| AMC | Ofansif Orta Saha (`ofansif_orta_saha`) | Hücum |
+| AMC | Gelişmiş Oyun Kurucu (`gelismis_oyun_kurucu`) | Taktik |
+| AMC | Shadow Striker (`shadow_striker`) | Hücum |
+| Kanat | Kanat (`kanat`) | Hücum |
+| Kanat | İç Kanat (`ic_kanat`) | Hücum |
+| ST | Forvet (`forvet`) | Hücum |
+| ST | Hedef Adam (`hedef_adam`) | Hücum |
+| ST | Fırsatçı Forvet (`firsatci_forvet`) | Hücum |
+| ST | Pres Yapan Forvet (`pres_yapan_forvet`) | Savunma |
+| ST | Derine Gelen Forvet (`derine_gelen_forvet`) | Taktik |
+
+Eşleme **`group` değil `role_id` üzerinden**: aynı grubun iki rolü gerçekten
+farklı iş yapıyor (DM'de `regista` oyun kurar, `defansif_orta_saha` kurmaz)
+ve `group` üzerinden anahtarlansaydı §12.1'in `request_role`'ü maç gününde
+hiçbir şey değiştirmeyebilirdi — bedeli ödenen bir talebin sonucu olmazdı.
+`box_to_box → Farketmez` bilinçli: "farketmez" gerçek bir talimat ve tam
+olarak bir rolün ona düşmesi, o dalın yalnızca testte değil üretimde de
+çalıştığını garanti eder.
+
+#### Şema — `014_match_instruction.sql`
+
+```sql
+ALTER TABLE fixture ADD COLUMN user_match_instruction TEXT;   -- 'attack'|'defend'|'tactical'|'any'
+```
+
+`010_squad_status.sql` ile aynı gerekçe: karar bir fikstüre birebir bağlı ve
+kullanıcı başına tek (D4 korunuyor), ayrı bir tablo değil tek kolon. **SQL
+`NULL` = "henüz sorulmadı"**, `'any'` string'i = "farketmez" — ikisi farklı
+şeyler ve aynı hücreye sığmazlar; `'any'`, §6.1'in kendi alias listesinde
+zaten tanımlı bir değer.
+
+#### Karar tembel ve yapışkan — ama §12.2'den bir farkla
+
+Kadro durumu gibi (§12.2) ilk soran hesaplar, yazar; sonrakiler okur. Farkı:
+kadro durumu **bir kez yazılır ve asla değişmez** (INV-44). Bir fikstürün
+talimatı da yapışkandır ama **tam olarak bir şey** onu ezebilir: kabul
+edilmiş bir M4 talebi (`request_instruction`, ya da rolü değiştiren bir
+`request_role`/`request_position` — §12.1). INV-54 bu farkı yazıyor.
+
+#### M1 değişikliği
+
+Yanıta `coach_instruction` bloğu eklendi:
+
+```jsonc
+"coach_instruction": {
+  "focus": "defend",        // "attack"|"defend"|"tactical"|null — null = farketmez
+  "label": "Savunma",
+  "role_id": "stoper",
+  "role_name": "Stoper",
+  "position": "Defans",
+  "source": "role"          // "role" | "coach_talk"
+}
+```
+
+`engine_payload`'ın **dışında**, `formation_id` ile aynı gerekçeyle: motor
+rol kavramını bilmiyor, gövde motora olduğu gibi POST'lanıyor.
+`role_name`/`position`, FE'nin bugüne kadar yalnızca bunun için ikinci bir
+istek (C3/hub) atmasını gerektiren alanlardı — artık M1'de geliyor, o ikinci
+istek gereksiz hâle geliyor. `source` yazılmıyor, **türetiliyor**: donmuş
+talimat, oyuncunun **güncel** rolünden türeyecek varsayılanla karşılaştırılır
+— eşleşmiyorsa tek açıklaması kabul edilmiş bir M4 talebidir, çünkü
+`domain/instructions.py` dondurulmuş bir değeri kendiliğinden değiştirmez.
+
+#### M4 değişikliği
+
+§12.1'in konu tablosuna üçüncü bir talep eklendi: `request_instruction`
+(bkz. §12.1). En ucuzu (25 zaman / 3 enerji, `request_position`'ın 35/4'üne
+ve `request_role`'ün 30/4'üne karşı) — istediği şey de en küçük: seni
+taşımasını değil, bugün farklı oynamanı istiyorsun. `_success_chance`'a özel
+bir bonus **yok**; fonksiyon üç talep arasında paylaşılıyor, daha iyi bir
+sonuç yine güven ya da ilişkiden kazanılıyor.
+
+Bu, aynı zamanda üçüncü talebin INV-43'ün maç başına bir konuşma bütçesini
+hak ettiği yer: menü artık üç gerçek seçenek sunuyor — güven satın al
+(kabul), kim olduğunu değiştir (rol/pozisyon, kalıcı), bugün ne yapacağını
+değiştir (talimat, tek maçlık). Dürüst karşı-argüman: saf beklenen değer
+açısından `request_instruction` etkisi maç sonunda bittiği için
+`request_role`'ün gölgesinde kalır — bu, bir başarı bonusuyla değil
+gün-bütçesi indirimiyle (25/3, geri kalan gün payını daha çok bırakır)
+fiyatlanmıştır.
+
+#### M2 değişikliği
+
+Gövde bir opsiyonel alan daha alır:
+
+| Alan | Kural |
+|---|---|
+| `tactical_compliance` | `0.0`–`1.0` ondalık; `minutes_played > 0` gerektirir |
+
+| Durum | `tactical_compliance` |
+|---|---|
+| §12.10 öncesi yazılmış bir gövde | alan yok — geçerli, eski anlamıyla (ölçülmedi) |
+| Sahaya hiç çıkmadı | alan yok |
+| Talimat "farketmez" | alan yok |
+| Aksi hâl | `0.0`–`1.0` |
+
+Geçersiz bileşim: `tactical_compliance` ile birlikte `minutes_played`
+etkin değeri (yoksa `started ? 95 : 0`) `0` → `422`. Alan opsiyonel olduğu
+için §12.10 öncesi yazılmış bir gövde hâlâ geçerli — `started`/
+`minutes_played`'in §12.2'de aldığı yolun aynısı.
+
+#### Uyum nasıl ölçülür (FE)
+
+Ölçüm motorun bildirdiği tick'in `directives.focus`'undandır, **FE'nin
+gönderdiğinden değil**: E4 toleranslı bir uçtur (§6.1) — tanınmayan bir
+`focus` sessizce eskisinde bırakılır — ve FE bir direktif POST'unun sonucunu
+iyimser uygulamaz. Gönderdiğiyle ölçmek, sunucunun reddettiği bir direktifle
+uyum kazanmak olurdu.
+
+İki tick arasındaki her aralık **önceki** tick'in bildirdiği focus'a
+yazılır: E4'ün `effective_from_minute`'ı `current + 1`'dir, yani 34'te
+gönderilen bir direktif 35'ten itibaren geçerli. Sahada olma durumu da aynı
+pencereden okunur — `minutes_played` (§12.2) ile aynı — bu yüzden bir yedek
+yalnızca kendi oynadığı dakikalardan sorumlu tutulur, kulüpte geçirdiği
+dakikalardan değil.
+
+#### Antrenör delta'sı
+
+`_match_relationship_deltas`'ın `coach` teriminde üç bant var (sürekli bir
+eğri değil):
+
+| `tactical_compliance` | Terim |
+|---|---|
+| Ölçülmedi (`null`) | 0 |
+| `≥ 0.80` | +1 |
+| `0.50–0.80` | 0 |
+| `< 0.50` | −2 |
+
+**+1, `+1 if goal_count >= 1` ile aynı büyüklükte** — söylenene tam uymak,
+antrenör gözünde gol atmakla eşdeğer. **−2, `-2 if reds >= 1` ile aynı** —
+maçın yarısını görmezden gelerek geçirmek, kırmızı kartla aynı sınıf bir
+disiplin sorunu. −2/+1 asimetrisi §12.1'in kendi asimetrisinin
+(`GRANTED_TRUST -5.0` / `REFUSED_TRUST -2.0`) yankısı.
+
+Clamp öncesi aralık artık **[−7, +5]** (kayıp −2, kırmızı −2, iki sarı −1,
+uyumsuzluk −2), iyi uç tam +5'e ulaşıyor (galibiyet 3 + gol 1 + uyum 1).
+±5 clamp'i **ilk kez** kötü uçta gerçekten dokunulan bir sınır oluyor.
+**Yalnızca `coach`** — taraftar bir taktik talimat görmez, medyanın bireysel
+oyuncu katmanı yok (İmza maddesi 1); takım arkadaşı tartışılabilir ama bu
+özellik ilk turunda ikinci bir tüketici büyütmüyor.
+
+#### `tactical_fit`
+
+Her maç sonrası `tactical_fit`, o maçın uyum oranına **çeyrek yol**
+çekilir: `yeni = eski + 0.25 × (uyum − eski)`. Sabit bir delta değil —
+`trust`'ın bir konuşmadan aldığı sabit değişim gibi — çünkü bir konuşma bir
+olay, bir "fit" bir ortalama; sabit bir delta birkaç maçta 0/1'de doyar ve
+bilgi taşımayı bırakırdı. Sınırlar zaten `relationships.TRAIT_BOUNDS`'ta.
+
+#### Uyumun bedeli
+
+Uyumu **raporlamak** bedava — ama **uymak** değil. `focus`, motorun hangi
+aksiyonu teklif edeceğini `role_fit` çarpanıyla ([0.35, 1.75], API_CONTRACT
+§6.2) eğiyor: "savunma" denen bir forvet gerçekten daha az şut fırsatı
+görür. Bu paragraf olmadan özellik bedava bir +1'e indirgenir — bedel
+burada, motorun kendi teklif dağılımında yaşıyor, career_engine'de değil.
+
+#### Kapsam dışı
+
+Yalnızca `focus` ölçülür — bkz. **D61**.
+
+#### Yeni kararlar
+
+| # | Konu | Karar | Gerekçe |
+|---|---|---|---|
+| D61 | Uyumun kapsamı | **Yalnızca `focus` ölçülür; `effort`/`aggression` ölçülmez** | API_CONTRACT §6.2: *"`effort` başarı şansını ve hangi aksiyonun teklif edildiğini DEĞİŞTİRMEZ"* — kondisyon/frekans kadranı, taktik kadranı değil, ve bedeli zaten `final_condition` → gelecek haftanın kadro seçiminde ödeniyor. `aggression`'ın taktik okuması `_match_relationship_deltas`'ın kart terimlerinde zaten fiyatlanmış; ikinci kez ölçmek aynı davranışı tek fonksiyon içinde iki kez saymak olurdu |
+| D62 | `tactical_fit`'in kadro seçimindeki yeri | **Bu turda `squad.selection_score`'a girmez** | `selection_score`'un üç ağırlığı (0.45/0.35/0.20) taze bir kariyerin 76.5'e oturup ilk 11'de başlamasına göre kalibre edilmiş (§12.2). Nötr değeri 0.5 olan dördüncü bir girdi eklemek dördünün de yeniden türetilmesini gerektirir — bu, uyumu *ölçmekten* ayrı bir değişiklik ve onunla aynı turda gelmemeli |
+
+#### Yeni invariant'lar
+
+| # | Garanti |
+|---|---|
+| INV-54 | Bir fikstürün `user_match_instruction`'ı ilk soruluşta oyuncunun **o anki** rolünden türetilir ve yazılır. Sonrasında yalnızca kabul edilmiş bir M4 talebi (`request_instruction`, ya da rolü değiştiren bir `request_position`/`request_role`) onu değiştirebilir; M2'nin uyum ölçümü daima fikstürdeki **son** değere göre değerlendirilir. Kasıtlı olarak INV-44'ten (kadro durumu: bir kez yazılır, asla değişmez) farklı — bu değer yapışkan ama kalıcı olarak dondurulmuş değil |
+
+#### Notlar
+
+§12.0'ın "Geçersiz kılananlar" tablosuna **yeni satır eklenmedi**: §3.4'ün
+traits notu zaten §12.1'in satırıyla kapsanıyor, ve §5.6 M2'nin gövde
+şeklinde hiç satır yok (§12.2 de `started`/`minutes_played`'i satırsız
+ekledi) — §12.10'un aynı deseni izlemesi tutarlı, satır eklemek yanlış bir
+emsal olurdu. **Yeni hata kodu yok** — `invalid_match_result` (422) ve
+`invalid_request` (422) her durumu kapsıyor. **`API_CONTRACT.md`'de
+değişiklik yok** — `tactical_compliance` bir career_engine M2 alanı;
+`focus` semantiği (§6.1/§6.2) zaten tam olarak ölçülen şey, motor teline
+hiçbir şey eklenmiyor.
