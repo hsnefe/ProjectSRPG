@@ -100,4 +100,5 @@ def post_coach_talk(
         "trait_changes": result["trait_changes"],
         "condition_after": condition_after,
         "player": result["player"],
+        "coach_instruction": result["coach_instruction"],
     }

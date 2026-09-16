@@ -23,6 +23,7 @@ class CoachTalkScreen extends StatefulWidget {
     required this.coachName,
     this.currentPosition,
     this.currentRole,
+    this.currentInstruction,
     this.session,
   });
 
@@ -35,6 +36,11 @@ class CoachTalkScreen extends StatefulWidget {
   /// satırları gizlenir (ne isteneceği bilinmeden buton gösterilemez).
   final String? currentPosition;
   final String? currentRole;
+
+  /// §12.10 · `'attack'|'defend'|'tactical'|'any'` — M1'in `coach_instruction`
+  /// alanı, `focus`'un wire null'ı "any" sentinel'ine çevrilmiş hali
+  /// (`CoachInstruction.focus ?? 'any'`). Null ise talep satırı gizlenir.
+  final String? currentInstruction;
 
   /// Testlerin sahte bir backend geçirebilmesi için; uygulamada boş bırakılır.
   final CareerSession? session;
@@ -52,6 +58,16 @@ const _topicLabels = {
   'style_reject': 'Oyun tarzını reddet',
   'request_position': 'Pozisyon değişikliği iste',
   'request_role': 'Rol değişikliği iste',
+  'request_instruction': 'Bugünkü talimatı değiştirmesini iste',
+};
+
+/// §12.10 · `worlddata/positions.py`'nin `INSTRUCTIONS`'ıyla aynı dört değer,
+/// Türkçe etiketleri de §8.1'in `directive_options.focus`'uyla aynı.
+const _instructionLabels = {
+  'attack': 'Hücum',
+  'defend': 'Savunma',
+  'tactical': 'Taktik',
+  'any': 'Farketmez',
 };
 
 const _openingLine =
@@ -194,6 +210,7 @@ class _CoachTalkScreenState extends State<CoachTalkScreen> {
         topic: requestTopic,
         currentPosition: widget.currentPosition,
         currentRole: widget.currentRole,
+        currentInstruction: widget.currentInstruction,
         onPick: (value) => _send(requestTopic, value: value),
         onCancel: () => setState(() => _pendingRequestTopic = null),
       );
@@ -231,6 +248,7 @@ class _CoachTalkScreenState extends State<CoachTalkScreen> {
   bool _isAvailable(String topic) {
     if (topic == 'request_position') return widget.currentPosition != null;
     if (topic == 'request_role') return widget.currentPosition != null;
+    if (topic == 'request_instruction') return widget.currentInstruction != null;
     return true;
   }
 }
@@ -350,6 +368,7 @@ class _TargetPicker extends StatelessWidget {
     required this.topic,
     required this.currentPosition,
     required this.currentRole,
+    required this.currentInstruction,
     required this.onPick,
     required this.onCancel,
   });
@@ -357,6 +376,7 @@ class _TargetPicker extends StatelessWidget {
   final String topic;
   final String? currentPosition;
   final String? currentRole;
+  final String? currentInstruction;
   final ValueChanged<String> onPick;
   final VoidCallback onCancel;
 
@@ -364,9 +384,18 @@ class _TargetPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final options = topic == 'request_position'
-        ? _positions.where((p) => p != currentPosition).toList()
-        : rolesForPosition(currentPosition).where((r) => r != currentRole).toList();
+    final options = switch (topic) {
+      'request_position' =>
+        _positions.where((p) => p != currentPosition).toList(),
+      'request_instruction' =>
+        _instructionLabels.keys.where((v) => v != currentInstruction).toList(),
+      _ => rolesForPosition(currentPosition).where((r) => r != currentRole).toList(),
+    };
+    // Rol/pozisyon butonları kendi ham değerini (role_id / pozisyon adı)
+    // etiket olarak kullanıyor; talimatın dört değeri için Türkçe karşılığı
+    // var, o kullanılıyor (§8.1'in `directive_options.focus` etiketleri).
+    String labelFor(String value) =>
+        topic == 'request_instruction' ? _instructionLabels[value]! : value;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -377,7 +406,7 @@ class _TargetPicker extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 8),
               child: _ChoiceButton(
                 key: Key('coach_target_$option'),
-                label: option,
+                label: labelFor(option),
                 onPressed: () => onPick(option),
               ),
             ),
@@ -464,6 +493,19 @@ class _ResultPanel extends StatelessWidget {
               padding: const EdgeInsets.only(top: 8),
               child: Text(
                 'Yeni görev: ${result.position} · ${result.role}',
+                style: const TextStyle(
+                  color: AppColors.success,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          // §12.10 · `request_instruction` kabul edildiğinde ya da rolü
+          // değiştiren bir talep talimatı yeniden türettiğinde dolar.
+          if (result.granted == true && result.instructionLabel != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'Yeni talimat: ${result.instructionLabel}',
                 style: const TextStyle(
                   color: AppColors.success,
                   fontSize: 12,

@@ -964,6 +964,8 @@ class CoachTalkResult {
     required this.conditionAfter,
     required this.position,
     required this.role,
+    this.instructionFocus,
+    this.instructionLabel,
   });
 
   final CareerState careerState;
@@ -979,6 +981,13 @@ class CoachTalkResult {
   final String? position;
   final String? role;
 
+  /// §12.10 · yalnızca kabul edilmiş bir `request_instruction` (ya da rolü
+  /// değiştiren bir `request_position`/`request_role`) talimatı gerçekten
+  /// değiştirdiyse doludur — M1'in `coach_instruction`'ından daha dar bir
+  /// çift: yalnızca `focus`/`label`, rol/kaynak bilgisi taşımaz.
+  final String? instructionFocus;
+  final String? instructionLabel;
+
   /// Antrenörün güveni — komisyon değeri. Talep başarısı bunun üstünden
   /// hesaplandığı için ekran bunu ayrıca gösteriyor.
   TraitChange? get trust {
@@ -990,6 +999,7 @@ class CoachTalkResult {
 
   factory CoachTalkResult.fromJson(Map<String, dynamic> json) {
     final player = json['player'] as Map<String, dynamic>?;
+    final instruction = json['coach_instruction'] as Map<String, dynamic>?;
     return CoachTalkResult(
       careerState: CareerState.fromJson(
         json['career_state'] as Map<String, dynamic>,
@@ -1005,6 +1015,8 @@ class CoachTalkResult {
       conditionAfter: (json['condition_after'] as num?)?.toInt(),
       position: player?['position'] as String?,
       role: player?['role'] as String?,
+      instructionFocus: instruction?['focus'] as String?,
+      instructionLabel: instruction?['label'] as String?,
     );
   }
 }

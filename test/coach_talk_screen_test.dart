@@ -96,12 +96,17 @@ Widget _wrap(Widget home) => MaterialApp(
       home: home,
     );
 
-Future<void> _openAndSettle(WidgetTester tester, CareerSession session) async {
+Future<void> _openAndSettle(
+  WidgetTester tester,
+  CareerSession session, {
+  String? currentInstruction,
+}) async {
   await tester.pumpWidget(_wrap(CoachTalkScreen(
     fixtureId: 'f_1',
     coachName: 'Antrenör Mert',
     currentPosition: 'Orta saha',
     currentRole: 'regista',
+    currentInstruction: currentInstruction,
     session: session,
   )));
   // Daktilo efekti bitene kadar.
@@ -188,6 +193,43 @@ void main() {
     expect(find.byKey(const Key('coach_target_oyun_kurucu')), findsOneWidget);
     expect(find.byKey(const Key('coach_target_regista')), findsNothing);
     expect(find.byKey(const Key('coach_target_stoper')), findsNothing);
+  });
+
+  testWidgets(
+      'currentInstruction verilmezse talimat talebi satırı gizlenir',
+      (tester) async {
+    final recorder = _Recorder();
+    await _openAndSettle(tester, _session(recorder));
+
+    expect(find.text('Bugünkü talimatı değiştirmesini iste'), findsNothing);
+  });
+
+  testWidgets(
+      'talimat talebinde mevcut talimat hariç dört Türkçe seçenek gösterilir',
+      (tester) async {
+    final recorder = _Recorder();
+    await _openAndSettle(
+      tester,
+      _session(
+        recorder,
+        response: _result(topic: 'request_instruction', granted: true),
+      ),
+      currentInstruction: 'tactical',
+    );
+
+    expect(find.text('Bugünkü talimatı değiştirmesini iste'), findsOneWidget);
+    await _tapChoice(tester, 'coach_topic_request_instruction');
+
+    expect(find.byKey(const Key('coach_target_tactical')), findsNothing);
+    expect(find.text('Hücum'), findsOneWidget);
+    expect(find.text('Savunma'), findsOneWidget);
+    expect(find.text('Taktik'), findsNothing); // mevcut değer, listede değil
+    expect(find.text('Farketmez'), findsOneWidget);
+
+    await _tapChoice(tester, 'coach_target_any');
+    await tester.pump(const Duration(seconds: 3));
+
+    expect(recorder.posts.single, {'topic': 'request_instruction', 'value': 'any'});
   });
 
   testWidgets('reddedilen talep kabul edilmiş gibi gösterilmez',

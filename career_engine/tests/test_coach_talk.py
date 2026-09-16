@@ -1,8 +1,10 @@
 """§12.1 M4 — the pre-match conversation with the coach."""
 import pytest
 
-from tests.conftest import advance_to_match_day, create_career
-from worlddata.positions import ROLES, role_belongs_to_position, roles_for_position
+from tests.conftest import advance_to_match_day, create_career, new_career
+from worlddata.positions import (
+    ROLES, instruction_for_role, role_belongs_to_position, roles_for_position,
+)
 
 
 @pytest.fixture
@@ -134,6 +136,142 @@ def test_position_request_carries_the_role_with_it(api_client, match_day_career)
     if body["granted"]:
         assert body["player"]["position"] == target
         assert role_belongs_to_position(body["player"]["role"], target)
+
+
+def _api_db():
+    """A different database from the one `api_client` talks to (a per-test
+    tmp file, monkeypatched into config.DB_PATH) - `test_squad.py`'s own
+    idiom for reaching in beneath the API."""
+    from api import config
+    from db.connection import get_connection
+    return get_connection(config.DB_PATH)
+
+
+def _frozen_instruction(career_id, fixture_id):
+    """`fixture.user_match_instruction` straight from the row - SQL NULL if
+    nothing has frozen it yet (§12.10 migration note)."""
+    conn = _api_db()
+    try:
+        return conn.execute(
+            "SELECT user_match_instruction FROM fixture WHERE career_id = ? AND fixture_id = ?",
+            (career_id, fixture_id),
+        ).fetchone()["user_match_instruction"]
+    finally:
+        conn.close()
+
+
+def test_instruction_request_resolves_the_same_way_every_time(api_client, match_day_career):
+    """Same idiom as the role/position requests (INV-7). `match_day_career`
+    already called M1 once, so a second one would 409 `match_in_progress` -
+    the current instruction is read from the frozen row instead (the same
+    reason `test_role_request_resolves_the_same_way_every_time` reads the
+    hub rather than P1)."""
+    career_id, fixture_id = match_day_career
+    current_focus = _frozen_instruction(career_id, fixture_id)
+    other = next(v for v in ("attack", "defend", "tactical", "any") if v != current_focus)
+
+    body = _talk(api_client, career_id, fixture_id, "request_instruction", other).json()
+    assert body["granted"] in (True, False)
+
+    if body["granted"]:
+        assert body["coach_instruction"]["focus"] == (None if other == "any" else other)
+        assert body["player"] is None
+        assert body["trait_changes"][0]["delta"] == -5.0
+        assert _frozen_instruction(career_id, fixture_id) == other
+    else:
+        assert body["coach_instruction"] is None
+        assert body["trait_changes"][0]["delta"] == -2.0
+        assert body["relationship_changes"][0]["delta"] == -2
+        assert _frozen_instruction(career_id, fixture_id) == current_focus  # unchanged
+
+
+def test_instruction_request_for_the_current_value_is_refused(api_client, match_day_career):
+    career_id, fixture_id = match_day_career
+    current_focus = _frozen_instruction(career_id, fixture_id)
+
+    resp = _talk(api_client, career_id, fixture_id, "request_instruction", current_focus)
+    assert resp.status_code == 422
+    assert resp.json()["code"] == "invalid_request"
+
+
+def test_instruction_request_rejects_an_unknown_value(api_client, match_day_career):
+    career_id, fixture_id = match_day_career
+    resp = _talk(api_client, career_id, fixture_id, "request_instruction", "farketmez")
+    assert resp.status_code == 422
+    assert resp.json()["code"] == "invalid_request"
+
+
+def test_a_refused_instruction_request_leaves_no_frozen_default_behind(
+    api_client, mock_engine,
+):
+    """§12.10 / INV-4 - the regression `peek` exists to prevent. M4 does not
+    require M1 to have run first (nothing gates it on that), so this reaches
+    the fixture through T1 (`/day`'s match-kind event) instead - unlike
+    `match_day_career`, that does not freeze the instruction, which is the
+    point: the validation gate must read the would-be default (via `peek`)
+    without writing it, or a refused request would freeze a default as a
+    side effect it was never granted.
+
+    Retried across a handful of seeds because a fresh career's low starting
+    trust/score (50/70) usually but not always refuses the first request
+    (INV-7 makes each seed's own outcome deterministic, not the sweep's)."""
+    for seed in range(1, 6):
+        career_id, _team_id = new_career(api_client, seed=seed)
+        advance_to_match_day(api_client, career_id)
+        events = api_client.get(f"/careers/{career_id}/day").json()["events"]
+        fixture_id = next(e["ref_id"] for e in events if e["kind"] == "match")
+
+        assert _frozen_instruction(career_id, fixture_id) is None  # M1 never ran
+
+        role = api_client.get(f"/careers/{career_id}").json()["player"]["role"]
+        current_focus = instruction_for_role(role)
+        other = next(v for v in ("attack", "defend", "tactical", "any") if v != current_focus)
+        before_budget = api_client.get(f"/careers/{career_id}/day").json()["career_state"]["day_budget"]
+
+        body = _talk(api_client, career_id, fixture_id, "request_instruction", other).json()
+        if body["granted"]:
+            continue  # this seed doesn't exercise the refused branch
+
+        after_budget = api_client.get(f"/careers/{career_id}/day").json()["career_state"]["day_budget"]
+        assert after_budget["time"] == before_budget["time"] - 25
+        assert after_budget["energy"] == before_budget["energy"] - 3
+        assert _frozen_instruction(career_id, fixture_id) is None  # peek() didn't freeze it
+        return
+
+    pytest.fail("no seed in range(1, 6) produced a refused request_instruction")
+
+
+def test_a_granted_role_request_re_derives_the_instruction(api_client, mock_engine):
+    """§12.10 - agreeing to move you to a role and still expecting the old
+    role's instruction would be a contradiction the coach created himself.
+
+    Swept across seeds for the same reason as the refused-request test
+    above: a fixed career/fixture makes `_roll` deterministic (INV-7), so
+    without a sweep this test would either always or never exercise the
+    granted branch it exists to prove."""
+    for seed in range(1, 6):
+        career_id, _team_id = new_career(api_client, seed=seed)
+        advance_to_match_day(api_client, career_id)
+        events = api_client.get(f"/careers/{career_id}/day").json()["events"]
+        fixture_id = next(e["ref_id"] for e in events if e["kind"] == "match")
+
+        player = api_client.get(f"/careers/{career_id}").json()["player"]
+        other = next(
+            r for r in roles_for_position(player["position"])
+            if r["role_id"] != player["role"]
+            and r["instruction"] != instruction_for_role(player["role"])
+        )
+
+        body = _talk(api_client, career_id, fixture_id, "request_role", other["role_id"]).json()
+        if not body["granted"]:
+            continue  # this seed doesn't exercise the granted branch
+
+        expected = instruction_for_role(other["role_id"])
+        assert body["coach_instruction"]["focus"] == (None if expected == "any" else expected)
+        assert _frozen_instruction(career_id, fixture_id) == expected
+        return
+
+    pytest.fail("no seed in range(1, 6) produced a granted request_role")
 
 
 def test_role_from_another_position_is_refused(api_client, match_day_career):

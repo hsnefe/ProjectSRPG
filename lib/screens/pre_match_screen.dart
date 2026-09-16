@@ -143,7 +143,7 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
 
   /// §12.1 M4. Konuşma kondisyonu ve günlük bütçeyi oynattığı için
   /// dönüşte oyuncu durumu tazeleniyor; pozisyon/rol talebi kabul edildiyse
-  /// diziliş tahtasının etiketi de değişiyor.
+  /// diziliş tahtasının etiketi de, §12.10 talimat kartı da değişiyor.
   Future<void> _openCoachTalk() async {
     final fixtureId = _fixtureId;
     if (fixtureId == null) return;
@@ -155,6 +155,11 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
           coachName: 'Antrenör',
           currentPosition: _playerPosition,
           currentRole: _playerRole,
+          // Wire'ın "farketmez" null'ı ekranın kendi "any" sentinel'ine
+          // çevrilir (CoachTalkScreen'in hedef listesi bunu bekliyor).
+          currentInstruction: _coachInstruction == null
+              ? null
+              : (_coachInstruction!.focus ?? 'any'),
           session: widget.session,
         ),
       ),
@@ -171,6 +176,22 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
         // katalog adını değil); etiketi boşaltıyoruz ki eski rolün adı
         // yanlış yerde durmasın — tahta pozisyona düşer.
         _roleName = null;
+      }
+      // §12.10 · `request_instruction` doğrudan değiştirdiyse ya da bir
+      // rol/pozisyon talebi yeniden türettiyse `instructionLabel` dolu
+      // gelir. Rol de değiştiyse (`result.role != null`) rol adı/id'si
+      // bilinmiyor — yukarıdaki `_roleName = null` ile aynı gerekçeyle
+      // boş bırakılır, kart pozisyona düşer.
+      if (result.instructionLabel case final label?) {
+        final roleChanged = result.role != null;
+        _coachInstruction = CoachInstruction(
+          focus: result.instructionFocus,
+          label: label,
+          roleId: roleChanged ? result.role : _coachInstruction?.roleId,
+          roleName: roleChanged ? null : _coachInstruction?.roleName,
+          position: result.position ?? _coachInstruction?.position,
+          source: 'coach_talk',
+        );
       }
     });
   }

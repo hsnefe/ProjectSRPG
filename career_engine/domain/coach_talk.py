@@ -20,8 +20,8 @@ import random
 import sqlite3
 
 from api import config, errors
-from domain import day_budget, relationships
-from worlddata.positions import POSITIONS, get_role, roles_for_position
+from domain import day_budget, instructions, relationships
+from worlddata.positions import POSITIONS, get_role, instruction_for_role, roles_for_position
 
 COACH_RELATIONSHIP_ID = "coach"
 
@@ -51,13 +51,21 @@ TOPICS = {
         "score": -2, "trust": -6.0, "condition": -1,
         "costs": {"time": 25.0, "energy": 5.0},
     },
-    # The two requests resolve against a roll rather than applying a fixed
+    # The three requests resolve against a roll rather than applying a fixed
     # delta - see _resolve_request.
     "request_position": {"costs": {"time": 35.0, "energy": 4.0}, "condition": -1},
     "request_role": {"costs": {"time": 30.0, "energy": 3.0}, "condition": -1},
+    # §12.10 - cheapest of the three: it asks for less than the other two
+    # (not to be moved, only told to play today's match differently) and its
+    # effect expires at full time, unlike a role or position change. That is
+    # priced with the day-budget discount rather than a friendlier roll -
+    # _success_chance takes no per-topic modifier, so a player who wants
+    # better odds has to raise trust or score the same way any other
+    # request-topic does.
+    "request_instruction": {"costs": {"time": 25.0, "energy": 3.0}, "condition": -1},
 }
 
-REQUEST_TOPICS = ("request_position", "request_role")
+REQUEST_TOPICS = ("request_position", "request_role", "request_instruction")
 
 # Granted: you spent real capital and he moved his plan for you. Refused: it
 # stings but costs less, because being told no is not the same as being owed
@@ -100,7 +108,7 @@ def already_talked(conn: sqlite3.Connection, career_id: str, fixture_id: str) ->
     ).fetchone() is not None
 
 
-def _validate_target(conn: sqlite3.Connection, career_id: str, topic: str, value):
+def _validate_target(conn: sqlite3.Connection, career_id: str, fixture_id: str, topic: str, value):
     """A request must name something that exists, and a role must belong to
     the position the player actually holds - asking to be a Regista while
     playing at centre-back is not a conversation the coach can have."""
@@ -111,6 +119,17 @@ def _validate_target(conn: sqlite3.Connection, career_id: str, topic: str, value
 
     if not value:
         raise errors.invalid_request(f"topic {topic!r} requires a value")
+
+    if topic == "request_instruction":
+        if value not in instructions.INSTRUCTIONS:
+            raise errors.invalid_request(f"unknown instruction {value!r}")
+        # §12.10 - `peek`, not `instruction_for`: this runs BEFORE
+        # day_budget.spend() (INV-4), and instruction_for would freeze a
+        # default here as a side effect of a request that might still be
+        # refused.
+        if value == instructions.peek(conn, career_id, fixture_id):
+            raise errors.invalid_request("already playing that way")
+        return value
 
     player = conn.execute(
         "SELECT position, role FROM player WHERE career_id = ? AND player_id = ?",
@@ -136,16 +155,30 @@ def _validate_target(conn: sqlite3.Connection, career_id: str, topic: str, value
     return value
 
 
-def _apply_request(conn: sqlite3.Connection, career_id: str, topic: str, value: str) -> dict:
-    """Writes the granted change and reports what the player looks like
-    afterwards.
+def _apply_request(
+    conn: sqlite3.Connection, career_id: str, fixture_id: str, topic: str, value: str,
+) -> tuple:
+    """Writes the granted change and reports it.
+
+    Returns `(player_fields, instruction)`: `player_fields` is
+    `{"position", "role"}` for request_role/request_position, `None` for
+    request_instruction; `instruction` is the new frozen §12.10 value.
 
     A position change can orphan the role - roles belong to exactly one
     position (worlddata/positions.py) - so the role moves with it, to the
     first role of the new position. Silently keeping an impossible pairing
     would break role_belongs_to_position for every later reader; picking for
     the player is the lesser surprise, and the response says so.
+
+    A granted role/position change also re-derives the coach's instruction
+    from the new role (§12.10): agreeing to play you as a Mezzala and still
+    expecting you to sit deep would be a contradiction the coach himself
+    created, not a state the frozen instruction should be allowed to keep.
     """
+    if topic == "request_instruction":
+        instructions.set_instruction(conn, career_id, fixture_id, value)
+        return None, value
+
     if topic == "request_role":
         conn.execute(
             "UPDATE player SET role = ? WHERE career_id = ? AND player_id = ?",
@@ -162,7 +195,9 @@ def _apply_request(conn: sqlite3.Connection, career_id: str, topic: str, value: 
         "SELECT position, role FROM player WHERE career_id = ? AND player_id = ?",
         (career_id, config.USER_PLAYER_ID),
     ).fetchone()
-    return {"position": row["position"], "role": row["role"]}
+    new_instruction = instruction_for_role(row["role"])
+    instructions.set_instruction(conn, career_id, fixture_id, new_instruction)
+    return {"position": row["position"], "role": row["role"]}, new_instruction
 
 
 def talk(
@@ -180,7 +215,7 @@ def talk(
     if spec is None:
         raise errors.invalid_request(f"unknown topic {topic!r}")
 
-    target = _validate_target(conn, career_id, topic, value)
+    target = _validate_target(conn, career_id, fixture_id, topic, value)
 
     # After validation, before the first write: a rejected request must not
     # have cost the day (INV-4).
@@ -188,6 +223,7 @@ def talk(
 
     granted = None
     player_after = None
+    instruction_after = None
 
     if topic in REQUEST_TOPICS:
         traits = relationships.get_traits(conn, career_id, COACH_RELATIONSHIP_ID)
@@ -197,7 +233,9 @@ def talk(
         score_delta = GRANTED_SCORE if granted else REFUSED_SCORE
         trust_delta = GRANTED_TRUST if granted else REFUSED_TRUST
         if granted:
-            player_after = _apply_request(conn, career_id, topic, target)
+            player_after, instruction_after = _apply_request(
+                conn, career_id, fixture_id, topic, target
+            )
     else:
         score_delta = spec["score"]
         trust_delta = spec["trust"]
@@ -217,4 +255,19 @@ def talk(
         "trait_changes": trait_changes,
         "condition_delta": spec.get("condition", 0),
         "player": player_after,
+        # §12.10 - the instruction as it stands after this conversation,
+        # whether a granted request_instruction changed it directly or a
+        # granted request_role/request_position re-derived it from the new
+        # role. `None` for every other outcome (a philosophy/style topic, or
+        # any refused request). A separate key rather than folded into
+        # "player" so a client only interested in the instruction doesn't
+        # need to know that a role/position change can carry one too.
+        "coach_instruction": (
+            {
+                "focus": instructions.focus_wire(instruction_after),
+                "label": instructions.label(instruction_after),
+            }
+            if instruction_after is not None
+            else None
+        ),
     }

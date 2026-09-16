@@ -15,9 +15,12 @@ class CoachTalkRequest(BaseModel):
         "style_reject",
         "request_position",
         "request_role",
+        "request_instruction",
     ]
 
-    # Only the two request topics carry one: a position name for
-    # request_position, a role_id for request_role. domain/coach_talk.py
-    # rejects a value on the other four rather than ignoring it.
+    # Only the three request topics carry one: a position name for
+    # request_position, a role_id for request_role, an instruction value
+    # (§12.10, `worlddata.positions.INSTRUCTIONS`) for request_instruction.
+    # domain/coach_talk.py rejects a value on the other four rather than
+    # ignoring it.
     value: Optional[str] = None
