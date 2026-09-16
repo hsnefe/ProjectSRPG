@@ -156,10 +156,14 @@ def post_purchase(career_id: str, body: PurchaseRequest, conn: sqlite3.Connectio
 
     # §6.2: a purchase spends no day_budget — money is an effect, not a cost.
     entry = wallet.apply(conn, career_id, -item["price"], "purchase", f"purchase:{body.catalog_id}", happened_at)
+    # §12.13 D65: weekly_return is frozen here, same reasoning as
+    # price_paid/upkeep_weekly — a re-priced item in the catalog never
+    # changes what an already-purchased row pays out.
+    weekly_return = round(item["price"] * item.get("weekly_return_rate", 0))
     conn.execute(
-        "INSERT INTO inventory (career_id, item_id, purchased_at, price_paid, upkeep_weekly) "
-        "VALUES (?, ?, ?, ?, ?)",
-        (career_id, body.catalog_id, current_date, item["price"], item["upkeep_weekly"]),
+        "INSERT INTO inventory (career_id, item_id, purchased_at, price_paid, upkeep_weekly, weekly_return) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (career_id, body.catalog_id, current_date, item["price"], item["upkeep_weekly"], weekly_return),
     )
     conn.commit()
 
@@ -262,6 +266,17 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
         current_date = next_date
         conn.execute("UPDATE career_state SET game_date = ? WHERE career_id = ?", (current_date, career_id))
         day_budget.refill(conn, career_id)
+        # §12.12 - AFTER refill, which resets day_budget.remaining to the flat
+        # default wholesale; an owned item's energy bonus applied before this
+        # would be silently overwritten a line later. No `ceiling` here on
+        # purpose (unlike T2's one-shot energy effect, which tops back up
+        # TOWARD the default after spending): the whole point of an item like
+        # home-espresso is to raise TODAY's energy past the plain default,
+        # not just restore it there — capping at the default would make the
+        # bonus a no-op the instant it's added, since refill already put
+        # `remaining` exactly at that ceiling.
+        if day_result["energy_bonus"]:
+            day_budget.add(conn, career_id, "energy", day_result["energy_bonus"])
 
         days_advanced += 1
         ledger_entries += day_result["ledger_entries"]

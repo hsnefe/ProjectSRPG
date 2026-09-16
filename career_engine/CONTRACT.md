@@ -2545,6 +2545,7 @@ yeri gösterir. `grep "⟦" CONTRACT.md` hepsini bulur.
 | ⟦AÇIK-9⟧ | §5.2 P1 `fame[]` | Şöhretin boyutu, aralığı, kaynakları |
 | ⟦AÇIK-9⟧ | §5.7 N3 `effects["fame:overall"]` | Katalog kalemlerinin şöhret getirisi (bugün `null`) |
 | ⟦AÇIK-13⟧ | §12.11 | Taktik yeterliliğinin maça nasıl yansıyacağı — D37'nin ayırdığı "gelecekteki mini-oyun-zorluk kancası" |
+| ⟦AÇIK-15⟧ | §12.13 | Altın/fon'un gerçek oynaklığı (fiyat dalgalanması, satış eylemi) — bugün üçü de sabit haftalık oran |
 | ⟦B-1⟧ | §5.2 P3 sözleşme kalemleri | v1 başlangıç sözleşmesinin tier 2 ölçeği |
 
 **Kural:** bu noktaların doldurulması **sürüm numarasını değiştirmez** ve FE
@@ -3923,3 +3924,130 @@ hattına bu turda dokunmuyor.
 | # | Garanti |
 |---|---|
 | INV-55 | P1'in `tactics[]`'i her zaman tam `len(TACTIC_KEYS)` (3) satır taşır, hiç antrenman yapılmamış bir anahtar için bile — `attributes[]`'in INV-21'iyle aynı şekil |
+
+---
+
+### 12.12 Ürün faydaları
+
+§6.6'nın `daily_effects` mekanizması ("sahip olmak mekaniğin tamamı") tek bir
+anahtar taşıyordu: `condition`. 14 dükkân kaleminden yalnızca ikisi
+(`home-treadmill`, `estate-villa`) gerçekten bir şey yapıyordu; geri kalanı,
+`note`/`description`'ı bazen bir fayda ima etse de ("Islak zeminde fark
+ediyor", "kahve kuyruğunda beklemeye son"), koda hiç dökülmemiş vitrin
+metniydi. Bu bölüm `daily_effects`'i iki anahtar daha ekleyerek genişletiyor
+ve dört kalemi gerçek, hissedilir bir faydaya bağlıyor.
+
+#### Genişleyen küme
+
+`catalog/__init__.KNOWN_DAILY_EFFECT_KEYS` artık `{"condition", "energy",
+"fame:overall"}`. Dosyanın kendi yorumu bunu zaten şart koşuyordu: "widen
+this set only in the same commit that teaches the day loop to apply the new
+key" — bu commit tam olarak o.
+
+| Kalem | Yeni `daily_effects` | Gerekçe |
+|---|---|---|
+| `home-espresso` | `{"energy": 3}` | "kahve kuyruğunda beklemeye son" |
+| `estate-studio` | `{"energy": 2}` | "Tesise on beş dakika" |
+| `estate-flat` | `{"condition": 1}` | geniş, konforlu kat (villa'nın küçük hâli) |
+| `personal-watch` | `{"fame:overall": 0.3}` | "Röportajlarda ve sponsor çekimlerinde" |
+
+`home-tv`, `home-console`, `personal-boots`, `personal-suit`,
+`personal-headphones` kasıtlı olarak dokunulmadı — `daily_effects`'in bir
+pasif-nitelik kavramı yok (INV-21 bilinçli olarak kapalı), bu yüzden bir
+konsola ya da kramponlara uydurma bir mekanik eklemek onları vitrin metni
+olarak dürüst bırakmaktan daha kötü olurdu.
+
+#### Uygulama noktası — enerji, kondisyondan farklı bir yol izliyor
+
+`domain/daytime.py::process_day()`, `condition.daily_recovery()`'nin hemen
+yanında `fame:overall` bonusunu da doğrudan uyguluyor (`fame.apply`, aynı T2
+tek seferlik etkisiyle aynı çağrı şekli). `energy` **aynı yerde
+uygulanmıyor**: T3'ün çağıran tarafı (`api/routers/time.py::post_advance`)
+`process_day()`'den hemen sonra `day_budget.refill()` çağırıyor, bu da
+`remaining`'i **toptan** güne özgü sabit değere sıfırlıyor (toplamsal değil).
+`process_day()` içinde uygulanan bir enerji bonusu bir satır sonra sessizce
+silinirdi. Çözüm: bonus miktarı `process_day()`'in dönüş değerinde
+(`energy_bonus`) dışarı taşınıyor, çağıran taraf `refill()`'den **sonra**
+`day_budget.add(conn, career_id, "energy", bonus)` çağırıyor — **tavansız**:
+T2'nin tek seferlik enerji etkisi (`ceiling=DAY_BUDGET_DEFAULTS["energy"]`)
+kaybedilen enerjiyi güne özgü tavana kadar geri getiriyor, ama burada amaç
+tam tersi — günü normalden **daha yüksek** bir enerjiyle başlatmak; aynı
+tavanı kullanmak `refill()` zaten `remaining`'i o tavana oturttuğu için
+bonusu anında etkisiz kılardı.
+
+#### FE — rozetin canlanması
+
+`note` (§5.8, FE sunumu) bugüne kadar sahip olunan bir kalemin gerçekte ne
+yaptığına dair hiçbir canlı bağlantı taşımıyordu — salt vitrin metniydi.
+`training_screen.dart`'ın P1 tabanlı ilerleme çubukları gibi, dükkân
+ekranındaki "Sahip" rozetinin yanına, `daily_effects`'ten türetilen ayrı ve
+belirgin (yeşil) bir "gerçek fayda" rozeti eklendi — sahip olunan bir kalemin
+pazarlama metniyle gerçek mekaniği artık görsel olarak ayrışıyor.
+
+#### Yeni kararlar
+
+| # | Konu | Karar | Gerekçe |
+|---|---|---|---|
+| D64 | `energy` bonusunun uygulanma noktası | **`process_day()` içinde değil, çağıranın `day_budget.refill()`'den SONRAKİ adımında, tavansız `day_budget.add`** | `refill()` `remaining`'i toptan sıfırlıyor; `process_day()` içinde uygulansa aynı turda silinirdi. Tavan konursa da `refill()` zaten `remaining`'i o tavana oturttuğu için bonus sıfıra düşerdi — bu satır D64'ün asıl gerekçesi |
+
+---
+
+### 12.13 Yatırım getirisi
+
+`investment` ailesinin üç kalemi ("Yıllık %28 getiri" gibi) bir getiri vaat
+ediyordu ama hiçbir ödeme mekanizması yoktu — saf vitrin metni. Bu bölüm
+`domain/sponsorship.py::pay_weekly()`'nin doğrudan bir aynası: aynı Pazartesi
+kapısı, aynı `wallet.apply()` şekli, gelir yönünde (upkeep'in gideri yerine).
+
+#### Şema — `016_investment_returns.sql`
+
+```sql
+ALTER TABLE inventory ADD COLUMN weekly_return INTEGER NOT NULL DEFAULT 0;
+```
+
+`upkeep_weekly`'nin birebir aynı şekli: satın alma anında donduruluyor,
+katalogda yeniden fiyatlandırma zaten sahip olunan bir satırı etkilemiyor
+(D27'nin ikizi).
+
+#### `weekly_return_rate` → `weekly_return`
+
+`catalog/shop.py`'de yalnızca `investment` kalemleri `weekly_return_rate`
+taşıyor — `effects`/`daily_effects` gibi bir çapa-anahtar haritası değil, düz
+bir oran (`upkeep_weekly` gibi doğrulanmamış bir üst-seviye alan).
+`api/routers/time.py::post_purchase()`, satın alma anında `round(price *
+weekly_return_rate)`'i hesaplayıp `inventory.weekly_return`'e yazıyor.
+
+| Kalem | Fiyat (yeniden fiyatlandırıldı) | Oran | Haftalık |
+|---|---|---|---|
+| `invest-bond` | 80→2000 ₭ | %28/yıl (değişmedi) | ~11 ₭ |
+| `invest-gold` | 110→3000 ₭ | %6/yıl | ~3 ₭ |
+| `invest-fund` | 260→5000 ₭ | %20/yıl | ~19 ₭ |
+
+Yeniden fiyatlandırma bilinçli: eski fiyatlarda (80-260 ₭) bu oranlar
+yuvarlanınca 0 ₭/hafta verirdi — mekanik görünmez olurdu. `catalog/shop.py`
+zaten "Amounts are authored... ⟦AÇIK-5⟧ still covers whether this scale is
+right" diyor; bu değişiklik o iznin kapsamında.
+
+#### Ödeme — `domain/investments.py::pay_returns()`
+
+`sponsorship.pay_weekly()`'nin yapısal kopyası: `weekly_return > 0` olan her
+`inventory` satırı için bir `wallet.apply(..., "investment",
+f"investment:{item_id}:{on_date}", ...)`. `domain/daytime.py`'nin sponsorluk
+çağrısının **her iki** noktasına da (`resolve_pending_monday` ve
+`process_day`'in Pazartesi bloğu) sponsorluktan hemen sonra, upkeep'ten önce
+eklendi — aynı "gelir önce, koşulsuz" sırası (§12.7'nin zaten belirttiği
+gerekçe: bir çek nakde çevrilmeden bir villa geri alınmamalı).
+
+#### Kapsam dışı
+
+Altın/fon'un "gerçek" oynaklığı (fiyat dalgalanması, bir satış eylemi)
+bilinçli olarak yazılmadı — ⟦AÇIK-15⟧. Bu turda üçü de aynı sabit haftalık
+oranla çalışıyor; `invest-fund`'ın "dalgalı" vitrin metni bugün yalnızca
+metin. D37'nin kendi AÇIK-1 notuyla aynı desen: daha derin bir simülasyon,
+istendiğinde ayrı bir artış olarak gelecek.
+
+#### Yeni kararlar
+
+| # | Konu | Karar | Gerekçe |
+|---|---|---|---|
+| D65 | Yatırım getirisinin şekli | **Sabit haftalık tutar, satın almada donduruluyor — `upkeep_weekly`/`weekly_income` ile aynı desen** | Üç kalemin de (tahvil/altın/fon) farklı bir simülasyon modeli (sabit oran, fiyat dalgalanması, rastgele getiri) hak ettiği tartışılabilir, ama üçü de TEK bir mekanizmadan (haftalık Pazartesi ödemesi) geçirmek hem test yüzeyini hem riski küçük tutuyor; fon'un "iddialı" karakteri bugün yalnızca daha yüksek bir sabit orana (%20 vs %6/%28) yansıyor |

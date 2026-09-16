@@ -1,0 +1,11 @@
+-- Yatırım getirisi (§12.13, D65).
+--
+-- upkeep_weekly'nin tam tersi: haftalık bir GELİR, satın alma anında
+-- dondurulan bir tutar. `weekly_return_rate` (catalog/shop.py, sadece
+-- `investment` ailesindeki kalemlerde) fiyatın bir oranı; bu kolon o oranın
+-- satın alma fiyatıyla çarpılmış hâli — upkeep_weekly'nin katalogdan
+-- doğrudan kopyalanma şekliyle aynı "dondur, sonra hep aynısını öde" deseni.
+--
+-- Yeni bir tabloya değil `inventory`'ye eklendi çünkü zaten `price_paid` ve
+-- `upkeep_weekly` burada donduruluyor; üçüncü bir tutar da aynı satırda.
+ALTER TABLE inventory ADD COLUMN weekly_return INTEGER NOT NULL DEFAULT 0;

@@ -250,6 +250,38 @@ def test_the_item_bonus_still_stops_at_the_attribute_ceiling(
     assert body["career_state"]["condition"] == 100
 
 
+# --- §12.12: daily_effects widened to energy/fame:overall -----------------
+
+def test_owning_home_espresso_raises_daily_energy(api_client, created_career, mock_engine):
+    """Mirrors test_owning_an_item_raises_both_the_preview_and_the_actual_gain
+    for the energy key — no T1 preview exists for this one (only condition
+    has one, §6.6), so this only checks the applied side."""
+    career_id = created_career["career_id"]
+    grant_money(career_id, 10_000)
+    assert api_client.post(
+        f"/careers/{career_id}/purchases", json={"catalog_id": "home-espresso"}
+    ).status_code == 200
+
+    body = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"}).json()
+    # refill() sets the flat default first, the bonus is added on top of it —
+    # NOT capped back down to the default (that would make it a no-op).
+    assert body["career_state"]["day_budget"]["energy"] == (
+        config.DAY_BUDGET_DEFAULTS["energy"] + 3
+    )
+
+
+def test_owning_personal_watch_raises_daily_fame(api_client, created_career, mock_engine):
+    career_id = created_career["career_id"]
+    grant_money(career_id, 10_000)
+    assert api_client.post(
+        f"/careers/{career_id}/purchases", json={"catalog_id": "personal-watch"}
+    ).status_code == 200
+
+    api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"})
+    fame = api_client.get(f"/careers/{career_id}/player").json()["fame"]
+    assert next(f["value"] for f in fame if f["scope"] == "overall") == 0.3
+
+
 def test_advance_reports_the_condition_it_moved(api_client, created_career, mock_engine):
     """§5.5 T3 - before/after travel together so a caller stepping day by
     day can animate the bar without caching the previous value itself."""
@@ -386,6 +418,53 @@ def test_advance_monday_pays_wage(api_client, created_career, mock_engine):
     assert len(wage_entries) == 1
     assert wage_entries[0]["amount"] == config.STARTING_WEEKLY_WAGE
     assert body["career_state"]["money"] == config.STARTING_MONEY + config.STARTING_WEEKLY_WAGE
+
+
+# --- §12.13: investment returns ---------------------------------------------
+
+def test_an_owned_investment_pays_every_monday(api_client, created_career, mock_engine):
+    """Mirrors test_sponsorship.py's test_an_active_deal_pays_every_monday —
+    same weekly-Monday-income shape, different source table."""
+    career_id = created_career["career_id"]
+    grant_money(career_id, 10_000)
+    buy = api_client.post(
+        f"/careers/{career_id}/purchases", json={"catalog_id": "invest-bond"}
+    )
+    assert buy.status_code == 200
+    from catalog.shop import SHOP_ITEMS
+    bond = next(i for i in SHOP_ITEMS if i["catalog_id"] == "invest-bond")
+    expected_return = round(bond["price"] * bond["weekly_return_rate"])
+
+    paid = 0
+    for _ in range(9):  # exactly one Monday in nine days
+        resp = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"})
+        if resp.status_code != 200:
+            break
+        for entry in resp.json()["ledger_entries"]:
+            if entry["kind"] == "investment":
+                paid += entry["amount"]
+
+    assert paid == expected_return
+
+
+def test_the_investment_return_is_frozen_at_purchase(api_client, created_career):
+    """Same reasoning as upkeep_weekly (D27) and sponsorship's weekly_income:
+    a re-priced catalog item never changes what an already-bought row pays."""
+    career_id = created_career["career_id"]
+    grant_money(career_id, 10_000)
+    api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "invest-bond"})
+
+    conn = sqlite3.connect(config.DB_PATH)
+    conn.row_factory = sqlite3.Row
+    stored = conn.execute(
+        "SELECT weekly_return FROM inventory WHERE career_id = ? AND item_id = 'invest-bond'",
+        (career_id,),
+    ).fetchone()["weekly_return"]
+    conn.close()
+
+    from catalog.shop import SHOP_ITEMS
+    bond = next(i for i in SHOP_ITEMS if i["catalog_id"] == "invest-bond")
+    assert stored == round(bond["price"] * bond["weekly_return_rate"])
 
 
 def test_advance_past_the_season_asks_for_a_rollover(api_client, created_career):

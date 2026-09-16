@@ -24,13 +24,14 @@ _SIMPLE_EFFECT_KEYS = {"condition", "energy", "money"}
 # third dimension is added later without a code change here.
 KNOWN_COST_KEYS = {"time", "energy"}
 
-# §6.3/§6.6 - the keys the DAY LOOP applies once per advanced day, as opposed
-# to `effects`, which a single action applies once. Deliberately NARROWER than
-# _is_known_effect_key's space: `condition` is the only one domain/daytime.py
-# actually reads, and a `money` key sitting in a shop item doing nothing every
-# day is exactly the dead row INV-28 exists to reject. Widen this set only in
-# the same commit that teaches the day loop to apply the new key.
-KNOWN_DAILY_EFFECT_KEYS = {"condition"}
+# §6.3/§6.6/§12.12 - the keys the DAY LOOP applies once per advanced day, as
+# opposed to `effects`, which a single action applies once. Deliberately
+# NARROWER than _is_known_effect_key's space: a `money` key sitting in a shop
+# item doing nothing every day is exactly the dead row INV-28 exists to
+# reject. `energy`/`fame:overall` joined `condition` in the same commit that
+# taught domain/daytime.py to apply them (catalog/shop.py's
+# daily_energy_bonus/daily_fame_bonus) - widen this set only alongside that.
+KNOWN_DAILY_EFFECT_KEYS = {"condition", "energy", "fame:overall"}
 
 # D43 - `requires` values are attribute LEVELS, not raw values. The bounds
 # mirror domain.attributes.level()'s range exactly; a threshold of 11 could

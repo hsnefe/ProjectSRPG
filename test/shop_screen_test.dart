@@ -19,7 +19,8 @@ const _shopItems = [
   {'catalog_id': 'home-tv', 'title': 'Akıllı TV', 'category': 'home',
    'description': '…', 'price': 32000, 'upkeep_weekly': 0, 'note': '65 inç, 4K'},
   {'catalog_id': 'home-espresso', 'title': 'Espresso makinesi', 'category': 'home',
-   'description': '…', 'price': 12500, 'upkeep_weekly': 0, 'note': 'Otomatik öğütücülü'},
+   'description': '…', 'price': 12500, 'upkeep_weekly': 0, 'note': 'Otomatik öğütücülü',
+   'daily_effects': {'energy': 3}},
   {'catalog_id': 'home-console', 'title': 'Oyun konsolu', 'category': 'home',
    'description': '…', 'price': 18900, 'upkeep_weekly': 0, 'note': 'İki kollu'},
   {'catalog_id': 'home-treadmill', 'title': 'Koşu bandı', 'category': 'home',
@@ -169,6 +170,30 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Sahipsin'), findsOneWidget);
     expect(find.text('Satın Al'), findsNothing);
+  });
+
+  testWidgets('§12.12 · sahip olununca canlı fayda rozeti belirir', (tester) async {
+    await tester.pumpWidget(_wrap(ShopScreen(
+      session: _shopSession(purchaseResponses: {'home-espresso': 35700}),
+    )));
+    await tester.pumpAndSettle();
+
+    await tester.tap(_card('Espresso makinesi'));
+    await tester.pumpAndSettle();
+
+    // Henüz sahip değil: not rozeti var, canlı fayda rozeti yok.
+    expect(find.textContaining('Otomatik öğütücülü'), findsOneWidget);
+    expect(find.text('Günlük +3 enerji'), findsNothing);
+
+    await tester.tap(find.text('Satın Al'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(_card('Espresso makinesi'));
+    await tester.pumpAndSettle();
+
+    // Artık sahip: not hâlâ orada, ama ayrıca canlı fayda rozeti de var.
+    expect(find.textContaining('Otomatik öğütücülü'), findsOneWidget);
+    expect(find.text('Günlük +3 enerji'), findsOneWidget);
   });
 
   testWidgets('bakiye yetmeyen ürün alınamaz', (tester) async {

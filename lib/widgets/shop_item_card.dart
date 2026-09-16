@@ -15,6 +15,7 @@ class ShopItem {
     required this.tint,
     required this.price,
     this.note,
+    this.benefitLabel,
     this.imageAsset,
   });
 
@@ -31,6 +32,11 @@ class ShopItem {
 
   /// 'Yıllık %28 getiri', '3+1, 120 m²' gibi serbest metin.
   final String? note;
+
+  /// §12.12 · 'Günlük +3 enerji' gibi — `note`'dan farklı olarak sahip
+  /// olunan kalemin `daily_effects`'inden türetilen, canlı bir etki. Null
+  /// ise kalemin mekanik bir faydası yok, salt vitrin.
+  final String? benefitLabel;
 
   /// Ürün fotoğrafı. Null ise ton ve ikondan prosedürel bir görsel çizilir.
   ///

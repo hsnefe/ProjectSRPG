@@ -18,8 +18,9 @@ from typing import List, Optional, Set
 
 from api import config
 from api.ids import new_news_id
+from catalog import shop
 from domain import (
-    condition, contracts, engine_client, formulas, scheduling,
+    condition, contracts, engine_client, fame, formulas, investments, scheduling,
     season as season_mod, social, sponsorship, squad, transfer, wallet,
 )
 from worlddata.competitions import ULUSAL_KUPA
@@ -494,8 +495,10 @@ def resolve_pending_monday(conn: sqlite3.Connection, career_id: str, on_date: st
         ledger_entries.append(wage_entry)
     # §12.7 - sponsorship money arrives on the same Monday, and BEFORE the
     # upkeep is taken: it is income, and letting a villa be repossessed while
-    # a cheque sits uncashed would be wrong in the obvious way.
+    # a cheque sits uncashed would be wrong in the obvious way. §12.13 -
+    # investment returns are the same kind of income, same reasoning.
     ledger_entries += sponsorship.pay_weekly(conn, career_id, on_date)
+    ledger_entries += investments.pay_returns(conn, career_id, on_date)
     upkeep_entries, repossessed = _pay_upkeep(conn, career_id, on_date)
     ledger_entries += upkeep_entries
     return {"ledger_entries": ledger_entries, "repossessed": repossessed}
@@ -555,8 +558,10 @@ def process_day(conn: sqlite3.Connection, career_id: str, on_date: str, seed: in
         # §12.7 - sponsorship money lands on Monday whatever else happens.
         # Outside the warned/else split on purpose: income arriving is not
         # conditional on the upkeep being affordable, and it is exactly what
-        # might make it affordable.
+        # might make it affordable. §12.13 - investment returns land the
+        # same unconditional way.
         ledger_entries += sponsorship.pay_weekly(conn, career_id, on_date)
+        ledger_entries += investments.pay_returns(conn, career_id, on_date)
 
         if warned_today:
             shortfall = next(e["shortfall"] for e in events if e["kind"] == "upkeep_warning")
@@ -579,6 +584,25 @@ def process_day(conn: sqlite3.Connection, career_id: str, on_date: str, seed: in
     # application can't disagree.
     recovery = condition.daily_recovery(conn, career_id)
     condition.apply_delta(conn, career_id, recovery["total"])
+
+    # §12.12 - the same "owning it is the whole mechanic" idea, for the two
+    # keys that joined `condition` in KNOWN_DAILY_EFFECT_KEYS. Fame applies
+    # here directly, same as condition. Energy does NOT: T3's caller runs
+    # day_budget.refill() right after this function returns, which resets
+    # `remaining` to config.DAY_BUDGET_DEFAULTS wholesale (not additive) — an
+    # add() here would be silently wiped a moment later. The bonus travels
+    # out in the return value instead, for the caller to apply AFTER refill.
+    owned_ids = [
+        row["item_id"] for row in
+        conn.execute("SELECT item_id FROM inventory WHERE career_id = ?", (career_id,)).fetchall()
+    ]
+    energy_bonus = shop.daily_energy_bonus(owned_ids)
+    fame_bonus = shop.daily_fame_bonus(owned_ids)
+    if fame_bonus:
+        fame.apply(
+            conn, career_id, config.USER_PLAYER_ID, fame_bonus, "shop_item_daily",
+            f"{on_date}T00:00:00+03:00", scope="overall",
+        )
 
     # §6.3 D53: the day's chance of a social offer. After the recovery so a
     # template whose accept branch costs condition is priced against the
@@ -619,6 +643,9 @@ def process_day(conn: sqlite3.Connection, career_id: str, on_date: str, seed: in
         "social_offer": offer,
         "social_conflict": conflict,
         "condition_recovery": recovery,
+        # §12.12 - the caller applies this via day_budget.add AFTER its own
+        # day_budget.refill() call; see the comment where this is computed.
+        "energy_bonus": energy_bonus,
         "ledger_entries": ledger_entries,
         "news_created": news_created,
         "repossessed": repossessed,

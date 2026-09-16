@@ -2553,6 +2553,12 @@ class CatalogItem {
   int? get price => raw['price'] as int?;
   int? get upkeepWeekly => raw['upkeep_weekly'] as int?;
   String? get note => raw['note'] as String?;
+
+  /// §12.12 · `shop` kataloğu — sahip olunan kalemin günlük pasif faydası
+  /// (`condition`/`energy`/`fame:overall`). `note`'un aksine bu canlı: bir
+  /// kalemin gerçekte ne yaptığı, vitrin metninden ayrı okunabiliyor.
+  Map<String, dynamic> get dailyEffects =>
+      (raw['daily_effects'] as Map<String, dynamic>?) ?? const {};
 }
 
 /// N3 · `GET /catalog/{kind}`.

@@ -63,6 +63,23 @@ const _tintByCatalogId = {
 
 const _defaultTint = AppColors.textMuted;
 
+/// §12.12 · `daily_effects`'ten Türkçe bir rozet etiketi türetir. Birden
+/// fazla anahtar taşıyan bir kalem yok bugün, o yüzden ilk eşleşen yeterli.
+String? _benefitLabelFor(Map<String, dynamic> dailyEffects) {
+  for (final entry in dailyEffects.entries) {
+    final amount = (entry.value as num).toString();
+    switch (entry.key) {
+      case 'condition':
+        return 'Günlük +$amount kondisyon';
+      case 'energy':
+        return 'Günlük +$amount enerji';
+      case 'fame:overall':
+        return 'Günlük +$amount şöhret';
+    }
+  }
+  return null;
+}
+
 ShopItem _toShopItem(api.CatalogItem item) {
   return ShopItem(
     id: item.catalogId,
@@ -72,6 +89,7 @@ ShopItem _toShopItem(api.CatalogItem item) {
     tint: _tintByCatalogId[item.catalogId] ?? _defaultTint,
     price: item.price ?? 0,
     note: item.note,
+    benefitLabel: _benefitLabelFor(item.dailyEffects),
   );
 }
 
@@ -650,6 +668,14 @@ class _ItemDetails extends StatelessWidget {
                 _Badge(
                   icon: Icons.check,
                   label: 'Sahip',
+                  color: AppColors.success,
+                ),
+              // §12.12 · `note`'dan ayrı, canlı bir rozet: sahip olunan bir
+              // kalemin gerçekte ne sağladığı, vitrin metninden ayrışıyor.
+              if (owned && item.benefitLabel != null)
+                _Badge(
+                  icon: Icons.auto_awesome,
+                  label: item.benefitLabel!,
                   color: AppColors.success,
                 ),
             ],
