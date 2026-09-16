@@ -105,6 +105,23 @@ void main() {
       expect(game.speed, before);
       expect(game.phase, DribblePhase.running);
     });
+
+    test('kaydırma durunca hız saniyede tam friction kadar düşer', () {
+      // Sürekli müdahale gereksinimi: tavana çıkmak tek başına yetmez, orada
+      // kalmak için kaydırmaya devam etmek gerekir.
+      final game = _game()..swipe(_up);
+      for (var i = 0; i < 40; i++) {
+        game.swipe(_up);
+      }
+      expect(game.speed, DribbleGame.maxSpeed); // önce tavana ulaştığını doğrula
+
+      game.advance(1.0); // hiç kaydırma yok — yalnızca sürtünme
+
+      expect(
+        game.speed,
+        closeTo(DribbleGame.maxSpeed - DribbleGame.friction, 1e-9),
+      );
+    });
   });
 
   group('koşu', () {

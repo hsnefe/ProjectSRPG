@@ -63,7 +63,16 @@ class DribbleGame extends FlameGame {
 
   /// Kaydırma olmadığında saniyede kaybedilen hız. Top kendi kendine durur,
   /// yani sürmek sürekli bir eylem.
-  static const friction = 0.42;
+  ///
+  /// 0.42'de tavan hızdan (3.2) sıfıra inmek ~7.6 sn sürüyordu — kursun
+  /// tamamından uzun, yani bir iki kaydırmayla tavana çıkıp gerisini
+  /// sürtünmeye rağmen kayarak bitirmek mümkündü. 0.9'da bu süre ~3.6 sn'ye
+  /// iner ve fırlatma hızından (0.9) sıfıra iniş tam 1 sn sürer — kaydırmayı
+  /// bırakmanın bedeli artık hissediliyor. Denge noktası `swipeAccel /
+  /// friction` ≈ 0.69 sn: oyuncu bu aralıktan daha seyrek kaydırırsa hız net
+  /// düşer, daha sık kaydırırsa yükselir — "sürekli müdahale" tek bir
+  /// kaydırmayla tavana çıkıp bırakmak değil, bu ritmi tutmak demek.
+  static const friction = 0.9;
 
   /// Kaç temassızlık affedilir. Koni ya da duvar farketmez.
   static const maxHits = 3;
