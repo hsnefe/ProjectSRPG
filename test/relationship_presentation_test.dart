@@ -63,5 +63,19 @@ void main() {
     test('bilinmeyen bir ilişkinin hâlâ portresi yok', () {
       expect(kDefaultRelationshipPresentation.portraitAsset, isNull);
     });
+
+    // Kart neredeyse kare (215x300), diyalog şeridi geniş bir bant — aynı
+    // görsel ikisine de uymuyor: diyalog için üstte pay bırakılan görsel,
+    // kartta kişiyi küçültüp boşluk bırakırdı. Bu yüzden kartın kendi,
+    // boşluksuz kırpımı var.
+    test('altı ilişkinin de ayrı, boşluksuz bir kart portresi var', () {
+      for (final id in ['coach', 'team', 'media', 'fans', 'partner', 'family']) {
+        expect(
+          presentationForRelationship(id).cardPortraitAsset,
+          'assets/images/portraits/cards/$id.png',
+          reason: id,
+        );
+      }
+    });
   });
 }

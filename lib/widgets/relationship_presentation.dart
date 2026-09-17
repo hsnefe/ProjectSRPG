@@ -18,6 +18,7 @@ class RelationshipPresentation {
     required this.dialogueId,
     required this.scene,
     this.portraitAsset,
+    this.cardPortraitAsset,
   });
 
   final IconData icon;
@@ -32,10 +33,18 @@ class RelationshipPresentation {
   /// catalog/dialogue.py'nin `DIALOGUE_RELATIONSHIP` anahtarları.
   final String dialogueId;
 
-  /// §1.2 · `assets/images/portraits/<relationship_id>.png` — null ise
-  /// `CharacterPortrait`/`DialogScreen` prosedürel büste düşer
-  /// ([PortraitTraits.forId]). Görsel geldikçe burada, tek yerde açılır.
+  /// §1.2 · `assets/images/portraits/<relationship_id>.png` — geniş diyalog
+  /// şeridi için, üstte boşluk paylı (yüz kutunun ortasına düşsün diye).
+  /// Null ise `CharacterPortrait`/`DialogScreen` prosedürel büste düşer
+  /// ([PortraitTraits.forId]).
   final String? portraitAsset;
+
+  /// §1.2 · `assets/images/portraits/cards/<relationship_id>.png` —
+  /// İlişkiler kartı için, boşluksuz orijinal kırpım. Kart neredeyse kare
+  /// (215x300), orijinal kare kırpımı zaten kenara taşmadan oturuyor;
+  /// diyalog için eklenen üst boşluk burada kişiyi küçültüp ortaya boşluk
+  /// bırakırdı — o yüzden kartın kendi, boşluksuz versiyonu var.
+  final String? cardPortraitAsset;
 }
 
 const kPartnerPurple = Color(0xFF9B5CF6);
@@ -53,18 +62,21 @@ const _presentationByRelationshipId = {
     leftTag: 'KLÜP', dialogueId: 'coach_01',
     scene: DialogueScene.lockerRoom,
     portraitAsset: 'assets/images/portraits/coach.png',
+    cardPortraitAsset: 'assets/images/portraits/cards/coach.png',
   ),
   'team': RelationshipPresentation(
     icon: Icons.groups_outlined, tint: AppColors.success, badgeCode: 'TK',
     leftTag: 'KLÜP', dialogueId: 'team_01',
     scene: DialogueScene.trainingGround,
     portraitAsset: 'assets/images/portraits/team.png',
+    cardPortraitAsset: 'assets/images/portraits/cards/team.png',
   ),
   'media': RelationshipPresentation(
     icon: Icons.mic_none_outlined, tint: AppColors.danger, badgeCode: 'MD',
     leftTag: 'BASIN', dialogueId: 'media_01',
     scene: DialogueScene.pressRoom,
     portraitAsset: 'assets/images/portraits/media.png',
+    cardPortraitAsset: 'assets/images/portraits/cards/media.png',
   ),
   // `dialogueId` bilinçli olarak boş: catalog/dialogue.py'de 'fans' için bir
   // diyalog ağacı yok, `_openDialog` bunu `_dialogueTreeByRelationshipId`'de
@@ -74,18 +86,21 @@ const _presentationByRelationshipId = {
     leftTag: 'TARAFTAR', dialogueId: '',
     scene: DialogueScene.stadium,
     portraitAsset: 'assets/images/portraits/fans.png',
+    cardPortraitAsset: 'assets/images/portraits/cards/fans.png',
   ),
   'partner': RelationshipPresentation(
     icon: Icons.favorite_border, tint: kPartnerPurple, badgeCode: 'PA',
     leftTag: 'ÖZEL', dialogueId: 'partner_01',
     scene: DialogueScene.home,
     portraitAsset: 'assets/images/portraits/partner.png',
+    cardPortraitAsset: 'assets/images/portraits/cards/partner.png',
   ),
   'family': RelationshipPresentation(
     icon: Icons.home_outlined, tint: AppColors.warning, badgeCode: 'AS',
     leftTag: 'ÖZEL', dialogueId: 'family_01',
     scene: DialogueScene.home,
     portraitAsset: 'assets/images/portraits/family.png',
+    cardPortraitAsset: 'assets/images/portraits/cards/family.png',
   ),
 };
 

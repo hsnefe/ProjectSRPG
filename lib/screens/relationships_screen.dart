@@ -182,7 +182,7 @@ CharacterCardData _toCardData(api.RelationshipCard card) {
     leftTag: presentation.leftTag,
     dateLabel: _lastContactLabel(card.lastContactAt),
     hasPendingRequest: card.hasPendingRequest,
-    imageAsset: presentation.portraitAsset,
+    imageAsset: presentation.cardPortraitAsset,
   );
 }
 
