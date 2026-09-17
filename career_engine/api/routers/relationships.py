@@ -34,6 +34,10 @@ def _row_to_card(row: sqlite3.Row, pending: set) -> dict:
         "contact_name": row["contact_name"],
         "last_contact_at": row["last_contact_at"],
         "has_pending_request": row["relationship_id"] in pending,  # §5.4 R4
+        # §13.2 - sent on EVERY card, not just partner's. FE should not have to
+        # infer which kinds have a lifecycle from `kind`; for the other five
+        # the value is simply always 'active' (INV-59).
+        "state": row["state"],
         "traits": traits,
     }
 
@@ -41,8 +45,13 @@ def _row_to_card(row: sqlite3.Row, pending: set) -> dict:
 @router.get("")
 def list_relationships(career_id: str, conn: sqlite3.Connection = Depends(get_db)):
     serializers.require_career(conn, career_id)
+    # INV-58 - an `absent` relationship is not listed. Filtered in SQL rather
+    # than after the fetch so "R1 never returns one" is true of the query
+    # itself, which is the thing a reader checks.
     rows = conn.execute(
-        "SELECT * FROM relationship WHERE career_id = ? ORDER BY relationship_id", (career_id,)
+        "SELECT * FROM relationship WHERE career_id = ? AND state != ? "
+        "ORDER BY relationship_id",
+        (career_id, config.STATE_ABSENT),
     ).fetchall()
     pending = social.pending_by_relationship(conn, career_id)
     return {"relationships": [_row_to_card(r, pending) for r in rows]}
@@ -85,11 +94,17 @@ def interact(
 ):
     serializers.require_career(conn, career_id)
     row = conn.execute(
-        "SELECT 1 FROM relationship WHERE career_id = ? AND relationship_id = ?",
+        "SELECT state FROM relationship WHERE career_id = ? AND relationship_id = ?",
         (career_id, relationship_id),
     ).fetchone()
     if row is None:
         raise errors.invalid_request(f"unknown relationship_id {relationship_id!r}")
+
+    # §13.2/INV-58 - before D42's gate below, and before anything is spent.
+    # Talking to someone you have not met is not a threshold problem, so it
+    # gets its own code and its own place in the order.
+    if row["state"] == config.STATE_ABSENT:
+        raise errors.relationship_absent(relationship_id)
 
     expected_relationship = DIALOGUE_RELATIONSHIP.get(body.dialogue_id)
     if expected_relationship != relationship_id:
@@ -130,6 +145,13 @@ def interact(
     happened_at = f"{current_date}T12:00:00+03:00"
     reason = f"dialogue:{body.dialogue_id}:{body.choice_path[-1]}"
 
+    # §13.2 - snapshot before the first write that could move a state, diffed
+    # after the last one. apply_delta below may end a partner on its own (a
+    # harsh leaf against a low score), and the `sets_state` block after it may
+    # move the same row again; the diff reports the one transition that
+    # actually happened rather than either path's private opinion of it.
+    states_before = relationships_domain.state_snapshot(conn, career_id)
+
     relationship_change = relationships_domain.apply_delta(
         conn, career_id, relationship_id, outcome["relationship_delta"], reason, happened_at
     )
@@ -140,6 +162,20 @@ def interact(
             attributes.apply_delta(conn, career_id, config.USER_PLAYER_ID, key, delta)
         )
 
+    # §13.2/D72 - a leaf may move the relationship's own state, but only out
+    # of `courting`. The check is here rather than in catalog/dialogue.py so a
+    # leaf can stay in the tree for a career that is already past this point:
+    # the same conversation reads as a beginning once and as small talk
+    # forever after.
+    target_state = outcome.get("sets_state")
+    if target_state is not None:
+        if relationships_domain.get_state(conn, career_id, relationship_id) == config.STATE_COURTING:
+            relationships_domain.set_state(conn, career_id, relationship_id, target_state)
+
+    state_changes = relationships_domain.state_diff(
+        states_before, relationships_domain.state_snapshot(conn, career_id)
+    )
+
     conn.commit()
 
     return {
@@ -147,6 +183,7 @@ def interact(
         # and (when the leaf carries one) condition are both in here.
         "career_state": serializers.fetch_career_state(conn, career_id),
         "relationship_changes": [relationship_change],
+        "relationship_state_changes": state_changes,   # §13.2 - empty list, never null
         "attribute_changes": attribute_changes,
         "condition_after": condition_after,
         "ledger_entries": [],

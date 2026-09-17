@@ -13,10 +13,18 @@ def test_list_relationships_returns_a_card_per_kind_at_its_starting_score(api_cl
     resp = api_client.get(f"/careers/{created_career['career_id']}/relationships")
     assert resp.status_code == 200
     rels = resp.json()["relationships"]
-    assert {r["relationship_id"] for r in rels} == set(STARTING_SCORES)
+
+    # §13.2/INV-58 - five cards, not six: `partner` is seeded `absent` and a
+    # career has not met anyone yet. The other five are unaffected.
+    listed = set(STARTING_SCORES) - {"partner"}
+    assert {r["relationship_id"] for r in rels} == listed
     # §4 - each kind starts at its own score, not a flat 50.
-    assert {r["relationship_id"]: r["score"] for r in rels} == STARTING_SCORES
+    assert {r["relationship_id"]: r["score"] for r in rels} == {
+        k: v for k, v in STARTING_SCORES.items() if k in listed
+    }
     assert all(r["has_pending_request"] is False for r in rels)
+    # §13.2 - every card carries a state; only partner's ever moves (INV-59).
+    assert all(r["state"] == "active" for r in rels)
 
     coach = next(r for r in rels if r["relationship_id"] == "coach")
     assert coach["category"] == "Antrenör"
@@ -64,7 +72,9 @@ def test_interact_applies_relationship_and_attribute_deltas(api_client, created_
     assert body["attribute_changes"] == [
         # D43: the levels ride along so a client never re-derives the scale.
         # 80.0 -> 80.2 doesn't cross a decade, so both stay 8.
-        {"key": "charisma", "before": 80.0, "after": 80.2,
+        # §13.3: passive_bonus rides along so FE can rebuild effective_value
+        # without re-fetching P1. Nothing is owned here, so it is 0.
+        {"key": "charisma", "before": 80.0, "after": 80.2, "passive_bonus": 0,
          "level_before": 8, "level_after": 8}
     ]
 

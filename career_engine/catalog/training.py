@@ -8,16 +8,24 @@ the budget's actual resource keys or scale. 'time' (minutes) and 'energy'
 values and duration_screen/README's default. The point of this file
 existing is the shape, not these specific numbers.
 
-Six saha items match training_screen.dart's six physical cards verbatim
-(same energy costs); five kişi items are new (D31) — one per kişi
-attribute. 'Müdahale' joined them when tackling became an attribute, so
-every one of the 12 §5.2 attributes still has exactly one training path.
+Seven saha items match training_screen.dart's physical cards verbatim (same
+energy costs); 'Müdahale' joined them when tackling became an attribute.
+
+§13.5/D77 retired the five kişi items (Medya Eğitimi, Görgü Dersleri,
+Özgüven Koçluğu, Satranç Kulübü, Kriz Simülasyonu) and with them D31's
+"every attribute has a training path" rule. They were the only cards with
+`drill: None` that FE could not start — five permanent "Yakında" buttons —
+and the concept was wrong anyway: a football club has no politeness drill.
+Kişi attributes now grow from lifestyle activities, social offers, dialogue
+leaves, activity events (§13.4) and owned items (§13.3) instead — D78.
+ATTRIBUTE_KEYS' kişi family is untouched; what went is the path, not the
+attribute.
 
 Three taktik items (§12.11, D63) round the file out — one per
-config.TACTIC_KEYS entry, same placeholder-economy caveat. Unlike the kişi
-items they carry no `requires` (kept unlocked on purpose, §12.11) and no
-`drill` — a tactic card applies directly (no mini-oyun) the moment
-training_screen.dart's 'taktik' tab wires it to postAction.
+config.TACTIC_KEYS entry, same placeholder-economy caveat. They carry no
+`requires` (kept unlocked on purpose, §12.11) and no `drill` — a tactic
+card applies directly, with no mini-oyun. Since §13.5 removed the kişi
+rows, `drill: None` now means exactly that one thing.
 """
 
 TRAINING_ITEMS = [
@@ -71,47 +79,6 @@ TRAINING_ITEMS = [
         "costs": {"time": 60, "energy": 20},
         "effects": {"attribute:tackling": 1.0},
     },
-    # --- kişi: D31, her nitelik için bir yol ---
-    # D42: the one gated training path, and the chain it anchors —
-    # ozguven-koclugu raises confidence to 6, which unlocks this, which
-    # raises charisma to 8, which unlocks media_01's interview reply.
-    # A fresh career sits at confidence 5, so the lock is visible on day one.
-    {
-        "catalog_id": "medya-egitimi", "title": "Medya Eğitimi",
-        "description": "Röportaj ve kamera karşısında durmayı öğren.",
-        "family": "kişi", "drill": None,
-        "costs": {"time": 60, "energy": 5},
-        "effects": {"attribute:charisma": 0.8, "money": -10},
-        "requires": {"confidence": 6},
-    },
-    {
-        "catalog_id": "gorgu-dersleri", "title": "Görgü Dersleri",
-        "description": "Sosyal ortamlarda nezaket ve incelik üzerine çalış.",
-        "family": "kişi", "drill": None,
-        "costs": {"time": 45, "energy": 5},
-        "effects": {"attribute:politeness": 0.8, "money": -5},
-    },
-    {
-        "catalog_id": "ozguven-koclugu", "title": "Özgüven Koçluğu",
-        "description": "Baskı altında kararlılığını artırmak için birebir koçluk.",
-        "family": "kişi", "drill": None,
-        "costs": {"time": 60, "energy": 8},
-        "effects": {"attribute:confidence": 0.8, "money": -8},
-    },
-    {
-        "catalog_id": "satranc-kulubu", "title": "Satranç Kulübü",
-        "description": "Analitik düşünmeyi geliştiren düzenli bir aktivite.",
-        "family": "kişi", "drill": None,
-        "costs": {"time": 90, "energy": 5},
-        "effects": {"attribute:intelligence": 0.8, "money": -3},
-    },
-    {
-        "catalog_id": "kriz-simulasyonu", "title": "Kriz Simülasyonu",
-        "description": "Beklenmedik durumlarda hızlı karar verme pratiği.",
-        "family": "kişi", "drill": None,
-        "costs": {"time": 60, "energy": 10},
-        "effects": {"attribute:resourcefulness": 0.8, "money": -7},
-    },
     # --- taktik: §12.11, D63, bir kartı olmayan üç yeterlilik ---
     {
         "catalog_id": "gegenpress", "title": "Gegenpress",
@@ -136,9 +103,11 @@ TRAINING_ITEMS = [
     },
 ]
 
-assert len(TRAINING_ITEMS) == 15
+# §13.5/D77 - seven saha + three taktik. Was 15 before the five kişi rows went.
+assert len(TRAINING_ITEMS) == 10
 assert len({i["catalog_id"] for i in TRAINING_ITEMS}) == len(TRAINING_ITEMS)
 
-from catalog import validate_catalog  # noqa: E402 (after data, INV-28)
+from catalog import validate_catalog, validate_training  # noqa: E402 (after data, INV-28)
 
 validate_catalog(TRAINING_ITEMS, "training")
+validate_training(TRAINING_ITEMS, "training")  # INV-64

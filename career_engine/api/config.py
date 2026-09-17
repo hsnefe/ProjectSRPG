@@ -47,11 +47,39 @@ TACTIC_KEYS = ("gegenpress", "pozisyonel_oyun", "derin_blok")
 CONDITION_FLOOR = 35.0
 CONDITION_CEILING = 100.0
 
+# §13.5 D77 - the two training families. `kişi` retired with §13: its five
+# items were the only `drill: None` cards FE could not start ("Yakında"), and
+# kişi attributes now grow from lifestyle, social offers, dialogue, activity
+# events and owned items (D78) instead. ATTRIBUTE_KEYS' kişi family is
+# untouched — what went is the training path, not the attribute.
+TRAINING_FAMILIES = ("saha", "taktik")
+
+# §13.4 D75 - a lifestyle action's chance of spawning an event when its
+# catalog row doesn't name its own `event_chance`. Sized against
+# SOCIAL_OFFER_DAILY_CHANCE's reasoning, one axis over: that one rolls per
+# DAY, this one per ACTION, so it can be higher without the player drowning —
+# a quiet day with no actions rolls nothing at all, and INV-62 caps the worst
+# case at one open event regardless.
+ACTIVITY_EVENT_DEFAULT_CHANCE = 0.15
+
 # §3.4 - six fixed relationship rows per career (no roster, D4). 'fans' joined
 # with the career-creation work: §4's starting table names Taraftarlar as its
 # own tracked value, and the only other candidate (player_fame) is unbounded
 # and semantically undecided (⟦AÇIK-9⟧), so it can't carry a 0-100 score.
 RELATIONSHIP_KINDS = ("coach", "team", "media", "fans", "partner", "family")
+
+# §13.1 D68 - which of those six belong to the CLUB rather than the career.
+# These three are re-seeded from scratch on a transfer (§13.1); the other
+# three (media, partner, family) survive it. The ids stay fixed either way —
+# the scope lives in relationship.scope, never in the id.
+CLUB_SCOPED_RELATIONSHIPS = ("coach", "team", "fans")
+
+# §13.2 D71 - relationship.state's three values. The machine runs for
+# `partner` only (INV-59); every other kind is born and stays STATE_ACTIVE.
+STATE_ABSENT = "absent"
+STATE_COURTING = "courting"
+STATE_ACTIVE = "active"
+RELATIONSHIP_STATES = (STATE_ABSENT, STATE_COURTING, STATE_ACTIVE)
 
 # D4 - a career has exactly one user player; no roster, no id generation needed.
 USER_PLAYER_ID = "p_user"

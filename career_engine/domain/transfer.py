@@ -311,6 +311,18 @@ def accept(conn: sqlite3.Connection, career_id: str, offer_id: str, on_date: str
         (EXPIRED, career_id, OPEN),
     )
 
+    # §13.1/D69 - the club-scoped relationships start over, in THIS
+    # transaction (INV-56: the club on those rows never disagrees with
+    # player.team_id, not even for a moment). The coach who trusted you, the
+    # captain who vouched for you and the stand that sang your name are
+    # somebody else's now.
+    seed = conn.execute(
+        "SELECT seed FROM career WHERE career_id = ?", (career_id,)
+    ).fetchone()["seed"]
+    relationships_reset = relationships.reset_for_club(
+        conn, career_id, row["team_id"], seed, f"{on_date}T00:00:00+03:00"
+    )
+
     competition_id = conn.execute(
         "SELECT e.competition_id FROM competition_entry e "
         "JOIN competition c ON c.career_id = e.career_id "
@@ -327,6 +339,7 @@ def accept(conn: sqlite3.Connection, career_id: str, offer_id: str, on_date: str
             if competition_id else None
         ),
         "contract": contract,
+        "relationships_reset": relationships_reset,
     }
 
 

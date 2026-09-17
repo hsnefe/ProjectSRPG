@@ -64,7 +64,7 @@ def test_post_action_training_spends_budget_and_applies_effects(api_client, crea
     assert body["applied_costs"] == {"time": 60, "energy": 18}
     base = BASE_SKILL_VALUE  # merkez_orta_saha spends no slot on shooting
     assert body["attribute_changes"] == [
-        {"key": "shooting", "before": base, "after": base + 1.2,
+        {"key": "shooting", "before": base, "after": base + 1.2, "passive_bonus": 0,
          "level_before": 2, "level_after": 2}
     ]
     assert body["career_state"]["day_budget"]["time"] == 720 - 60
@@ -526,10 +526,12 @@ def test_post_action_gated_item_refused_without_spending_a_minute(api_client, cr
     """INV-30, and the reason the check runs before day_budget.spend():
     a threshold you don't meet must not cost you the day."""
     career_id = created_career["career_id"]
+    # §13.5 retired medya-egitimi (the old gated training card), so the gate
+    # tests ride on sos-taraftar instead: charisma 7, pushed out of reach here.
+    set_attribute(career_id, "charisma", 60.0)   # level 6
     before = api_client.get(f"/careers/{career_id}/day").json()["career_state"]["day_budget"]
 
-    # medya-egitimi wants confidence 6; a fresh career sits at 51.0 (level 5).
-    resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "medya-egitimi"})
+    resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "sos-taraftar"})
     assert resp.status_code == 409
     assert resp.json()["code"] == "requirement_not_met"
 
@@ -539,17 +541,17 @@ def test_post_action_gated_item_refused_without_spending_a_minute(api_client, cr
         a for a in api_client.get(f"/careers/{career_id}/player").json()["attributes"]
         if a["key"] == "charisma"
     )
-    assert charisma["value"] == 74.0  # the effect never landed either
+    assert charisma["value"] == 60.0  # the effect never landed either
 
 
 def test_post_action_gated_item_runs_once_the_level_is_reached(api_client, created_career):
     career_id = created_career["career_id"]
     grant_money(career_id, 10000)
-    set_attribute(career_id, "confidence", 60.0)   # exactly level 6
+    set_attribute(career_id, "charisma", 70.0)   # exactly level 7, sos-taraftar's gate
 
-    resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "medya-egitimi"})
+    resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "sos-taraftar"})
     assert resp.status_code == 200
-    assert {"key": "charisma", "before": 74.0, "after": 74.8,
+    assert {"key": "charisma", "before": 70.0, "after": 70.5, "passive_bonus": 0,
             "level_before": 7, "level_after": 7} in resp.json()["attribute_changes"]
 
 
@@ -557,10 +559,11 @@ def test_post_action_gate_is_checked_before_the_budget(api_client, created_caree
     """Both would refuse this call; the contract's order table (§5.5) says
     the requirement wins, so the message tells the player what to fix."""
     career_id = created_career["career_id"]
+    set_attribute(career_id, "charisma", 60.0)   # below sos-taraftar's charisma 7
     api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "ev-uyku"})  # 540 of 720
     api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "ev-oyun"})  # 180 -> 0 left
 
-    resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "medya-egitimi"})
+    resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "sos-taraftar"})
     assert resp.status_code == 409
     assert resp.json()["code"] == "requirement_not_met"
 
@@ -571,7 +574,7 @@ def test_post_action_social_activity_grows_a_kişi_attribute(api_client, created
     resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "sos-arkadas"})
     assert resp.status_code == 200
     assert resp.json()["attribute_changes"] == [
-        {"key": "charisma", "before": 74.0, "after": 74.3,
+        {"key": "charisma", "before": 74.0, "after": 74.3, "passive_bonus": 0,
          "level_before": 7, "level_after": 7}
     ]
 
@@ -609,10 +612,13 @@ def test_attribute_change_reports_the_level_it_crossed(api_client, created_caree
     local copy sees the gate open without re-deriving anything."""
     career_id = created_career["career_id"]
     grant_money(career_id, 10000)
-    set_attribute(career_id, "confidence", 59.6)   # level 5
+    set_attribute(career_id, "confidence", 59.8)   # level 5
 
-    resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "ozguven-koclugu"})
+    # §13.5 retired ozguven-koclugu; sos-konser is the kişi path that
+    # replaced it (D78), and +0.4 still crosses the decade.
+    resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "sos-konser"})
     assert resp.status_code == 200
     change = next(c for c in resp.json()["attribute_changes"] if c["key"] == "confidence")
-    assert (change["before"], change["after"]) == (59.6, 60.4)
+    assert change["before"] == 59.8
+    assert change["after"] == pytest.approx(60.2)   # float; the level is the point
     assert (change["level_before"], change["level_after"]) == (5, 6)

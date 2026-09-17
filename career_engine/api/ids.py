@@ -34,6 +34,12 @@ def new_social_plan_id() -> str:
     return "spl_" + secrets.token_hex(6)
 
 
+def new_activity_event_id() -> str:
+    # 'ae_': nothing in the social family is one letter away from it, which
+    # is the rule the 'scf_' comment set.
+    return "ae_" + secrets.token_hex(6)
+
+
 def new_social_conflict_id() -> str:
     # 'scf_': 'sc_' would sit one letter away from 'sp_'/'spl_' in a log line
     # full of social ids, and these three get read side by side.

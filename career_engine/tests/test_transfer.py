@@ -193,6 +193,40 @@ def test_accepting_moves_the_player_and_writes_the_contract(api_client, summer_c
     assert contract["team"]["team_id"] == target["team"]["team_id"]
 
 
+def test_accepting_resets_the_club_relationships(api_client, summer_career):
+    """§13.1/D69 through the endpoint, not the domain function: S4's response
+    is FE's only chance to learn the new names without re-fetching R1."""
+    from api import config
+    from worlddata.relationships import STARTING_SCORES
+
+    before = {
+        r["relationship_id"]: r
+        for r in api_client.get(f"/careers/{summer_career}/relationships").json()["relationships"]
+    }
+
+    offers = api_client.get(f"/careers/{summer_career}/transfer/offers").json()["offers"]
+    target = next(o for o in offers if not o["is_renewal"])
+    body = api_client.post(
+        f"/careers/{summer_career}/transfer/offers/{target['offer_id']}/accept"
+    ).json()
+
+    resets = {r["relationship_id"]: r for r in body["relationships_reset"]}
+    assert set(resets) == set(config.CLUB_SCOPED_RELATIONSHIPS)
+    for rid, reset in resets.items():
+        assert reset["after"] == STARTING_SCORES[rid]
+        assert reset["person_name"] and reset["contact_name"]
+
+    after = {
+        r["relationship_id"]: r
+        for r in api_client.get(f"/careers/{summer_career}/relationships").json()["relationships"]
+    }
+    assert after["coach"]["person_name"] == resets["coach"]["person_name"]
+    assert after["coach"]["traits"]["trust"] == 50.0      # §12.2's input, back to default
+    # ...and the career-scoped side came along unchanged.
+    assert after["media"]["person_name"] == before["media"]["person_name"]
+    assert after["family"]["score"] == before["family"]["score"]
+
+
 def test_accepting_one_offer_expires_the_rest(api_client, summer_career):
     """A club that has been turned down is not still waiting."""
     offers = api_client.get(f"/careers/{summer_career}/transfer/offers").json()["offers"]

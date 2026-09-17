@@ -22,7 +22,12 @@ from worlddata.competitions import (
     SUPER_LIG, ULUSAL_KUPA,
 )
 from worlddata.countries import DEFAULT_COUNTRY_CODE, get_country
-from worlddata.relationships import RELATIONSHIP_SEED, STARTING_SCORES
+from worlddata.relationships import (
+    RELATIONSHIP_SEED,
+    SCOPES,
+    STARTING_SCORES,
+    STARTING_STATES,
+)
 from worlddata.teams import ALL_TEAMS, TIER1_TEAMS, TIER2_TEAMS
 
 # §11.1/D44 - the first season's dates are derived like every other season's,
@@ -131,7 +136,7 @@ def create_career(
         nationality=country["country_code"], position=position, role=role,
         team_id=team_id, target_team_id=target_team_id,
     )
-    _seed_relationships(conn, career_id)
+    _seed_relationships(conn, career_id, team_id)
 
     return career_id
 
@@ -239,7 +244,19 @@ def _seed_player(
     )
 
 
-def _seed_relationships(conn: sqlite3.Connection, career_id: str) -> None:
+def _seed_relationships(conn: sqlite3.Connection, career_id: str, team_id: str) -> None:
+    """§13.1/§13.2 - the six rows, now with a scope and a state.
+
+    The starting club keeps RELATIONSHIP_SEED's AUTHORED people (Mert
+    Çalışkan and the rest) rather than drawing from CLUB_STAFF_POOL: the
+    club you start at is the one the game was written around, and the pool
+    exists for the clubs a transfer takes you to (§13.1 D70). A fresh career
+    is not a transfer.
+
+    `partner` is seeded absent (STARTING_STATES) — the row exists so
+    get_score() has something to return, but R1 will not list it until an
+    activity event introduces someone (§13.2/§13.4).
+    """
     import json
 
     from domain import relationships as relationships_domain
@@ -247,14 +264,20 @@ def _seed_relationships(conn: sqlite3.Connection, career_id: str) -> None:
     for r in RELATIONSHIP_SEED:
         raw_traits = {"hobbies": r["hobbies"], **r.get("traits_extra", {})}
         traits = relationships_domain.validate_traits(r["kind"], raw_traits)  # INV-16, even at seed time
+        scope = SCOPES[r["kind"]]
         conn.execute(
             "INSERT INTO relationship (career_id, relationship_id, kind, category, score, "
-            "person_name, contact_name, age, occupation, bio, last_contact_at, traits) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)",
+            "person_name, contact_name, age, occupation, bio, last_contact_at, traits, "
+            "scope, team_id, state) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)",
             (
                 career_id, r["relationship_id"], r["kind"], r["category"],
                 STARTING_SCORES[r["kind"]],
                 r["person_name"], r["contact_name"], r["age"], r["occupation"], r["bio"],
                 json.dumps(traits, ensure_ascii=False),
+                # INV-56: a club-scoped row always names the club it belongs
+                # to, and that club is always the player's current one.
+                scope, team_id if scope == "club" else None,
+                STARTING_STATES[r["kind"]],
             ),
         )

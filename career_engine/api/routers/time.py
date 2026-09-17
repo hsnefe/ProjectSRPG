@@ -12,7 +12,7 @@ from api.schemas.time import ActionRequest, AdvanceRequest, PurchaseRequest
 from catalog.lifestyle import LIFESTYLE_ITEMS
 from catalog.shop import SHOP_ITEMS
 from catalog.training import TRAINING_ITEMS
-from domain import attributes, condition, day_budget, daytime, fame, requirements, social
+from domain import activity_events, attributes, condition, day_budget, daytime, fame, requirements, social
 from domain import relationships as relationships_domain
 from domain import season as season_mod
 from domain import sponsorship
@@ -34,6 +34,63 @@ def _find_action_item(catalog_id: str) -> Tuple[Optional[dict], Optional[str]]:
 
 def _find_shop_item(catalog_id: str) -> Optional[dict]:
     return next((i for i in SHOP_ITEMS if i["catalog_id"] == catalog_id), None)
+
+
+def _seed(conn: sqlite3.Connection, career_id: str) -> int:
+    return conn.execute(
+        "SELECT seed FROM career WHERE career_id = ?", (career_id,)
+    ).fetchone()["seed"]
+
+
+def _apply_effects(
+    conn: sqlite3.Connection,
+    career_id: str,
+    effects: dict,
+    source: str,
+    reason: str,
+    happened_at: str,
+) -> dict:
+    """§5.7's effect key space, applied through each value's own single write
+    path. Extracted from post_action when §13.4's T6 became a second caller:
+    an activity-event option pays out in exactly the same currency a catalog
+    item does, and two copies of this loop would be two places to forget a
+    key the day one is added.
+
+    Note what it does NOT do: spend budget, check requirements or commit.
+    Callers own the order (gate, then budget, then this) and the transaction.
+    """
+    out = {
+        "attribute_changes": [],
+        "tactic_changes": [],
+        "relationship_changes": [],
+        "ledger_entries": [],
+    }
+    for key, value in effects.items():
+        if value is None:
+            continue  # ⟦AÇIK-9⟧ etc. — placeholder effect, not active yet
+        if key.startswith("attribute:"):
+            out["attribute_changes"].append(
+                attributes.apply_delta(conn, career_id, config.USER_PLAYER_ID, key.split(":", 1)[1], value)
+            )
+        elif key.startswith("tactic:"):
+            out["tactic_changes"].append(
+                tactics.apply_delta(conn, career_id, config.USER_PLAYER_ID, key.split(":", 1)[1], value)
+            )
+        elif key == "condition":
+            condition.apply_delta(conn, career_id, value)
+        elif key == "energy":
+            day_budget.add(conn, career_id, "energy", value, ceiling=config.DAY_BUDGET_DEFAULTS.get("energy"))
+        elif key == "money":
+            out["ledger_entries"].append(wallet.apply(conn, career_id, value, source, reason, happened_at))
+        elif key.startswith("fame:"):
+            fame.apply(conn, career_id, config.USER_PLAYER_ID, value, reason, happened_at, scope=key.split(":", 1)[1])
+        elif key.startswith("relationship:"):
+            out["relationship_changes"].append(
+                relationships_domain.apply_delta(
+                    conn, career_id, key.split(":", 1)[1], value, reason, happened_at, touches_contact=True
+                )
+            )
+    return out
 
 
 def _current_date(conn: sqlite3.Connection, career_id: str) -> str:
@@ -82,37 +139,31 @@ def post_action(career_id: str, body: ActionRequest, conn: sqlite3.Connection = 
     # naturally inside wallet.apply() below, before this transaction commits.
     day_budget.spend(conn, career_id, item["costs"])
 
-    attribute_changes = []
-    tactic_changes = []
-    relationship_changes = []
-    ledger_entries = []
     reason = f"{source}:{body.catalog_id}"
+    # §13.2 - an action CAN end a relationship: a `relationship:` effect that
+    # drops a partner to 0 closes it at the single write path. Without this
+    # the card would simply be gone from the next R1 with nothing in the
+    # response to explain it.
+    states_before = relationships_domain.state_snapshot(conn, career_id)
+    applied = _apply_effects(conn, career_id, item["effects"], source, reason, happened_at)
+    state_changes = relationships_domain.state_diff(
+        states_before, relationships_domain.state_snapshot(conn, career_id)
+    )
 
-    for key, value in item["effects"].items():
-        if value is None:
-            continue  # ⟦AÇIK-9⟧ etc. — placeholder effect, not active yet
-        if key.startswith("attribute:"):
-            attribute_changes.append(
-                attributes.apply_delta(conn, career_id, config.USER_PLAYER_ID, key.split(":", 1)[1], value)
-            )
-        elif key.startswith("tactic:"):
-            tactic_changes.append(
-                tactics.apply_delta(conn, career_id, config.USER_PLAYER_ID, key.split(":", 1)[1], value)
-            )
-        elif key == "condition":
-            condition.apply_delta(conn, career_id, value)
-        elif key == "energy":
-            day_budget.add(conn, career_id, "energy", value, ceiling=config.DAY_BUDGET_DEFAULTS.get("energy"))
-        elif key == "money":
-            ledger_entries.append(wallet.apply(conn, career_id, value, source, reason, happened_at))
-        elif key.startswith("fame:"):
-            fame.apply(conn, career_id, config.USER_PLAYER_ID, value, reason, happened_at, scope=key.split(":", 1)[1])
-        elif key.startswith("relationship:"):
-            relationship_changes.append(
-                relationships_domain.apply_delta(
-                    conn, career_id, key.split(":", 1)[1], value, reason, happened_at, touches_contact=True
-                )
-            )
+    # §13.4/D75 - the roll happens AFTER the action has fully applied. The
+    # activity is a complete transaction on its own (INV-3); an event is
+    # something that happened DURING it, not a condition of it. So a career
+    # that already has an open event (INV-62), or one whose roll comes up
+    # short, still gets exactly the action it asked for.
+    #
+    # Training never rolls: only lifestyle rows carry `event_chance`, and
+    # nothing is supposed to happen to you during a shooting drill.
+    event = None
+    if source == "lifestyle":
+        event = activity_events.maybe_generate(
+            conn, career_id, body.catalog_id, item,
+            _current_date(conn, career_id), _seed(conn, career_id),
+        )
 
     conn.execute(
         "INSERT INTO activity_log (career_id, happened_at, kind, catalog_id, applied_costs, "
@@ -129,10 +180,91 @@ def post_action(career_id: str, body: ActionRequest, conn: sqlite3.Connection = 
         "career_state": serializers.fetch_career_state(conn, career_id),
         "applied_costs": item["costs"],
         "applied_effects": item["effects"],
-        "attribute_changes": attribute_changes,
-        "tactic_changes": tactic_changes,
-        "relationship_changes": relationship_changes,
-        "ledger_entries": ledger_entries,
+        **applied,
+        "relationship_state_changes": state_changes,   # §13.2 - empty list, never null
+        # §13.4 - null on the overwhelming majority of actions. FE opens the
+        # panel when it is not.
+        "event": event,
+    }
+
+
+@router.get("/activity-events")
+def list_activity_events(career_id: str, conn: sqlite3.Connection = Depends(get_db)):
+    """T5 §13.4 - the open event, if there is one.
+
+    Exists because D76 chose NOT to gate the day loop on an answer: an event
+    the player closed the app on would otherwise be unreachable and would sit
+    in the table until an advance expired it. Empty list when there is
+    nothing open — not an error, the same way R4 answers a quiet day.
+    """
+    serializers.require_career(conn, career_id)
+    return {"events": activity_events.list_open(conn, career_id)}
+
+
+@router.post("/activity-events/{event_id}/choose/{option_id}")
+def choose_activity_event(
+    career_id: str, event_id: str, option_id: str, conn: sqlite3.Connection = Depends(get_db)
+):
+    """T6 §13.4 - apply one option.
+
+    Check order is T2's, one row longer: exists → open → the option belongs
+    to it → `requires` → budget → balance. A rejected choice writes nothing
+    and leaves the event OPEN (INV-30's shape) — the player picks again
+    rather than losing the moment to a 409.
+    """
+    serializers.require_career(conn, career_id)
+
+    event = activity_events.get(conn, career_id, event_id)
+    if event is None:
+        raise errors.activity_event_not_found(event_id)
+    if event["status"] != activity_events.OPEN:
+        raise errors.activity_event_not_open(event_id)
+
+    option = activity_events.option_for(event["template_id"], option_id)
+    if option is None:
+        # 422, not 404: the event exists and is open, the body names a branch
+        # of it that does not. Same reading catalog/dialogue.resolve_outcome
+        # gives an unknown leaf.
+        raise errors.invalid_request(
+            f"event {event_id!r} has no option {option_id!r}"
+        )
+
+    # D42 first, and it reads the effective level (§13.3/INV-61) — the suit
+    # you bought counts at this door like any other.
+    requirements.check(conn, career_id, config.USER_PLAYER_ID, option.get("requires"))
+    day_budget.spend(conn, career_id, option.get("costs", {}))
+
+    current_date = _current_date(conn, career_id)
+    happened_at = f"{current_date}T12:00:00+03:00"
+    reason = f"activity_event:{event['template_id']}:{option_id}"
+    states_before = relationships_domain.state_snapshot(conn, career_id)
+    applied = _apply_effects(
+        conn, career_id, option.get("effects", {}), "lifestyle", reason, happened_at
+    )
+
+    # §13.4 → §13.2 - the single bridge between the two. Only from ABSENT:
+    # an option that introduces someone cannot re-introduce a partner you
+    # already have, which is what lets the template stay in the pool forever.
+    target = option.get("starts_relationship")
+    if target is not None:
+        if relationships_domain.get_state(conn, career_id, target) == config.STATE_ABSENT:
+            relationships_domain.set_state(conn, career_id, target, config.STATE_COURTING)
+
+    state_changes = relationships_domain.state_diff(
+        states_before, relationships_domain.state_snapshot(conn, career_id)
+    )
+
+    resolved = activity_events.resolve(conn, career_id, event_id, option_id, current_date)
+    conn.commit()
+
+    return {
+        # D28/INV-18 - T6 mutates, so it carries the whole block.
+        "career_state": serializers.fetch_career_state(conn, career_id),
+        "event": resolved,
+        "applied_costs": option.get("costs", {}),
+        "applied_effects": option.get("effects", {}),
+        **applied,
+        "relationship_state_changes": state_changes,
     }
 
 
@@ -261,6 +393,13 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
 
     for _ in range(config.MAX_ADVANCE_DAYS):
         next_date = (_dt.date.fromisoformat(current_date) + _dt.timedelta(days=1)).isoformat()
+
+        # §13.4/D76/INV-63 - the moment is gone. Expired before the day is
+        # processed rather than after: an event born on the day being left
+        # behind must not be able to survive into the next one, where its
+        # text ("yan masadaki biri") would no longer be about anything.
+        # Writes nothing but the status — no effects, no costs, no ledger.
+        activity_events.expire_open(conn, career_id)
 
         day_result = daytime.process_day(conn, career_id, next_date, seed)
         current_date = next_date

@@ -9,7 +9,10 @@ from catalog.shop import SHOP_ITEMS
 from catalog.training import TRAINING_ITEMS
 
 
-def test_training_catalog_covers_every_attribute():
+def test_training_catalog_covers_every_saha_attribute():
+    """§13.5/D77 replaced D31's "every attribute has a training path" with a
+    narrower promise: the SAHA family still does, the kişi family no longer
+    trains at all. The other half of that trade is asserted below."""
     keys = {
         e.split(":", 1)[1]
         for item in TRAINING_ITEMS
@@ -17,7 +20,62 @@ def test_training_catalog_covers_every_attribute():
         if e.startswith("attribute:")
     }
     from api.config import ATTRIBUTE_KEYS
-    assert keys == set(ATTRIBUTE_KEYS)
+    saha = {k for k, family in ATTRIBUTE_KEYS.items() if family == "saha"}
+    assert keys == saha
+
+
+def test_training_catalog_has_no_kisi_items():
+    """INV-64. The five kişi rows were the only cards FE could not start
+    ("Yakında"); §13.5 removed them rather than leaving a dead tab."""
+    from api.config import ATTRIBUTE_KEYS, TRAINING_FAMILIES
+    assert {i["family"] for i in TRAINING_ITEMS} <= set(TRAINING_FAMILIES)
+    assert "kişi" not in {i["family"] for i in TRAINING_ITEMS}
+
+    kisi = {k for k, family in ATTRIBUTE_KEYS.items() if family == "kişi"}
+    trained = {
+        e.split(":", 1)[1]
+        for item in TRAINING_ITEMS
+        for e in item["effects"]
+        if e.startswith("attribute:")
+    }
+    assert not (trained & kisi)
+
+
+def test_every_kisi_attribute_still_has_a_growth_path():
+    """D78 - the replacement for D31. Kişi attributes are no longer trained,
+    but every one of them must still be reachable, or §13.5 would have closed
+    a door without opening one. Four of the five §13 sources are checked here;
+    the fifth (shop passive bonuses) is its own test file."""
+    from api.config import ATTRIBUTE_KEYS
+    from catalog.dialogue import DIALOGUE_OUTCOMES
+    from catalog.shop import PASSIVE_ATTRIBUTE_BONUS
+    from content.activity_events import ACTIVITY_EVENTS
+    from content.social_offers import SOCIAL_OFFERS
+
+    kisi = {k for k, family in ATTRIBUTE_KEYS.items() if family == "kişi"}
+
+    reachable = set()
+    for item in LIFESTYLE_ITEMS:
+        reachable |= {e.split(":", 1)[1] for e in item["effects"] if e.startswith("attribute:")}
+    for leaves in DIALOGUE_OUTCOMES.values():
+        for outcome in leaves.values():
+            reachable |= set(outcome["attribute_effects"])
+    for tpl in SOCIAL_OFFERS:
+        for branch in ("accept", "decline"):
+            reachable |= {
+                e.split(":", 1)[1]
+                for e in tpl[branch]["effects"] if e.startswith("attribute:")
+            }
+    for tpl in ACTIVITY_EVENTS:
+        for opt in tpl["options"]:
+            reachable |= {
+                e.split(":", 1)[1]
+                for e in opt.get("effects", {}) if e.startswith("attribute:")
+            }
+    for bonuses in PASSIVE_ATTRIBUTE_BONUS.values():
+        reachable |= set(bonuses)
+
+    assert kisi <= reachable, f"no growth path for {kisi - reachable}"
 
 
 def test_training_catalog_covers_every_tactic():

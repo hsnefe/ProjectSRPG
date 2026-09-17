@@ -119,6 +119,35 @@ def social_conflict_member(ref_id: str) -> ApiError:
     )
 
 
+# §13 - the three codes §13.9 adds.
+
+def relationship_absent(relationship_id: str) -> ApiError:
+    """§13.2/INV-58 - you cannot talk to someone you have not met. Checked
+    BEFORE D42's requirement gate: being polite to a stranger is not a
+    threshold problem, it is a "there is nobody there" problem.
+
+    409 rather than 404 for the same reason already_owned is: the row
+    exists, the request is well-formed; it is the career's state that
+    rejects it."""
+    return ApiError(
+        409, "relationship_absent", f"relationship {relationship_id!r} has not been established"
+    )
+
+
+def activity_event_not_found(event_id: str) -> ApiError:
+    return ApiError(404, "activity_event_not_found", f"no activity event {event_id!r}")
+
+
+def activity_event_not_open(event_id: str) -> ApiError:
+    """§13.4 - already answered, or expired when the day it was born on was
+    advanced past (D76/INV-63). Unlike a social offer, an activity event CAN
+    reach a terminal state without the player answering — that is the whole
+    difference D76 draws between an invitation and a moment."""
+    return ApiError(
+        409, "activity_event_not_open", f"activity event {event_id!r} is no longer open"
+    )
+
+
 def match_day_unplayed(fixture_id: str) -> ApiError:
     """§6.1 D57 - time cannot advance while the user's own match today is
     still 'scheduled'. Replaces the earlier "missed match" auto-play: the

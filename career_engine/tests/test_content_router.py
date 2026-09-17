@@ -124,8 +124,11 @@ def test_get_catalog_training(api_client):
     resp = api_client.get("/catalog/training")
     assert resp.status_code == 200
     items = resp.json()["items"]
-    assert len(items) == 15
+    # §13.5/D77: 7 saha + 3 taktik. Was 15 while the five kişi rows existed.
+    assert len(items) == 10
     assert {i["catalog_id"] for i in items} >= {"sut", "kondisyon-kosusu", "mudahale", "gegenpress"}
+    assert {i["family"] for i in items} == {"saha", "taktik"}
+    assert "medya-egitimi" not in {i["catalog_id"] for i in items}
 
 
 def test_get_catalog_lifestyle(api_client):

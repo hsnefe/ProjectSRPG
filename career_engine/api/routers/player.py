@@ -33,12 +33,29 @@ def get_player(career_id: str, conn: sqlite3.Connection = Depends(get_db)):
     # INV-21: always 11 rows, even for a key nothing has ever written to.
     # `level` is derived (D43) and ships alongside the raw value so FE can
     # test a `requires` threshold without re-implementing the scale.
+    # §13.3/D74 - `level` is now derived from the EFFECTIVE value (base plus
+    # what owned items add), not the stored one. That is the breaking half of
+    # §13.3 and it is deliberate: domain/requirements.py gates on exactly this
+    # number, so shipping the base level here would let FE grey out a reply
+    # the server would have allowed (INV-61).
+    #
+    # `value` still means the stored base, so a training screen's progress bar
+    # keeps showing what the player actually earned; `passive_bonus` is what
+    # the wardrobe is worth and `effective_value` is the sum FE compares.
+    passive = {
+        key: attributes_domain.passive_bonus(conn, career_id, key)
+        for key in config.ATTRIBUTE_KEYS
+    }
     attributes = [
         {
             "key": key,
             "family": family,
             "value": attr_rows.get(key, 0.0),
-            "level": attributes_domain.level(attr_rows.get(key, 0.0)),
+            "passive_bonus": passive[key],
+            "effective_value": max(0.0, min(100.0, attr_rows.get(key, 0.0) + passive[key])),
+            "level": attributes_domain.level(
+                max(0.0, min(100.0, attr_rows.get(key, 0.0) + passive[key]))
+            ),
         }
         for key, family in config.ATTRIBUTE_KEYS.items()
     ]

@@ -19,6 +19,11 @@ before that reply is available at all. FE learns those from
 GET /catalog/dialogue — which serves `requires` and NOTHING else, because
 publishing the deltas would both spoil the conversation and undo the
 reason this table lives server-side.
+
+§13.2/D72: a leaf may carry `sets_state`, which moves a `partner`
+relationship between absent/courting/active. It is NOT published either,
+for a sharper version of the same reason: knowing in advance which reply
+starts a relationship turns the decision into a lookup.
 """
 from api import config, errors
 from catalog import validate_requires
@@ -86,6 +91,19 @@ DIALOGUE_OUTCOMES = {
         # Making five minutes appear on a match day.
         "r1": {"relationship_delta": 3, "attribute_effects": {}, "requires": {"resourcefulness": 3},
                "costs": {"time": 90.0, "energy": 3.0}, "condition": 1},
+        # §13.2/D72 - the two courting leaves. FE shows this pair INSTEAD of
+        # r0/r1 while the relationship is `courting`, which is why they live
+        # in the same tree rather than a partner_02: it is the same person and
+        # the same screen, one conversation earlier.
+        #
+        # `sets_state` is applied only from `courting` (the router checks, not
+        # the content file), so a leaf can sit here harmlessly for a career
+        # that is already past this point.
+        "c0": {"relationship_delta": 6, "attribute_effects": {"charisma": 0.3},
+               "requires": {"charisma": 6}, "sets_state": "active",
+               "costs": {"time": 120.0, "energy": 6.0}, "condition": -2},
+        "c1": {"relationship_delta": -4, "attribute_effects": {}, "sets_state": "absent",
+               "costs": {"time": 15.0, "energy": 1.0}},
     },
     "family_01": {
         "r0": {"relationship_delta": 4, "attribute_effects": {},
@@ -144,6 +162,14 @@ for _dialogue_id, _leaves in DIALOGUE_OUTCOMES.items():
             assert _key in config.ATTRIBUTE_KEYS, f"{_dialogue_id}:{_leaf_id} unknown attribute {_key!r}"
         # INV-31, same rule and same message shape as a catalog item's.
         validate_requires(_outcome.get("requires"), f"dialogue:{_dialogue_id}:{_leaf_id}")
+        # §13.2 - a typo here would otherwise surface as a 422 mid-conversation.
+        _state = _outcome.get("sets_state")
+        assert _state is None or _state in config.RELATIONSHIP_STATES, (
+            f"{_dialogue_id}:{_leaf_id} sets unknown state {_state!r}"
+        )
+        assert _state is None or DIALOGUE_RELATIONSHIP[_dialogue_id] == "partner", (
+            f"{_dialogue_id}:{_leaf_id} sets a state, but only partner has one (INV-59)"
+        )
     # INV-32: a tree whose every leaf is gated could strand the player in a
     # conversation they can't answer. Checked at import, like INV-28.
     assert any(not _o.get("requires") for _o in _leaves.values()), (

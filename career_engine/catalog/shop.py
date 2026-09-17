@@ -19,6 +19,15 @@ Adding, removing or re-pricing a bonus is an edit to THIS FILE ONLY: nothing
 downstream names an item id, the sum is derived below and the cap lives in
 api/config.py.
 
+§13.3 `passive_effects`: an owned item may also carry a PASSIVE bonus on a
+kişi attribute. Kept as its own map rather than folded into `daily_effects`
+because the two do different things: `daily_effects` WRITES once a day
+through the day loop, `passive_effects` never writes at all — it rides on
+top of the stored value at read time (domain/attributes.effective_value) and
+disappears the moment the item does. That is what lets §12.12's five
+"showroom" rows finally mean something without breaking INV-22: a sold suit
+takes its politeness with it, and no attribute ever fell.
+
 §12.13 `weekly_return_rate`: an `investment`-category item's weekly return as
 a fraction of `price` (not `effects`/`daily_effects` — it isn't an anchor-key
 map, it's a plain rate, same unvalidated-top-level-field status as
@@ -32,7 +41,8 @@ SHOP_ITEMS = [
     {"catalog_id": "home-tv", "title": "Akıllı TV", "category": "home",
      "description": "Oturma odasına 65 inç. Maç akşamları arkadaşları çağırmak için "
                      "yeterince büyük.",
-     "price": 90, "upkeep_weekly": 0, "note": "65 inç, 4K"},
+     "price": 90, "upkeep_weekly": 0, "note": "65 inç, 4K",
+     "passive_effects": {"attribute:charisma": 1.0}},
     {"catalog_id": "home-espresso", "title": "Espresso makinesi", "category": "home",
      "description": "Sabah antrenmanından önce kahve kuyruğunda beklemeye son.",
      "price": 55, "upkeep_weekly": 0, "note": "Otomatik öğütücülü",
@@ -40,7 +50,8 @@ SHOP_ITEMS = [
     {"catalog_id": "home-console", "title": "Oyun konsolu", "category": "home",
      "description": "Boş günlerin standart eğlencesi. Takım arkadaşlarıyla online "
                      "turnuvalar için de iyi bahane.",
-     "price": 70, "upkeep_weekly": 0, "note": "İki kollu"},
+     "price": 70, "upkeep_weekly": 0, "note": "İki kollu",
+     "passive_effects": {"attribute:resourcefulness": 2.0}},
     {"catalog_id": "home-treadmill", "title": "Koşu bandı", "category": "home",
      "description": "Kamp dışı günlerde kondisyonu evde korumanın en kolay yolu.",
      "price": 110, "upkeep_weekly": 0, "note": "Eğimli, 20 km/s",
@@ -50,17 +61,21 @@ SHOP_ITEMS = [
     {"catalog_id": "personal-watch", "title": "Kol saati", "category": "personal",
      "description": "Röportajlarda ve sponsor çekimlerinde görünen tek takı.",
      "price": 85, "upkeep_weekly": 0, "note": "Çelik kasa",
-     "daily_effects": {"fame:overall": 0.3}},
+     "daily_effects": {"fame:overall": 0.3},
+     "passive_effects": {"attribute:charisma": 2.0}},
     {"catalog_id": "personal-boots", "title": "Krampon", "category": "personal",
      "description": "Kendi ayağına göre kalıplanmış çift. Islak zeminde fark ediyor.",
-     "price": 45, "upkeep_weekly": 0, "note": "Kişiye özel kalıp"},
+     "price": 45, "upkeep_weekly": 0, "note": "Kişiye özel kalıp",
+     "passive_effects": {"attribute:confidence": 1.0}},
     {"catalog_id": "personal-suit", "title": "Takım elbise", "category": "personal",
      "description": "Deplasman yolculukları ve kulüp galaları için.",
-     "price": 60, "upkeep_weekly": 0, "note": "Ismarlama"},
+     "price": 60, "upkeep_weekly": 0, "note": "Ismarlama",
+     "passive_effects": {"attribute:politeness": 3.0}},
     {"catalog_id": "personal-headphones", "title": "Kulaklık", "category": "personal",
      "description": "Otobüs yolculuklarında dış sesi kesiyor; maç öncesi rutinin "
                      "parçası.",
-     "price": 40, "upkeep_weekly": 0, "note": "Gürültü engelleyici"},
+     "price": 40, "upkeep_weekly": 0, "note": "Gürültü engelleyici",
+     "passive_effects": {"attribute:confidence": 2.0}},
 
     # --- realEstate (D27: tek gerçek düzenli gider kaynağı) ---
     {"catalog_id": "estate-studio", "title": "Stüdyo daire", "category": "realEstate",
@@ -70,12 +85,14 @@ SHOP_ITEMS = [
     {"catalog_id": "estate-flat", "title": "Şehir merkezi daire", "category": "realEstate",
      "description": "Merkezde geniş bir kat. Aile ziyaretleri için yer var.",
      "price": 3200, "upkeep_weekly": 12, "note": "3+1, 120 m²",
-     "daily_effects": {"condition": 1}},
+     "daily_effects": {"condition": 1},
+     "passive_effects": {"attribute:confidence": 2.0}},
     {"catalog_id": "estate-villa", "title": "Deniz manzaralı villa", "category": "realEstate",
      "description": "Sezon arasında kaçılacak yer. Bahçesinde kendi antrenman alanı "
                      "kurulabilir.",
      "price": 9000, "upkeep_weekly": 30, "note": "Havuzlu, 380 m²",
-     "daily_effects": {"condition": 1}},
+     "daily_effects": {"condition": 1},
+     "passive_effects": {"attribute:confidence": 3.0, "attribute:charisma": 1.0}},
 
     # --- investment (§12.13: weekly_return_rate, of `price`, frozen into
     # inventory.weekly_return at purchase) ---
@@ -134,6 +151,25 @@ DAILY_FAME_BONUS = {
 def daily_energy_bonus(item_ids) -> float:
     """The per-day energy bonus an inventory of `item_ids` is worth."""
     return sum(DAILY_ENERGY_BONUS.get(item_id, 0) for item_id in item_ids)
+
+
+# §13.3/D73 - the passive attribute index. Same import-time derivation as the
+# three DAILY_* maps above (it cannot drift from the rows), different shape:
+# a nested {item_id: {attribute_key: amount}} because one item may carry two
+# (estate-villa does) and the reader sums per attribute, not per item.
+#
+# Keys are stored WITHOUT the "attribute:" prefix: every consumer
+# (domain/attributes.passive_bonus, and through it every `requires` gate)
+# speaks in bare attribute keys, so stripping it once here beats stripping
+# it on every read.
+PASSIVE_ATTRIBUTE_BONUS = {
+    item["catalog_id"]: {
+        key.split(":", 1)[1]: amount
+        for key, amount in item["passive_effects"].items()
+    }
+    for item in SHOP_ITEMS
+    if item.get("passive_effects")
+}
 
 
 def daily_fame_bonus(item_ids) -> float:

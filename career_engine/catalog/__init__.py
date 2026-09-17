@@ -33,6 +33,21 @@ KNOWN_COST_KEYS = {"time", "energy"}
 # daily_energy_bonus/daily_fame_bonus) - widen this set only alongside that.
 KNOWN_DAILY_EFFECT_KEYS = {"condition", "energy", "fame:overall"}
 
+# §13.3/D73 - the keys an OWNED item may passively add to. Narrower than
+# both maps above and deliberately so: only the kişi family. A wristwatch
+# raising shooting accuracy has no story behind it, and saha attributes are
+# earned by training, which §13.5 left exactly as it was. `attribute:` keeps
+# the prefix the effect maps already use so one reader can parse all three.
+KNOWN_PASSIVE_EFFECT_KEYS = frozenset(
+    f"attribute:{key}" for key, family in ATTRIBUTE_KEYS.items() if family == "kişi"
+)
+
+# §13.5/D77 - the two families a training item may belong to. `kişi` retired
+# with §13: INV-64 is this constant plus the check in validate_training()
+# below, so a resurrected kişi row fails at import rather than appearing as
+# a card FE has no tab for.
+TRAINING_FAMILIES = ("saha", "taktik")
+
 # D43 - `requires` values are attribute LEVELS, not raw values. The bounds
 # mirror domain.attributes.level()'s range exactly; a threshold of 11 could
 # never be cleared, so it is a typo, not a very hard gate.
@@ -86,6 +101,43 @@ def validate_daily_effects(daily: dict, where: str) -> None:
             raise ValueError(f"{where} daily effect {key!r} is negative: {value!r}")
 
 
+def validate_passive_effects(passive: dict, where: str) -> None:
+    """§13.3/INV-28's sibling for the passive map an owned item may carry.
+
+    Negatives are rejected the way validate_daily_effects rejects them, but
+    for a sharper reason: a negative passive bonus could push a career BELOW
+    a threshold it had already cleared, so buying a thing would silently
+    lock a dialogue reply that used to be available. If an item is ever
+    meant to cost you socially, that wants its own deliberate widening and
+    its own UI, not a minus sign nobody sees.
+    """
+    for key, value in (passive or {}).items():
+        if key not in KNOWN_PASSIVE_EFFECT_KEYS:
+            raise ValueError(f"{where} has unknown passive effect key {key!r}")
+        # bool is an int subclass; True would silently read as +1.
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            raise ValueError(f"{where} passive effect {key!r} is not a number: {value!r}")
+        if value < 0:
+            raise ValueError(f"{where} passive effect {key!r} is negative: {value!r}")
+
+
+def validate_training(items: list, source: str) -> None:
+    """INV-64 - every training item belongs to one of the two §13.5 families.
+
+    Split out from validate_catalog rather than folded into it because
+    `family` is a training-only field: lifestyle groups by `group` and the
+    shop by `category`, and a shared check would have to special-case two of
+    its three callers.
+    """
+    for item in items:
+        family = item.get("family")
+        if family not in TRAINING_FAMILIES:
+            raise ValueError(
+                f"{source}:{item['catalog_id']!r} has family {family!r}, "
+                f"not one of {TRAINING_FAMILIES} (INV-64)"
+            )
+
+
 def validate_catalog(items: list, source: str) -> None:
     for item in items:
         for key in item.get("costs", {}):
@@ -95,4 +147,5 @@ def validate_catalog(items: list, source: str) -> None:
             if not _is_known_effect_key(key):
                 raise ValueError(f"{source}:{item['catalog_id']!r} has unknown effect key {key!r}")
         validate_daily_effects(item.get("daily_effects"), f"{source}:{item['catalog_id']!r}")
+        validate_passive_effects(item.get("passive_effects"), f"{source}:{item['catalog_id']!r}")
         validate_requires(item.get("requires"), f"{source}:{item['catalog_id']!r}")

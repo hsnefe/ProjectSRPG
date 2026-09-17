@@ -6,6 +6,13 @@ Shaped after day_budget.spend()'s check-then-act discipline, minus the
 act: check() reads and either returns or raises, it never writes. That is
 what lets every caller run it FIRST, before any cost is deducted — an
 action whose threshold isn't met can't have eaten the day's time (INV-30).
+
+§13.3/D73/INV-61: the level compared here comes from attributes.
+effective_value(), i.e. the stored value PLUS what owned items add, not the
+raw column. That is the point of §13.3 rather than a detail of it: a
+tailored suit is supposed to open a door, and a gate reading the bare value
+would leave the whole mechanic invisible. It also keeps the server and the
+screen honest with each other, since P1 ships the same derived level.
 """
 import sqlite3
 
@@ -35,7 +42,7 @@ def met(
     if not requires:
         return True
     for key, required in requires.items():
-        if attributes.level(attributes.get_value(conn, career_id, player_id, key)) < required:
+        if attributes.level(attributes.effective_value(conn, career_id, player_id, key)) < required:
             return False
     return True
 
@@ -54,6 +61,6 @@ def check(
     if not requires:
         return
     for key, required in requires.items():
-        current = attributes.level(attributes.get_value(conn, career_id, player_id, key))
+        current = attributes.level(attributes.effective_value(conn, career_id, player_id, key))
         if current < required:
             raise errors.requirement_not_met(key, required, current)
