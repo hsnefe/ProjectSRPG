@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
+import 'package:flame/sprite.dart';
 import 'package:flutter/foundation.dart' show ValueChanged, ValueNotifier;
 
 import 'package:project_srpg/game/game_banner.dart';
@@ -327,12 +328,28 @@ class TreadmillComponent extends Component
   }
 }
 
-/// The runner, in the same stick-and-slab language the shot game's players
-/// already use. Everything hangs off one hip anchor and one stride phase.
+/// The runner. Prefers the two-frame pixel-art stride ([_frame1]/[_frame2],
+/// §1.2 — swapped on the sign of `sin(stridePhase)` the same way the
+/// procedural rig alternates legs) and falls back to the stick-and-slab
+/// figure the shot game's players already use when the assets are missing.
 class RunnerComponent extends Component
     with HasGameReference<ConditioningGame> {
   @override
   int get priority => 5;
+
+  Sprite? _frame1;
+  Sprite? _frame2;
+
+  @override
+  Future<void> onLoad() async {
+    try {
+      _frame1 = await Sprite.load('sprites/run_side_1.png');
+      _frame2 = await Sprite.load('sprites/run_side_2.png');
+    } catch (_) {
+      _frame1 = null;
+      _frame2 = null;
+    }
+  }
 
   @override
   void render(Canvas canvas) {
@@ -354,18 +371,24 @@ class RunnerComponent extends Component
       canvas.translate(-hip.dx, -hip.dy);
     }
 
-    final thigh = v * 0.085;
-    final shin = v * 0.085;
+    final frame1 = _frame1;
+    final frame2 = _frame2;
+    if (frame1 != null && frame2 != null) {
+      _paintSprite(canvas, math.sin(phi) >= 0 ? frame1 : frame2, hip, v);
+    } else {
+      final thigh = v * 0.085;
+      final shin = v * 0.085;
 
-    // Back leg first, then the torso, then the front leg and arms, so the
-    // figure reads with depth without any z-sorting machinery.
-    _paintLeg(canvas, hip, phi + math.pi, thigh, shin, u, v,
-        side: RunSide.left, back: true);
-    _paintTorso(canvas, hip, u, v);
-    _paintLeg(canvas, hip, phi, thigh, shin, u, v,
-        side: RunSide.right, back: false);
-    _paintArms(canvas, hip, phi, v);
-    _paintHead(canvas, hip, v);
+      // Back leg first, then the torso, then the front leg and arms, so the
+      // figure reads with depth without any z-sorting machinery.
+      _paintLeg(canvas, hip, phi + math.pi, thigh, shin, u, v,
+          side: RunSide.left, back: true);
+      _paintTorso(canvas, hip, u, v);
+      _paintLeg(canvas, hip, phi, thigh, shin, u, v,
+          side: RunSide.right, back: false);
+      _paintArms(canvas, hip, phi, v);
+      _paintHead(canvas, hip, v);
+    }
 
     if (stumbling) {
       canvas.drawArc(
@@ -385,6 +408,19 @@ class RunnerComponent extends Component
     }
 
     canvas.restore();
+  }
+
+  /// One stride frame, feet anchored near the old rig's average foot height
+  /// so swapping frame doesn't move the ground contact point.
+  void _paintSprite(Canvas canvas, Sprite sprite, Offset hip, double v) {
+    final destHeight = v * 0.34;
+    final destWidth = destHeight * sprite.srcSize.x / sprite.srcSize.y;
+    sprite.render(
+      canvas,
+      position: Vector2(hip.dx, hip.dy + v * 0.14),
+      size: Vector2(destWidth, destHeight),
+      anchor: Anchor.bottomCenter,
+    );
   }
 
   void _paintLeg(
