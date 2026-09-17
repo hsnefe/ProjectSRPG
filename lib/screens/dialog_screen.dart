@@ -423,7 +423,6 @@ class _CharacterLayer extends StatelessWidget {
     return Image.asset(
       path,
       fit: BoxFit.cover,
-      alignment: Alignment.bottomCenter,
       errorBuilder: (_, _, _) => fallback,
     );
   }

@@ -100,7 +100,6 @@ class CharacterPortrait extends StatelessWidget {
     return Image.asset(
       asset,
       fit: BoxFit.cover,
-      alignment: Alignment.topCenter,
       filterQuality: FilterQuality.none,
       errorBuilder: (_, _, _) => fallback,
     );
