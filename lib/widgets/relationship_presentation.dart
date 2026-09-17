@@ -41,20 +41,30 @@ class RelationshipPresentation {
 const kPartnerPurple = Color(0xFF9B5CF6);
 
 const _presentationByRelationshipId = {
+  // §1.2 · portraitAsset'ler yeri.ai'de üretilen 3x3 pixel-art gridinden
+  // dokuzda altısı — gri zemin şeffaflaştırılıp tek tek kesildi. Kimin kime
+  // gittiği içerikteki isimlere göre: "coach" Antrenör Mert (coach_talk_screen),
+  // "media" Ayça Kılıç (media_interview_request şablonu), "partner" Elif
+  // (partner_evening_out), "team" Kaptan Burak (team_dinner) — geri kalan üç
+  // portre (r1c1, r1c3, r2c3) şimdilik kullanılmıyor, ileride NPC çeşitliliği
+  // için ayrılabilir.
   'coach': RelationshipPresentation(
     icon: Icons.assignment_outlined, tint: AppColors.accent, badgeCode: 'AN',
     leftTag: 'KLÜP', dialogueId: 'coach_01',
     scene: DialogueScene.lockerRoom,
+    portraitAsset: 'assets/images/portraits/coach.png',
   ),
   'team': RelationshipPresentation(
     icon: Icons.groups_outlined, tint: AppColors.success, badgeCode: 'TK',
     leftTag: 'KLÜP', dialogueId: 'team_01',
     scene: DialogueScene.trainingGround,
+    portraitAsset: 'assets/images/portraits/team.png',
   ),
   'media': RelationshipPresentation(
     icon: Icons.mic_none_outlined, tint: AppColors.danger, badgeCode: 'MD',
     leftTag: 'BASIN', dialogueId: 'media_01',
     scene: DialogueScene.pressRoom,
+    portraitAsset: 'assets/images/portraits/media.png',
   ),
   // `dialogueId` bilinçli olarak boş: catalog/dialogue.py'de 'fans' için bir
   // diyalog ağacı yok, `_openDialog` bunu `_dialogueTreeByRelationshipId`'de
@@ -63,16 +73,19 @@ const _presentationByRelationshipId = {
     icon: Icons.groups_2_outlined, tint: AppColors.warning, badgeCode: 'TF',
     leftTag: 'TARAFTAR', dialogueId: '',
     scene: DialogueScene.stadium,
+    portraitAsset: 'assets/images/portraits/fans.png',
   ),
   'partner': RelationshipPresentation(
     icon: Icons.favorite_border, tint: kPartnerPurple, badgeCode: 'PA',
     leftTag: 'ÖZEL', dialogueId: 'partner_01',
     scene: DialogueScene.home,
+    portraitAsset: 'assets/images/portraits/partner.png',
   ),
   'family': RelationshipPresentation(
     icon: Icons.home_outlined, tint: AppColors.warning, badgeCode: 'AS',
     leftTag: 'ÖZEL', dialogueId: 'family_01',
     scene: DialogueScene.home,
+    portraitAsset: 'assets/images/portraits/family.png',
   ),
 };
 

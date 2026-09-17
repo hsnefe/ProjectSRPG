@@ -87,8 +87,8 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    // Asset yolu verilmiş ama dosya yoksa (henüz eklenmediği için) yine
-    // sessizce prosedürel büste düşmeli — errorBuilder'ın işi bu.
+    // Asset yolu verilmiş ama dosya yoksa yine sessizce prosedürel büste
+    // düşmeli — errorBuilder'ın işi bu.
     testWidgets('bulunamayan bir imageAsset hata vermeden geri düşer',
         (tester) async {
       await tester.pumpWidget(
@@ -98,13 +98,37 @@ void main() {
             height: 260,
             child: CharacterPortrait(
               traits: _forId('coach'),
-              imageAsset: 'assets/images/portraits/coach.png',
+              imageAsset: 'assets/images/portraits/does-not-exist.png',
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
+    });
+
+    // §1.2 · altısının da artık gerçek bir dosyası var (pubspec.yaml'daki
+    // assets/images/portraits/ klasörü) — bu, o dosyaların gerçekten pakete
+    // dahil edildiğinin (asset bundle'da bulunabildiğinin) kanıtı.
+    testWidgets('altı ilişkinin gerçek portresi hatasız çizilir',
+        (tester) async {
+      for (final id in ['coach', 'team', 'media', 'fans', 'partner', 'family']) {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: SizedBox(
+              width: 300,
+              height: 260,
+              child: CharacterPortrait(
+                traits: _forId(id),
+                imageAsset: 'assets/images/portraits/$id.png',
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: id);
+        expect(find.byType(Image), findsOneWidget, reason: id);
+      }
     });
 
     testWidgets('altı sahnenin hepsi çizilir', (tester) async {

@@ -50,13 +50,18 @@ void main() {
   });
 
   group('portraitAsset (§1.2)', () {
-    test('henüz hiçbir ilişkinin gerçek portresi yok', () {
-      // Görsel geldikçe ilgili satır burada güncellenir — bu test o günün
-      // farkını gösterecek, sessizce yanlış kalmayacak.
+    test('altı ilişkinin de kendi portre dosyası var', () {
       for (final id in ['coach', 'team', 'media', 'fans', 'partner', 'family']) {
-        expect(presentationForRelationship(id).portraitAsset, isNull,
-            reason: id);
+        expect(
+          presentationForRelationship(id).portraitAsset,
+          'assets/images/portraits/$id.png',
+          reason: id,
+        );
       }
+    });
+
+    test('bilinmeyen bir ilişkinin hâlâ portresi yok', () {
+      expect(kDefaultRelationshipPresentation.portraitAsset, isNull);
     });
   });
 }
