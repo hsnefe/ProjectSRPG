@@ -1,4 +1,4 @@
-# CAREER ENGINE — API CONTRACT (v1.0)
+# CAREER ENGINE — API CONTRACT (v1.1)
 
 **Taraflar:** Kariyer Back-end (`career_engine`, FastAPI) ↔ Front-end (`ProjectSRPG`, Flutter)
 **Komşu servis:** Maç Motoru (`match_engine`, FastAPI) — bkz. [`API_CONTRACT.md`](../../API_CONTRACT.md) v1.1
@@ -9,13 +9,22 @@
 
 | | |
 |---|---|
-| **Sürüm** | **v1.0** — uygulanabilir. Karar kaydı §0, açık maddeler §10 |
-| **Tarih** | 2026-08-19 |
-| **Back-end** | ✅ imzalandı — `career_engine` §4'teki 25 ucun tamamını uyguluyor, test paketi geçiyor |
-| **Front-end** | ✅ imzalandı — `ProjectSRPG` okundu, kabul edildi; W1/W2 bağlı, kalan uçların bağlanması sürüyor |
+| **Sürüm** | **v1.1** — §13 eklendi. Karar kaydı §0 + §11.10 + §12 + §13.7, açık maddeler §10 |
+| **Tarih** | 2026-09-17 |
+| **Back-end** | ✅ imzalandı — §13 uygulandı: 017/018 migration'ları, T5/T6, 580 test geçiyor |
+| **Front-end** | ✅ imzalandı — §13 uygulandı: iki antrenman sekmesi, aktivite olayı ekranı, pasif fayda rozeti |
 
-**Dayandığı bağlayıcı kararlar:** §0'da **43 karar** (D1-D43), dokuz ayrı tur.
-**Garantiler:** §8'de **32 invariant** (INV-1 … INV-32).
+> **v1.0 gövdesi (§1-§12) imzalıydı ve imzalı kalır.** Sürüm v1.1'e çıkıyor
+> çünkü §13 §10'un üç eşiğini birden aşıyor: alan **ekliyor** (`state`,
+> `passive_bonus`, `effective_value`, `event`, `relationships_reset`), alan
+> **kaldırıyor** (beş `kişi` antrenman kalemi) ve bir alanın **anlamını
+> değiştiriyor** (`level` artık `effective_value`'dan türüyor, D74). §13
+> §1-§12 yürürlükte kalır; §13.0 neyi geçersiz kıldığını tek tek sayar.
+
+**Dayandığı bağlayıcı kararlar:** **78 karar** (D1-D78) — §0'da D1-D43,
+§11.10'da D44-D57, §12'de D58-D67, §13.7'de **D68-D78**.
+**Garantiler:** **63 invariant** (INV-1 … INV-64, INV-38 kullanılmıyor) —
+§8'de INV-1…INV-32, §11.11/§12.6'da INV-33…INV-55, §13.8'de **INV-56…INV-64**.
 
 > **Kaynak kuralı:** `API_CONTRACT.md`'deki disiplinin hafif hâli. Her alanın
 > yanında ya bir FE `dosya:satır` referansı (alanın *neden* var olduğunu
@@ -958,6 +967,8 @@ Taban: `http://127.0.0.1:8001`
 | T2 | `POST` | `/careers/{cid}/actions` | Antrenman / yaşam aktivitesi uygular |
 | T3 | `POST` | `/careers/{cid}/advance` | `{to: "next_day"\|"next_event"}` |
 | T4 | `POST` | `/careers/{cid}/purchases` | Dükkândan satın alır |
+| T5 | `GET` | `/careers/{cid}/activity-events` | Açık aktivite olayı (§13.4) |
+| T6 | `POST` | `/careers/{cid}/activity-events/{eid}/choose/{option_id}` | Olayın seçeneğini uygular |
 | **Maç** ||||
 | M1 | `GET` | `/careers/{cid}/matches/next` | Maç kurulumu — motora verilecek payload dahil |
 | M2 | `POST` | `/careers/{cid}/matches/{fid}/result` | Sonucu yazar + haftayı simüle eder |
@@ -976,7 +987,7 @@ zarf kuralları §5.0'da bir kez tanımlanır.
 ([`envelope.py`](../../match_engine/api/envelope.py), [`errors.py`](../../match_engine/api/errors.py)):
 `{"code": "...", "message": "..."}` — düz, `"error"` sarmalayıcısı yok.
 
-**Durumu değiştiren her uç** (T2, T3, T4, R3, M2, M3) yanıtında tam
+**Durumu değiştiren her uç** (T2, T3, T4, T6, R3, M2, M3) yanıtında tam
 `CareerState` bloğunu taşır (D28, INV-18).
 
 ---
@@ -2546,6 +2557,9 @@ yeri gösterir. `grep "⟦" CONTRACT.md` hepsini bulur.
 | ⟦AÇIK-9⟧ | §5.7 N3 `effects["fame:overall"]` | Katalog kalemlerinin şöhret getirisi (bugün `null`) |
 | ⟦AÇIK-13⟧ | §12.11 | Taktik yeterliliğinin maça nasıl yansıyacağı — D37'nin ayırdığı "gelecekteki mini-oyun-zorluk kancası" |
 | ⟦AÇIK-15⟧ | §12.13 | Altın/fon'un gerçek oynaklığı (fiyat dalgalanması, satış eylemi) — bugün üçü de sabit haftalık oran |
+| ⟦AÇIK-16⟧ | §13.3 `passive_effects` | Hangi eşyanın hangi kişi niteliğine kaç puan verdiği (§13.3'ün tablosu öneridir) |
+| ⟦AÇIK-17⟧ | §13.5 · `catalog/dialogue.py` `requires` | Kişi antrenmanı kalkınca diyalog eşiklerinin yeniden dengelenmesi |
+| ⟦AÇIK-18⟧ | §13.2 `courting` | Tanışma ile ilişkinin kurulması arasındaki adım sayısı, yeniden tanışma sıklığı |
 | ⟦B-1⟧ | §5.2 P3 sözleşme kalemleri | v1 başlangıç sözleşmesinin tier 2 ölçeği |
 
 **Kural:** bu noktaların doldurulması **sürüm numarasını değiştirmez** ve FE
@@ -4109,3 +4123,776 @@ edildiği eğiliyor.
 | D66 | `position_group` nereden gider | **`coach_instruction` bloğunda, `engine_payload`'ın dışında; motora E2 `/start` ile FE üzerinden ulaşır** | `engine_payload` motora olduğu gibi POST'lanan gövdedir ve motorun E1'i (`POST /matches`) taşıdığı alanları E2'ye aktarmıyor — `user_condition` bile `PendingMatchup`'ta düşüyor. Alanı oraya koymak motorun oturum kurulumunu büyütürdü. E2 ise zaten `effort`/`aggression`/`focus`'u, yani "bu oyuncu bu maçı nasıl oynuyor" bilgisini taşıyan uç; mevki de aynı cinsten ve `focus`'un tam yanına oturuyor. §12.10'un `focus` için verdiği gerekçe (motor rol kavramını bilmiyor, blok `engine_payload`'ın dışında durur) burada da aynen geçerli |
 | D67 | Ayrıntı seviyesi | **Mevki grubu (7), hat (3) ya da `role_id` (22) değil** | Hat, stoper ile kanat beki ya da defansif orta saha ile ofansif orta sahayı ayıramıyor — istenen ayrımın tam ortasından geçiyor. `role_id` ise motorda 22 × 13 = 286 elle ayarlanacak katsayı demek; roller eklendikçe bakımı motorun değil kariyerin hızına bağlanırdı. `group` zaten `ROLES`'ta tanımlı ve yedi değerin her biri sahada gerçekten farklı bir iş yapıyor |
 
+---
+
+## 13. EK: İLİŞKİ ÖMRÜ, PASİF FAYDALAR VE AKTİVİTE OLAYLARI
+
+Beş düzenleme, tek tur. Üçü ilişki modelinin ömrüne dokunuyor (kulüp bazlı
+ilişkiler, partnerin sonradan edinilmesi, aktivite olayları), ikisi gelişim
+yollarına (sahip olunan eşyanın pasif faydası, antrenmanın iki aileye inmesi).
+Beşi aynı turda duruyor çünkü birbirlerinin boşluğunu dolduruyorlar: §13.5 kişi
+antrenmanını kaldırıyor, §13.3 ile §13.4 onun yerine geçen iki kaynağı getiriyor;
+§13.4'ün olay makinesi de §13.2'nin partnerle tanışma kapısı.
+
+### 13.0 Geçersiz kılınanlar
+
+§11.0 ve §12.0'ın aynı disiplini: bu bölüm **yalnızca aşağıda adı geçen**
+hükümleri geçersiz kılar. Listede olmayan her madde yürürlüktedir.
+
+| Nerede | Bugünkü hüküm | §13'ün hükmü |
+|---|---|---|
+| §3.4 · `worlddata/relationships.py` | Altı ilişki de kariyer boyu tek satır | Üçü (`coach`/`team`/`fans`) **kulüp kapsamlı**; transferde sıfırlanır (§13.1) |
+| §3.4 seed notu | `partner` satırı 0 skorla ilk günden yazılır ve listelenir | Satır yazılmaya devam eder ama `state='absent'` doğar ve **R1'de dönmez** (§13.2) |
+| §5.4 R1 | "Altı kategori döner" | **Beş veya altı**: `absent` bir ilişki listelenmez |
+| §5.4 R3 | Yanıt skor / nitelik / defter değişimi taşır | Yanıt ayrıca `relationship_state_changes[]` taşır |
+| §11.7 S4 | Yanıt kulüp + sözleşme taşır | Yanıt ayrıca `relationships_reset[]` taşır |
+| §5.2 P1 · D43 | `level` = `floor(value / 10)` | `level` = `floor(effective_value / 10)` — **anlamı değişti** (§13.3, D74) |
+| §12.12 | "`daily_effects`'in bir pasif-nitelik kavramı yok" | `passive_effects` **ayrı bir harita** olarak gelir; `daily_effects`'in kendisi hiç değişmez |
+| §12.11 | Antrenman aileleri: `saha` · `kişi` · `taktik` | **İki aile**: `saha` · `taktik` |
+| §12.11 | `drill: null` iki anlama gelir (kişi → "Yakında", taktik → doğrudan uygula) | `drill: null` **tek** anlama gelir: doğrudan uygulanan taktik kartı |
+| §5.7 N3 `training` | 15 kalem | **10 kalem** (7 `saha` + 3 `taktik`) |
+| §5.5 T2 | Yanıt yalnızca uygulanan maliyet ve etkileri taşır | Yanıt opsiyonel bir `event` bloğu da taşıyabilir (§13.4) |
+
+**Geçersiz kılınmayan, özellikle belirtilmesi gereken üç madde:** D4 (kadro yok,
+tek oyuncu satırı), D23 (diyalog **ağaçları** FE'de kalır), INV-21
+(`ATTRIBUTE_KEYS` kapalı 12'li küme — §13.5 bir aileyi değil, o ailenin
+**antrenman yolunu** kaldırır).
+
+---
+
+### 13.1 Kulüp bazlı ilişkiler
+
+Antrenör, takım arkadaşları ve taraftarlar bir **kulübe** aittir; medya, partner
+ve aile kariyere. Bugün altısı da kariyer boyu tek satır: bir oyuncu transfer
+olduğunda eski kulüpte kazandığı güveni, soyunma odası itibarını ve tribün
+sevgisini yeni kulübe taşıyor. §12.2'nin kadro seçimi bunu doğrudan tüketiyor
+(antrenörün `trust`'ı ağırlığın %35'i), yani yanlış olan yalnızca hikâye değil,
+mekanik.
+
+#### Kimlik sabit kalır, kapsam kolona taşınır (D68)
+
+`relationship_id` FE'de yalnızca bir anahtar değil, **sunum anahtarıdır**. Beş
+ayrı yerde sabit olarak yazılı:
+
+| Nerede | Ne yapıyor |
+|---|---|
+| [`character_portrait.dart:43-58`](../lib/widgets/character_portrait.dart) | Portreyi `relationship_id`'yi hash'leyerek türetiyor — "aynı id her açılışta aynı yüz" |
+| [`relationship_presentation.dart:52-105`](../lib/widgets/relationship_presentation.dart) | Rozet kodu, sol etiket, diyalog kimliği, sahne |
+| [`relationships_screen.dart:20-145`](../lib/screens/relationships_screen.dart) | Diyalog ağaçları, id'ye göre anahtarlı |
+| [`request_screen.dart:336-342`](../lib/screens/request_screen.dart) | Maç sonrası delta çubuklarının sırası |
+| [`social_offer_screen.dart:407-425`](../lib/screens/social_offer_screen.dart) | Teklifin kapanış cümlesi |
+
+Bu yüzden kimliğe kulüp eklemek (`coach@t_ykz` gibi) **seçenek değildir**: beş
+yerde birden varsayılana düşer, NPC'nin yüzü değişir, "ARA" düğmesi sessizce
+ölür. **Altı sabit kimlik korunur**; kapsam ayrı bir kolonda yaşar.
+
+```sql
+-- 017_relationship_scope.sql
+ALTER TABLE relationship ADD COLUMN scope   TEXT NOT NULL DEFAULT 'career';  -- 'career'|'club'
+ALTER TABLE relationship ADD COLUMN team_id TEXT;                            -- scope='club' iken dolu
+```
+
+| `relationship_id` | `scope` | Gerekçe |
+|---|---|---|
+| `coach` · `team` · `fans` | `club` | Kulüple gelir, kulüple gider |
+| `media` · `partner` · `family` | `career` | Ülke basını ve hayatındaki insanlar; transfer bunları değiştirmez |
+
+`scope` koddaki bir sabitten türetilmiyor, kolon olarak saklanıyor: satır zaten
+hangi kulübe ait olduğunu (`team_id`) taşımak zorunda ve ikisini ayrı yerlerde
+tutmak onları bir gün ayrı düşürürdü.
+
+#### Sıfırlamanın üç katmanı (D69)
+
+Tetikleyici **yalnızca `player.team_id`'nin değişmesidir**, yani §11.7'nin S4
+transfer kabulü. Aynı transaction içinde, kulüp yazıldıktan hemen sonra:
+
+**1 · Skor** → `worlddata/relationships.STARTING_SCORES` (`coach` 70 · `team` 50 ·
+`fans` 40). Doğrudan `UPDATE` **değil**, `relationships.apply_delta(rid,
+varsayılan − mevcut, reason=f"transfer_reset:{team_id}")`. Bu bir üslup tercihi
+değil, INV-15'in koşulu: §3.4 "bir test olay günlüğünü baştan oynatıp skoru
+yeniden hesaplar ve tutmazsa kırılır" diyor. Günlükten geçmeyen bir sıfırlama o
+testi ilk transferde kırardı.
+
+**2 · `traits`** → o `kind`'ın model varsayılanına döner; antrenör için
+`CoachTraits.trust = 50.0` ([`domain/relationships.py:26`](domain/relationships.py)).
+Yazma yolu INV-42'nin tek kapısı, `apply_trait_delta()`. Sonucu §12.2'de
+ölçülebilir: kadro ağırlığının %35'i `trust`, %20'si antrenör ilişkisi, %45'i
+kondisyon. Sıfırlanmış bir kariyer taze kariyerin 76.5'ine döner — yeni kulüpte
+yer yeniden kazanılır.
+
+**3 · Kimlik** → `person_name`, `contact_name`, `age`, `occupation`, `bio`,
+`hobbies` yeni kulübün havuzundan yeniden yazılır. Havuz
+`worlddata/relationships.py`'e `CLUB_STAFF` olarak eklenir; satırı olmayan takım
+için seçim `career.seed` + `team_id`'den deterministik yapılır, böylece INV-7
+(aynı seed → aynı dünya) korunur.
+
+Üçünün birlikte olmasının gerekçesi: ikisi tek başına tutarsız bir dünya bırakır.
+Yalnızca skor sıfırlanırsa antrenör değişmemiş görünürken güveni yerinde kalır;
+skor ve `traits` sıfırlanıp kimlik kalırsa "Mert Çalışkan yeni kulübünde de seni
+bekliyordu ama seni tanımıyor" çıkar.
+
+#### Sıfırlama YAPMAYAN olaylar
+
+Üçü de kulübe dair bir şeyi değiştirdiği ve karıştırılmaya açık olduğu için
+açıkça yazılıyor:
+
+| Olay | Neden sıfırlamaz |
+|---|---|
+| Sezon devri (§11.5 S1) | Kulüp aynı; yalnızca sezon kimliği ilerliyor |
+| Terfi / düşme (§11.4) | Kulüp aynı, lig değişiyor — antrenörün sana güveni ligle ilgili değil |
+| Sözleşme bitişi · serbest oyunculuk (§11.7) | `player.team_id` mevcut kulüpte kalıyor; kimse gitmedi |
+
+#### S4 yanıtına eklenen blok
+
+```jsonc
+{ "career_state": { /* CareerState */ },
+  "team":         { /* TeamRef — yeni kulüp */ },
+  "competition":  { /* CompetitionRef */ },
+  "contract":     { /* … */ },
+
+  "relationships_reset": [                        // YENİ · §13.1
+    { "relationship_id": "coach", "before": 82, "after": 70,
+      "person_name": "Kerem Tunç",   "contact_name": "Antrenör Kerem" },
+    { "relationship_id": "team",  "before": 64, "after": 50,
+      "person_name": "Onur Bilge",   "contact_name": "Takım grubu" },
+    { "relationship_id": "fans",  "before": 71, "after": 40,
+      "person_name": "Tribün Grubu", "contact_name": "Taraftar grubu" } ] }
+```
+
+`before`/`after` R3'ün `relationship_changes` şeklini izler; kimlik alanları
+eklidir çünkü FE'nin yeni ismi öğrenmesinin başka yolu R1'i yeniden çekmektir ve
+transfer ekranı bugün onu çekmiyor (§13.11).
+
+---
+
+### 13.2 Partner ilişkisinin ömrü
+
+Partner bugün ilk günden listede duruyor, skoru 0 ve `partner_01` ağacı açık.
+`worlddata/relationships.py`'nin kendi yorumu bunun bilinçli bir uzlaşma
+olduğunu söylüyor: *"ilişki modelinin nullable/absent bir durumu yok"*, bu yüzden
+satır 0 skorla yazılıyor. §13.2 tam olarak o eksik durumu ekliyor — partner
+artık **sonradan tanışılan** biri.
+
+#### Durum makinesi (D71)
+
+```sql
+-- 017_relationship_scope.sql (aynı dosyada)
+ALTER TABLE relationship ADD COLUMN state TEXT NOT NULL DEFAULT 'active';
+-- 'absent' | 'courting' | 'active'
+```
+
+```
+absent ──(aktivite olayı · §13.4 seçeneği)──► courting
+courting ──(partner_01'de ilişkiyi kuran yaprak)──► active
+courting ──(reddeden yaprak · skor 0)──► absent
+active ──(skor 0)──► absent          kart listeden düşer
+```
+
+Diğer beş ilişkinin `state`'i **daima** `active`'dir (INV-59) — durum makinesi
+yalnızca `kind='partner'` için çalışır. Bu bilinçli bir daraltma: "antrenörle
+tanışmak" diye bir şey yok, antrenör kulüple birlikte gelir (§13.1).
+
+Satır `absent` iken de **var olmaya devam eder**. `worlddata/relationships.py`'nin
+"satır hep var, yoksa `get_score()` döneceği bir şey bulamaz" gerekçesi aynen
+korunuyor; değişen tek şey satırın **listelenip listelenmediği**.
+
+#### R1 davranışı
+
+`state='absent'` bir ilişki **dönmez** (INV-58). Kart sayısı beş veya altıdır; FE
+R1'i zaten dinamik çiziyor (`relationships_screen.dart`'ın `_toCardData()`'sı),
+bu yüzden eksik kart bir kırılma değil.
+
+`courting` bir ilişki **döner** ve yeni alanı taşır:
+
+```jsonc
+{ "relationship_id": "partner",
+  "kind":            "partner",
+  "category":        "Partner",
+  "state":           "courting",        // YENİ · §13.2
+  "score":           8,
+  "person_name":     "Elif Demir",
+  "contact_name":    "Elif",
+  "last_contact_at": "2026-09-04",
+  "has_pending_request": false,
+  "traits":          { "met_on": "2026-09-02" } }
+```
+
+`state` **her** karta eklenir, yalnızca partnere değil — FE'nin bir alanın kime
+uygulandığını `kind`'dan çıkarmak zorunda kalmaması için. Beş ilişki için değeri
+hep `"active"`.
+
+#### R3 davranışı — diyalog durumu değiştirebilir (D72)
+
+`absent` bir ilişkiye `interact` çağrısı **hiçbir şey yazmadan** reddedilir:
+`409 relationship_absent`. Kontrol, D42'nin yeterlilik kapısından da **önce**
+yapılır — tanımadığın birine kibar olamazsın.
+
+Yaprak tablosu (`catalog/dialogue.py`) opsiyonel bir anahtar kazanır:
+
+```python
+"partner_01": {
+  # courting'deyken: ilişkiyi kuran yaprak
+  "r0": {"relationship_delta": 4, "sets_state": "active",
+         "requires": {"charisma": 6}, "costs": {"time": 60.0, "energy": 4.0}},
+  "r1": {"relationship_delta": -3, "sets_state": "absent",
+         "costs": {"time": 15.0, "energy": 1.0}},
+}
+```
+
+`sets_state` **yalnızca `courting` durumundaki bir ilişkide** uygulanır; `active`
+bir ilişkide sessizce yok sayılır. Böylece aynı ağaç iki fazda da kullanılabilir
+ve bir yaprak yanlışlıkla kurulmuş bir ilişkiyi "yeniden kurmaz".
+
+`sets_state` **`GET /catalog/dialogue`'da gönderilmez** — o uç `requires` ve
+başka hiçbir şey servis ediyor (§5.7). Hangi cevabın ilişkiyi başlattığını
+önceden bilmek konuşmanın kendisini bozardı.
+
+R3 yanıtı yeni bir liste kazanır:
+
+```jsonc
+{ "career_state": { /* CareerState */ },
+  "relationship_changes":       [ { "relationship_id": "partner", "before": 4, "after": 8, "delta": 4 } ],
+  "relationship_state_changes": [ { "relationship_id": "partner",             // YENİ · §13.2
+                                    "before": "courting", "after": "active" } ],
+  "attribute_changes": [ … ],
+  "condition_after":   null,
+  "ledger_entries":    [] }
+```
+
+Liste boş dizidir, durum değişmediğinde `null` değil — `relationship_changes`'in
+kendi kalıbı.
+
+#### Ayrılma
+
+`apply_delta()` bir `partner` satırının skorunu **0'a indirdiğinde** satır
+otomatik `absent`'a düşer. Üç kaynak da aynı kapıdan geçtiği için ayrı bir kural
+gerekmiyor: ilgisizlik (§3.4'ün `decay` tick'i), kötü diyalog seçimleri,
+kaçırılan sosyal plan (§12.8). Geçiş `relationship_event`'e
+`reason='partner_ended'` satırı düşürür ve o satır INV-15'in yeniden oynatma
+testinde de görünür.
+
+Ayrılmış bir partnerle **yeniden tanışmak** için yeni bir aktivite olayı gerekir;
+kimlik (isim, yaş, meslek, bio) yeniden üretilir — dönen eski partner değil, yeni
+biridir.
+
+> **Neden tek yönlü değil:** tek yönlü bir makine (bir kez kuruldu mu kalıcı)
+> test yüzeyini küçültürdü, ama skoru 0'a düşmüş bir partnerin kartta durmaya
+> devam etmesi §3.4'ün `decay` mekanizmasını anlamsız kılardı — hiçbir şey
+> kaybedilemeyen bir ilişkinin skoru bir kaynak değildir.
+
+#### Onboarding
+
+`worlddata/relationships.py` `partner` satırını yazmaya devam eder: skor
+`STARTING_SCORES["partner"] = 0`, `state = 'absent'`. `family` **değişmez** —
+skoru 0 ama `state = 'active'`; aileyi aramamış olmakla ailen olmaması aynı şey
+değil.
+
+---
+
+### 13.3 Pasif nitelik bonusları
+
+§12.12 dükkânın "sahip olmak mekaniğin tamamı" kuralını `daily_effects` ile
+genişletmiş, ama pasif bir **nitelik** kavramını bilinçli olarak açmamıştı:
+*"bir konsola ya da kramponlara uydurma bir mekanik eklemek onları vitrin metni
+olarak dürüst bırakmaktan daha kötü olurdu."* §13.5 kişi antrenmanını kaldırınca
+o boşluk gerçek bir soruya dönüşüyor: kibarlık nereden gelecek? Cevap şu:
+**yaşadığın hayattan** — ne giydiğinden, nerede oturduğundan.
+
+#### Şema değişikliği yok
+
+Bonus türetilir: `inventory` satırları × `catalog/shop.py`. Saklanan hiçbir yeni
+değer yok, bu yüzden migration da yok. Bu, D24/D25'in "saklanan değer + tek yazma
+noktası" kalıbından **bilinçli bir ayrılıştır**: saklanan bir bonus, eşya elden
+çıktığında (satış, D29 haczi) geri alınmak zorunda kalırdı ve o geri alma yolu
+INV-22'yi ("hiçbir nitelik kendiliğinden azalmaz") ihlal eden tek yol olurdu.
+Türetilmiş bonus o sorunu hiç doğurmaz.
+
+#### Katalog — `passive_effects` (D73)
+
+```python
+{"catalog_id": "personal-suit", "title": "Takım elbise", "category": "personal",
+ "price": 60, "note": "Ismarlama",
+ "passive_effects": {"attribute:politeness": 2.0}}
+```
+
+`daily_effects`'ten **ayrı** bir harita, çünkü ikisi farklı şey yapıyor:
+
+| | Ne yapar | Ne zaman |
+|---|---|---|
+| `daily_effects` (§12.12) | Bir değeri **yazar** (kondisyon, enerji, şöhret) | Gün döngüsünde, günde bir kez |
+| `passive_effects` (§13.3) | Hiçbir şey yazmaz; **okuma anında** tabanın üstüne biner | Her okumada |
+
+`catalog/__init__.py` yeni bir uzay ve doğrulayıcı kazanır:
+`KNOWN_PASSIVE_EFFECT_KEYS` = `attribute:<kişi ailesi anahtarı>` (beş anahtar),
+`validate_passive_effects()`. INV-28'in kalıbı: tanınmayan anahtar taşıyan kalem
+import anında patlar.
+
+Uzay bilinçli olarak **yalnızca kişi ailesi**. Bir kol saatinin şut isabetini
+artırmasının hiçbir açıklaması yok; `saha` ailesi antrenmanla kazanılır ve
+§13.5'ten sonra da öyle kalır.
+
+#### Okuma yolu — `domain/attributes.py`
+
+| Fonksiyon | Ne döner |
+|---|---|
+| `get_value()` | **taban** — bugünkü davranış, hiç değişmez |
+| `passive_bonus(conn, career_id, key)` | sahip olunan eşyaların o anahtardaki toplamı — **YENİ** |
+| `effective_value(conn, career_id, player_id, key)` | `clamp(0, 100, taban + bonus)` — **YENİ** |
+
+`apply_delta()` **yalnızca tabana yazar** (INV-60). Bonus hiçbir zaman
+kalıcılaşmaz; eşya elden çıkınca etki kendiliğinden geri gider ve taban değere
+bir kez bile dokunulmamış olur.
+
+#### Kilitler etkin değeri okur
+
+`domain/requirements.py`'nin üç fonksiyonu da (`unmet()`, `met()`, `check()`)
+`get_value` yerine `effective_value` kullanır. Maddenin asıl amacı budur: takım
+elbise gerçekten kapıyı açar. Etkilenen bütün kapılar tek listede:
+
+| Kapı | Nerede |
+|---|---|
+| Diyalog yaprağı | `catalog/dialogue.py` `requires` (D42) |
+| Katalog kalemi | `catalog/lifestyle.py`, `catalog/training.py` `requires` |
+| Sosyal teklif | `content/social_offers.py` |
+| Sponsorluk | `content/sponsorships.py` |
+| Aktivite olayı seçeneği | `content/activity_events.py` (§13.4) |
+
+#### P1 yanıtı — `attributes[]` iki alan kazanır (D74)
+
+```jsonc
+{ "key": "politeness", "family": "kişi",
+  "value":           58.0,   // taban — aktivite, diyalog, sosyal teklif bunu oynatır
+  "passive_bonus":    2.0,   // YENİ · sahip olunan eşyalardan türetilmiş
+  "effective_value": 60.0,   // YENİ · value + passive_bonus, 0-100'e sıkışmış
+  "level":              6 }  // ANLAMI DEĞİŞTİ · floor(effective_value / 10)
+```
+
+`level`'ın etkin değerden türemesi **kırıcıdır ve bilinçlidir**. D43 bugün
+`floor(value / 10)` diyor ve `level`'ın gönderilme sebebi olarak "FE o kuralı
+kopyalamak zorunda kalmasın" gerekçesini veriyor. O gerekçe §13.3'ten sonra daha
+da güçlü: FE artık kuralı kopyalayamaz bile, çünkü bonusu hesaplamak için envanteri
+ve dükkân kataloğunu birleştirmesi gerekirdi. Kapıda sunucunun okuduğu sayı ile
+ekranda kullanıcının gördüğü sayının **aynı** olması INV-61'in tek maddesi.
+
+`value` ile `level` arasındaki `floor(value/10)` özdeşliği **kalkar**; D43'ün o
+cümlesi §13.0'da geçersiz kılınanlar arasında.
+
+#### Değişen diğer yanıtlar
+
+`attribute_changes[]` satırları da `passive_bonus` taşır (T2, T4, R3, R5/R6, T6 ve
+§12'nin sosyal uçları) — FE yerel kopyasını yeniden hesaplayabilsin diye.
+`level_before`/`level_after` zaten var ve artık etkin değerden türüyor.
+
+#### Ölçek ⟦AÇIK-16⟧
+
+Hangi eşyanın hangi niteliğe kaç puan verdiği bu turda **yazılmıyor**; §13.3
+mekanizmayı ve uzayı bağlar, sayıyı değil. İlk aday eşleştirme — **öneri,
+bağlayıcı değil**:
+
+| Kalem | Aday `passive_effects` | Vitrin metnindeki karşılığı |
+|---|---|---|
+| `personal-suit` | `attribute:politeness` | "Ismarlama" |
+| `personal-watch` | `attribute:charisma` | "Röportajlarda ve sponsor çekimlerinde" (bugün `fame:overall`) |
+| `personal-headphones` | `attribute:confidence` | "Gürültü engelleyici" |
+| `home-console` | `attribute:resourcefulness` | "İki kollu" — soyunma odası dili |
+| `estate-flat` · `estate-villa` | `attribute:confidence` | Oturduğun yer |
+
+§12.12'nin kasıtlı olarak boş bıraktığı beş "vitrin" kalemi (`home-tv`,
+`home-console`, `personal-boots`, `personal-suit`, `personal-headphones`) tam
+olarak burada hayat buluyor — o bölümün "uydurma mekanik eklemektense dürüst
+bırak" itirazı artık geçerli değil, çünkü ortada uydurma olmayan bir mekanik var.
+
+---
+
+### 13.4 Aktivite olayları
+
+Yaşam aktiviteleri bugün atomik: `POST /actions` maliyeti düşer, etkiyi uygular,
+biter. Bir akşam dışarı çıkmakla evde uyumak arasındaki tek fark bir sayı
+tablosu. §13.4 aktiviteye **olay** ekliyor: kafede biri seni tanıyabilir,
+konserde bir fotoğraf çekilebilir, ailen bir şey isteyebilir — ve bunların bir
+kısmı karar ister.
+
+#### Yazarlanma yeri — BE (D75)
+
+Kalıp §5.4 R4'ün (sosyal teklif) aynısı: **BE'de yazarlanmış bir paragraf +
+butonlar**, FE'de ağaç yok. R4'ün kendi gerekçesi burada da geçerli — dallanmayan
+bir olayın metnini FE'de tutmak, yeni bir şablon eklemeyi iki depoda düzenleme
+yapmaya çevirirdi. Diyalog **ağaçları** FE'de kalmaya devam ediyor (D23), çünkü
+onların dallanması bir arayüz yapısıdır; bir aktivite olayı ise bir paragraf ve
+iki-üç seçenektir.
+
+`content/activity_events.py`, `content/social_offers.py`'nin ikizi:
+
+```python
+{"template_id": "kafe-taniyan-birisi",
+ "catalog_ids": ["sos-kafe", "sos-arkadas"],       # hangi aktivitelerde çıkabilir
+ "weight": 3,
+ "requires": {},                                   # D42 · etkin seviyeden okunur (§13.3)
+ "title": "Tanıdık bir yüz",
+ "body":  "Yan masadaki biri seni tanıdı; geçen haftaki maçtan konuşuyor.",
+ "options": [
+   {"option_id": "masasina_git", "label": "Masasına git",
+    "requires": {"confidence": 5},
+    "costs":    {"time": 45.0, "energy": 5.0},
+    "effects":  {"attribute:charisma": 0.4},
+    "starts_relationship": "partner"},             # §13.2'nin courting kapısı
+   {"option_id": "gulumse", "label": "Gülümseyip geç",
+    "effects":  {"condition": 1}},
+ ]}
+```
+
+`effects` uzayı T2'nin kendi uzayıdır (§5.7): `attribute:<key>` · `condition` ·
+`energy` · `money` · `fame:<scope>` · `relationship:<rid>`. INV-28 aynı şekilde
+import anında doğrular.
+
+`starts_relationship` yalnızca `partner` değeri alabilir ve yalnızca ilişki
+`absent` iken etkilidir; `courting` veya `active` bir partnerde sessizce yok
+sayılır (§13.2). Bu, iki mekanizmanın tek bağlantı noktasıdır.
+
+#### Havuz — her yaşam aktivitesi olay üretebilir
+
+Hangi aktivitenin hangi olayı üretebileceği **şablon tarafında** (`catalog_ids`)
+tanımlanır, katalog tarafında değil: bir şablon birden çok aktiviteye
+bağlanabilsin ve yeni bir olay yazmak iki dosyaya dokunmasın diye. Katalog
+kalemi yalnızca **sıklığı** taşır:
+
+```jsonc
+// GET /catalog/lifestyle
+{ "catalog_id": "sos-konser", "title": "Konser", …,
+  "event_chance": 0.35 }         // YENİ · §13.4 · yoksa ACTIVITY_EVENT_DEFAULT_CHANCE
+```
+
+"Aktivitenin türüne bağlı" tam olarak budur: ev aktivitelerinin havuzu dar ve
+sıklığı düşük, sosyal aktivitelerinki geniş ve yüksek. `ev-uyku` ile
+`sos-konser` aynı zardan geçmez. Varsayılan sıklık `api/config.py`'de
+(`ACTIVITY_EVENT_DEFAULT_CHANCE`), tıpkı `SOCIAL_OFFER_DAILY_CHANCE` gibi.
+
+#### Şema — `018_activity_events.sql`
+
+```sql
+CREATE TABLE activity_event (
+  career_id     TEXT NOT NULL REFERENCES career(career_id) ON DELETE CASCADE,
+  event_id      TEXT NOT NULL,              -- 'ae_' + 12 hex
+  template_id   TEXT NOT NULL,
+  catalog_id    TEXT NOT NULL,              -- olayı doğuran aktivite
+  opened_on     TEXT NOT NULL,
+  status        TEXT NOT NULL,              -- 'open' | 'resolved' | 'expired'
+  chosen_option TEXT,
+  resolved_on   TEXT,
+  PRIMARY KEY (career_id, event_id)
+);
+```
+
+Tablo zorunlu, çünkü olay T2 yanıtıyla doğar ama o yanıtta yaşayamaz: kullanıcı
+uygulamayı kapatıp açabilir ve seçim sunucuda doğrulanmak zorundadır (ödül tablosu
+BE'de kalır).
+
+#### Akış
+
+**1 · T2 olayı doğurur.** Aktivitenin **temel etkileri bugünkü gibi uygulanır** —
+INV-3 bozulmaz, aktivite kendi başına tamamlanmış bir aksiyondur. Ardından zar
+atılır; olay çıkarsa yanıta eklenir:
+
+```jsonc
+{ "career_state":    { /* CareerState */ },
+  "applied_costs":   { "time": 60.0 },
+  "applied_effects": { "condition": 1, "attribute:politeness": 0.1 },
+  "attribute_changes":   [ … ],
+  "tactic_changes":      [],
+  "relationship_changes":[],
+  "ledger_entries":      [ … ],
+
+  "event": {                                    // YENİ · §13.4 · olay yoksa null
+    "event_id":    "ae_7c31f0a99b2d",
+    "template_id": "kafe-taniyan-birisi",
+    "catalog_id":  "sos-kafe",
+    "title":       "Tanıdık bir yüz",
+    "body":        "Yan masadaki biri seni tanıdı; geçen haftaki maçtan konuşuyor.",
+    "opened_on":   "2026-09-17",
+    "status":      "open",
+    "options": [
+      { "option_id": "masasina_git", "label": "Masasına git",
+        "requires": { "confidence": 5 }, "costs": { "time": 45.0, "energy": 5.0 } },
+      { "option_id": "gulumse", "label": "Gülümseyip geç",
+        "requires": {}, "costs": {} } ] } }
+```
+
+`options[].requires` ve `costs` **gönderilir** — oyuncu seçmeden önce kapıyı
+görmeye hak kazanır (D42, R4'ün aynı kuralı). `effects` **gönderilmez**, aynı
+gerekçeyle: ödül tablosu sunucuda kalır.
+
+**2 · T5 · `GET /careers/{cid}/activity-events`** — açık olayı yeniden çeker.
+
+```jsonc
+{ "events": [ { /* T2'nin `event` bloğuyla aynı şekil */ } ] }
+```
+
+Açık olay yoksa boş dizi; hata değil. Uygulamayı kapatıp açan kullanıcı için tek
+kurtarma yolu bu uçtur.
+
+**3 · T6 · `POST /careers/{cid}/activity-events/{eid}/choose/{option_id}`** —
+gövdesiz. Kontrol sırası T2'nin tablosunun aynısıdır:
+
+| Sıra | Kontrol | Hata |
+|---|---|---|
+| 1 | Olay var mı | `404 activity_event_not_found` |
+| 2 | Açık mı | `409 activity_event_not_open` |
+| 3 | Seçenek o olaya ait mi | `422 invalid_request` |
+| 4 | `requires` (etkin seviye, §13.3) | `409 requirement_not_met` |
+| 5 | Bütçe | `409 insufficient_budget` |
+| 6 | Bakiye | `409 insufficient_funds` |
+
+Reddedilen bir seçim **hiçbir şey yazmaz** ve olay açık kalır — kullanıcı başka
+bir seçenek seçebilir (INV-30'un kalıbı). Yanıt R3'ün şeklidir, artı çözümlenmiş
+olay:
+
+```jsonc
+{ "career_state": { /* CareerState */ },
+  "event": { "event_id": "ae_7c31f0a99b2d", "status": "resolved",
+             "chosen_option": "masasina_git", "resolved_on": "2026-09-17",
+             /* … T2'deki alanlar */ },
+  "applied_costs":   { "time": 45.0, "energy": 5.0 },
+  "applied_effects": { "attribute:charisma": 0.4 },
+  "attribute_changes":         [ … ],
+  "relationship_changes":      [ … ],
+  "relationship_state_changes":[ { "relationship_id": "partner",
+                                   "before": "absent", "after": "courting" } ],
+  "ledger_entries":            [ … ] }
+```
+
+#### Gün akışı kilitlenmez (D76)
+
+`POST /advance` açık bir aktivite olayı yüzünden **409 dönmez**. Geçilen günde
+açık kalan olay `expired` olur ve **hiçbir etki yazmaz** (INV-63).
+
+Bu, §12.8/§12.9'un sosyal plan ve çakışma kilitlerinden bilinçli bir ayrılıştır ve
+gerekçesi kavramsal: bir plan bir **randevudur** — karşı taraf seni bekliyor,
+gitmemek bir seçimdir ve bedeli vardır, o yüzden gün onsuz kapanamaz. Bir kafe
+sohbeti ise o anın içinde yaşar; kaçırılmışsa kaçırılmıştır ve kimse gücenmez.
+Üstelik kullanıcı olayın doğduğu anda **zaten aktivite ekranındadır**, yani
+kilidin çözdüğü sorun (kullanıcı ekranı hiç görmeden günü kapatır) burada yok.
+
+Yan fayda: `career_center_screen.dart`'ın 409 zinciri (§12.9'un sırası:
+`season_rollover_required` → `sponsorship_obligation_pending` →
+`social_conflict_pending` → `social_plan_pending` → `match_day_unplayed` →
+`social_offer_pending`) hiç uzamıyor. O zincir her yeni halkada bir sıralama
+kararı isteyen türden bir yer.
+
+#### Aynı anda tek olay (INV-62)
+
+Açık bir olay varken yeni bir olay **üretilmez** — INV-39'un (aynı anda en fazla
+bir açık sosyal teklif) ikizi. Zar atılmadan önce açık olay sorgulanır; varsa T2
+`event: null` döner ve aktivite normal şekilde tamamlanır.
+
+---
+
+### 13.5 İki antrenman ailesi
+
+Antrenman ekranı üç aileye ayrılmıştı: `saha` (7 kalem, hepsi mini-oyunlu),
+`kişi` (5 kalem, hepsi `drill: null` ve FE'de "Yakında"), `taktik` (3 kalem,
+§12.11, doğrudan uygulanıyor). §13.5 bunu ikiye indiriyor: **fiziksel ve
+taktiksel**.
+
+#### Silinenler (D77)
+
+`catalog/training.py`'den beş `kişi` kalemi **tamamen kalkar**:
+`medya-egitimi`, `gorgu-dersleri`, `ozguven-koclugu`, `satranc-kulubu`,
+`kriz-simulasyonu`. Katalog 15 → **10 kalem** (7 `saha` + 3 `taktik`).
+
+`TRAINING_FAMILIES = ("saha", "taktik")` yeni bir sabit olarak `api/config.py`'ye
+girer ve `validate_catalog()` `kişi` ailesi taşıyan bir antrenman kalemini import
+anında reddeder (INV-64) — INV-28'in kalıbı.
+
+**`ATTRIBUTE_KEYS`'in `kişi` ailesi kalır.** Beş nitelik, radar ekseni
+([`relationships_radar_screen.dart:15-19`](../lib/screens/relationships_radar_screen.dart))
+ve bütün `requires` kapıları olduğu gibi durur. Kalkan şey niteliğin **antrenman
+yolu**dur, kendisi değil. INV-21 hiç değişmez.
+
+Beşi bir arada gitmesinin gerekçesi: ikisi kalsaydı sekme de kalırdı ve "iki
+antrenman türü" kararı uygulanmamış olurdu. Kısmi silme, ekranı boş bir sekmeyle
+bırakmaktan daha kötü bir sonuç verirdi — bugünkü hâlin ta kendisi o.
+
+#### `drill: null` artık tek anlama gelir
+
+§12.11 iki anlam taşıyordu: `kişi` kaleminde "Yakında" (tıklanamaz), `taktik`
+kaleminde "doğrudan uygula". Kişi kalemleri gidince ikinci anlam tek anlam olur.
+FE'de `'Yakında'` dalı ve onun disabled buton yolu ölür
+([`training_screen.dart:353-361`](../lib/screens/training_screen.dart)).
+
+#### Kişi nitelikleri bundan sonra nereden gelişir (D78)
+
+Dört kaynak; üçü bugün zaten çalışıyor, dördüncüsü §13.3 ile geliyor:
+
+| Kaynak | Nerede | Bugünkü örnek |
+|---|---|---|
+| Yaşam aktiviteleri | `catalog/lifestyle.py` | `sos-arkadas` +0.3 `charisma`, `sos-konser` +0.4 `confidence` |
+| Sosyal teklifler | `content/social_offers.py` | `media_interview_request` |
+| Diyalog sonuçları | `catalog/dialogue.py` | `media_01:r0` +0.2 `charisma` |
+| **Aktivite olayları** | `content/activity_events.py` (§13.4) | `masasina_git` +0.4 `charisma` |
+| **Pasif eşya bonusu** | `catalog/shop.py` (§13.3) | takım elbise +2 `politeness` |
+
+Kavramsal olarak bu, kararın asıl gerekçesi: kişi nitelikleri **yaşayarak**
+gelişir, salonda değil. Bir spor kulübünde "kibarlık antrenmanı" diye bir şey
+yok; kibarlık ailene daha sık uğramaktan, doğru röportajı vermekten ve doğru
+takımı giymekten gelir.
+
+#### ⟦AÇIK-17⟧ — eşiklerin yeniden dengelenmesi
+
+D42'nin kilit zinciri şuydu: `ozguven-koclugu` → özgüven 6 → `medya-egitimi` →
+cazibe 8 → `media_01:r0`. İlk iki halka siliniyor.
+
+Taze bir kariyer `charisma` 74 (seviye 7) ile başlıyor
+([`worlddata/attributes.py:49-53`](worlddata/attributes.py)) ve `media_01:r0`
+seviye 8 istiyor. Kalan kaynaklarla (aktivite başına +0.1…+0.5, pasif bonus +2)
+o eşiğin **makul sürede** açıldığı sayıyla gösterilmeli; aynı kontrol beş kişi
+niteliğinin hepsi için gerekiyor, özellikle `resourcefulness` (29 → seviye 2) ve
+`confidence` (51 → seviye 5) için.
+
+Bu bir **sayı** işidir, şema işi değil: eşik değerleri `catalog/dialogue.py` ve
+`content/*.py`'de, pasif bonus ölçeği ⟦AÇIK-16⟧'da. §10'un kuralı gereği ikisi de
+**sürüm numarasını değiştirmez**.
+
+---
+
+### 13.6 Mevcut uçlardaki değişiklikler (FE'yi ilgilendiren kısım)
+
+§11.8'in aynı tablosu: §13'ün imzalı uçlarda ne değiştirdiği, tek yerde.
+
+| Uç | Değişiklik | Kırıcı mı |
+|---|---|---|
+| §5.4 R1/R2 | Her karta `state` eklenir; `absent` bir ilişki **listelenmez** | Hayır — FE listeyi dinamik çiziyor, alan eklemek §5.0'ın kuralı |
+| §5.4 R3 | Yanıta `relationship_state_changes[]` eklenir; `absent` ilişkide `409 relationship_absent` | Hayır — yeni alan, yeni hata yolu |
+| §5.2 P1 | `attributes[]`'a `passive_bonus` ve `effective_value` eklenir; **`level`'ın anlamı değişir** (D74) | **Evet** — `level` artık `floor(value/10)` değil |
+| §5.5 T2 | Yanıta opsiyonel `event` bloğu eklenir (olay yoksa `null`) | Hayır — FE tanımadığı alanı yok sayar |
+| §5.5 T2 | Yanıta `relationship_state_changes[]` eklenir | Hayır — bir `relationship:` etkisi partneri 0'a düşürüp ilişkiyi bitirebiliyor; onsuz kart bir sonraki R1'de sessizce kaybolurdu |
+| §5.5 T2/T4 ve §12'nin sosyal uçları | `attribute_changes[]` satırları `passive_bonus` taşır | Hayır |
+| §5.7 N3 `training` | 15 → **10 kalem**; `kişi` ailesi hiç dönmez | **Evet** — FE'nin üçüncü sekmesi boşalır (§13.11) |
+| §5.7 N3 `lifestyle` | Kalemler `event_chance` taşıyabilir | Hayır |
+| §5.7 N3 `shop` | Kalemler `passive_effects` taşıyabilir | Hayır |
+| §5.7 N3 `dialogue` | Değişmez — `sets_state` **gönderilmez** (§13.2) | Hayır |
+| §11.7 S4 | Yanıta `relationships_reset[]` eklenir | Hayır — ama FE'nin R1'i yeniden çekmesi gerekir (§13.11) |
+| §4 tablosu | **T5**, **T6** eklenir | Hayır |
+
+> ⚠️ **§4'ün tablosu zaten geride.** §11.8 "S1–S4 eklenir" demişti ama tablo
+> düzenlenmedi; §12'nin sosyal plan (§12.8) ve çakışma (§12.9) uçları da tabloda
+> yok. §13 T5/T6'yı tabloya ekliyor ama eksik satırları tamamlamıyor — o ayrı bir
+> düzeltme ve bu bölümün kapsamı değil. Uçların doğruluk kaynağı daima kendi
+> şartname bölümüdür (§5, §11.5-11.7, §12.1-12.9, §13.4).
+
+#### Yeni uçlar
+
+| # | Metot | Yol | Ne yapar |
+|---|---|---|---|
+| T5 | `GET` | `/careers/{cid}/activity-events` | Açık aktivite olayını çeker (§13.4) |
+| T6 | `POST` | `/careers/{cid}/activity-events/{eid}/choose/{option_id}` | Seçeneği uygular |
+
+İkisi de **Zaman** ailesinde, çünkü olay bir aktivitenin (T2) devamı ve günün
+bütçesinden yiyor — sosyal teklifin (R4-R6) ilişki ailesinde durmasıyla aynı
+mantık, farklı kök.
+
+**Durumu değiştiren her uç** kuralına (D28, INV-18) **T6** da dahildir: yanıtı
+tam `CareerState` bloğunu taşır.
+
+#### Uygulamada çıkan tek ek karar
+
+`relationship_state_changes` **tek bir yazma yolundan değil, bir fark'tan**
+üretiliyor: çağıran taraf yazmadan önce `relationships.state_snapshot()`
+alıyor, yazdıktan sonra `state_diff()` ile karşılaştırıyor.
+
+Gerekçe uygulama sırasında ortaya çıktı: tek bir R3 çağrısı durumu **iki ayrı
+yoldan** oynatabiliyor — yaprağın `sets_state`'i, ve `apply_delta`'nın skoru
+0'a düşürüp partneri kendiliğinden bitirmesi (§13.2). Her yolun kendi kaydını
+raporladığı bir tasarımda flörtü reddeden yaprak (`c1`, delta −4, skor zaten
+0) ilişkiyi `absent` yapıyor ama **hiçbir şey raporlamıyordu**: `sets_state`
+sırası geldiğinde durum çoktan değişmiş oluyor ve no-op'a düşüyordu. Fark
+almak FE'nin sorduğu tek soruyu soruyor: bu kişi listemde şimdi var mı, önce
+var mıydı?
+
+### 13.7 Yeni kararlar
+
+On birinci turda (ilişki ömrü, pasif faydalar, aktivite olayları) alınanlar:
+
+| # | Konu | Karar | Gerekçe |
+|---|---|---|---|
+| D68 | İlişkinin kapsamı | **Altı sabit `relationship_id` korunur; kapsam `scope`/`team_id` kolonlarında taşınır** | Kimliğe kulüp eklemek (`coach@t_ykz`) FE'de beş ayrı sabit tabloyu birden düşürürdü: portre hash'i, sunum tablosu, diyalog ağaçları, maç sonrası çubuk sırası, teklif kapanış cümlesi. Kimlik FE'de bir **sunum anahtarı**; kapsam ise bir veri sorusu ve veri sorusu kolona yazılır |
+| D69 | Transferde ne sıfırlanır | **Skor + `traits` + kimlik — üçü birlikte** | İkisi tek başına tutarsız bir dünya bırakıyor: yalnızca skor sıfırlanırsa antrenörün güveni (§12.2'nin ağırlığının %35'i) eski kulüpten taşınır; kimlik kalırsa aynı antrenör yeni kulüpte seni tanımadan bekliyor olur |
+| D70 | Yeni kulübün kimliği nereden gelir | **`worlddata/relationships.CLUB_STAFF` havuzu; havuzda satırı olmayan takım için `career.seed` + `team_id`'den deterministik seçim** | Otuz iki takımın hepsine elle antrenör yazmak bugünün işi değil, ama INV-7 (aynı seed → aynı dünya) rastgele bir isimle bozulur. Seed'li türetme ikisini birden karşılar: havuz dolduğu ölçüde elle yazılmış isim kazanır, dolmadığı yerde dünya yine tekrar edilebilir kalır |
+| D71 | Partner ilişkisinin durumu | **`state` kolonu: `absent` → `courting` → `active` → `absent`; yalnızca `kind='partner'` için** | Satırı silmek `get_score()`'un dönecek bir şey bulamaması demekti (`worlddata/relationships.py`'nin kendi gerekçesi). Durum kolonu satırı yerinde bırakıp yalnızca **listelenmesini** kapatıyor. Makinenin diğer beş ilişkiye açılmaması bilinçli: antrenörle "tanışmak" diye bir şey yok, o kulüple gelir (§13.1) |
+| D72 | İlişkiyi diyalog mu kurar | **Evet — yaprak `sets_state` taşır, ama yalnızca `courting` durumunda uygulanır** | İlişkinin başlaması bir **karardır**, bir eşik değil: skor 40'a ulaşınca kendiliğinden partner olmak, oyuncunun hiç vermediği bir kararı onun adına vermek olurdu. `active` durumda yok sayılması, aynı ağacın iki fazda da kullanılabilmesini sağlıyor |
+| D73 | Eşyanın nitelik etkisi | **Sahipken pasif bonus — saklanmaz, okuma anında türetilir** | Saklanan bir bonus, eşya elden çıktığında (satış, D29 haczi) geri alınmak zorunda kalırdı; o geri alma INV-22'yi ("hiçbir nitelik kendiliğinden azalmaz") ihlal eden **tek** yol olurdu. Türetilmiş bonus o sorunu hiç doğurmaz ve şema değişikliği de istemez |
+| D74 | `level` hangi değerden türer | **`effective_value`'dan (taban + pasif bonus)** | D43 `level`'ı "FE kuralı kopyalamak zorunda kalmasın" diye gönderiyordu; §13.3'ten sonra FE kuralı kopyalayamaz bile — bonusu hesaplamak için envanteri ve dükkân kataloğunu birleştirmesi gerekirdi. Kapıda sunucunun okuduğu sayı ile ekranda kullanıcının gördüğü sayının aynı olması bu maddenin tek şartı |
+| D75 | Aktivite olayının metni nerede yazarlanır | **BE'de (`content/activity_events.py`), R4'ün sosyal teklifiyle aynı kalıpta** | Dallanmayan bir olayın metnini FE'de tutmak, yeni bir şablon eklemeyi iki depoda düzenleme yapmaya çevirirdi (§5.4 R4'ün kendi gerekçesi). Diyalog **ağaçları** FE'de kalmaya devam ediyor (D23): onların dallanması bir arayüz yapısı, bir aktivite olayı ise bir paragraf ve iki-üç seçenek |
+| D76 | Çözülmemiş olay günü kilitler mi | **Hayır — `advance` sırasında `expired` olur, hiçbir etki yazmaz** | Sosyal plan bir **randevudur**: karşı taraf seni bekliyor, gitmemek bir seçim ve bedeli var, o yüzden gün onsuz kapanamaz (§12.8). Bir kafe sohbeti o anın içinde yaşar. Üstelik kullanıcı olayın doğduğu anda zaten aktivite ekranında — kilidin çözdüğü sorun burada yok. Yan fayda: `career_center_screen.dart`'ın altı halkalı 409 zinciri hiç uzamıyor |
+| D77 | Antrenman aileleri | **İkiye iner: `saha` · `taktik`; beş `kişi` kalemi tamamen silinir** | Kısmi silme ekranı boş bir sekmeyle bırakırdı — bugünkü hâlin ta kendisi (`kişi` kalemlerinin beşi de `drill: null` ve "Yakında"). `ATTRIBUTE_KEYS`'in `kişi` ailesi kalıyor: kalkan nitelik değil, niteliğin antrenman yolu |
+| D78 | Kişi niteliklerinin yeni kaynakları | **Yaşam aktiviteleri + sosyal teklifler + diyalog + aktivite olayları + pasif eşya bonusu** | Beşinin de bugün ya çalışan ya §13'le gelen bir yolu var, yani boşluk kapalı. Kavramsal gerekçe D77'nin kendisi: bir spor kulübünde "kibarlık antrenmanı" yok — kibarlık ailene uğramaktan, doğru röportajdan ve doğru takımı giymekten gelir |
+
+### 13.8 Yeni invariant'lar
+
+| # | Garanti |
+|---|---|
+| INV-56 | `scope='club'` olan her ilişkinin `team_id`'si daima `player.team_id`'ye eşittir; S4 ikisini aynı transaction'da günceller |
+| INV-57 | Kulüp kapsamlı sıfırlama **daima** `relationships.apply_delta()` ve `apply_trait_delta()` üzerinden yazılır; olay günlüğü baştan oynatıldığında skor yine tutar (INV-15 ve INV-42 korunur) |
+| INV-58 | `state='absent'` bir ilişki R1/R2'de **dönmez** ve R3 onu `409 relationship_absent` ile, hiçbir şey yazmadan reddeder |
+| INV-59 | `kind != 'partner'` olan her ilişkinin `state`'i daima `'active'`'tir; durum makinesi yalnızca partner için çalışır |
+| INV-60 | `player_attribute.value`'ye pasif bonus **asla** yazılmaz — `apply_delta()` yalnızca tabana yazar, bonus her okumada yeniden türetilir |
+| INV-61 | `requires` kontrolü ve P1'in `level`'ı **daima** `effective_value`'dan türer: kapıda sunucunun okuduğu sayı ile ekranda kullanıcının gördüğü sayı aynıdır |
+| INV-62 | Bir kariyerde aynı anda en fazla **bir** `status='open'` aktivite olayı bulunur (INV-39'un ikizi) |
+| INV-63 | `advance` sırasında açık kalan aktivite olayı `expired` olur ve hiçbir etki, maliyet veya defter satırı yazmaz |
+| INV-64 | Antrenman kataloğundaki her kalemin `family`'si `TRAINING_FAMILIES`'dendir; `kişi` taşıyan bir kalem yüklenmez (INV-28'in kalıbı, import anında) |
+
+### 13.9 Yeni hata kodları
+
+| HTTP | `code` | Ne zaman |
+|---|---|---|
+| 409 | `relationship_absent` | R3 `state='absent'` bir ilişkiye çağrıldı — kontrol D42'nin yeterlilik kapısından da önce yapılır |
+| 404 | `activity_event_not_found` | Bilinmeyen `event_id` |
+| 409 | `activity_event_not_open` | Olay zaten çözülmüş ya da `expired` |
+
+`requirement_not_met`, `insufficient_budget`, `insufficient_funds` T6'da da aynen
+kullanılır — yeni kod gerekmiyor, sıra T2'nin tablosunun aynısı (§13.4).
+
+### 13.10 Yeni açık maddeler
+
+| İşaret | Bölüm | Ne dolacak |
+|---|---|---|
+| ⟦AÇIK-16⟧ | §13.3 `passive_effects` | Hangi eşyanın hangi kişi niteliğine kaç puan verdiği. §13.3'ün tablosu **öneridir, bağlayıcı değildir** |
+| ⟦AÇIK-17⟧ | §13.5 · `catalog/dialogue.py` `requires` | Kişi antrenmanı kalkınca eşiklerin yeniden dengelenmesi — `media_01:r0`'ın cazibe 8'i kalan kaynaklarla makul sürede açılmalı |
+| ⟦AÇIK-18⟧ | §13.2 `courting` | Tanışma ile ilişkinin kurulması arasında kaç adım olacağı ve ayrılmış bir partnerle yeniden tanışma sıklığı. v1: tek adım (tanışma olayı → `partner_01`), yeniden tanışma normal olay havuzundan |
+
+Üçü de §10'un kuralına tabidir: **şemayı, uç listesini ve yanıt gövdelerinin
+şeklini bağlamazlar**; dolan yalnızca değerdir ve dolmaları sürüm numarasını
+değiştirmez.
+
+### 13.11 FE'de kırılan noktalar
+
+§13 bunları çözmez, **adlandırır** — imza sonrası iş listesinin kendisidir.
+
+| Dosya | Ne olacak | Kırıcı mı |
+|---|---|---|
+| [`training_screen.dart`](../lib/screens/training_screen.dart) | `_TrainingTab.personal` ve `'Yakında'` dalı silinir; üç segmentli pill ikiye iner (`segmentCount`, `segmentWidth`) | **Evet** — sekme ve buton durumu |
+| [`player_state.dart`](../lib/state/player_state.dart) | `attributeLevel` artık `effective_value`'dan gelen `level`'ı okur; `passive_bonus` yerel kopyada tutulur | **Evet** — kilit karşılaştırmasının kaynağı |
+| [`shop_screen.dart`](../lib/screens/shop_screen.dart) | `passive_effects` için ikinci bir fayda rozeti (`_benefitLabelFor`'un yanına). `upkeep_weekly` hâlâ hiç gösterilmiyor — **mevcut açık**, §13 kapsamı dışında | Hayır — ek rozet |
+| [`lifestyle_screen.dart`](../lib/screens/lifestyle_screen.dart) | T2 yanıtındaki `event` bloğunu açan yol; ayrıca detay rozetleri bugün `attribute:*` / `relationship:*` / `fame:*` etkilerini hiç göstermiyor — **mevcut açık**, §13.3'ten sonra daha görünür | Hayır — ek yol |
+| **yeni ekran** | Aktivite olayı ekranı — [`social_offer_screen.dart`](../lib/screens/social_offer_screen.dart)'ın ikizi: aynı `DeltaRow`, aynı maliyet çipleri, aynı kapanış kalıbı. Tek fark: iki buton değil, N seçenek ve kilitli seçenek gri görünür ([`dialog_screen.dart`](../lib/screens/dialog_screen.dart)'ın `locked_choice_*` kalıbı) | — |
+| [`relationships_screen.dart`](../lib/screens/relationships_screen.dart) | Beş **veya** altı kart; `partner_01` ağacına ilişkiyi kuran ve reddeden yapraklar; `courting` durumunun kart üstünde bir işareti | Hayır — liste zaten dinamik |
+| [`transfer_offers_screen.dart`](../lib/screens/transfer_offers_screen.dart) | S4'ten sonra R1 yeniden çekilmeli; `relationships_reset[]` kullanıcıya gösterilmeli | **Evet** — bugün hiç çekilmiyor |
+| [`career_models.dart`](../lib/net/career_models.dart) | `RelationshipCard.state`, `AttributeChange.passiveBonus`, `PlayerAttribute.effectiveValue`, `ActionResult.event`, `ActivityEvent`/`ActivityEventOption`/`ActivityEventResult`, `TransferAcceptResult.relationshipsReset`, `InteractResult.relationshipStateChanges` | — |
+| [`career_api_client.dart`](../lib/net/career_api_client.dart) | T5 `activityEvents()`, T6 `chooseActivityEvent()` | — |
+
+**Bitişik mevcut açık:** `fans` kartının diyalog ağacı yok
+([`relationship_presentation.dart`](../lib/widgets/relationship_presentation.dart)'ta
+`dialogueId: ''`), bu yüzden "ARA" düğmesi sessiz bir no-op. §13.1 `fans`'ı kulüp
+kapsamına aldığı için bu açık artık daha görünür — sıfırlanan bir ilişkiyi
+konuşarak geri kazanamıyorsun. Çözümü §13'ün kapsamında değil (bir diyalog ağacı
+yazılması gerekiyor, D23 gereği FE'de), ama imza sonrası iş listesine dahil.
+
+### 13.12 Bu sürümün dışında kalanlar
+
+| Konu | Neden dışarıda |
+|---|---|
+| NPC transferi, kadro derinliği | D4 korunuyor; §11.7'nin kendi sınırı |
+| Partnerle evlilik, çocuk, ortak yaşam maliyeti | Durum makinesi üç durumla sınırlı tutuldu; dördüncü bir durum kendi ekonomisini ister |
+| Kiralık (loan) transferi | `player.team_id` değişimi tek tetikleyici (D69); kiralık iki kulüplü bir kavram ve §11.7'de karşılığı yok |
+| Kulüp bazlı **medya** ilişkisi | Medya ülke basınıdır, kulübün değil; §3.4'ün `outlet` trait'i tek bir kuruma bağlı |
+| Aktivite olaylarının zincirlenmesi (bir olayın başka bir olayı doğurması) | v1'de tek adım; zincir §12.8'in `plan_days_ahead` kalıbını ister ve o kalıp gün kilidiyle geliyor (D76 onu reddetti) |
+| Pasif bonusun `saha` ailesine açılması | Bir kol saatinin şut isabetini artırmasının açıklaması yok; `saha` antrenmanla kazanılır ve §13.5'ten sonra da öyle kalır |
