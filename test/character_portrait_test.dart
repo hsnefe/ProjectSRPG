@@ -69,6 +69,44 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    // §1.2 · imageAsset null olduğunda (bugün her ilişki için durum bu)
+    // CustomPaint'e düşmeli, Image.asset denemeye kalkmamalı — CustomPaint
+    // bir dosya aramaz, bu yüzden bu dal hatasızlığın en ucuz kanıtı.
+    testWidgets('imageAsset null ise prosedürel büste düşer', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SizedBox(
+            width: 300,
+            height: 260,
+            child: CharacterPortrait(traits: _forId('coach'), imageAsset: null),
+          ),
+        ),
+      );
+      expect(find.byType(CustomPaint), findsWidgets);
+      expect(find.byType(Image), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    // Asset yolu verilmiş ama dosya yoksa (henüz eklenmediği için) yine
+    // sessizce prosedürel büste düşmeli — errorBuilder'ın işi bu.
+    testWidgets('bulunamayan bir imageAsset hata vermeden geri düşer',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SizedBox(
+            width: 300,
+            height: 260,
+            child: CharacterPortrait(
+              traits: _forId('coach'),
+              imageAsset: 'assets/images/portraits/coach.png',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('altı sahnenin hepsi çizilir', (tester) async {
       for (final scene in DialogueScene.values) {
         await tester.pumpWidget(

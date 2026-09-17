@@ -336,6 +336,7 @@ class _SideCard extends StatelessWidget {
                           side.relationshipId,
                           tint: tint,
                         ),
+                        imageAsset: presentation.portraitAsset,
                       ),
                     ),
                     Positioned.fill(

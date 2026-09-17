@@ -75,16 +75,34 @@ class PortraitTraits {
 }
 
 /// Göğüs hizasından yukarısı — diyalog ekranının görsel alanına oturan büst.
+///
+/// §1.2 · [imageAsset] verilirse (ve dosya gerçekten varsa) o çizilir;
+/// [traits] yine de zorunlu — `outfit` rengi gibi başka yerlerde de
+/// kullanılan bir tondan türüyor, görsel geldiğinde bile atılmıyor.
+/// `shop_item_card.dart`'ın `ShopItemArt`'ı ve `character_card.dart`'ın
+/// `_CharacterLayer`'ıyla aynı desen: asset yok/bulunamıyorsa prosedürel
+/// büst geri düşer.
 class CharacterPortrait extends StatelessWidget {
-  const CharacterPortrait({super.key, required this.traits});
+  const CharacterPortrait({super.key, required this.traits, this.imageAsset});
 
   final PortraitTraits traits;
+  final String? imageAsset;
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
+    final fallback = CustomPaint(
       painter: _PortraitPainter(traits),
       size: Size.infinite,
+    );
+
+    final asset = imageAsset;
+    if (asset == null) return fallback;
+    return Image.asset(
+      asset,
+      fit: BoxFit.cover,
+      alignment: Alignment.topCenter,
+      filterQuality: FilterQuality.none,
+      errorBuilder: (_, _, _) => fallback,
     );
   }
 }

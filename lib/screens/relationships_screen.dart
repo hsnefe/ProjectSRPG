@@ -536,6 +536,7 @@ class _RelationshipCharacterCardState
           // Kişinin görünüşü kimliğinden türetiliyor: antrenör her
           // açılışta aynı, medyacı ondan farklı (bkz. PortraitTraits.forId).
           portrait: PortraitTraits.forId(relationshipId, tint: presentation.tint),
+          characterAsset: presentation.portraitAsset,
           session: widget.session,
         ),
       ),

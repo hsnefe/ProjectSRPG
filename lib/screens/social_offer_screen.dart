@@ -529,6 +529,7 @@ class _SceneSection extends StatelessWidget {
           Positioned.fill(
             child: CharacterPortrait(
               traits: PortraitTraits.forId(relationshipId, tint: tint),
+              imageAsset: presentation.portraitAsset,
             ),
           ),
           Positioned.fill(

@@ -154,6 +154,7 @@ class _CoachTalkScreenState extends State<CoachTalkScreen> {
                           'coach',
                           tint: AppColors.accent,
                         ),
+                        imageAsset: presentationForRelationship('coach').portraitAsset,
                       ),
                     ),
                   ],

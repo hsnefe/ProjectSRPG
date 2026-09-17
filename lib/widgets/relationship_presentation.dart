@@ -17,6 +17,7 @@ class RelationshipPresentation {
     required this.leftTag,
     required this.dialogueId,
     required this.scene,
+    this.portraitAsset,
   });
 
   final IconData icon;
@@ -30,6 +31,11 @@ class RelationshipPresentation {
 
   /// catalog/dialogue.py'nin `DIALOGUE_RELATIONSHIP` anahtarları.
   final String dialogueId;
+
+  /// §1.2 · `assets/images/portraits/<relationship_id>.png` — null ise
+  /// `CharacterPortrait`/`DialogScreen` prosedürel büste düşer
+  /// ([PortraitTraits.forId]). Görsel geldikçe burada, tek yerde açılır.
+  final String? portraitAsset;
 }
 
 const kPartnerPurple = Color(0xFF9B5CF6);
