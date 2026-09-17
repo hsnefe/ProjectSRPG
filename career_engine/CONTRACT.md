@@ -4051,3 +4051,61 @@ istendiğinde ayrı bir artış olarak gelecek.
 | # | Konu | Karar | Gerekçe |
 |---|---|---|---|
 | D65 | Yatırım getirisinin şekli | **Sabit haftalık tutar, satın almada donduruluyor — `upkeep_weekly`/`weekly_income` ile aynı desen** | Üç kalemin de (tahvil/altın/fon) farklı bir simülasyon modeli (sabit oran, fiyat dalgalanması, rastgele getiri) hak ettiği tartışılabilir, ama üçü de TEK bir mekanizmadan (haftalık Pazartesi ödemesi) geçirmek hem test yüzeyini hem riski küçük tutuyor; fon'un "iddialı" karakteri bugün yalnızca daha yüksek bir sabit orana (%20 vs %6/%28) yansıyor |
+
+### 12.14 Mevki bazlı maç senaryoları
+
+**Geçersiz kılananlar:** yok. Bu bölüm §12.10'un `coach_instruction` bloğuna
+tek bir alan ekler; blokta bugün var olan hiçbir alanın anlamı değişmez.
+
+Maç içi müdahale teklifleri (API_CONTRACT §7.2) bugüne kadar oyuncunun
+mevkisinden bağımsız seçiliyordu: motor takım seviyesinde çalışıyor ve rol
+kavramını bilmiyor, dolayısıyla bir stoper de bir santrafor da aynı aksiyon
+havuzunu görüyordu. §12.10'un `focus`'u tek dolaylı bağdı, ama üç kovalı
+(`attack`/`defend`/`tactical`) ve oyuncu maç içinde değiştirebiliyor.
+
+#### M1 değişikliği
+
+`coach_instruction` bloğuna bir alan eklendi:
+
+```jsonc
+"coach_instruction": {
+  "focus": "defend",
+  "label": "Savunma",
+  "role_id": "stoper",
+  "role_name": "Stoper",
+  "position": "Defans",
+  "position_group": "dc",   // YENİ — §12.14
+  "source": "role"
+}
+```
+
+`position_group`, rol katalogundaki `group` alanının wire karşılığıdır
+(`worlddata/positions.py`): `"dc" | "fb" | "dm" | "mc" | "amc" | "wing" | "st"`.
+Rolü olmayan bir kariyerde (onboarding öncesi) `null`.
+
+`group` doğrudan gönderilmiyor, çünkü o alan görüntüleme amaçlı yazıldı ve
+`"DL/DR"` gibi slash taşıyan bir değer içeriyor — bir enum'da taşınacak şekle
+uygun değil. Çeviri tablosu (`GROUP_WIRE`) `worlddata/positions.py`'ın kendi
+içinde, `ROLES`'un yanında duruyor; dosyanın açılış docstring'indeki "iki elle
+senkron tuple" uyarısının aynısı burada da geçerli, tabloyu ayrı bir modüle
+taşımak o hatayı yeniden doğururdu. Bir assert her `group`'un `GROUP_WIRE`'da
+karşılığı olduğunu import anında doğruluyor.
+
+Kaleci (`gk`) tabloda **yok**: §5.1'in kendi gerekçesiyle kaleci v1'de
+seçilebilir bir mevki değil. motor tarafı o anahtarı tanıyor (API_CONTRACT
+§6.8), yani kaleci açıldığında bu dosyaya tek satır eklemek yetiyor.
+
+#### Motorun bunu ne yaptığı
+
+FE bu değeri E2 `POST /matches/{id}/start`'ın `position` alanına olduğu gibi
+iletiyor; motor onu bir teklif ağırlığı çarpanına çeviriyor (API_CONTRACT
+§6.8). Teklif **sıklığı** değişmiyor, yalnızca hangi aksiyonun teklif
+edildiği eğiliyor.
+
+#### Yeni kararlar
+
+| # | Konu | Karar | Gerekçe |
+|---|---|---|---|
+| D66 | `position_group` nereden gider | **`coach_instruction` bloğunda, `engine_payload`'ın dışında; motora E2 `/start` ile FE üzerinden ulaşır** | `engine_payload` motora olduğu gibi POST'lanan gövdedir ve motorun E1'i (`POST /matches`) taşıdığı alanları E2'ye aktarmıyor — `user_condition` bile `PendingMatchup`'ta düşüyor. Alanı oraya koymak motorun oturum kurulumunu büyütürdü. E2 ise zaten `effort`/`aggression`/`focus`'u, yani "bu oyuncu bu maçı nasıl oynuyor" bilgisini taşıyan uç; mevki de aynı cinsten ve `focus`'un tam yanına oturuyor. §12.10'un `focus` için verdiği gerekçe (motor rol kavramını bilmiyor, blok `engine_payload`'ın dışında durur) burada da aynen geçerli |
+| D67 | Ayrıntı seviyesi | **Mevki grubu (7), hat (3) ya da `role_id` (22) değil** | Hat, stoper ile kanat beki ya da defansif orta saha ile ofansif orta sahayı ayıramıyor — istenen ayrımın tam ortasından geçiyor. `role_id` ise motorda 22 × 13 = 286 elle ayarlanacak katsayı demek; roller eklendikçe bakımı motorun değil kariyerin hızına bağlanırdı. `group` zaten `ROLES`'ta tanımlı ve yedi değerin her biri sahada gerçekten farklı bir iş yapıyor |
+

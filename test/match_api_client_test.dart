@@ -96,6 +96,8 @@ void main() {
         'effort': 50,
         'aggression': 50,
         'focus': null,
+        // §6.8 — mevki grubu; null = eğilim yok.
+        'position': null,
         'client_seed': null,
       });
     });

@@ -3,7 +3,8 @@ import pytest
 
 from tests.conftest import advance_to_match_day, create_career, new_career
 from worlddata.positions import (
-    ROLES, instruction_for_role, role_belongs_to_position, roles_for_position,
+    ROLES, instruction_for_role, position_group_for_role, role_belongs_to_position,
+    roles_for_position,
 )
 
 
@@ -344,3 +345,57 @@ def test_talk_spends_the_day_budget(api_client, match_day_career):
 
     assert after["time"] == before["time"] - 20
     assert after["energy"] == before["energy"] - 2
+
+
+# -- §12.14 position_group --------------------------------------------------
+
+def test_granted_talk_reports_the_position_group(api_client, match_day_career):
+    """§12.14 - M1's copy goes stale the moment a granted request moves the
+    role, and the FE forwards this value to the engine's /start. So every
+    non-null `coach_instruction` carries it, whether the role moved or not."""
+    career_id, fixture_id = match_day_career
+    player = api_client.get(f"/careers/{career_id}").json()["player"]
+    expected = position_group_for_role(player["role"])
+    assert expected is not None, "fixture career has no role"
+
+    current_focus = _frozen_instruction(career_id, fixture_id)
+    other = next(v for v in ("attack", "defend", "tactical", "any") if v != current_focus)
+    body = _talk(api_client, career_id, fixture_id, "request_instruction", other).json()
+
+    if body["granted"]:
+        # request_instruction never touches the role, so the group is unchanged.
+        assert body["coach_instruction"]["position_group"] == expected
+    else:
+        assert body["coach_instruction"] is None
+
+
+def test_granted_role_change_moves_the_position_group_with_it(
+    api_client, match_day_career, monkeypatch,
+):
+    """A granted request_role can cross group boundaries (merkez_orta_saha is
+    MC, ofansif_orta_saha is AMC) and the reported group must follow the new
+    role, not the old one.
+
+    The roll is forced rather than branched on: the seeded refusal is already
+    covered by `test_role_request_resolves_the_same_way_every_time`, and the
+    thing under test here only exists on the granted path - skipping it half
+    the time would make the coverage depend on a career id."""
+    from domain import coach_talk
+
+    monkeypatch.setattr(coach_talk, "_roll", lambda *a, **k: 0.0)
+
+    career_id, fixture_id = match_day_career
+    player = api_client.get(f"/careers/{career_id}").json()["player"]
+    before = position_group_for_role(player["role"])
+    other = next(
+        r for r in ROLES
+        if r["position"] == player["position"] and position_group_for_role(r["role_id"]) != before
+    )
+
+    body = _talk(api_client, career_id, fixture_id, "request_role", other["role_id"]).json()
+    assert body["granted"] is True
+    assert body["player"]["role"] == other["role_id"]
+
+    after = position_group_for_role(other["role_id"])
+    assert after != before
+    assert body["coach_instruction"]["position_group"] == after

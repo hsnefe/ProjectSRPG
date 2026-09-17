@@ -21,7 +21,9 @@ import sqlite3
 
 from api import config, errors
 from domain import day_budget, instructions, relationships
-from worlddata.positions import POSITIONS, get_role, instruction_for_role, roles_for_position
+from worlddata.positions import (
+    POSITIONS, get_role, instruction_for_role, position_group_for_role, roles_for_position,
+)
 
 COACH_RELATIONSHIP_ID = "coach"
 
@@ -155,6 +157,17 @@ def _validate_target(conn: sqlite3.Connection, career_id: str, fixture_id: str, 
     return value
 
 
+def _current_role(conn: sqlite3.Connection, career_id: str):
+    """The player's role_id right now. `instructions.py` keeps its own copy of
+    this read for the same reason - it is one column, and importing a private
+    helper across modules to save three lines is the worse trade."""
+    row = conn.execute(
+        "SELECT role FROM player WHERE career_id = ? AND player_id = ?",
+        (career_id, config.USER_PLAYER_ID),
+    ).fetchone()
+    return row["role"] if row is not None else None
+
+
 def _apply_request(
     conn: sqlite3.Connection, career_id: str, fixture_id: str, topic: str, value: str,
 ) -> tuple:
@@ -266,6 +279,15 @@ def talk(
             {
                 "focus": instructions.focus_wire(instruction_after),
                 "label": instructions.label(instruction_after),
+                # §12.14 - reported even when this conversation did not touch
+                # the role, so a client can take the block as a whole rather
+                # than deciding per field whether to keep its old value. A
+                # granted request_role/request_position is exactly when it
+                # DOES change, and that is also when M1's copy is already
+                # stale in the client's hands.
+                "position_group": position_group_for_role(
+                    player_after["role"] if player_after else _current_role(conn, career_id)
+                ),
             }
             if instruction_after is not None
             else None

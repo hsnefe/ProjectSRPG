@@ -111,6 +111,29 @@ POSITIONS = tuple(POSITIONS)
 
 _ROLES_BY_ID = {r["role_id"]: r for r in ROLES}
 
+# §12.14 / API_CONTRACT §6.8 - `group` normalised for the wire. The engine
+# turns this into a per-action offer weight, so a stoper is asked to tackle
+# and a regista is asked to pass.
+#
+# `group` itself is not sent: it was written for display and carries a slash
+# ("DL/DR"), which is not a shape to put in an enum. The translation lives
+# here rather than in a second module for the reason this file's own opening
+# docstring gives - two hand-synced lists is exactly the drift ROLES was
+# introduced to end.
+#
+# Kaleci has no entry because it has no roles (see the docstring); the engine
+# already understands "gk", so re-enabling the position needs one line here
+# and nothing on that side.
+GROUP_WIRE = {
+    "DC": "dc",
+    "DL/DR": "fb",
+    "DM": "dm",
+    "MC": "mc",
+    "AMC": "amc",
+    "Kanat": "wing",
+    "ST": "st",
+}
+
 
 def get_role(role_id: str):
     """Returns the role dict, or None if role_id is unknown."""
@@ -128,6 +151,17 @@ def role_belongs_to_position(role_id: str, position: str) -> bool:
     return role is not None and role["position"] == position
 
 
+def position_group_for_role(role_id: str):
+    """§12.14 - the wire form of the role's `group`, or None for an unknown
+    role_id (a career that has not finished onboarding has no role yet).
+
+    Degrades to None rather than raising, exactly as `instruction_for_role`
+    degrades to "any": the engine reads a missing position as "no lean", so a
+    renamed role makes match offers generic instead of failing M1."""
+    role = get_role(role_id)
+    return GROUP_WIRE.get(role["group"]) if role is not None else None
+
+
 def instruction_for_role(role_id: str) -> str:
     """§12.10 - the coach's default expectation for a role. Falls back to
     "any" for an unknown role_id rather than raising: this is the read side
@@ -142,3 +176,4 @@ assert len({r["role_id"] for r in ROLES}) == len(ROLES), "duplicate role_id"
 assert POSITIONS == (DEFANS, ORTA_SAHA, FORVET)
 assert all(len(r["attributes"]) == 2 for r in ROLES), "every role needs exactly 2 attribute slots"
 assert all(r["instruction"] in INSTRUCTIONS for r in ROLES), "every role needs a known instruction"
+assert all(r["group"] in GROUP_WIRE for r in ROLES), "every role's group needs a wire form"

@@ -66,12 +66,19 @@ class MatchApiClient {
   }
 
   /// `POST /matches/{matchId}/start` (E2).
+  ///
+  /// [position] §6.8 · kullanıcının mevki grubu (career M1'in
+  /// `coach_instruction.position_group`'u, olduğu gibi iletilir). Hangi
+  /// senaryonun teklif edileceğini eğer; `null` = eğilim yok. [focus]'un
+  /// aksine bir direktif **değil** — maç boyunca sabittir, `/directive` onu
+  /// kabul etmez.
   Future<StartMatchResponse> startMatch(
     String matchId, {
     required String userSide,
     required int effort,
     required int aggression,
     String? focus,
+    String? position,
     int? clientSeed,
   }) async {
     final response = await _client.post(
@@ -82,6 +89,7 @@ class MatchApiClient {
         'effort': effort,
         'aggression': aggression,
         'focus': focus,
+        'position': position,
         'client_seed': clientSeed,
       }),
     );

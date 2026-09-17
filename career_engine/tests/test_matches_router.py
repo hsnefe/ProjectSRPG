@@ -80,8 +80,33 @@ def test_get_next_match_carries_the_coach_instruction_outside_engine_payload(
     assert instruction["role_id"] == "merkez_orta_saha"
     assert instruction["role_name"] == "Merkez Orta Saha"
     assert instruction["position"] == "Orta saha"
+    # §12.14 - the one field in this block the engine DOES consume, as an
+    # offer weight (API_CONTRACT §6.8). 'merkez_orta_saha' is group MC.
+    assert instruction["position_group"] == "mc"
     assert instruction["source"] == "role"
     assert "coach_instruction" not in str(body["engine_payload"])
+    # It travels via E2 /start, not the forwarded body - if it ever shows up
+    # inside engine_payload, D66 has been undone by accident.
+    assert "position_group" not in str(body["engine_payload"])
+
+
+def test_position_group_is_the_wire_form_of_every_role_group():
+    """§12.14 - GROUP_WIRE must cover the catalog, and the values must be the
+    ones API_CONTRACT §6.8's table is keyed by. positions.py asserts coverage
+    at import; this pins the actual strings, which are a contract."""
+    from worlddata.positions import GROUP_WIRE, ROLES, position_group_for_role
+
+    assert set(GROUP_WIRE.values()) == {"dc", "fb", "dm", "mc", "amc", "wing", "st"}
+    assert {position_group_for_role(r["role_id"]) for r in ROLES} == set(GROUP_WIRE.values())
+    assert position_group_for_role("stoper") == "dc"
+    assert position_group_for_role("kanat_bek") == "fb"
+    assert position_group_for_role("regista") == "dm"
+    assert position_group_for_role("shadow_striker") == "amc"
+    assert position_group_for_role("firsatci_forvet") == "st"
+    # A career that has not finished onboarding has no role; the engine reads
+    # a missing position as "no lean" rather than failing.
+    assert position_group_for_role(None) is None
+    assert position_group_for_role("bir_zamanlar_vardi") is None
 
 
 def test_get_next_match_is_refused_before_the_match_day(api_client, mock_engine):

@@ -309,6 +309,114 @@ void main() {
 
     await tester.pump(const Duration(milliseconds: 1000));
   });
+
+  testWidgets(
+      '/start govdesi M1 position_group degerini motora oldugu gibi tasir',
+      (tester) async {
+    // §12.14 / API_CONTRACT §6.8 — maç senaryolarının oyuncunun mevkisine
+    // benzemesini sağlayan tek alan. FE onu türetmiyor, yalnızca iletiyor.
+    _useTallView(tester);
+    Map<String, dynamic>? startBody;
+    final careerMock = MockClient((request) async {
+      if (request.url.path == '/careers') return _json(_careersListBody);
+      if (request.url.path == '/careers/car_test/matches/next') {
+        return _json(_m1Body(coachInstruction: {
+          'focus': 'defend',
+          'label': 'Savunma',
+          'role_id': 'stoper',
+          'role_name': 'Stoper',
+          'position': 'Defans',
+          'position_group': 'dc',
+          'source': 'role',
+        }));
+      }
+      if (request.url.path == '/careers/car_test') {
+        return _json(_hubBodyWithDaysUntil(0));
+      }
+      return http.Response('unexpected ${request.url}', 404);
+    });
+    final matchMock = MockClient((request) async {
+      if (request.url.path == '/matches') return _json(_e11Body, status: 201);
+      if (request.url.path == '/matches/m_test/start') {
+        startBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return _json(
+          {'match_id': 'm_test', 'stream_url': '/matches/m_test/stream'},
+          status: 201,
+        );
+      }
+      return http.Response('unexpected ${request.url}', 404);
+    });
+
+    await tester.pumpWidget(_wrap(PreMatchScreen(
+      session: CareerSession(
+        client: CareerApiClient(httpClient: careerMock, baseUrl: 'http://test'),
+      ),
+      matchApiClient:
+          MatchApiClient(httpClient: matchMock, baseUrl: 'http://test'),
+    )));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.play_arrow));
+    await tester.pump();
+    await tester.pump();
+
+    expect(startBody, isNotNull);
+    expect(startBody!['position'], 'dc');
+    // focus ile birlikte gider, onun yerine değil: ikisi motorda ayrı
+    // çarpanlar (§6.8).
+    expect(startBody!.containsKey('focus'), isTrue);
+
+    await tester.pump(const Duration(milliseconds: 1000));
+  });
+
+  testWidgets(
+      'position_group yoksa /start position: null gönderir',
+      (tester) async {
+    // Eski şekilli bir M1 gövdesi (alan hiç yok) motoru eğilimsiz bırakır —
+    // §6.8'in "null -> tam nötr" kuralının FE tarafındaki ayağı.
+    _useTallView(tester);
+    Map<String, dynamic>? startBody;
+    final careerMock = MockClient((request) async {
+      if (request.url.path == '/careers') return _json(_careersListBody);
+      if (request.url.path == '/careers/car_test/matches/next') {
+        return _json(_m1Body());
+      }
+      if (request.url.path == '/careers/car_test') {
+        return _json(_hubBodyWithDaysUntil(0));
+      }
+      return http.Response('unexpected ${request.url}', 404);
+    });
+    final matchMock = MockClient((request) async {
+      if (request.url.path == '/matches') return _json(_e11Body, status: 201);
+      if (request.url.path == '/matches/m_test/start') {
+        startBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return _json(
+          {'match_id': 'm_test', 'stream_url': '/matches/m_test/stream'},
+          status: 201,
+        );
+      }
+      return http.Response('unexpected ${request.url}', 404);
+    });
+
+    await tester.pumpWidget(_wrap(PreMatchScreen(
+      session: CareerSession(
+        client: CareerApiClient(httpClient: careerMock, baseUrl: 'http://test'),
+      ),
+      matchApiClient:
+          MatchApiClient(httpClient: matchMock, baseUrl: 'http://test'),
+    )));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.play_arrow));
+    await tester.pump();
+    await tester.pump();
+
+    expect(startBody, isNotNull);
+    expect(startBody!['position'], isNull);
+
+    await tester.pump(const Duration(milliseconds: 1000));
+  });
+
   testWidgets('409 not_match_day geri sayım gösterir, hata göstermez',
       (tester) async {
     _useTallView(tester);

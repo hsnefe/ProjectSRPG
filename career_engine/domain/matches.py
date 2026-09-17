@@ -159,6 +159,11 @@ def build_next_match_payload(conn: sqlite3.Connection, career_id: str) -> dict:
             "role_id": role_id,
             "role_name": role["name"] if role else None,
             "position": role["position"] if role else None,
+            # §12.14 - the engine DOES know this one, as an offer weight
+            # rather than as a role (API_CONTRACT §6.8). FE forwards it to
+            # E2 /start verbatim; it is what makes a stoper get müdahale
+            # scenarios and an orta saha get oyun kurma ones.
+            "position_group": positions.position_group_for_role(role_id),
             "source": instruction_source,
         },
         "engine_payload": {

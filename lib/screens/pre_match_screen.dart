@@ -190,6 +190,12 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
           roleId: roleChanged ? result.role : _coachInstruction?.roleId,
           roleName: roleChanged ? null : _coachInstruction?.roleName,
           position: result.position ?? _coachInstruction?.position,
+          // §12.14 · rol adının aksine bu bilinebiliyor: M4 onu kendi
+          // `coach_instruction` bloğunda gönderiyor. Eskisine düşmek, kabul
+          // edilmiş bir rol değişikliğinden sonra motora bayat bir mevki
+          // göndermek olurdu.
+          positionGroup: result.instructionPositionGroup ??
+              _coachInstruction?.positionGroup,
           source: 'coach_talk',
         );
       }
@@ -238,6 +244,10 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
         effort: next.defaults.effort,
         aggression: next.defaults.aggression,
         focus: next.defaults.focus,
+        // §12.14 · kariyer tarafının M1'de verdiği mevki grubu, motora
+        // olduğu gibi. Teklif edilen senaryoların oyuncunun oynadığı
+        // mevkiye benzemesini sağlayan tek alan (API_CONTRACT §6.8).
+        position: _coachInstruction?.positionGroup,
       );
       if (!mounted) return;
       final controller = MatchController(
