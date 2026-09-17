@@ -58,6 +58,8 @@ class PlayerState extends ChangeNotifier {
   /// [relationships_radar_screen] buradan okur, ikinci bir çağrı yapmaz.
   List<PlayerAttribute> get attributes => _attributes;
 
+  /// §13.3 · **taban** değer — oyuncunun kendi kazandığı. İlerleme çubuğu
+  /// bunu gösterir.
   double attribute(String key) {
     for (final a in _attributes) {
       if (a.key == key) return a.value;
@@ -65,9 +67,28 @@ class PlayerState extends ChangeNotifier {
     return 0;
   }
 
-  /// D43 · niteliğin 0-10 seviyesi, **BE'den geldiği gibi**. Bir `requires`
-  /// eşiği (D42) daima bununla karşılaştırılır; `value`'dan seviye türeten
-  /// bir satır bu dosyada bilinçli olarak yoktur.
+  /// §13.3 · taban + sahip olunan eşyaların katkısı. Dünyanın gördüğü değer
+  /// bu: bir kapı (D42) ve [attributeLevel] daima bununla çalışır.
+  double attributeEffective(String key) {
+    for (final a in _attributes) {
+      if (a.key == key) return a.effectiveValue;
+    }
+    return 0;
+  }
+
+  /// §13.3 · yalnızca eşyadan gelen kısım. Sıfırsa kalemin pasif faydası yok.
+  double attributePassiveBonus(String key) {
+    for (final a in _attributes) {
+      if (a.key == key) return a.passiveBonus;
+    }
+    return 0;
+  }
+
+  /// D43/D74 · niteliğin 0-10 seviyesi, **BE'den geldiği gibi**. Bir
+  /// `requires` eşiği (D42) daima bununla karşılaştırılır; `value`'dan seviye
+  /// türeten bir satır bu dosyada bilinçli olarak yoktur — §13.3'ten sonra
+  /// türetilemez de: seviye artık `effectiveValue`'dan geliyor ve onun için
+  /// envanterle dükkân katalogunu birleştirmek gerekirdi (INV-61).
   int attributeLevel(String key) {
     for (final a in _attributes) {
       if (a.key == key) return a.level;
@@ -137,6 +158,10 @@ class PlayerState extends ChangeNotifier {
             key: change.key,
             family: updated[index].family,
             value: change.after,
+            // §13.3 · bonus da yanıtta geliyor, çünkü onsuz etkin değer
+            // yerel kopyada yeniden kurulamaz (bonus envanterden türer).
+            passiveBonus: change.passiveBonus,
+            effectiveValue: (change.after + change.passiveBonus).clamp(0, 100),
             // Seviye de yanıtta geliyor (§5.5), o yüzden burada
             // hesaplanmıyor: bir aktivite bir kapıyı açtıysa kilitli kartlar
             // P1 tazelenmeden, aynı karede açılır.

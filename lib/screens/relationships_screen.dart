@@ -17,6 +17,39 @@ import 'package:project_srpg/widgets/relationship_presentation.dart';
 /// catalog/dialogue.py bunu doğrudan yorumluyor: her düğüm id'si ve yaprağı
 /// (`r0`/`r1`/…) iki tarafta da birebir aynı olmalı, ekranda değiştirilecekse
 /// `catalog/dialogue.py`'deki `DIALOGUE_OUTCOMES` de güncellenmeli.
+/// §13.2 · **flört** ağaçları. Aynı kişi, bir konuşma öncesi: ilişki henüz
+/// kurulmadı (`state == courting`) ve bu konuşma onu kuruyor ya da bitiriyor.
+///
+/// Neden ayrı bir harita ve ayrı bir `dialogue_id` değil: sözleşmede yaprak
+/// kimlikleri (`c0`/`c1`) `partner_01`'in kendi tablosunda duruyor (§13.2),
+/// çünkü ikisi de aynı kişiyle aynı konuşma — biri erken, biri sonra. Ağaç
+/// FE'nin (D23), o yüzden fazı seçen de FE.
+const Map<String, DialogueTree> _courtingTreeByRelationshipId = {
+  'partner': DialogueTree(
+    startId: 'start',
+    nodes: {
+      'start': DialogueNode(
+        id: 'start',
+        line:
+            'Geçen gün tanıştığımızdan beri aklımdasın. Bu hafta bir kahve '
+            'içelim mi, yoksa çok mu hızlı gidiyorum?',
+        options: [
+          DialogueOption(text: 'Bence de iyi olur.', nextId: 'c0'),
+          DialogueOption(text: 'Şu sıralar kafam çok dolu.', nextId: 'c1'),
+        ],
+      ),
+      'c0': DialogueNode(
+        id: 'c0',
+        line: 'O zaman cumartesi. Maçından sonra, acele etmeden.',
+      ),
+      'c1': DialogueNode(
+        id: 'c1',
+        line: 'Anladım. Kendine iyi bak.',
+      ),
+    },
+  ),
+};
+
 const _dialogueTreeByRelationshipId = {
   'coach': DialogueTree(
     startId: 'start',
@@ -521,7 +554,14 @@ class _RelationshipCharacterCardState
     if (rect == null) return;
     final relationshipId = widget.card.relationshipId;
     final presentation = presentationForRelationship(relationshipId);
-    final tree = _dialogueTreeByRelationshipId[relationshipId];
+    // §13.2 · flörtteki bir ilişki kendi ağacını açar. İki ağaç da aynı
+    // `dialogue_id`'ye gider (`partner_01`); ayıran şey hangi yaprağa
+    // varıldığı, ve `sets_state`'i yalnızca `courting` durumunda uygulamak
+    // BE'nin işi (D72) — burada yanlış fazı açmak bir hata değil, sunucu
+    // sessizce yok sayar.
+    final tree = widget.card.isCourting
+        ? _courtingTreeByRelationshipId[relationshipId]
+        : _dialogueTreeByRelationshipId[relationshipId];
     if (tree == null) return;
 
     final changed = await Navigator.of(context).push<bool>(

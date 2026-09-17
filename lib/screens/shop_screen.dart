@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:project_srpg/game/attribute_labels.dart';
 import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
@@ -65,7 +66,7 @@ const _defaultTint = AppColors.textMuted;
 
 /// §12.12 · `daily_effects`'ten Türkçe bir rozet etiketi türetir. Birden
 /// fazla anahtar taşıyan bir kalem yok bugün, o yüzden ilk eşleşen yeterli.
-String? _benefitLabelFor(Map<String, dynamic> dailyEffects) {
+String? _dailyBenefitLabelFor(Map<String, dynamic> dailyEffects) {
   for (final entry in dailyEffects.entries) {
     final amount = (entry.value as num).toString();
     switch (entry.key) {
@@ -80,6 +81,31 @@ String? _benefitLabelFor(Map<String, dynamic> dailyEffects) {
   return null;
 }
 
+/// §13.3 · `passive_effects`'ten rozet. `daily_effects`'inkinden ayrı bir
+/// cümle kuruyor çünkü ayrı bir şey anlatıyor: bu bonus her gün *yazılmıyor*,
+/// eşya durduğu sürece *var* — ve eşya gidince kendiliğinden kayboluyor.
+/// Birden fazla nitelik taşıyan tek kalem villa; hepsi listeleniyor.
+String? _passiveBenefitLabelFor(Map<String, double> passiveEffects) {
+  if (passiveEffects.isEmpty) return null;
+  final parts = [
+    for (final entry in passiveEffects.entries)
+      '${attributeLabel(entry.key.split(':').last)} '
+          '+${entry.value.toStringAsFixed(entry.value % 1 == 0 ? 0 : 1)}',
+  ];
+  return 'Sahipken ${parts.join(' · ')}';
+}
+
+/// İki rozetin tek satırı. Bir kalem ikisini birden taşıyabiliyor
+/// (`estate-flat`: günlük kondisyon + sahipken özgüven), o yüzden
+/// birleştiriliyor; kart tek bir `benefitLabel` alanı taşıyor.
+String? _benefitLabelFor(api.CatalogItem item) {
+  final labels = [
+    ?_dailyBenefitLabelFor(item.dailyEffects),
+    ?_passiveBenefitLabelFor(item.passiveEffects),
+  ];
+  return labels.isEmpty ? null : labels.join(' · ');
+}
+
 ShopItem _toShopItem(api.CatalogItem item) {
   return ShopItem(
     id: item.catalogId,
@@ -89,7 +115,7 @@ ShopItem _toShopItem(api.CatalogItem item) {
     tint: _tintByCatalogId[item.catalogId] ?? _defaultTint,
     price: item.price ?? 0,
     note: item.note,
-    benefitLabel: _benefitLabelFor(item.dailyEffects),
+    benefitLabel: _benefitLabelFor(item),
   );
 }
 

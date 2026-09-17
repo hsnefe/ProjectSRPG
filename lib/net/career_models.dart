@@ -774,6 +774,7 @@ class TransferAcceptResult {
     required this.competition,
     required this.weeklyWage,
     required this.expiresAt,
+    this.relationshipsReset = const [],
   });
 
   final CareerState careerState;
@@ -781,6 +782,10 @@ class TransferAcceptResult {
   final CompetitionRef? competition;
   final int weeklyWage;
   final String expiresAt;
+
+  /// §13.1 · yeni kulüpte sıfırlanan antrenör/takım/taraftar satırları. Yeni
+  /// isimler burada geliyor; kartların tazelenmesi için ayrıca R1 çekilmeli.
+  final List<RelationshipReset> relationshipsReset;
 
   factory TransferAcceptResult.fromJson(Map<String, dynamic> json) {
     final competition = json['competition'] as Map<String, dynamic>?;
@@ -793,6 +798,9 @@ class TransferAcceptResult {
           competition == null ? null : CompetitionRef.fromJson(competition),
       weeklyWage: contract['weekly_wage'] as int,
       expiresAt: contract['expires_at'] as String,
+      relationshipsReset: ((json['relationships_reset'] as List<dynamic>?) ?? const [])
+          .map((e) => RelationshipReset.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
     );
   }
 }
@@ -966,6 +974,7 @@ class CoachTalkResult {
     required this.role,
     this.instructionFocus,
     this.instructionLabel,
+    this.instructionPositionGroup,
   });
 
   final CareerState careerState;
@@ -983,10 +992,17 @@ class CoachTalkResult {
 
   /// §12.10 · yalnızca kabul edilmiş bir `request_instruction` (ya da rolü
   /// değiştiren bir `request_position`/`request_role`) talimatı gerçekten
-  /// değiştirdiyse doludur — M1'in `coach_instruction`'ından daha dar bir
-  /// çift: yalnızca `focus`/`label`, rol/kaynak bilgisi taşımaz.
+  /// değiştirdiyse doludur — M1'in `coach_instruction`'ından daha dar: rol
+  /// ve kaynak bilgisi taşımaz, ama §12.14'ten beri `position_group` taşır
+  /// (kabul edilmiş bir `request_role`/`request_position` grubu da
+  /// değiştirebilir, ve M1'in kopyası o anda bayatlar).
   final String? instructionFocus;
   final String? instructionLabel;
+
+  /// §12.14 · kabul edilmiş bir `request_role`/`request_position` mevki
+  /// grubunu da taşımış olabilir; maç öncesi ekranı bunu M1'den aldığı
+  /// değerin üstüne yazıyor, yoksa motora bayat bir grup giderdi.
+  final String? instructionPositionGroup;
 
   /// Antrenörün güveni — komisyon değeri. Talep başarısı bunun üstünden
   /// hesaplandığı için ekran bunu ayrıca gösteriyor.
@@ -1017,6 +1033,7 @@ class CoachTalkResult {
       role: player?['role'] as String?,
       instructionFocus: instruction?['focus'] as String?,
       instructionLabel: instruction?['label'] as String?,
+      instructionPositionGroup: instruction?['position_group'] as String?,
     );
   }
 }
@@ -1267,14 +1284,21 @@ class PlayerAttribute {
     required this.key,
     required this.family,
     required this.value,
+    this.passiveBonus = 0,
+    double? effectiveValue,
     required this.level,
-  });
+  }) : _effectiveValue = effectiveValue;
 
   factory PlayerAttribute.fromJson(Map<String, dynamic> json) {
+    final value = (json['value'] as num).toDouble();
+    final bonus = (json['passive_bonus'] as num?)?.toDouble() ?? 0.0;
     return PlayerAttribute(
       key: json['key'] as String,
       family: json['family'] as String,
-      value: (json['value'] as num).toDouble(),
+      value: value,
+      passiveBonus: bonus,
+      effectiveValue:
+          (json['effective_value'] as num?)?.toDouble() ?? (value + bonus),
       level: (json['level'] as num).toInt(),
     );
   }
@@ -1283,10 +1307,30 @@ class PlayerAttribute {
 
   /// 'saha' | 'kişi'.
   final String family;
+
+  /// §13.3 · **taban** değer — antrenman, aktivite ve diyalog bunu oynatır.
+  /// İlerleme çubuğu bunu gösterir: oyuncunun gerçekten kazandığı şey.
   final double value;
 
-  /// D43 · 0-10, `value`'dan **BE'de** türetilir. FE bu kuralın bir kopyasını
-  /// tutmaz: bir `requires` eşiği daima bu sayıyla karşılaştırılır.
+  /// §13.3 · sahip olunan eşyaların katkısı. Saklanmaz, her okumada BE'de
+  /// türetilir; eşya elden çıkınca kendiliğinden sıfırlanır.
+  final double passiveBonus;
+
+  final double? _effectiveValue;
+
+  /// §13.3 · `value + passiveBonus`, 0-100'e sıkışmış. Bir kapının
+  /// karşılaştırdığı değer budur.
+  ///
+  /// BE gönderdiğinde onunki kullanılır; elle kurulan bir nesnede (testler,
+  /// `orElse` yedeği) aynı formülden türetilir. Toplama işlemi bir kural
+  /// kopyası değil — kopyalanmaması gereken tek şey [level]'ın ölçeği ve o
+  /// daima BE'den geliyor (D74/INV-61).
+  double get effectiveValue =>
+      _effectiveValue ?? (value + passiveBonus).clamp(0.0, 100.0);
+
+  /// D43/D74 · 0-10, **`effectiveValue`'dan** BE'de türetilir. FE bu kuralın
+  /// bir kopyasını tutmaz — tutamaz da: bonusu hesaplamak için envanteri ve
+  /// dükkân kataloğunu birleştirmesi gerekirdi (§13.3/INV-61).
   final int level;
 }
 
@@ -1367,7 +1411,12 @@ class PlayerProfile {
       attributes: (json['attributes'] as List<dynamic>)
           .map((e) => PlayerAttribute.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
-      tactics: (json['tactics'] as List<dynamic>)
+      // §12.11 · INV-55 her zaman üç satır vaat ediyor, ama alanı hiç
+      // göndermeyen bir career_engine sürümüne karşı sert cast yapmak tek
+      // eksik alanı TÜM P1'in çökmesine çeviriyordu — ve PlayerState.load()
+      // onu sessizce yutuyor, ekran nitelikleri boş sanıyordu. `seasonPhase`
+      // ile aynı duruş: bilmiyoruz demek, çökmekten iyidir.
+      tactics: ((json['tactics'] as List<dynamic>?) ?? const [])
           .map((e) => PlayerTactic.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
       fame: (json['fame'] as List<dynamic>)
@@ -1392,7 +1441,8 @@ class PlayerProfile {
 
   double attribute(String key) =>
       attributes.firstWhere((a) => a.key == key, orElse: () =>
-          const PlayerAttribute(key: '', family: '', value: 0, level: 0)).value;
+          const PlayerAttribute(key: '', family: '', value: 0, passiveBonus: 0,
+              effectiveValue: 0, level: 0)).value;
 
   double tacticProficiency(String key) =>
       tactics.firstWhere((t) => t.key == key,
@@ -1698,7 +1748,18 @@ class TeamDetail {
 // §5.4 İlişki — R1-R3
 // ---------------------------------------------------------------------------
 
-/// R1 `relationships[]` satırı — beş sabit kart (§3.4).
+/// §13.2 · bir ilişkinin ömrü. Yalnızca `partner` bu makinenin içinden
+/// geçer; diğer beşi daima [active]'dir (INV-59).
+class RelationshipState {
+  static const String absent = 'absent';
+  static const String courting = 'courting';
+  static const String active = 'active';
+}
+
+/// R1 `relationships[]` satırı — beş **veya** altı kart (§3.4, §13.2).
+///
+/// `absent` bir ilişki R1'den hiç dönmez (INV-58): tanışılmamış bir partner
+/// listede yoktur. Kart sayısı bu yüzden sabit değil.
 class RelationshipCard {
   const RelationshipCard({
     required this.relationshipId,
@@ -1709,6 +1770,7 @@ class RelationshipCard {
     required this.contactName,
     this.lastContactAt,
     required this.hasPendingRequest,
+    this.state = RelationshipState.active,
     required this.traits,
   });
 
@@ -1722,6 +1784,7 @@ class RelationshipCard {
       contactName: json['contact_name'] as String,
       lastContactAt: json['last_contact_at'] as String?,
       hasPendingRequest: json['has_pending_request'] as bool? ?? false,
+      state: json['state'] as String? ?? RelationshipState.active,
       traits: (json['traits'] as Map<String, dynamic>?) ?? const {},
     );
   }
@@ -1737,8 +1800,73 @@ class RelationshipCard {
   final String? lastContactAt;
   final bool hasPendingRequest;
 
+  /// §13.2 · `absent` | `courting` | `active`. Her kartta gelir; partner
+  /// dışındaki beşinde daima `active`.
+  final String state;
+
+  /// §13.2 · henüz kurulmamış ama tanışılmış bir ilişki — diyalog ağacının
+  /// kurulum dalı bunun için açılır.
+  bool get isCourting => state == RelationshipState.courting;
+
   /// Türe özel alanlar (D23) — FE tanımadığı anahtarı yok sayar.
   final Map<String, dynamic> traits;
+}
+
+/// §13.2 · R3/T2/T6 `relationship_state_changes[]` satırı. Bir ilişkinin
+/// kurulduğu ya da bittiği tek yerden okunur; boş liste normaldir.
+class RelationshipStateChange {
+  const RelationshipStateChange({
+    required this.relationshipId,
+    required this.before,
+    required this.after,
+  });
+
+  factory RelationshipStateChange.fromJson(Map<String, dynamic> json) {
+    return RelationshipStateChange(
+      relationshipId: json['relationship_id'] as String,
+      before: json['before'] as String,
+      after: json['after'] as String,
+    );
+  }
+
+  final String relationshipId;
+  final String before;
+  final String after;
+
+  /// Flörtten ilişkiye — kart artık kalıcı.
+  bool get isEstablished => after == RelationshipState.active;
+
+  /// İlişki bitti; kart listeden düştü.
+  bool get isEnded => after == RelationshipState.absent;
+}
+
+/// §13.1 · S4 `relationships_reset[]` satırı — transferde sıfırlanan kulüp
+/// ilişkisi. İsim alanları ekli çünkü FE yeni antrenörü başka türlü R1'i
+/// yeniden çekmeden öğrenemez.
+class RelationshipReset {
+  const RelationshipReset({
+    required this.relationshipId,
+    required this.before,
+    required this.after,
+    required this.personName,
+    required this.contactName,
+  });
+
+  factory RelationshipReset.fromJson(Map<String, dynamic> json) {
+    return RelationshipReset(
+      relationshipId: json['relationship_id'] as String,
+      before: (json['before'] as num).toInt(),
+      after: (json['after'] as num).toInt(),
+      personName: json['person_name'] as String,
+      contactName: json['contact_name'] as String,
+    );
+  }
+
+  final String relationshipId;
+  final int before;
+  final int after;
+  final String personName;
+  final String contactName;
 }
 
 /// R2 `recent_events[]` satırı — en yeni 20 kayıt, geçmiş görünümü (D24).
@@ -1827,6 +1955,7 @@ class AttributeChange {
     required this.key,
     required this.before,
     required this.after,
+    this.passiveBonus = 0.0,
     required this.levelBefore,
     required this.levelAfter,
   });
@@ -1836,14 +1965,21 @@ class AttributeChange {
       key: json['key'] as String,
       before: (json['before'] as num).toDouble(),
       after: (json['after'] as num).toDouble(),
+      passiveBonus: (json['passive_bonus'] as num?)?.toDouble() ?? 0.0,
       levelBefore: (json['level_before'] as num).toInt(),
       levelAfter: (json['level_after'] as num).toInt(),
     );
   }
 
   final String key;
+
+  /// §13.3 · taban değerin iki yakası. Pasif bonus buraya girmez (INV-60).
   final double before;
   final double after;
+
+  /// §13.3 · o anki eşya bonusu, `effectiveValue`'yu yerel kopyada yeniden
+  /// kurabilmek için. Seviyeler zaten bonuslu değerden geliyor (D74).
+  final double passiveBonus;
 
   /// D43 · deltanın iki yakasındaki seviye. Yerel kopyayı bu yanıtla
   /// güncelleyen ekran, bir kilidin açılıp açılmadığını kendi hesaplamadan
@@ -1879,6 +2015,7 @@ class InteractResult {
   const InteractResult({
     required this.careerState,
     required this.relationshipChanges,
+    this.relationshipStateChanges = const [],
     required this.attributeChanges,
     required this.ledgerEntries,
   });
@@ -1890,6 +2027,9 @@ class InteractResult {
       relationshipChanges: ((json['relationship_changes'] as List<dynamic>?) ?? const [])
           .map((e) => RelationshipChange.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
+      relationshipStateChanges: parseRelationshipStateChanges(
+        json['relationship_state_changes'],
+      ),
       attributeChanges: ((json['attribute_changes'] as List<dynamic>?) ?? const [])
           .map((e) => AttributeChange.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
@@ -1899,8 +2039,19 @@ class InteractResult {
 
   final CareerState careerState;
   final List<RelationshipChange> relationshipChanges;
+
+  /// §13.2 · bu konuşma bir ilişki kurduysa ya da bitirdiyse burada görünür.
+  final List<RelationshipStateChange> relationshipStateChanges;
   final List<AttributeChange> attributeChanges;
   final List<LedgerEntry> ledgerEntries;
+}
+
+/// §13.2 · `relationship_state_changes` çözümleyicisi — R3, T2 ve T6 aynı
+/// listeyi taşıyor, üç yerde aynı satırı yazmamak için.
+List<RelationshipStateChange> parseRelationshipStateChanges(dynamic raw) {
+  return ((raw as List<dynamic>?) ?? const [])
+      .map((e) => RelationshipStateChange.fromJson(e as Map<String, dynamic>))
+      .toList(growable: false);
 }
 
 // ---------------------------------------------------------------------------
@@ -2034,6 +2185,137 @@ class ConditionRecoverySource {
 }
 
 /// T2 · `POST /careers/{cid}/actions`.
+/// §13.4 · T2 `event` bloğu — bir aktivite sırasında gelişen olay.
+///
+/// Ödül tablosu gelmez (R4'ün ayrımı): seçeneğin `requires`/`costs`'u gelir
+/// ki kilitli dal seçilmeden önce gri görünsün, `effects`'i gelmez.
+class ActivityEventOption {
+  const ActivityEventOption({
+    required this.optionId,
+    required this.label,
+    required this.requires,
+    required this.costs,
+  });
+
+  factory ActivityEventOption.fromJson(Map<String, dynamic> json) {
+    return ActivityEventOption(
+      optionId: json['option_id'] as String,
+      label: json['label'] as String,
+      requires: ((json['requires'] as Map<String, dynamic>?) ?? const {})
+          .map((key, value) => MapEntry(key, (value as num).toInt())),
+      costs: ((json['costs'] as Map<String, dynamic>?) ?? const {})
+          .map((key, value) => MapEntry(key, (value as num).toDouble())),
+    );
+  }
+
+  final String optionId;
+  final String label;
+
+  /// D42 · nitelik seviyesi eşikleri. Boşsa kapı yok.
+  final Map<String, int> requires;
+
+  /// §6.2 · günün bütçesinden ne yiyeceği.
+  final Map<String, double> costs;
+}
+
+/// §13.4 · T2'nin doğurduğu, T5'in kurtardığı, T6'nın çözdüğü olay.
+class ActivityEvent {
+  const ActivityEvent({
+    required this.eventId,
+    required this.templateId,
+    required this.catalogId,
+    required this.title,
+    required this.body,
+    required this.openedOn,
+    required this.status,
+    required this.options,
+    this.chosenOption,
+    this.resolvedOn,
+  });
+
+  factory ActivityEvent.fromJson(Map<String, dynamic> json) {
+    return ActivityEvent(
+      eventId: json['event_id'] as String,
+      templateId: json['template_id'] as String,
+      catalogId: json['catalog_id'] as String,
+      title: json['title'] as String? ?? '',
+      body: json['body'] as String? ?? '',
+      openedOn: json['opened_on'] as String,
+      status: json['status'] as String,
+      options: ((json['options'] as List<dynamic>?) ?? const [])
+          .map((e) => ActivityEventOption.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+      chosenOption: json['chosen_option'] as String?,
+      resolvedOn: json['resolved_on'] as String?,
+    );
+  }
+
+  final String eventId;
+  final String templateId;
+
+  /// Olayı doğuran aktivite — FE sahneyi bundan seçiyor (§5.8).
+  final String catalogId;
+  final String title;
+  final String body;
+  final String openedOn;
+
+  /// `open` | `resolved` | `expired`. Cevapsız kalan bir olay `advance`
+  /// sırasında `expired` olur ve hiçbir etki yazmaz (D76/INV-63).
+  final String status;
+  final List<ActivityEventOption> options;
+  final String? chosenOption;
+  final String? resolvedOn;
+
+  bool get isOpen => status == 'open';
+}
+
+/// §13.4 · T6 · seçeneğin uygulanmış hâli.
+class ActivityEventResult {
+  const ActivityEventResult({
+    required this.careerState,
+    required this.event,
+    required this.appliedCosts,
+    required this.appliedEffects,
+    required this.attributeChanges,
+    required this.relationshipChanges,
+    required this.relationshipStateChanges,
+    required this.ledgerEntries,
+  });
+
+  factory ActivityEventResult.fromJson(Map<String, dynamic> json) {
+    return ActivityEventResult(
+      careerState:
+          CareerState.fromJson(json['career_state'] as Map<String, dynamic>),
+      event: ActivityEvent.fromJson(json['event'] as Map<String, dynamic>),
+      appliedCosts: ((json['applied_costs'] as Map<String, dynamic>?) ?? const {})
+          .map((key, value) => MapEntry(key, (value as num).toDouble())),
+      appliedEffects:
+          (json['applied_effects'] as Map<String, dynamic>?) ?? const {},
+      attributeChanges: ((json['attribute_changes'] as List<dynamic>?) ?? const [])
+          .map((e) => AttributeChange.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+      relationshipChanges: ((json['relationship_changes'] as List<dynamic>?) ?? const [])
+          .map((e) => RelationshipChange.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+      relationshipStateChanges: parseRelationshipStateChanges(
+        json['relationship_state_changes'],
+      ),
+      ledgerEntries: _parseLedgerEntries(json['ledger_entries']),
+    );
+  }
+
+  final CareerState careerState;
+  final ActivityEvent event;
+  final Map<String, double> appliedCosts;
+  final Map<String, dynamic> appliedEffects;
+  final List<AttributeChange> attributeChanges;
+  final List<RelationshipChange> relationshipChanges;
+
+  /// §13.2 · bir seçenek biriyle tanıştırdıysa burada görünür.
+  final List<RelationshipStateChange> relationshipStateChanges;
+  final List<LedgerEntry> ledgerEntries;
+}
+
 class ActionResult {
   const ActionResult({
     required this.careerState,
@@ -2042,7 +2324,9 @@ class ActionResult {
     required this.attributeChanges,
     required this.tacticChanges,
     required this.relationshipChanges,
+    this.relationshipStateChanges = const [],
     required this.ledgerEntries,
+    this.event,
   });
 
   factory ActionResult.fromJson(Map<String, dynamic> json) {
@@ -2062,7 +2346,13 @@ class ActionResult {
       relationshipChanges: ((json['relationship_changes'] as List<dynamic>?) ?? const [])
           .map((e) => RelationshipChange.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
+      relationshipStateChanges: parseRelationshipStateChanges(
+        json['relationship_state_changes'],
+      ),
       ledgerEntries: _parseLedgerEntries(json['ledger_entries']),
+      event: json['event'] == null
+          ? null
+          : ActivityEvent.fromJson(json['event'] as Map<String, dynamic>),
     );
   }
 
@@ -2072,7 +2362,14 @@ class ActionResult {
   final List<AttributeChange> attributeChanges;
   final List<TacticChange> tacticChanges;
   final List<RelationshipChange> relationshipChanges;
+
+  /// §13.2 · bir `relationship:` etkisi partneri sıfıra düşürdüyse burada.
+  final List<RelationshipStateChange> relationshipStateChanges;
   final List<LedgerEntry> ledgerEntries;
+
+  /// §13.4 · aktivite sırasında bir olay geliştiyse dolu. Aktivitenin kendi
+  /// etkileri her hâlükârda uygulandı (INV-3); olay onun DEVAMI, şartı değil.
+  final ActivityEvent? event;
 }
 
 /// T3 · `POST /careers/{cid}/advance`.
@@ -2258,6 +2555,7 @@ class CoachInstruction {
     required this.roleName,
     required this.position,
     required this.source,
+    this.positionGroup,
   });
 
   factory CoachInstruction.fromJson(Map<String, dynamic> json) {
@@ -2267,6 +2565,7 @@ class CoachInstruction {
       roleId: json['role_id'] as String?,
       roleName: json['role_name'] as String?,
       position: json['position'] as String?,
+      positionGroup: json['position_group'] as String?,
       source: json['source'] as String,
     );
   }
@@ -2282,6 +2581,13 @@ class CoachInstruction {
   final String? roleId;
   final String? roleName;
   final String? position;
+
+  /// §12.14 · Mevki grubunun wire hâli — `"dc"|"fb"|"dm"|"mc"|"amc"|"wing"|"st"`.
+  /// Bu bloktaki tek alan ki maç motoru onu **tüketiyor**: E2 `/start`'ın
+  /// `position` alanına olduğu gibi gidiyor ve hangi senaryonun teklif
+  /// edileceğini eğiyor (API_CONTRACT §6.8). Rolü olmayan bir kariyerde null;
+  /// motor null'ı "eğilim yok" diye okuyor.
+  final String? positionGroup;
 
   /// `"role"` | `"coach_talk"` — talimat rolden mi türedi, yoksa kabul
   /// edilmiş bir M4 talebiyle mi değişti.
@@ -2554,7 +2860,18 @@ class CatalogItem {
   int? get upkeepWeekly => raw['upkeep_weekly'] as int?;
   String? get note => raw['note'] as String?;
 
-  /// §12.12 · `shop` kataloğu — sahip olunan kalemin günlük pasif faydası
+  /// §13.3 · sahip olunan kalemin bir kişi niteliğine kattığı pasif bonus.
+  /// `daily_effects`'ten farklı: hiçbir şey YAZMAZ, okuma anında tabanın
+  /// üstüne biner ve eşya elden çıkınca kaybolur.
+  Map<String, double> get passiveEffects =>
+      ((raw['passive_effects'] as Map<String, dynamic>?) ?? const {})
+          .map((key, value) => MapEntry(key, (value as num).toDouble()));
+
+  /// §13.4 · bu aktivitenin olay doğurma sıklığı. Yalnızca `lifestyle`
+  /// kalemlerinde dolu.
+  double? get eventChance => (raw['event_chance'] as num?)?.toDouble();
+
+  /// §12.12 · sahip olunan bir kalemin gün döngüsüne kattığı pasif etkiler.
   /// (`condition`/`energy`/`fame:overall`). `note`'un aksine bu canlı: bir
   /// kalemin gerçekte ne yaptığı, vitrin metninden ayrı okunabiliyor.
   Map<String, dynamic> get dailyEffects =>

@@ -16,8 +16,9 @@ import 'package:project_srpg/screens/tackle_training_screen.dart';
 import 'package:project_srpg/screens/training_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 
-/// N3 `training` kataloğu — career_engine/catalog/training.py'nin 15
-/// kaleminin aynısı (7 saha + 5 kişi + 3 taktik). Elle tutulan bir ayna
+/// N3 `training` kataloğu — career_engine/catalog/training.py'nin 10
+/// kaleminin aynısı (7 saha + 3 taktik; §13.5/D77 kişi ailesini kaldırdı).
+/// Elle tutulan bir ayna
 /// olduğu için katalog değiştikçe burası da güncellenmeli: literal kendi
 /// kendine yettiğinden, saptığında testler sessizce eski davranışı
 /// doğrulamaya devam eder.
@@ -65,37 +66,6 @@ const _trainingItems = [
     'effects': {'attribute:tackling': 1.0},
   },
   {
-    'catalog_id': 'medya-egitimi', 'title': 'Medya Eğitimi',
-    'description': '…', 'family': 'kişi', 'drill': null,
-    'costs': {'time': 60, 'energy': 5},
-    'effects': {'attribute:charisma': 0.8, 'money': -10},
-    'requires': {'confidence': 6},
-  },
-  {
-    'catalog_id': 'gorgu-dersleri', 'title': 'Görgü Dersleri',
-    'description': '…', 'family': 'kişi', 'drill': null,
-    'costs': {'time': 45, 'energy': 5},
-    'effects': {'attribute:politeness': 0.8, 'money': -5},
-  },
-  {
-    'catalog_id': 'ozguven-koclugu', 'title': 'Özgüven Koçluğu',
-    'description': '…', 'family': 'kişi', 'drill': null,
-    'costs': {'time': 60, 'energy': 8},
-    'effects': {'attribute:confidence': 0.8, 'money': -8},
-  },
-  {
-    'catalog_id': 'satranc-kulubu', 'title': 'Satranç Kulübü',
-    'description': '…', 'family': 'kişi', 'drill': null,
-    'costs': {'time': 90, 'energy': 5},
-    'effects': {'attribute:intelligence': 0.8, 'money': -3},
-  },
-  {
-    'catalog_id': 'kriz-simulasyonu', 'title': 'Kriz Simülasyonu',
-    'description': '…', 'family': 'kişi', 'drill': null,
-    'costs': {'time': 60, 'energy': 10},
-    'effects': {'attribute:resourcefulness': 0.8, 'money': -7},
-  },
-  {
     'catalog_id': 'gegenpress', 'title': 'Gegenpress',
     'description': '…', 'family': 'taktik', 'drill': null,
     'costs': {'time': 60, 'energy': 8},
@@ -133,10 +103,14 @@ CareerSession _trainingSession() {
 
 /// D42 · oyuncunun özgüven seviyesini [confidenceLevel] yapar; eşiğin
 /// kendisi katalogda zaten duruyor.
+/// §13.5 · D42'nin kapısı artık bir SAHA kartına takılıyor: kişi ailesi
+/// (ve onunla birlikte tek `requires` taşıyan antrenman kalemi) kalktı.
+/// Katalogda bugün eşiği olan bir antrenman yok — kapı bir mekanizma, onu
+/// kullanmak bir içerik kararı — o yüzden test kendi eşiğini iliştiriyor.
 CareerSession _gatedTrainingSession({required int confidenceLevel}) {
   final items = [
     for (final item in _trainingItems)
-      if (item['catalog_id'] == 'medya-egitimi')
+      if (item['catalog_id'] == 'sut')
         {...item, 'requires': const {'confidence': 6}}
       else
         item,
@@ -171,7 +145,14 @@ CareerSession _gatedTrainingSession({required int confidenceLevel}) {
           {
             'key': 'confidence', 'family': 'kişi',
             'value': confidenceLevel * 10.0, 'level': confidenceLevel,
+            'passive_bonus': 0.0, 'effective_value': confidenceLevel * 10.0,
           },
+        ],
+        // §12.11 · P1 bunu her zaman gönderiyor (INV-55). Eksikti ve
+        // PlayerProfile'ın sert cast'i yüzünden bu fixture'ın P1'i hiç
+        // yüklenmiyordu: iki kapı testi de seviye 0 okuyup boşa geçiyordu.
+        'tactics': const [
+          {'key': 'gegenpress', 'value': 0.0},
         ],
         'fame': const [], 'market_value': null,
       });
@@ -312,44 +293,34 @@ void main() {
       }
     });
 
-    testWidgets('mini-oyunu olmayan kişi kartı Yakında yazar ve pasiftir',
-        (tester) async {
+    // §13.5/D77 · 'Yakında' dalı kişi kalemleriyle birlikte öldü. Kilitli
+    // olmayan her kart artık gerçekten başlatılabilir.
+    testWidgets('hiçbir kart Yakında yazmaz', (tester) async {
       await tester.pumpWidget(
         _wrap(TrainingScreen(session: _trainingSession())),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Kişisel'));
-      await tester.pumpAndSettle();
-      await _scrollTo(tester, 'Görgü Dersleri');
+      expect(find.text('Yakında'), findsNothing);
 
-      expect(_button(tester, 'Görgü Dersleri').onPressed, isNull);
-      expect(
-        find.descendant(
-          of: find.ancestor(
-            of: find.text('Görgü Dersleri'),
-            matching: _card,
-          ),
-          matching: find.text('Yakında'),
-        ),
-        findsOneWidget,
-      );
+      await tester.tap(find.text('Taktik'));
+      await tester.pumpAndSettle();
+      expect(find.text('Yakında'), findsNothing);
     });
   });
 
-  testWidgets('Kişisel sekmesi kişi ailesindeki beş kalemi listeler',
-      (tester) async {
+  // §13.5/D77 · iki sekme kaldı. Kişi nitelikleri artık yaşam aktiviteleri,
+  // sosyal teklifler, diyalog, aktivite olayları ve sahip olunan eşyalarla
+  // gelişiyor (D78) — antrenman salonunda değil.
+  testWidgets('Kişisel sekmesi yok, iki aile kaldı', (tester) async {
     await tester.pumpWidget(
       _wrap(TrainingScreen(session: _trainingSession())),
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Kişisel'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Medya Eğitimi'), findsOneWidget);
-    expect(find.text('Görgü Dersleri'), findsOneWidget);
-    // Kondisyon Koşusu 'saha' ailesinde — kişisel sekmede görünmemeli.
-    expect(find.text('Kondisyon Koşusu'), findsNothing);
+    expect(find.text('Kişisel'), findsNothing);
+    expect(find.text('Fiziksel'), findsOneWidget);
+    expect(find.text('Taktik'), findsOneWidget);
+    expect(find.text('Medya Eğitimi'), findsNothing);
   });
 
   group('mini-oyunları açmak', () {
@@ -450,13 +421,9 @@ void main() {
       _wrap(TrainingScreen(session: session), session: session),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Kişisel'));
-    await tester.pumpAndSettle();
-    await _scrollTo(tester, 'Medya Eğitimi');
+    await _scrollTo(tester, 'Şut');
 
-    // 'Kilitli' ile 'Yakında' ayrı durumlar: ikincisinde mini-oyun yok,
-    // birincisinde oyuncu yeterli değil.
-    expect(_button(tester, 'Medya Eğitimi').onPressed, isNull);
+    expect(_button(tester, 'Şut').onPressed, isNull);
     expect(find.byKey(const Key('training_requirement_row')), findsOneWidget);
     expect(find.text('Özgüven 6 gerekli'), findsOneWidget);
     expect(find.text('Kilitli'), findsOneWidget);
@@ -468,15 +435,12 @@ void main() {
       _wrap(TrainingScreen(session: session), session: session),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Kişisel'));
-    await tester.pumpAndSettle();
-    await _scrollTo(tester, 'Medya Eğitimi');
-
+    await _scrollTo(tester, 'Şut');
     expect(find.byKey(const Key('training_requirement_row')), findsNothing);
     expect(find.text('Kilitli'), findsNothing);
-    // Mini-oyunu olmadığı için hâlâ 'Yakında' — kilit kalkınca kartın
-    // kendi eksiği geri görünür, ikisi karışmaz.
-    expect(find.text('Yakında'), findsWidgets);
+    // §13.5 · kilit kalkınca kart doğrudan başlatılabilir hâle gelir; eskiden
+    // araya giren 'Yakında' durumu artık yok.
+    expect(_button(tester, 'Şut').onPressed, isNotNull);
   });
 
   group('taktik sekmesi (§12.11)', () {

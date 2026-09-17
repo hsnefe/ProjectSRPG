@@ -3,6 +3,7 @@ import 'package:project_srpg/game/attribute_labels.dart';
 import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
+import 'package:project_srpg/screens/activity_event_screen.dart';
 import 'package:project_srpg/screens/shop_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/state/player_state.dart';
@@ -562,6 +563,26 @@ class _ActivityDetailPageState extends State<_ActivityDetailPage> {
         careerState: result.careerState,
         attributeChanges: result.attributeChanges,
       );
+      if (!context.mounted) return;
+      // §13.4 · aktivite sırasında bir olay geliştiyse detay kapanmadan önce
+      // olay ekranı açılır. Aktivitenin kendi etkileri zaten uygulandı
+      // (INV-3): olay bir DEVAM, bir şart değil — kullanıcı geri tuşuyla
+      // çıkarsa da aktivite yapılmış olarak kalır ve olay ertesi güne
+      // sarkmaz (D76/INV-63).
+      if (result.event case final event?) {
+        final outcome = await showActivityEventScreen(
+          context,
+          session: widget.session,
+          event: event,
+        );
+        if (!context.mounted) return;
+        if (outcome != null) {
+          player.applyServerUpdate(
+            careerState: outcome.careerState,
+            attributeChanges: outcome.attributeChanges,
+          );
+        }
+      }
       if (context.mounted) Navigator.of(context).pop();
     } on CareerApiException catch (e) {
       if (!context.mounted) return;

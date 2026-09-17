@@ -558,6 +558,31 @@ class CareerApiClient {
     return AdvanceResult.fromJson(body);
   }
 
+  /// T5 · `GET /careers/{cid}/activity-events` — açık aktivite olayı
+  /// (§13.4). Olay `advance`'ı kilitlemediği (D76) için uygulamayı kapatıp
+  /// açan kullanıcının olayı yeniden bulmasının tek yolu bu uç.
+  Future<List<ActivityEvent>> activityEvents(String careerId) async {
+    final body = await _get('/careers/$careerId/activity-events');
+    final items = (body['events'] as List<dynamic>? ?? const []);
+    return items
+        .map((e) => ActivityEvent.fromJson(e as Map<String, dynamic>))
+        .toList(growable: false);
+  }
+
+  /// T6 · `POST /careers/{cid}/activity-events/{eid}/choose/{option_id}` —
+  /// olayın bir dalını uygular. Reddedilen bir seçim olayı AÇIK bırakır:
+  /// kullanıcı başka bir dal seçebilir (§13.4).
+  Future<ActivityEventResult> chooseActivityEvent(
+    String careerId,
+    String eventId,
+    String optionId,
+  ) async {
+    final body = await _post(
+      '/careers/$careerId/activity-events/$eventId/choose/$optionId',
+    );
+    return ActivityEventResult.fromJson(body);
+  }
+
   /// T4 · `POST /careers/{cid}/purchases` — dükkândan satın alır.
   Future<PurchaseResult> purchase(String careerId, String catalogId) async {
     final body = await _post('/careers/$careerId/purchases', body: {

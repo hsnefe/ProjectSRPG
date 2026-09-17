@@ -71,8 +71,18 @@ class _TransferOffersScreenState extends State<TransferOffersScreen> {
           await _session.client.acceptTransferOffer(careerId, offer.offerId);
       if (!mounted) return;
       player.applyServerUpdate(careerState: result.careerState);
+      // §13.1 · yeni kulüpte antrenör, kaptan ve tribün baştan başlıyor.
+      // Snackbar'a yazılıyor çünkü bu sessizce olursa kullanıcı kadro
+      // dışı kaldığında sebebini (antrenörün güveni sıfırlandı, §12.2)
+      // hiçbir yerden okuyamaz.
       messenger.showSnackBar(SnackBar(
-        content: Text('${result.team.name} ile anlaştın.'),
+        content: Text(
+          result.relationshipsReset.isEmpty
+              ? '${result.team.name} ile anlaştın.'
+              : '${result.team.name} ile anlaştın. Yeni bir soyunma odası: '
+                  '${_resetSummary(result.relationshipsReset)}.',
+        ),
+        duration: const Duration(seconds: 5),
       ));
       Navigator.of(context).pop(true);
     } on CareerApiException catch (e) {
@@ -82,6 +92,15 @@ class _TransferOffersScreenState extends State<TransferOffersScreen> {
         SnackBar(content: Text(e.message ?? 'Teklif kabul edilemedi.')),
       );
     }
+  }
+
+  /// §13.1 · 'Antrenör Kerem, Takım grubu ve taraftarlarla sıfırdan' —
+  /// BE isimleri gönderiyor (`relationships_reset`), cümleyi ekran kuruyor
+  /// (§1.3). Yeni kartların kendisi bir sonraki R1'de gelir.
+  String _resetSummary(List<api.RelationshipReset> resets) {
+    final names = [for (final r in resets) r.contactName];
+    if (names.length <= 1) return names.join();
+    return '${names.sublist(0, names.length - 1).join(', ')} ve ${names.last}';
   }
 
   Future<void> _counter(api.TransferOffer offer) async {

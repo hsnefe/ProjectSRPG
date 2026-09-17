@@ -17,7 +17,11 @@ import 'package:project_srpg/state/player_state.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/animated_condition_bar.dart';
 
-enum _TrainingTab { physical, personal, tactical }
+/// §13.5/D77 · iki aile: fiziksel ve taktiksel. `personal` sekmesi kalktı —
+/// beş kişi kartının hepsi `drill: null`'du ve FE'de kalıcı olarak "Yakında"
+/// görünüyordu. Kişi nitelikleri artık yaşam aktiviteleri, sosyal teklifler,
+/// diyalog, aktivite olayları ve sahip olunan eşyalarla gelişiyor (D78).
+enum _TrainingTab { physical, tactical }
 
 class _TrainingItem {
   const _TrainingItem({
@@ -297,7 +301,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
                             final player = PlayerScope.of(context);
                             final familyForTab = switch (_tab) {
                               _TrainingTab.physical => 'saha',
-                              _TrainingTab.personal => 'kişi',
                               _TrainingTab.tactical => 'taktik',
                             };
                             final items = snapshot.data!.items
@@ -348,17 +351,14 @@ class _TrainingScreenState extends State<TrainingScreen> {
                                           item: item,
                                           onStart: item.locked
                                               ? null
+                                              // §13.5: `drill: null` artık tek
+                                              // anlama geliyor — mini-oyunu
+                                              // olmayan taktik kartı, doğrudan
+                                              // uygulanır. "Yakında" dalı kişi
+                                              // kalemleriyle birlikte kalktı.
                                               : item.drill != null
                                                   ? () => _start(item)
-                                                  // §12.11: kişi kalemleri
-                                                  // drill:null'da Yakında
-                                                  // kalır (kapsam dışı);
-                                                  // taktik kalemleri aynı
-                                                  // drill:null'da doğrudan
-                                                  // uygulanır.
-                                                  : item.family == 'taktik'
-                                                      ? () => _startDirect(item)
-                                                      : null,
+                                                  : () => _startDirect(item),
                                         );
                                       },
                                     ),
@@ -444,10 +444,12 @@ class _TabToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     const height = 30.0;
     const padding = 2.0;
-    const segmentWidth = 70.0;
-    const segmentCount = 3;
+    const segmentWidth = 88.0;
+    const segmentCount = 2;
 
-    // Üç eşit dilim: -1 (sol uç) ile +1 (sağ uç) arası, index'e göre.
+    // §13.5: iki dilim. Genişlik 70 -> 88, çünkü iki etiket aynı toplam
+    // genişliği paylaşınca pill kısalıp ortada asılı kalıyordu.
+    // -1 (sol uç) ile +1 (sağ uç) arası, index'e göre.
     final alignX = -1.0 + tab.index * (2.0 / (segmentCount - 1));
 
     return Container(
@@ -481,12 +483,6 @@ class _TabToggle extends StatelessWidget {
                   label: 'Fiziksel',
                   selected: tab == _TrainingTab.physical,
                   onTap: () => onChanged(_TrainingTab.physical),
-                ),
-                _ToggleLabel(
-                  width: segmentWidth,
-                  label: 'Kişisel',
-                  selected: tab == _TrainingTab.personal,
-                  onTap: () => onChanged(_TrainingTab.personal),
                 ),
                 _ToggleLabel(
                   width: segmentWidth,
@@ -666,11 +662,9 @@ class _TrainingCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: Text(
-                          item.locked
-                              ? 'Kilitli'
-                              : (onStart == null ? 'Yakında' : 'Başla'),
-                        ),
+                        // §13.5: 'Yakında' dalı kalktı — kilitli olmayan her
+                        // kart artık gerçekten başlatılabilir.
+                        child: Text(item.locked ? 'Kilitli' : 'Başla'),
                       ),
                     ],
                   ),
