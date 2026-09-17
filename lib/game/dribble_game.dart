@@ -6,6 +6,7 @@ import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart' show ValueChanged, ValueNotifier;
 
+import 'package:project_srpg/game/dribble_courses.dart';
 import 'package:project_srpg/game/game_banner.dart';
 import 'package:project_srpg/game/training_result.dart';
 import 'package:project_srpg/theme/app_colors.dart';
@@ -30,15 +31,24 @@ enum DribblePhase { ready, running, done }
 /// `size` okumayan [advance] ve [swipe] içinde, dolayısıyla puanlama tablosu
 /// arkada bir widget ya da oyun döngüsü olmadan test edilebilir.
 class DribbleGame extends FlameGame {
-  DribbleGame({required this.onStateChanged, required this.onFinished});
+  DribbleGame({
+    required this.onStateChanged,
+    required this.onFinished,
+    DribbleCourse? course,
+  }) : course = course ?? DribbleCourses.all.first;
 
   final VoidCallback onStateChanged;
   final ValueChanged<TrainingResult> onFinished;
 
-  /// Bitişe kadarki mesafe. Birim: koridor genişliği (x ekseni 0..1).
-  static const courseLength = 10.0;
+  /// Oynanan kurs. Hangisinin oynanacağı oturumun kararı, oyunun değil —
+  /// `shot_game.dart`'ın sahneyi alıp senaryoyu almaması ile aynı ayrım.
+  /// Verilmezse katalogun ilki, yani eski tek kurs.
+  final DribbleCourse course;
 
-  static const timeLimit = 22.0;
+  /// Bitişe kadarki mesafe. Birim: koridor genişliği (x ekseni 0..1).
+  double get courseLength => course.courseLength;
+
+  double get timeLimit => course.timeLimit;
 
   /// Koridorun merkezden yarı genişliği. Dışına çıkmak topu duvara çarpar.
   static const corridorHalfWidth = 0.40;
@@ -108,7 +118,7 @@ class DribbleGame extends FlameGame {
   final ValueNotifier<double> progress = ValueNotifier<double>(0);
   final ValueNotifier<double> speedGauge = ValueNotifier<double>(0);
 
-  late final List<DribbleCone> cones = _buildCourse();
+  List<DribbleCone> get cones => course.cones;
 
   bool get finished => phase == DribblePhase.done;
 
@@ -131,22 +141,6 @@ class DribbleGame extends FlameGame {
     final clean = (maxHits - hits) / maxHits;
     return (0.55 + 0.3 * timeBonus + 0.15 * clean).clamp(0.0, 1.0);
   }
-
-  /// Koniler sabit: aynı kurs her seferinde aynı, böylece oyuncu ezberleyip
-  /// gelişebilir ve test tekrarlanabilir olur. Zorluk mesafeyle artıyor —
-  /// önce tek, sonra yana kaçık çiftler, sonunda dar bir geçit.
-  static List<DribbleCone> _buildCourse() => const [
-        DribbleCone(1.6, 0.50),
-        DribbleCone(2.8, 0.32),
-        DribbleCone(3.6, 0.68),
-        DribbleCone(4.8, 0.38),
-        DribbleCone(5.2, 0.72),
-        DribbleCone(6.4, 0.50),
-        DribbleCone(7.3, 0.28),
-        DribbleCone(7.9, 0.62),
-        DribbleCone(8.8, 0.44),
-        DribbleCone(9.3, 0.70),
-      ];
 
   @override
   Color backgroundColor() => AppColors.surface1;
@@ -292,16 +286,6 @@ class DribbleGame extends FlameGame {
   }
 }
 
-/// Kurstaki tek bir koni. Yeri iki sayı: koridordaki yanal yer ve bitişe olan
-/// mesafe — top da aynı iki eksende yaşıyor, o yüzden çarpışma testi düz bir
-/// dikdörtgen karşılaştırması.
-class DribbleCone {
-  const DribbleCone(this.distance, this.x);
-
-  final double distance;
-  final double x;
-}
-
 /// Koridoru, konileri ve topu çizer. Render `size` okuyabilir — konvansiyonun
 /// yasakladığı yer yalnızca kural katmanı ([DribbleGame.advance]).
 class DribbleCourseComponent extends PositionComponent
@@ -353,7 +337,7 @@ class DribbleCourseComponent extends PositionComponent
     double screenX(double x) => left + x * corridorW;
 
     // Bitiş çizgisi.
-    final finishY = screenY(DribbleGame.courseLength);
+    final finishY = screenY(game.courseLength);
     if (finishY > -20 && finishY < s.y + 20) {
       canvas.drawLine(
         Offset(left, finishY),

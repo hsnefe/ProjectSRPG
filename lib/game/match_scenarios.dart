@@ -27,92 +27,36 @@ import 'package:project_srpg/game/tackle_scenarios.dart';
 class MatchScenarios {
   const MatchScenarios._();
 
-  /// Güç şutu: yakın mesafe, gövdeyle bitirme anları.
-  static const finishPower = [
-    'shot_box_centre',
-    'shot_one_on_one',
-    'shot_cutback_first_time',
-    'shot_through_traffic',
-    'shot_volley_far_post',
-  ];
+  /// Motorun yedi minigame aksiyonu (`api/config.py`'deki
+  /// MINIGAME_ACTION_KEYS, §7.3): dört bitiriş (`graded4`) + üç pas
+  /// (`graded`). Sabit olan bu liste; hangi durumun hangisine düştüğü değil.
+  static const minigameActionKeys = {
+    'finish_power',
+    'finish_finesse',
+    'long_shot',
+    'counter_attack',
+    'build_up_pass',
+    'transition_pass',
+    'final_ball',
+  };
 
-  /// Placeli şut: açı ve kavis isteyen yerler.
-  static const finishFinesse = [
-    'shot_box_left',
-    'shot_box_right',
-    'shot_edge_left',
-    'shot_edge_right',
-  ];
-
-  /// Uzaktan: ceza sahası dışı ve duran toplar.
-  static const longShot = [
-    'shot_edge_d',
-    'shot_long_range',
-    'shot_free_kick_left',
-    'shot_free_kick_central',
-  ];
-
-  /// Kontra: bitirmek ile bitirtmek arasındaki seçimin gerçekten var olduğu
-  /// üç durum — katalogda `asist` üretebilen tek küme.
-  static const counterAttack = [
-    'shot_tight_left',
-    'shot_tight_right',
-    'final_layoff_and_shoot',
-  ];
-
-  // --- Pas aksiyonları (v1.5) ---------------------------------------------
-  //
-  // Motorun üç yeni aksiyonu: geriden kurulum, geçiş başlatma, son pas. Şeması
-  // `graded` (great/good/bad) ve **katalogun kendi üç kademesiyle birebir
-  // aynı** — pas senaryolarının notu doğrudan motorun anahtarı oluyor
-  // ([outcomeKeyForGrade]). Bitiriş aksiyonlarında olduğu gibi ham etiket
-  // tablosuna gerek yok; orada tavan "gol attın", burada "doğru topu buldun".
-  //
-  // İki kademeli durumlar (`build_safe_reset`, `trans_keep_it`,
-  // `final_byline_square`) kasten dışarıda: `great` üretemedikleri için
-  // motorun en iyi dalı o tekliflerde hiç ateşlenmezdi.
-
-  static const buildUpPass = [
-    'build_keeper_short',
-    'build_centre_back_split',
-    'build_press_escape',
-    'build_full_back_line',
-    'build_pivot_turn',
-    'build_goal_kick_switch',
-    'build_third_man',
-    'build_line_break',
-  ];
-
-  static const transitionPass = [
-    'trans_win_and_go',
-    'trans_counter_centre',
-    'trans_switch_wide',
-    'trans_release_winger',
-    'trans_second_ball',
-    'trans_break_the_press',
-    'trans_carry_then_slide',
-    'trans_outlet_from_corner',
-  ];
-
-  /// `final_layoff_and_shoot` burada değil — o kaleyi sayan bir sahne ve
-  /// [counterAttack] havuzunda asist üretmekle görevli.
-  static const finalBall = [
-    'final_through_ball',
-    'final_cutback',
-    'final_cross_far_post',
-    'final_half_space_slip',
-    'final_wall_pass',
-    'final_pull_back_edge',
-  ];
-
-  static const byActionKey = <String, List<String>>{
-    'finish_power': finishPower,
-    'finish_finesse': finishFinesse,
-    'long_shot': longShot,
-    'counter_attack': counterAttack,
-    'build_up_pass': buildUpPass,
-    'transition_pass': transitionPass,
-    'final_ball': finalBall,
+  /// Aksiyon → o aksiyonda teklif edilebilecek durumların kimlikleri.
+  ///
+  /// Havuzlar bir zamanlar burada elle yazılıyordu: yedi liste, kırk iki
+  /// kimlik, ve katalog her değiştiğinde ikisini elle aynı tutmak. Anahtar
+  /// artık senaryonun kendisinde ([ShotScenario.actionKey]) ve havuz ondan
+  /// türüyor — müdahale tarafının aile adıyla zaten yaptığı şeyin şut
+  /// tarafındaki karşılığı (aşağıda [tackleByActionKey]).
+  ///
+  /// Bir aksiyona bağlanmamış durum hiçbir havuzda değildir: maçta çıkmaz,
+  /// Senaryo Sahası'nda ve antrenmanda durur. Bu bir eksiklik değil, editörde
+  /// verilen bir karar.
+  static final byActionKey = <String, List<String>>{
+    for (final key in minigameActionKeys)
+      key: [
+        for (final scenario in ShotScenarios.all)
+          if (scenario.actionKey == key) scenario.id,
+      ],
   };
 
   /// Sonucu ham etiketten değil senaryonun notundan okunan aksiyonlar.
@@ -130,11 +74,11 @@ class MatchScenarios {
 
   // --- Savunma aksiyonları -------------------------------------------------
   //
-  // Şut tarafı havuzları id id sayıyor, çünkü kırk iki şut durumu aksiyonlara
-  // birebir oturmuyor. Müdahale katalogu ise zaten aksiyonun sorduğu soruya
-  // göre ailelere bölündü (`tackle_scenarios.dart`), o yüzden burada aile adı
-  // yetiyor: kataloğa yeni bir durum eklemek onu otomatik olarak havuza da
-  // sokuyor, ikinci bir liste bakımı gerekmiyor.
+  // Şut tarafı havuzu senaryonun kendi `actionKey`'inden kuruyor; müdahale
+  // katalogu ise zaten aksiyonun sorduğu soruya göre ailelere bölünmüş
+  // (`tackle_scenarios.dart`), o yüzden burada aile adı yetiyor. İki tarafın
+  // da ortak özelliği aynı: kataloğa yeni bir durum eklemek onu havuza da
+  // sokuyor, elle bakılan ikinci bir liste yok.
   //
   // `keeper_sweep` dışarıda: §7.3'teki gerekçesi mini oyunun yokluğu değil,
   // aksiyonu oyuncunun değil kalecinin yapması.

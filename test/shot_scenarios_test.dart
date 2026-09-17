@@ -62,8 +62,11 @@ void main() {
   final catalog = ShotScenarios.all;
 
   group('katalog', () {
-    test('kırk ile kırk beş arasında durum var', () {
-      expect(catalog.length, inInclusiveRange(40, 45));
+    test('katalog bir seansı besleyecek kadar dolu', () {
+      // Bir zamanlar üst sınırı da vardı (40-45): katalog elle yazılıyordu ve
+      // sayının kendisi bir gözden geçirme kaydıydı. Artık `scenario_creator`
+      // üretiyor, yani büyümesi beklenen bir şey; kalan kural alt sınır.
+      expect(catalog.length, greaterThanOrEqualTo(40));
     });
 
     test('her ailede yeterince seçenek var', () {

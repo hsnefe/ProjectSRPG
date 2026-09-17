@@ -348,6 +348,7 @@ class ShotScenario {
     required this.brief,
     required this.scene,
     required this.aimHint,
+    this.actionKey,
   });
 
   /// Stable key, unique across the catalog. Logged with each attempt.
@@ -365,6 +366,16 @@ class ShotScenario {
 
   /// Nişan fazının ipucu: bu durumda neye bakılacağı.
   final String aimHint;
+
+  /// Bu durumun hangi maç aksiyonunda teklif edileceği (§7.3), ya da hiçbirinde
+  /// çıkmıyorsa null.
+  ///
+  /// Havuzları ayrı bir listede tutmak iki yerin elle senkron kalmasını
+  /// gerektiriyordu; müdahale katalogu bunu zaten aile adıyla çözmüştü
+  /// (`match_scenarios.dart`). Anahtarın senaryonun kendisinde durması aynı
+  /// çözümün şut tarafındaki karşılığı: bir durumu editörde bir aksiyona
+  /// bağlamak onu havuza da sokuyor.
+  final String? actionKey;
 
   ShotObjective get objective => scene.objective ?? kind.mode.objective;
 }

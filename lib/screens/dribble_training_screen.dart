@@ -1,6 +1,7 @@
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
+import 'package:project_srpg/game/dribble_courses.dart';
 import 'package:project_srpg/game/dribble_game.dart';
 import 'package:project_srpg/game/training_result.dart';
 import 'package:project_srpg/theme/app_colors.dart';
@@ -11,16 +12,23 @@ import 'package:project_srpg/widgets/training_result_panel.dart';
 /// hızlandırır, ters yöne kaydırmak frenler, yana kaydırmak çevirir —
 /// konilere ve duvara çarpmadan bitişe var.
 class DribbleTrainingScreen extends StatefulWidget {
-  const DribbleTrainingScreen({super.key});
+  const DribbleTrainingScreen({super.key, this.course});
+
+  /// Oynanacak kurs. Verilmezse katalogdan rastgele biri — testler kendi
+  /// kursunu geçirebilsin diye açık.
+  final DribbleCourse? course;
 
   @override
   State<DribbleTrainingScreen> createState() => _DribbleTrainingScreenState();
 }
 
 class _DribbleTrainingScreenState extends State<DribbleTrainingScreen> {
+  late final DribbleCourse _course = widget.course ?? DribbleCourses.pick();
+
   late final DribbleGame _game = DribbleGame(
     onStateChanged: _onGameState,
     onFinished: _onFinished,
+    course: _course,
   );
 
   TrainingResult? _result;
@@ -83,6 +91,10 @@ class _DribbleTrainingScreenState extends State<DribbleTrainingScreen> {
                   child: Column(
                     children: [
                       const GameHeaderBar(title: 'Dribling'),
+                      GameBriefBar(
+                        title: _course.name,
+                        text: _course.brief,
+                      ),
                       _ProgressBar(game: _game),
                       Expanded(
                         child: Padding(

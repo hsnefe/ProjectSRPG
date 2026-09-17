@@ -39,14 +39,17 @@ TackleGame _play(TackleScenario scenario) {
 }
 
 void main() {
-  const catalog = TackleScenarios.all;
+  final catalog = TackleScenarios.all;
 
   group('katalog', () {
-    test('üç ailede üçer durum var', () {
-      expect(catalog, hasLength(9));
+    test('üç ailenin de en az üç durumu var', () {
+      // Alt sınır kalite kuralı: bir aile üç durumun altına düşerse
+      // `tackle_hard` teklifi kendini tekrar etmeye başlıyor. Üst sınır yok —
+      // katalog `scenario_creator` ile büyüsün diye var.
+      expect(catalog.length, greaterThanOrEqualTo(9));
       for (final kind in TackleScenarioKind.values) {
         final family = TackleScenarios.of(kind);
-        expect(family, hasLength(3), reason: kind.name);
+        expect(family.length, greaterThanOrEqualTo(3), reason: kind.name);
         expect(
           family.every((s) => s.kind == kind),
           isTrue,

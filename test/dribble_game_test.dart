@@ -195,7 +195,7 @@ void main() {
       }
 
       expect(game.finished, isTrue);
-      expect(game.distance, greaterThanOrEqualTo(DribbleGame.courseLength));
+      expect(game.distance, greaterThanOrEqualTo(game.courseLength));
       expect(calls, 1);
     });
 
