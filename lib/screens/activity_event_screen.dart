@@ -320,7 +320,14 @@ class _ActivityEventScreenState extends State<ActivityEventScreen> {
 /// ilişkiden sahne seçmesiyle aynı kalıpta, burada aktiviteden seçiliyor.
 DialogueScene sceneForActivity(String catalogId) {
   if (catalogId.startsWith('ev-')) return DialogueScene.home;
-  if (catalogId.startsWith('fiz-')) return DialogueScene.trainingGround;
+  if (catalogId.startsWith('fiz-')) {
+    // Koşu ve bisiklet dışarıda, yoga / sauna / yüzme kapalı bir salonda.
+    return switch (catalogId) {
+      'fiz-kosu' || 'fiz-bisiklet' => DialogueScene.park,
+      'fiz-yoga' || 'fiz-sauna' || 'fiz-yuzme' => DialogueScene.gym,
+      _ => DialogueScene.trainingGround,
+    };
+  }
   return switch (catalogId) {
     'sos-taraftar' => DialogueScene.stadium,
     'sos-aile' => DialogueScene.home,

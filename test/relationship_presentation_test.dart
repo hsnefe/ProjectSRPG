@@ -16,10 +16,10 @@ void main() {
         sceneFor(relationshipId: 'team', templateId: 'team_dinner'),
         DialogueScene.cafe,
       );
-      // partner'ın varsayılanı home, ama 'akşam planı' kafede geçer.
+      // partner'ın varsayılanı home, ama 'akşam planı' bir restoranda geçer.
       expect(
         sceneFor(relationshipId: 'partner', templateId: 'partner_evening_out'),
-        DialogueScene.cafe,
+        DialogueScene.restaurant,
       );
     });
 

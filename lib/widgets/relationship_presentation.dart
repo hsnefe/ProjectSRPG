@@ -115,15 +115,16 @@ RelationshipPresentation presentationForRelationship(String relationshipId) =>
 
 /// §4.1 · Mekânsal bağımlılık — bir sosyal teklif şablonu, ilişkinin
 /// varsayılan sahnesinden FARKLI bir yerde geçiyorsa burada eziliyor.
-/// Yalnızca gerçek anlamda farklı ve daha uygun olan üç şablon eşlendi
-/// ("fazladan idman" soyunma odasında değil sahada geçer, "takım yemeği" ve
-/// "akşam planı" antrenman sahasında/evde değil bir kafede) — geri kalanı
-/// zaten ilişkisinin varsayılanına uyuyor. `cafe` sahnesi bugüne kadar
-/// hiçbir ilişkiye bağlı değildi; ilk gerçek kullanımı burada.
+/// Yalnızca gerçek anlamda farklı ve daha uygun olan şablonlar eşlendi
+/// ("fazladan idman" soyunma odasında değil sahada geçer, "takım yemeği"
+/// antrenman sahasında değil bir kafede, "akşam planı" evde değil bir
+/// restoranda) — geri kalanı zaten ilişkisinin varsayılanına uyuyor.
+/// `cafe` sahnesi bugüne kadar hiçbir ilişkiye bağlı değildi; ilk gerçek
+/// kullanımı burada.
 const _sceneByTemplateId = {
   'coach_extra_session': DialogueScene.trainingGround,
   'team_dinner': DialogueScene.cafe,
-  'partner_evening_out': DialogueScene.cafe,
+  'partner_evening_out': DialogueScene.restaurant,
 };
 
 /// Bir konuşmanın arka planı: önce şablonun kendine özgü bir sahnesi var mı

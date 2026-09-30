@@ -182,6 +182,19 @@ into five or six files:
   `layout.json`; `test/player_sprites_test.dart` pins the code's column numbers to that file.
   Re-render with `blender -b --factory-startup -P tools/blender/render_match_sprites.py -- OUT`
   then `python tools/blender/assemble_match_sprites.py OUT`.
+- `assets/images/backgrounds/*.jpg` are **generated** by `tools/blender/build_dialogue_backdrops.py`
+  (one headless run renders all 45: `blender -b --factory-startup -P tools/blender/build_dialogue_backdrops.py -- assets/images/backgrounds`;
+  add scene names like `home:luxury` and `--times=night` to redo a few, `--smoke` for a fast low-res check).
+  Never hand-edit them. `lib/widgets/dialogue_backdrop.dart::backdropAssetFor` derives the file
+  name (`<scene>[_<tier>][_<time>].jpg`) and `test/dialogue_backdrop_test.dart` checks every
+  combination exists on disk — a scene gets `_<time>` only when daylight reaches it, and `home` /
+  `stadium` alone have a tier. The game has no time of day and no rule for "prosperous", so
+  `BackdropTime` / `BackdropStatus` are plain parameters with a per-scene default, not derived state.
+- `assets/models/relationship_portraits/` (six rigged busts: `.glb` + one `.blend`) is **generated** by
+  `tools/blender/build_relationship_portraits.py`; the faces are shape-keyed (mouth, eyelids, brows) and
+  driven from a `Face_<id>` control empty. The client can't play `.glb`, so nothing loads them yet.
+  Run it from a live Blender session and call `export_all()`, or headless with a driver that removes
+  the default scene first (the glTF exporter reads the *context* scene and `temp_override` crashes 5.2).
 
 Presentation the backend deliberately doesn't send (§5.8) is synthesised client-side:
 `character_portrait.dart` derives a face procedurally from the `relationship_id` (there are no

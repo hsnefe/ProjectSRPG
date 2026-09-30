@@ -18,20 +18,148 @@ enum DialogueScene {
   pressRoom,
   home,
   stadium,
+  tunnel,
+  teamBus,
+  clubOffice,
+  clinic,
+  restaurant,
+  park,
+  gym,
+  shop,
+  fanStreet,
 }
 
-/// Sahnenin zemin katmanı. Gerçek bir fotoğraf yok, o yüzden her sahne birkaç
-/// büyük şekle indirgenmiş bir siluet — amaç fotogerçekçilik değil, konuşmanın
-/// nerede geçtiğinin bir bakışta okunması.
+/// Günün saati. Yalnızca gün ışığının girdiği (pencere / açık hava) sahnelerde
+/// anlamı var; pencere­siz odalar (soyunma odası, basın odası, tünel) tek
+/// görselle çizilir ve bu değeri yok sayar.
+///
+/// Oyunda saat kavramı yok (yalnızca `game_date`, bkz. `daytime.py`) — bu yüzden
+/// değer durumdan türetilmiyor, sahnenin doğal saati varsayılan ([_BackdropSpec])
+/// ve çağıran isterse ezer.
+enum BackdropTime { day, dusk, night }
+
+/// Sahnenin refah durumu; yalnızca iki sahnenin iki hâli var: ev (`lean` =
+/// mütevazı, `thriving` = lüks) ve stadyum (`lean` = boş, `thriving` = dolu).
+/// Diğer sahneler bu değeri yok sayar.
+///
+/// Durumu neyin belirleyeceği (para, şöhret, kulüp ligi…) henüz karara
+/// bağlanmadı; o yüzden bu bir parametre, hesaplanan bir değer değil.
+enum BackdropStatus { lean, thriving }
+
+class _BackdropSpec {
+  const _BackdropSpec(
+    this.stem, {
+    this.timed = true,
+    this.defaultTime = BackdropTime.day,
+    this.tiers,
+    this.defaultStatus = BackdropStatus.lean,
+  });
+
+  /// `assets/images/backgrounds/<stem>[_<tier>][_<time>].jpg`
+  final String stem;
+  final bool timed;
+  final BackdropTime defaultTime;
+
+  /// (lean, thriving) dosya eki; null ise sahnenin seviyesi yok.
+  final (String, String)? tiers;
+  final BackdropStatus defaultStatus;
+}
+
+const _specs = <DialogueScene, _BackdropSpec>{
+  DialogueScene.trainingGround: _BackdropSpec('training_ground'),
+  DialogueScene.lockerRoom: _BackdropSpec('locker_room', timed: false),
+  DialogueScene.cafe: _BackdropSpec('cafe', defaultTime: BackdropTime.dusk),
+  DialogueScene.pressRoom: _BackdropSpec('press_room', timed: false),
+  DialogueScene.home: _BackdropSpec(
+    'home',
+    defaultTime: BackdropTime.dusk,
+    tiers: ('modest', 'luxury'),
+  ),
+  DialogueScene.stadium: _BackdropSpec(
+    'stadium',
+    defaultTime: BackdropTime.night,
+    tiers: ('empty', 'full'),
+    defaultStatus: BackdropStatus.thriving,
+  ),
+  DialogueScene.tunnel: _BackdropSpec('tunnel', timed: false),
+  DialogueScene.teamBus: _BackdropSpec('team_bus', defaultTime: BackdropTime.dusk),
+  DialogueScene.clubOffice: _BackdropSpec('club_office'),
+  DialogueScene.clinic: _BackdropSpec('clinic'),
+  DialogueScene.restaurant: _BackdropSpec('restaurant', defaultTime: BackdropTime.night),
+  DialogueScene.park: _BackdropSpec('park', defaultTime: BackdropTime.dusk),
+  DialogueScene.gym: _BackdropSpec('gym'),
+  DialogueScene.shop: _BackdropSpec('shop'),
+  DialogueScene.fanStreet: _BackdropSpec('fan_street', defaultTime: BackdropTime.dusk),
+};
+
+/// Sahnenin render edilmiş arka plan dosyası. Dosya adları
+/// `tools/blender/build_dialogue_backdrops.py`'den geliyor; orada bir sahne
+/// yalnızca `_<time>` alıyorsa burada da `timed` olmalı.
+String backdropAssetFor(
+  DialogueScene scene, {
+  BackdropTime? time,
+  BackdropStatus? status,
+}) {
+  final spec = _specs[scene]!;
+  final parts = [spec.stem];
+  final tiers = spec.tiers;
+  if (tiers != null) {
+    final s = status ?? spec.defaultStatus;
+    parts.add(s == BackdropStatus.thriving ? tiers.$2 : tiers.$1);
+  }
+  if (spec.timed) parts.add((time ?? spec.defaultTime).name);
+  return 'assets/images/backgrounds/${parts.join('_')}.jpg';
+}
+
+/// Sahnenin zemin katmanı: Blender'da render edilmiş arka plan
+/// ([backdropAssetFor]). Dosya yoksa ya da henüz yüklenmediyse altta duran
+/// prosedürel siluet görünür — amaç konuşmanın nerede geçtiğinin bir bakışta
+/// okunması, fotogerçekçilik değil.
 class DialogueBackdrop extends StatelessWidget {
-  const DialogueBackdrop({super.key, required this.scene, required this.tint});
+  const DialogueBackdrop({
+    super.key,
+    required this.scene,
+    required this.tint,
+    this.time,
+    this.status,
+  });
 
   final DialogueScene scene;
   final Color tint;
 
+  /// Null ise sahnenin doğal saati ([_BackdropSpec.defaultTime]).
+  final BackdropTime? time;
+
+  /// Null ise sahnenin varsayılan durumu; bkz. [BackdropStatus].
+  final BackdropStatus? status;
+
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(painter: _BackdropPainter(scene, tint), size: Size.infinite);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Yedek: görsel yüklenene kadar (ya da hiç yüklenemezse) bu görünür.
+        CustomPaint(painter: _BackdropPainter(scene, tint), size: Size.infinite),
+        Image.asset(
+          backdropAssetFor(scene, time: time, status: status),
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+        ),
+        // İlişkinin tonu, renderın üstünde yalnızca iz kadar: altı karakter
+        // katmanı, üstü sahneyi kartın rengiyle akraba kılan yer.
+        IgnorePointer(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [tint.withValues(alpha: 0.14), tint.withValues(alpha: 0.0)],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -164,6 +292,20 @@ class _BackdropPainter extends CustomPainter {
           Rect.fromLTWH(0, h * 0.48, w, h * 0.05),
           Paint()..color = const Color(0xFF0E1116),
         );
+
+      // Yeni sahneler render görselleriyle geliyor; yedek siluet bunlar için
+      // yalnızca zemin düzlemi — ayrıntı çizmenin anlamı yok, render yüklenince
+      // zaten üstünü kaplıyor.
+      case DialogueScene.tunnel:
+      case DialogueScene.teamBus:
+      case DialogueScene.clubOffice:
+      case DialogueScene.clinic:
+      case DialogueScene.restaurant:
+      case DialogueScene.park:
+      case DialogueScene.gym:
+      case DialogueScene.shop:
+      case DialogueScene.fanStreet:
+        _horizon(canvas, w, h, 0.72, const Color(0xFF1A1E27));
     }
 
     // İlişkinin tonu — ince, yalnızca sahneyi kartın rengiyle akraba kılacak
@@ -205,6 +347,7 @@ class _BackdropPainter extends CustomPainter {
           (const Color(0xFF2E2433), const Color(0xFF17131A), Color(0xFF9B5CF6)),
         DialogueScene.stadium =>
           (const Color(0xFF14203A), const Color(0xFF0E1116), AppColors.warning),
+        _ => (const Color(0xFF242A36), const Color(0xFF12151B), AppColors.accent),
       };
 
   @override
