@@ -65,6 +65,7 @@ flutter:
     - assets/images/portraits/cards/
     - assets/images/sprites/
     - assets/images/sprites/footballer_run/
+    - assets/images/sprites/players/
     - assets/images/conditioning/
     - assets/images/flexibility/
     - assets/images/strength/

@@ -1,0 +1,47 @@
+{
+  "directions": 8,
+  "layers": [
+    "base",
+    "shirt",
+    "shorts",
+    "socks"
+  ],
+  "kinds": {
+    "outfield": {
+      "frame": [
+        128,
+        176
+      ],
+      "clips": {
+        "idle": {
+          "start": 0,
+          "count": 1
+        },
+        "run": {
+          "start": 1,
+          "count": 8
+        }
+      }
+    },
+    "keeper": {
+      "frame": [
+        192,
+        176
+      ],
+      "clips": {
+        "ready": {
+          "start": 0,
+          "count": 1
+        },
+        "diveL": {
+          "start": 1,
+          "count": 4
+        },
+        "diveR": {
+          "start": 5,
+          "count": 4
+        }
+      }
+    }
+  }
+}

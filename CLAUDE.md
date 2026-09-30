@@ -173,6 +173,16 @@ into five or six files:
   through its own `actionKey`; `match_scenarios.dart` derives the pools from the catalog rather
   than keeping a second list.
 
+- `assets/images/sprites/players/*.png` and its `layout.json` are **generated** by
+  `tools/blender/` (`build_match_players.py` builds the low-poly cast, `render_match_sprites.py`
+  renders it headless with Blender, `assemble_match_sprites.py` packs the sheets). Never
+  hand-edit them. Each kind has a `base` sheet plus white-shaded `shirt` / `shorts` / `socks`
+  layers that `lib/game/player_sprites.dart` tints with `BlendMode.modulate`, so a kit is three
+  `Color`s. Rows are the 8 headings relative to the camera, columns are the frames listed in
+  `layout.json`; `test/player_sprites_test.dart` pins the code's column numbers to that file.
+  Re-render with `blender -b --factory-startup -P tools/blender/render_match_sprites.py -- OUT`
+  then `python tools/blender/assemble_match_sprites.py OUT`.
+
 Presentation the backend deliberately doesn't send (§5.8) is synthesised client-side:
 `character_portrait.dart` derives a face procedurally from the `relationship_id` (there are no
 portrait assets), and `dialogue_backdrop.dart` picks the scene from the social-offer template or
