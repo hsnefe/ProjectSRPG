@@ -30,10 +30,15 @@ from catalog import validate_requires
 
 DIALOGUE_RELATIONSHIP = {
     "coach_01": "coach",
+    "coach_02": "coach",
     "team_01": "team",
+    "team_02": "team",
     "media_01": "media",
+    "media_02": "media",
     "partner_01": "partner",
+    "partner_02": "partner",
     "family_01": "family",
+    "family_02": "family",
 }
 
 # leaf node id -> {relationship_delta, attribute_effects}. Node ids and the
@@ -111,6 +116,36 @@ DIALOGUE_OUTCOMES = {
         "r1": {"relationship_delta": -2, "attribute_effects": {},
                "costs": {"time": 10.0, "energy": 1.0}},
         "r2": {"relationship_delta": 1, "attribute_effects": {}},
+    },
+    # Second trees per relationship, added so a repeat "ARA" doesn't always
+    # replay the exact same conversation (FE rotates through the pair —
+    # see _dialogueTreesByRelationshipId in relationships_screen.dart).
+    "coach_02": {
+        "r0": {"relationship_delta": 3, "attribute_effects": {}, "requires": {"intelligence": 6},
+               "costs": {"time": 35.0, "energy": 4.0}},
+        "r1": {"relationship_delta": 0, "attribute_effects": {}},
+        "r2": {"relationship_delta": 1, "attribute_effects": {}, "requires": {"confidence": 5}},
+    },
+    "team_02": {
+        "r0": {"relationship_delta": 2, "attribute_effects": {}, "requires": {"charisma": 5}},
+        "r1": {"relationship_delta": 0, "attribute_effects": {}},
+    },
+    "media_02": {
+        "r0": {"relationship_delta": 1, "attribute_effects": {}, "requires": {"politeness": 5}},
+        "r1": {"relationship_delta": -2, "attribute_effects": {},
+               "costs": {"time": 50.0, "energy": 7.0}, "condition": -1},
+        "r2": {"relationship_delta": -1, "attribute_effects": {}},
+    },
+    "partner_02": {
+        "r0": {"relationship_delta": 3, "attribute_effects": {}, "requires": {"resourcefulness": 2},
+               "costs": {"time": 45.0, "energy": 2.0}},
+        "r1": {"relationship_delta": -1, "attribute_effects": {}},
+    },
+    "family_02": {
+        "r0": {"relationship_delta": 4, "attribute_effects": {}, "requires": {"resourcefulness": 3},
+               "costs": {"time": 30.0, "energy": 2.0}},
+        "r1": {"relationship_delta": -1, "attribute_effects": {}},
+        "r2": {"relationship_delta": -3, "attribute_effects": {}},
     },
 }
 

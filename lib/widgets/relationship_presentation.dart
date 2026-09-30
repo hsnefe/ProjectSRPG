@@ -79,7 +79,7 @@ const _presentationByRelationshipId = {
     cardPortraitAsset: 'assets/images/portraits/cards/media.png',
   ),
   // `dialogueId` bilinçli olarak boş: catalog/dialogue.py'de 'fans' için bir
-  // diyalog ağacı yok, `_openDialog` bunu `_dialogueTreeByRelationshipId`'de
+  // diyalog ağacı yok, `_openDialog` bunu `_dialogueTreesByRelationshipId`'de
   // bulamayınca sessizce no-op olur (bkz. `relationships_screen.dart`).
   'fans': RelationshipPresentation(
     icon: Icons.groups_2_outlined, tint: AppColors.warning, badgeCode: 'TF',

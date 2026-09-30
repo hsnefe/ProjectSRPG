@@ -50,132 +50,377 @@ const Map<String, DialogueTree> _courtingTreeByRelationshipId = {
   ),
 };
 
-const _dialogueTreeByRelationshipId = {
-  'coach': DialogueTree(
-    startId: 'start',
-    nodes: {
-      'start': DialogueNode(
-        id: 'start',
-        line:
-            'Son maçta bireysel performansın iyiydi ama takım oyununda seni daha aktif görmek istiyorum. Bu konuda ne düşünüyorsun?',
-        options: [
-          DialogueOption(
-            text: 'Haklısınız hocam, daha fazla paylaşımcı olacağım.',
-            nextId: 'r0',
+/// Bir ilişki için tek bir çağrılabilir konuşma: kendi `dialogue_id`'si
+/// (catalog/dialogue.py'deki DIALOGUE_OUTCOMES anahtarı, presentation'ın
+/// tek dialogueId'sinin yerini alıyor) ve ağacı.
+class _DialogueVariant {
+  const _DialogueVariant(this.dialogueId, this.tree);
+
+  final String dialogueId;
+  final DialogueTree tree;
+}
+
+/// Her ilişki birden fazla konuşmaya sahip: `_openDialog` bunlar arasında
+/// sırayla döner (bkz. `_dialogueTurnByRelationshipId`), böylece "ARA"ya her
+/// basışta aynı konuşma çıkmaz. İlk eleman her zaman o ilişkinin eski/tek
+/// ağacı — mevcut testler ilk açılışta hangi metnin çıkacağını bildiği için
+/// sıra korunuyor.
+const _dialogueTreesByRelationshipId = {
+  'coach': [
+    _DialogueVariant(
+      'coach_01',
+      DialogueTree(
+        startId: 'start',
+        nodes: {
+          'start': DialogueNode(
+            id: 'start',
+            line:
+                'Son maçta bireysel performansın iyiydi ama takım oyununda seni daha aktif görmek istiyorum. Bu konuda ne düşünüyorsun?',
+            options: [
+              DialogueOption(
+                text: 'Haklısınız hocam, daha fazla paylaşımcı olacağım.',
+                nextId: 'r0',
+              ),
+              DialogueOption(
+                text: 'Bence bireysel oynamam takıma zarar vermiyor.',
+                nextId: 'r1',
+              ),
+              DialogueOption(
+                text: 'Bu konuyu maç sonrasında konuşalım mı?',
+                nextId: 'r2',
+              ),
+            ],
           ),
-          DialogueOption(
-            text: 'Bence bireysel oynamam takıma zarar vermiyor.',
-            nextId: 'r1',
+          'r0': DialogueNode(
+            id: 'r0',
+            line:
+                'Bunu duymak güzel. Bu hafta antrenmanlarda bunu göreceğimi umuyorum.',
           ),
-          DialogueOption(
-            text: 'Bu konuyu maç sonrasında konuşalım mı?',
-            nextId: 'r2',
+          'r1': DialogueNode(
+            id: 'r1',
+            line:
+                'Anlıyorum ama istatistikler farklı söylüyor. Bu konuşmayı unutma.',
           ),
-        ],
-      ),
-      'r0': DialogueNode(
-        id: 'r0',
-        line:
-            'Bunu duymak güzel. Bu hafta antrenmanlarda bunu göreceğimi umuyorum.',
-      ),
-      'r1': DialogueNode(
-        id: 'r1',
-        line:
-            'Anlıyorum ama istatistikler farklı söylüyor. Bu konuşmayı unutma.',
-      ),
-      'r2': DialogueNode(
-        id: 'r2',
-        line: 'Olur, o zaman daha sakin kafayla devam ederiz.',
-      ),
-    },
-  ),
-  'team': DialogueTree(
-    startId: 'start',
-    nodes: {
-      'start': DialogueNode(
-        id: 'start',
-        line:
-            'Bu hafta antrenmanlarda iletişim iyi gidiyor. Maç günü aynı enerjiyi sahaya taşıyalım mı?',
-        options: [
-          DialogueOption(text: 'Evet, birlikte daha güçlüyüz.', nextId: 'r0'),
-          DialogueOption(text: 'Biraz daha zaman lazım.', nextId: 'r1'),
-        ],
-      ),
-      'r0': DialogueNode(
-        id: 'r0',
-        line: 'Harika, o zaman maç günü aynı ekipteyiz!',
-      ),
-      'r1': DialogueNode(id: 'r1', line: 'Sorun değil, adım adım ilerleriz.'),
-    },
-  ),
-  'media': DialogueTree(
-    startId: 'start',
-    nodes: {
-      'start': DialogueNode(
-        id: 'start',
-        line:
-            'Maç sonrası kısa bir röportaj için müsait misiniz? Transfer söylentileri hakkında da sorularımız var.',
-        options: [
-          DialogueOption(text: 'Tabii, 10 dakika ayırabilirim.', nextId: 'r0'),
-          DialogueOption(text: 'Bugün konuşmak istemiyorum.', nextId: 'r1'),
-          DialogueOption(text: 'Sadece maç hakkında konuşalım.', nextId: 'r2'),
-        ],
-      ),
-      'r0': DialogueNode(
-        id: 'r0',
-        line: 'Harika, maç sonrası sahada bekliyoruz.',
-      ),
-      'r1': DialogueNode(
-        id: 'r1',
-        line: 'Anlıyoruz, başka zaman tekrar deneriz.',
-      ),
-      'r2': DialogueNode(
-        id: 'r2',
-        line: 'Elbette, transferle ilgili soru sormayacağız.',
-      ),
-    },
-  ),
-  'partner': DialogueTree(
-    startId: 'start',
-    nodes: {
-      'start': DialogueNode(
-        id: 'start',
-        line:
-            'Bu akşam maçın var diye biliyorum. Yine de kısa bir telefon konuşması yapabilir miyiz?',
-        options: [
-          DialogueOption(text: 'Maçtan sonra ararım.', nextId: 'r0'),
-          DialogueOption(text: 'Şimdi 5 dakika konuşabiliriz.', nextId: 'r1'),
-        ],
-      ),
-      'r0': DialogueNode(id: 'r0', line: 'Tamam, seni bekliyorum. Bol şans!'),
-      'r1': DialogueNode(id: 'r1', line: 'Ne güzel, seni duymak iyi geldi.'),
-    },
-  ),
-  'family': DialogueTree(
-    startId: 'start',
-    nodes: {
-      'start': DialogueNode(
-        id: 'start',
-        line:
-            'Seni özledik. Bu hafta sonu eve uğrayabilir misin? Maç programını da merak ediyoruz.',
-        options: [
-          DialogueOption(
-            text: 'Cumartesi antrenman sonrası gelirim.',
-            nextId: 'r0',
+          'r2': DialogueNode(
+            id: 'r2',
+            line: 'Olur, o zaman daha sakin kafayla devam ederiz.',
           ),
-          DialogueOption(text: 'Bu hafta maç var, gelemem.', nextId: 'r1'),
-          DialogueOption(text: 'Pazar öğleden sonra konuşalım.', nextId: 'r2'),
-        ],
+        },
       ),
-      'r0': DialogueNode(id: 'r0', line: 'Harika, seni bekliyoruz canım.'),
-      'r1': DialogueNode(
-        id: 'r1',
-        line: 'Anlıyoruz, bir dahaki sefere görüşürüz.',
+    ),
+    _DialogueVariant(
+      'coach_02',
+      DialogueTree(
+        startId: 'start',
+        nodes: {
+          'start': DialogueNode(
+            id: 'start',
+            line:
+                'Yarınki maç için taktik toplantısı yaptık. Sahada üstlendiğin pozisyonu net anladın mı?',
+            options: [
+              DialogueOption(
+                text: 'Evet hocam, net anladım.',
+                nextId: 'r0',
+              ),
+              DialogueOption(
+                text: 'Biraz daha açıklar mısınız?',
+                nextId: 'r1',
+              ),
+              DialogueOption(
+                text: 'Sahada kendi yorumumu katabilir miyim?',
+                nextId: 'r2',
+              ),
+            ],
+          ),
+          'r0': DialogueNode(
+            id: 'r0',
+            line: 'Güzel. Bu netlikle sahada işimiz daha kolay olur.',
+          ),
+          'r1': DialogueNode(
+            id: 'r1',
+            line: 'Tabii, antrenman sonrası video üzerinden tekrar bakarız.',
+          ),
+          'r2': DialogueNode(
+            id: 'r2',
+            line: 'Plana sadık kal yeter, gerisini sahada göreceğiz.',
+          ),
+        },
       ),
-      'r2': DialogueNode(id: 'r2', line: 'Olur, o zaman seni ararım.'),
-    },
-  ),
+    ),
+  ],
+  'team': [
+    _DialogueVariant(
+      'team_01',
+      DialogueTree(
+        startId: 'start',
+        nodes: {
+          'start': DialogueNode(
+            id: 'start',
+            line:
+                'Bu hafta antrenmanlarda iletişim iyi gidiyor. Maç günü aynı enerjiyi sahaya taşıyalım mı?',
+            options: [
+              DialogueOption(
+                text: 'Evet, birlikte daha güçlüyüz.',
+                nextId: 'r0',
+              ),
+              DialogueOption(text: 'Biraz daha zaman lazım.', nextId: 'r1'),
+            ],
+          ),
+          'r0': DialogueNode(
+            id: 'r0',
+            line: 'Harika, o zaman maç günü aynı ekipteyiz!',
+          ),
+          'r1': DialogueNode(
+            id: 'r1',
+            line: 'Sorun değil, adım adım ilerleriz.',
+          ),
+        },
+      ),
+    ),
+    _DialogueVariant(
+      'team_02',
+      DialogueTree(
+        startId: 'start',
+        nodes: {
+          'start': DialogueNode(
+            id: 'start',
+            line:
+                'Ahmet bu hafta biraz suskun, basından gelen eleştiriler moralini bozmuş görünüyor. Onunla konuşsak mı?',
+            options: [
+              DialogueOption(
+                text: 'Onunla özel olarak konuşayım.',
+                nextId: 'r0',
+              ),
+              DialogueOption(
+                text: 'Kendi haline bırakalım, geçer.',
+                nextId: 'r1',
+              ),
+            ],
+          ),
+          'r0': DialogueNode(
+            id: 'r0',
+            line: 'İyi olur, senden duyunca daha çabuk toparlar.',
+          ),
+          'r1': DialogueNode(
+            id: 'r1',
+            line: 'Umarım haklısındır, göz kulak olalım yine de.',
+          ),
+        },
+      ),
+    ),
+  ],
+  'media': [
+    _DialogueVariant(
+      'media_01',
+      DialogueTree(
+        startId: 'start',
+        nodes: {
+          'start': DialogueNode(
+            id: 'start',
+            line:
+                'Maç sonrası kısa bir röportaj için müsait misiniz? Transfer söylentileri hakkında da sorularımız var.',
+            options: [
+              DialogueOption(
+                text: 'Tabii, 10 dakika ayırabilirim.',
+                nextId: 'r0',
+              ),
+              DialogueOption(
+                text: 'Bugün konuşmak istemiyorum.',
+                nextId: 'r1',
+              ),
+              DialogueOption(
+                text: 'Sadece maç hakkında konuşalım.',
+                nextId: 'r2',
+              ),
+            ],
+          ),
+          'r0': DialogueNode(
+            id: 'r0',
+            line: 'Harika, maç sonrası sahada bekliyoruz.',
+          ),
+          'r1': DialogueNode(
+            id: 'r1',
+            line: 'Anlıyoruz, başka zaman tekrar deneriz.',
+          ),
+          'r2': DialogueNode(
+            id: 'r2',
+            line: 'Elbette, transferle ilgili soru sormayacağız.',
+          ),
+        },
+      ),
+    ),
+    _DialogueVariant(
+      'media_02',
+      DialogueTree(
+        startId: 'start',
+        nodes: {
+          'start': DialogueNode(
+            id: 'start',
+            line:
+                'Sezon sonu dergimize kapak röportajı teklif ediyoruz, ama kulüpten habersiz konuşman gerekecek.',
+            options: [
+              DialogueOption(
+                text: 'Önce kulüple konuşmam lazım.',
+                nextId: 'r0',
+              ),
+              DialogueOption(
+                text: 'Kabul ediyorum, hemen ayarlayalım.',
+                nextId: 'r1',
+              ),
+              DialogueOption(text: 'İlgimi çekmiyor.', nextId: 'r2'),
+            ],
+          ),
+          'r0': DialogueNode(
+            id: 'r0',
+            line: 'Anlarız, kulüpten onay çıkarsa yine bekliyoruz.',
+          ),
+          'r1': DialogueNode(
+            id: 'r1',
+            line: 'Haber kulüpte pek iyi karşılanmadı galiba.',
+          ),
+          'r2': DialogueNode(
+            id: 'r2',
+            line: 'Peki, başka sefere görüşürüz.',
+          ),
+        },
+      ),
+    ),
+  ],
+  'partner': [
+    _DialogueVariant(
+      'partner_01',
+      DialogueTree(
+        startId: 'start',
+        nodes: {
+          'start': DialogueNode(
+            id: 'start',
+            line:
+                'Bu akşam maçın var diye biliyorum. Yine de kısa bir telefon konuşması yapabilir miyiz?',
+            options: [
+              DialogueOption(text: 'Maçtan sonra ararım.', nextId: 'r0'),
+              DialogueOption(
+                text: 'Şimdi 5 dakika konuşabiliriz.',
+                nextId: 'r1',
+              ),
+            ],
+          ),
+          'r0': DialogueNode(
+            id: 'r0',
+            line: 'Tamam, seni bekliyorum. Bol şans!',
+          ),
+          'r1': DialogueNode(
+            id: 'r1',
+            line: 'Ne güzel, seni duymak iyi geldi.',
+          ),
+        },
+      ),
+    ),
+    _DialogueVariant(
+      'partner_02',
+      DialogueTree(
+        startId: 'start',
+        nodes: {
+          'start': DialogueNode(
+            id: 'start',
+            line:
+                'Sezon arası tatili nereye gitsek diye düşünüyordum, senin bir fikrin var mı?',
+            options: [
+              DialogueOption(
+                text: 'Deniz kenarı olsun, hemen planlayalım.',
+                nextId: 'r0',
+              ),
+              DialogueOption(
+                text: 'Şu an kafam sezonda, sonra konuşalım mı?',
+                nextId: 'r1',
+              ),
+            ],
+          ),
+          'r0': DialogueNode(
+            id: 'r0',
+            line: 'Süper, bu gece birlikte bakarız o zaman.',
+          ),
+          'r1': DialogueNode(id: 'r1', line: 'Olur, acele eden yok.'),
+        },
+      ),
+    ),
+  ],
+  'family': [
+    _DialogueVariant(
+      'family_01',
+      DialogueTree(
+        startId: 'start',
+        nodes: {
+          'start': DialogueNode(
+            id: 'start',
+            line:
+                'Seni özledik. Bu hafta sonu eve uğrayabilir misin? Maç programını da merak ediyoruz.',
+            options: [
+              DialogueOption(
+                text: 'Cumartesi antrenman sonrası gelirim.',
+                nextId: 'r0',
+              ),
+              DialogueOption(
+                text: 'Bu hafta maç var, gelemem.',
+                nextId: 'r1',
+              ),
+              DialogueOption(
+                text: 'Pazar öğleden sonra konuşalım.',
+                nextId: 'r2',
+              ),
+            ],
+          ),
+          'r0': DialogueNode(
+            id: 'r0',
+            line: 'Harika, seni bekliyoruz canım.',
+          ),
+          'r1': DialogueNode(
+            id: 'r1',
+            line: 'Anlıyoruz, bir dahaki sefere görüşürüz.',
+          ),
+          'r2': DialogueNode(id: 'r2', line: 'Olur, o zaman seni ararım.'),
+        },
+      ),
+    ),
+    _DialogueVariant(
+      'family_02',
+      DialogueTree(
+        startId: 'start',
+        nodes: {
+          'start': DialogueNode(
+            id: 'start',
+            line:
+                'Kardeşin bu hafta seni stadyumda izlemek istiyor, ona bilet ayarlayabilir misin?',
+            options: [
+              DialogueOption(text: 'Tabii, hemen ayarlarım.', nextId: 'r0'),
+              DialogueOption(
+                text: 'Bu hafta biletler doldu, gelecek hafta bakarız.',
+                nextId: 'r1',
+              ),
+              DialogueOption(
+                text: 'Biraz meşgulüm, unutmuşum bile.',
+                nextId: 'r2',
+              ),
+            ],
+          ),
+          'r0': DialogueNode(
+            id: 'r0',
+            line: 'Çok sevinecek, teşekkürler!',
+          ),
+          'r1': DialogueNode(
+            id: 'r1',
+            line: 'Tamam, o zaman gelecek haftaya bakarız.',
+          ),
+          'r2': DialogueNode(id: 'r2', line: 'Anlıyorum, boş ver o zaman.'),
+        },
+      ),
+    ),
+  ],
 };
+
+/// Bir ilişkinin kaçıncı kez açıldığı — `_openDialog` bunu `_dialogueTreesByRelationshipId`'nin
+/// içinde döngü olarak kullanır (sırayla, rastgele değil: testler ilk
+/// açılışın hep aynı, bilinen konuşmayı göstermesine güveniyor).
+final Map<String, int> _dialogueTurnByRelationshipId = {};
 
 /// R1'in `score`sundan türetilmiş genel bir durum cümlesi (§1.3 — BE sayıyı
 /// verir, cümleyi FE kurar). İlişkiye özel öykü metni değil: hangi
@@ -559,9 +804,23 @@ class _RelationshipCharacterCardState
     // varıldığı, ve `sets_state`'i yalnızca `courting` durumunda uygulamak
     // BE'nin işi (D72) — burada yanlış fazı açmak bir hata değil, sunucu
     // sessizce yok sayar.
-    final tree = widget.card.isCourting
-        ? _courtingTreeByRelationshipId[relationshipId]
-        : _dialogueTreeByRelationshipId[relationshipId];
+    DialogueTree? tree;
+    String dialogueId = presentation.dialogueId;
+    if (widget.card.isCourting) {
+      tree = _courtingTreeByRelationshipId[relationshipId];
+    } else {
+      final variants = _dialogueTreesByRelationshipId[relationshipId];
+      if (variants != null && variants.isNotEmpty) {
+        // Sırayla döner: ilk açılışta her zaman variants[0] (eski/tek ağaç),
+        // sonraki her "ARA"da bir sonraki konuşma — böylece art arda
+        // aramalarda hep aynı diyalog çıkmaz.
+        final turn = _dialogueTurnByRelationshipId[relationshipId] ?? 0;
+        _dialogueTurnByRelationshipId[relationshipId] = turn + 1;
+        final variant = variants[turn % variants.length];
+        tree = variant.tree;
+        dialogueId = variant.dialogueId;
+      }
+    }
     if (tree == null) return;
 
     final changed = await Navigator.of(context).push<bool>(
@@ -572,7 +831,7 @@ class _RelationshipCharacterCardState
           tree: tree,
           tint: presentation.tint,
           relationshipId: relationshipId,
-          dialogueId: presentation.dialogueId,
+          dialogueId: dialogueId,
           scene: presentation.scene,
           // Kişinin görünüşü kimliğinden türetiliyor: antrenör her
           // açılışta aynı, medyacı ondan farklı (bkz. PortraitTraits.forId).
