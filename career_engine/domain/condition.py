@@ -9,7 +9,7 @@ upkeep week) can take condition lower than 35; only a match itself can't."""
 import sqlite3
 
 from api import config
-from domain import inventory
+from domain import housing, inventory
 
 
 def get_ceiling(conn: sqlite3.Connection, career_id: str) -> float:
@@ -20,10 +20,17 @@ def get_ceiling(conn: sqlite3.Connection, career_id: str) -> float:
     return row["value"] if row is not None else 100.0
 
 
-def daily_recovery(conn: sqlite3.Connection, career_id: str) -> dict:
+def daily_recovery(
+    conn: sqlite3.Connection, career_id: str, on_date: str = None, seed: int = None
+) -> dict:
     """§6.3/§6.6 - how much condition one advanced day is worth right now:
-    the flat base plus every owned item's daily_effects['condition'], capped
-    at config.MAX_CONDITION_RECOVERY_PER_DAY (INV-41).
+    the active residence's sleep (§14.4 D88) plus its modifiers plus every worn
+    item's daily_effects['condition'], capped at
+    config.MAX_CONDITION_RECOVERY_PER_DAY (INV-41).
+
+    `on_date`/`seed` are for the roommate-noise roll (domain/housing.py): pass the
+    night being asked about and the roll is thrown exactly as the day loop throws
+    it; leave them out and the nominal sleep comes back with the chance reported.
 
     This is the single READ path for that number, the way apply_delta() is
     the single write path. T1 reports it and daytime.process_day() applies
@@ -38,7 +45,9 @@ def daily_recovery(conn: sqlite3.Connection, career_id: str) -> dict:
 
     titles = {i["catalog_id"]: i["title"] for i in SHOP_ITEMS}
 
-    base = config.NATURAL_CONDITION_RECOVERY_PER_DAY
+    home = housing.recovery_parts(conn, career_id, on_date, seed)
+    base = home["sleep"]
+    modifiers = sum(m["amount"] for m in home["modifiers"])
     sources = []
     for item_id in inventory.contributing_ids(conn, career_id):  # §14.2: worn rows only
         amount = DAILY_CONDITION_BONUS.get(item_id)
@@ -53,15 +62,22 @@ def daily_recovery(conn: sqlite3.Connection, career_id: str) -> dict:
             })
     sources.sort(key=lambda s: (-s["amount"], s["item_id"]))
 
-    bonus = sum(s["amount"] for s in sources)
+    # `bonus` stays "everything above the base", so the hub's "+N from items"
+    # line keeps meaning what it meant; the home's own adjustments ride in it and
+    # are itemised under `modifiers` for the morning forecast.
+    bonus = modifiers + sum(s["amount"] for s in sources)
     uncapped = base + bonus
-    total = min(uncapped, config.MAX_CONDITION_RECOVERY_PER_DAY)
+    total = max(0, min(uncapped, config.MAX_CONDITION_RECOVERY_PER_DAY))
     return {
         "base": base,
         "bonus": bonus,
         "total": total,
         "capped": total < uncapped,
         "sources": sources,
+        # §14.4 - where the base came from and what the night did to it.
+        "residence": home["residence"],
+        "modifiers": home["modifiers"],
+        "noise": home["noise"],
     }
 
 

@@ -24,7 +24,9 @@ LIFESTYLE_ITEMS = [
      "description": "Erken yatıp dokuz saat kesintisiz uyu. Kaslar toparlanır, "
                      "ertesi güne kondisyonun tazelenmiş başlarsın.",
      "duration_label": "Tüm gece",
-     "costs": {"time": 540}, "effects": {"condition": 14},
+     # §14.4 D88: the night's rest now comes from the home (domain/housing.py),
+     # so this is the "early to bed" extra on top of it, not a second night.
+     "costs": {"time": 540}, "effects": {"condition": 8},
      "event_chance": 0.02},
     {"catalog_id": "ev-yemek", "title": "Sağlıklı Yemek", "group": "EV AKTİVİTELERİ",
      "description": "Kendi mutfağında dengeli bir öğün hazırla. Doğru beslenme, "

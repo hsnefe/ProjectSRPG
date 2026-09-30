@@ -20,9 +20,10 @@ from api import config
 from api.ids import new_news_id
 from catalog import shop
 from domain import (
-    condition, contracts, engine_client, fame, formulas, inventory, investments, scheduling,
-    season as season_mod, social, sponsorship, squad, transfer, wallet,
+    condition, contracts, engine_client, fame, formulas, housing, inventory, investments,
+    scheduling, season as season_mod, social, sponsorship, squad, transfer, wallet,
 )
+from catalog import housing as housing_catalog
 from worlddata.competitions import ULUSAL_KUPA
 
 
@@ -135,6 +136,9 @@ STOP_EVENT_KINDS = {
     # §12.9/D59 - two invitations for one evening. Level-triggered like the
     # plan above: it stands there until one of them is chosen.
     "social_conflict_due",
+    # §14.4/D89-D90 - the home was taken away (unpaid rent, a hotel stay that ran
+    # out). Not something to sail past: the player wakes up somewhere else.
+    "residence_moved",
 }
 
 
@@ -305,6 +309,25 @@ def _create_news(
         (career_id, news_id, f"{on_date}T09:00:00+03:00", category, title, source, body),
     )
     return news_id
+
+
+_RESIDENCE_NEWS = {
+    "rent": ("Kira ödenemedi",
+             "Kira ödenemediği için {left} boşaltıldı; aile evine dönüldü."),
+    "hotel_fee": ("Otel ücreti ödenemedi",
+                  "Otel odasının ücreti ödenemediği için aile evine dönüldü."),
+    "hotel_expired": ("Otel süresi doldu",
+                      "Kulübün tuttuğu otel odası sona erdi; yeni bir ev bulunana kadar aile evinde kalınacak."),
+}
+
+
+def _residence_news(conn: sqlite3.Connection, career_id: str, move: dict, on_date: str) -> str:
+    title, body = _RESIDENCE_NEWS[move["reason"]]
+    left = housing_catalog.get(move["from"])
+    return _create_news(
+        conn, career_id, "Analiz", title,
+        body.format(left=left["title"] if left else move["from"]), on_date,
+    )
 
 
 def _pay_wage(conn: sqlite3.Connection, career_id: str, on_date: str) -> Optional[dict]:
@@ -580,12 +603,34 @@ def process_day(conn: sqlite3.Connection, career_id: str, on_date: str, seed: in
             ledger_entries += upkeep_entries
             repossessed += sold
 
+    # §14.4 D89/D90 - the hotel's nightly fee, and on the 1st the rent and the
+    # chef. AFTER the Monday block on purpose: a wage landing the same day must
+    # be able to pay the rent that would otherwise cost the player the flat (the
+    # same income-first order D29 gives upkeep). Outside the Monday split for the
+    # opposite reason: rent falls due whatever the weekday.
+    housing_day = housing.process_day(conn, career_id, on_date)
+    ledger_entries += housing_day["ledger_entries"]
+    residence_moves = housing_day["moves"]
+    for move in residence_moves:
+        news_created.append(_residence_news(conn, career_id, move, on_date))
+        events.append({
+            "kind": "residence_moved", "ref_id": move["to"],
+            "from": move["from"], "reason": move["reason"],
+        })
+    for lost in housing_day["lost_upgrades"]:
+        news_created.append(_create_news(
+            conn, career_id, "Analiz", "Özel aşçı ayrıldı",
+            "Aylık ücret ödenemediği için özel aşçı işi bıraktı.", on_date,
+        ))
+
     # §6.3: every advanced day gets natural condition recovery, not just
     # ones with a lifestyle activity applied via T2. §6.6: the rate is no
     # longer flat — owned items raise it — but the number is computed in
     # exactly one place (condition.daily_recovery) so T1's preview and this
-    # application can't disagree.
-    recovery = condition.daily_recovery(conn, career_id)
+    # application can't disagree. §14.4 D88: the base is the active home's
+    # sleep, and the same on_date/seed makes the roommate-noise roll the one T1
+    # already showed.
+    recovery = condition.daily_recovery(conn, career_id, on_date, seed)
     condition.apply_delta(conn, career_id, recovery["total"])
 
     # §12.12 - the same "owning it is the whole mechanic" idea, for the two
@@ -649,6 +694,7 @@ def process_day(conn: sqlite3.Connection, career_id: str, on_date: str, seed: in
         "ledger_entries": ledger_entries,
         "news_created": news_created,
         "repossessed": repossessed,
+        "residence_moves": residence_moves,
         "fixtures_simulated": sim["count"],
         "competitions_touched": sim["competitions"],
     }

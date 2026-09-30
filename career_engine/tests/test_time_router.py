@@ -4,6 +4,7 @@ import sqlite3
 import pytest
 
 from api import config
+from catalog import housing as housing_catalog
 from domain import onboarding
 
 # §11.1 - dates come from the derived calendar, not spelled out. The season
@@ -148,7 +149,7 @@ def test_post_purchase_already_owned_errors(api_client, created_career):
 
 def test_post_purchase_insufficient_funds(api_client, created_career):
     career_id = created_career["career_id"]
-    resp = api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "estate-villa"})
+    resp = api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "cloth-gala-custom"})
     assert resp.status_code == 409
     assert resp.json()["code"] == "insufficient_funds"
 
@@ -182,70 +183,74 @@ def test_advance_stops_on_match_day_when_seeking_next_event(api_client, created_
     assert fixtures["fixtures"][0]["status"] == "scheduled"
 
 
-def test_advance_recovers_condition_every_day(api_client, created_career, mock_engine):
-    """§6.3 - every advanced day pays NATURAL_CONDITION_RECOVERY_PER_DAY,
-    bounded above by the attribute ceiling (INV-10)."""
-    career_id = created_career["career_id"]
+def _set_condition(career_id, value):
     conn = sqlite3.connect(config.DB_PATH)
-    conn.execute("UPDATE career_state SET condition = 20 WHERE career_id = ?", (career_id,))
+    conn.execute("UPDATE career_state SET condition = ? WHERE career_id = ?", (value, career_id))
     conn.commit()
     conn.close()
 
+
+def test_advance_recovers_condition_every_day(api_client, created_career, mock_engine):
+    """§6.3 - every advanced day pays the night's recovery, bounded above by the
+    attribute ceiling (INV-10). The amount is read from T1 first: the dorm's
+    roommate-noise roll is seeded, and T1 throws the same roll the day loop will
+    (§14.4 D88), so the preview is the exact answer, not an estimate."""
+    career_id = created_career["career_id"]
+    _set_condition(career_id, 20)
+    expected = api_client.get(f"/careers/{career_id}/day").json()["condition_recovery"]["total"]
+
     body = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"}).json()
-    assert body["career_state"]["condition"] == 20 + config.NATURAL_CONDITION_RECOVERY_PER_DAY
+    assert body["career_state"]["condition"] == 20 + expected
 
 
 def test_get_day_reports_what_the_next_day_is_worth(api_client, created_career):
     """§6.6 - T1 previews the same number process_day() will apply, so the
-    hub can say "+5 bugün" without guessing at the rule."""
+    hub can say "+6 bugün" without guessing at the rule. §14.4: the base is the
+    active home's sleep, halved when the dorm's roommates keep the player up."""
     body = api_client.get(f"/careers/{created_career['career_id']}/day").json()
-    assert body["condition_recovery"] == {
-        "base": config.NATURAL_CONDITION_RECOVERY_PER_DAY,
-        "bonus": 0,
-        "total": config.NATURAL_CONDITION_RECOVERY_PER_DAY,
-        "capped": False,
-        "sources": [],
-    }
+    recovery = body["condition_recovery"]
+    dorm = housing_catalog.get("res-dorm")
+
+    assert recovery["residence"]["residence_id"] == "res-dorm"
+    assert recovery["noise"]["chance"] == dorm["noise_chance"]
+    assert recovery["base"] == (round(dorm["sleep"] / 2) if recovery["noise"]["halved"] else dorm["sleep"])
+    assert recovery["bonus"] == 0
+    assert recovery["total"] == recovery["base"]
+    assert recovery["capped"] is False
+    assert recovery["sources"] == []
 
 
 def test_owning_an_item_raises_both_the_preview_and_the_actual_gain(
-    api_client, created_career, mock_engine
+    api_client, created_career, mock_engine, monkeypatch
 ):
-    """§6.6 end to end: buy the city flat, and the SAME bigger number shows
-    up in T1's preview and in the condition the next advanced day pays."""
+    """§6.6 end to end: own an item with a daily condition bonus, and the SAME
+    bigger number shows up in T1's preview and in the condition the next
+    advanced day pays. No shipped item carries one any more, so one is patched in."""
+    from catalog import shop
+
+    monkeypatch.setattr(shop, "DAILY_CONDITION_BONUS", {"home-cinema": 1})
     career_id = created_career["career_id"]
     grant_money(career_id, 100_000)
     assert api_client.post(
-        f"/careers/{career_id}/purchases", json={"catalog_id": "estate-flat"}
+        f"/careers/{career_id}/purchases", json={"catalog_id": "home-cinema"}
     ).status_code == 200
 
     preview = api_client.get(f"/careers/{career_id}/day").json()["condition_recovery"]
     assert preview["bonus"] == 1
-    assert preview["total"] == config.NATURAL_CONDITION_RECOVERY_PER_DAY + 1
-    assert [s["item_id"] for s in preview["sources"]] == ["estate-flat"]
+    assert preview["total"] == preview["base"] + 1
+    assert [s["item_id"] for s in preview["sources"]] == ["home-cinema"]
 
-    conn = sqlite3.connect(config.DB_PATH)
-    conn.execute("UPDATE career_state SET condition = 20 WHERE career_id = ?", (career_id,))
-    conn.commit()
-    conn.close()
-
+    _set_condition(career_id, 20)
     body = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"}).json()
     assert body["career_state"]["condition"] == 20 + preview["total"]
 
 
-def test_the_item_bonus_still_stops_at_the_attribute_ceiling(
+def test_recovery_never_lifts_condition_past_the_attribute_ceiling(
     api_client, created_career, mock_engine
 ):
-    """INV-10 - the bonus changes the delta, never the clamp. A career
-    starts at condition 100 with a ceiling of 100, so owning the whole
-    recovery shelf must still leave it at 100, not 103."""
+    """INV-10 - recovery changes the delta, never the clamp. A career starts at
+    condition 100 with a ceiling of 100, so a night's sleep must leave it at 100."""
     career_id = created_career["career_id"]
-    grant_money(career_id, 20_000_000)
-    for catalog_id in ("estate-flat", "estate-villa"):
-        assert api_client.post(
-            f"/careers/{career_id}/purchases", json={"catalog_id": catalog_id}
-        ).status_code == 200
-
     body = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"}).json()
     assert body["career_state"]["condition"] == 100
 
@@ -286,14 +291,12 @@ def test_advance_reports_the_condition_it_moved(api_client, created_career, mock
     """§5.5 T3 - before/after travel together so a caller stepping day by
     day can animate the bar without caching the previous value itself."""
     career_id = created_career["career_id"]
-    conn = sqlite3.connect(config.DB_PATH)
-    conn.execute("UPDATE career_state SET condition = 40 WHERE career_id = ?", (career_id,))
-    conn.commit()
-    conn.close()
+    _set_condition(career_id, 40)
+    expected = api_client.get(f"/careers/{career_id}/day").json()["condition_recovery"]["total"]
 
     body = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"}).json()
     assert body["condition_before"] == 40
-    assert body["condition_after"] == 40 + config.NATURAL_CONDITION_RECOVERY_PER_DAY
+    assert body["condition_after"] == 40 + expected
     assert body["condition_after"] == body["career_state"]["condition"]
 
 

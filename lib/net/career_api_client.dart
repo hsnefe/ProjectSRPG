@@ -616,6 +616,54 @@ class CareerApiClient {
   }
 
   // ---------------------------------------------------------------------
+  // §14.4 Konut
+  // ---------------------------------------------------------------------
+
+  /// `GET /careers/{cid}/housing` — katalog, sahip olunanlar ve aktif konut.
+  Future<HousingState> housing(String careerId) async {
+    return HousingState.fromJson(await _get('/careers/$careerId/housing'));
+  }
+
+  /// Edinir: başlangıç konutu ücretsiz, kira orantılı, satın alma tam bedel.
+  /// Kira ve başlangıç konutu edinince taşınılır; satın almada taşınma ayrı.
+  Future<HousingState> acquireResidence(
+    String careerId,
+    String residenceId,
+  ) async {
+    return HousingState.fromJson(
+      await _post('/careers/$careerId/housing/$residenceId/acquire'),
+    );
+  }
+
+  Future<HousingState> activateResidence(
+    String careerId,
+    String residenceId,
+  ) async {
+    return HousingState.fromJson(
+      await _post('/careers/$careerId/housing/$residenceId/activate'),
+    );
+  }
+
+  Future<HousingState> installUpgrade(
+    String careerId,
+    String residenceId,
+    String upgradeId,
+  ) async {
+    return HousingState.fromJson(
+      await _post(
+        '/careers/$careerId/housing/$residenceId/upgrades/$upgradeId',
+      ),
+    );
+  }
+
+  /// Tatil mülkünde bir dinlenme günü; yalnız kış arası ve yaz penceresinde.
+  Future<HousingState> restAt(String careerId, String residenceId) async {
+    return HousingState.fromJson(
+      await _post('/careers/$careerId/housing/$residenceId/rest'),
+    );
+  }
+
+  // ---------------------------------------------------------------------
   // §5.6 Maç — M1-M3
   // ---------------------------------------------------------------------
 

@@ -126,12 +126,13 @@ def test_unworn_gear_still_pays_its_upkeep(api_client, created_career):
 
 
 def test_slotless_rows_always_count(api_client, created_career):
-    """The realEstate rows predate slots; they must keep paying their bonus."""
+    """A slotless row (an investment) is owned but is not gear: there is nothing to
+    equip. The charisma a home adds comes from §14.4's housing, not from here."""
     career_id = created_career["career_id"]
     grant_money(career_id, 20000)
-    _buy(api_client, career_id, "estate-villa")
-    assert _charisma(api_client, career_id)["passive_bonus"] == 1.0
-    resp = api_client.post(f"/careers/{career_id}/inventory/estate-villa/equip")
+    _buy(api_client, career_id, "invest-bond")
+    assert _charisma(api_client, career_id)["passive_bonus"] == 0.0   # dorm: grade 0
+    resp = api_client.post(f"/careers/{career_id}/inventory/invest-bond/equip")
     assert resp.status_code == 409 and resp.json()["code"] == "item_not_equippable"
 
 
@@ -207,15 +208,16 @@ def test_reconcile_converts_the_mappable_and_refunds_the_rest(db_conn, career_id
     wallet.apply(db_conn, career_id, 1000, "sale", "seed", "2026-01-01")
     _own_legacy(db_conn, career_id, "personal-watch", 85)       # -> acc-smart-watch
     _own_legacy(db_conn, career_id, "personal-boots", 45)       # refunded
-    _own_legacy(db_conn, career_id, "estate-flat", 3200)        # untouched
+    _own_legacy(db_conn, career_id, "estate-flat", 3200)        # refunded (§14.4)
+    _own_legacy(db_conn, career_id, "invest-bond", 2000)        # untouched
     before = wallet.get_balance(db_conn, career_id)
 
-    assert legacy_items.reconcile(db_conn) == 2
+    assert legacy_items.reconcile(db_conn) == 3
 
     rows = {r["catalog_id"]: r for r in inventory.list_items(db_conn, career_id)}
-    assert set(rows) == {"acc-smart-watch", "estate-flat"}
+    assert set(rows) == {"acc-smart-watch", "invest-bond"}
     assert rows["acc-smart-watch"]["equipped"] and rows["acc-smart-watch"]["price_paid"] == 85
-    assert wallet.get_balance(db_conn, career_id) == before + 45
+    assert wallet.get_balance(db_conn, career_id) == before + 45 + 3200
     assert wallet.ledger_total(db_conn, career_id) == wallet.get_balance(db_conn, career_id)  # INV-19
     assert legacy_items.reconcile(db_conn) == 0                 # idempotent
 

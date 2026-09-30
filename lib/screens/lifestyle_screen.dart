@@ -4,6 +4,7 @@ import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/activity_event_screen.dart';
+import 'package:project_srpg/screens/housing_screen.dart';
 import 'package:project_srpg/screens/shop_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/state/player_state.dart';
@@ -320,6 +321,21 @@ class _HeaderSection extends StatelessWidget {
           // aktivite sonrası fark hiç gösterilmiyordu.
           AnimatedConditionBar(condition: condition, width: 120),
           const Spacer(),
+          // §14.4 · konut: uyku ve kira burada, mağazada değil.
+          IconButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const HousingScreen()),
+            ),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            tooltip: 'Konut',
+            icon: const Icon(
+              Icons.home_work_outlined,
+              size: 22,
+              color: AppColors.textMuted,
+            ),
+          ),
+          const SizedBox(width: 14),
           IconButton(
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(builder: (_) => const ShopScreen()),

@@ -21,7 +21,7 @@ domain/requirements.py, and through it every `requires` gate in the game.
 """
 import sqlite3
 
-from domain import inventory
+from domain import housing, inventory
 
 
 def get_value(conn: sqlite3.Connection, career_id: str, player_id: str, attribute_key: str) -> float:
@@ -61,11 +61,13 @@ def passive_bonus(conn: sqlite3.Connection, career_id: str, attribute_key: str) 
     """
     from catalog.shop import PASSIVE_ATTRIBUTE_BONUS  # local, like condition.daily_recovery
 
-    # §14.2: only what is switched on counts (domain/inventory.py).
-    return sum(
+    # §14.2: only what is switched on counts (domain/inventory.py). §14.4: the
+    # home the career lives in adds its own grade on top, to charisma only.
+    worn = sum(
         PASSIVE_ATTRIBUTE_BONUS.get(item_id, {}).get(attribute_key, 0.0)
         for item_id in inventory.contributing_ids(conn, career_id)
     )
+    return worn + housing.passive_bonus(conn, career_id, attribute_key)
 
 
 def effective_value(

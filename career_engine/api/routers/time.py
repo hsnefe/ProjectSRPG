@@ -128,7 +128,15 @@ def get_day(career_id: str, conn: sqlite3.Connection = Depends(get_db)):
         # §6.6 - what the NEXT advanced day is worth in condition, base and
         # owned-item bonus split out so FE can show where it came from
         # without fetching the shop catalog (§5.0: additive field).
-        "condition_recovery": condition.daily_recovery(conn, career_id),
+        #
+        # §14.4 D88 - asked about the night the advance would actually process
+        # (tomorrow), so the roommate-noise roll in the preview is the one the day
+        # loop will throw.
+        "condition_recovery": condition.daily_recovery(
+            conn, career_id,
+            (_dt.date.fromisoformat(career_state["current_date"]) + _dt.timedelta(days=1)).isoformat(),
+            seed,
+        ),
     }
 
 
@@ -415,6 +423,7 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
     fixtures_total = 0
     competitions_total = set()
     ledger_entries, news_created, repossessed = [], [], []
+    residence_moves = []
     stop_reason = "none"
     stopped_events = []
     condition_before = conn.execute(
@@ -470,6 +479,7 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
         ledger_entries += day_result["ledger_entries"]
         news_created += day_result["news_created"]
         repossessed += day_result["repossessed"]
+        residence_moves += day_result["residence_moves"]
         fixtures_total += day_result["fixtures_simulated"]
         competitions_total |= day_result["competitions_touched"]
 
@@ -507,4 +517,7 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
         "ledger_entries": ledger_entries,
         "news_created": news_created,
         "repossessed": repossessed,
+        # §14.4 - forced moves (an eviction, a hotel stay that ran out) in the order
+        # they happened; empty on the overwhelming majority of advances.
+        "residence_moves": residence_moves,
     }

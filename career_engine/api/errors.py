@@ -70,6 +70,32 @@ def item_not_for_sale(item_id: str) -> ApiError:
     return ApiError(409, "item_not_for_sale", f"{item_id!r} is earned, not bought")
 
 
+# §14.4 - housing. `residence_not_held` is a 404 (the row does not exist, like
+# item_not_owned); the rest are 409, the request being well-formed and the
+# career's state or the home's own nature rejecting it.
+def residence_not_held(residence_id: str) -> ApiError:
+    return ApiError(404, "residence_not_held", f"{residence_id!r} is not held by this career")
+
+
+def residence_already_held(residence_id: str) -> ApiError:
+    return ApiError(409, "residence_already_held", f"{residence_id!r} is already held")
+
+
+def residence_not_available(residence_id: str, why: str) -> ApiError:
+    return ApiError(409, "residence_not_available", f"{residence_id!r} {why}")
+
+
+def upgrade_already_installed(upgrade_id: str) -> ApiError:
+    return ApiError(409, "upgrade_already_installed", f"{upgrade_id!r} is already fitted here")
+
+
+def rest_out_of_season(phase: str) -> ApiError:
+    return ApiError(
+        409, "rest_out_of_season",
+        f"a holiday home can only be used in the winter break or the summer window, not {phase!r}",
+    )
+
+
 # §9 - social offers get their OWN codes rather than a generic offer_*
 # family. §11.9 reserves `offer_not_found` / `offer_not_open` for transfer
 # offers (S3/S4), a different mechanic with a different lifetime; sharing the

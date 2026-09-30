@@ -4904,7 +4904,7 @@ yazılması gerekiyor, D23 gereği FE'de), ama imza sonrası iş listesine dahil
 `sosyal-sistem-tasarim-dokumani.md`'nin uygulanması. §11, §12 ve §13 gibi imza
 sonrası eklenmiştir; yalnızca kendi "Geçersiz kılananlar" tablosundakileri
 geçersiz kılar. §14.1 (skill'ler) uygulanmıştır; §14.2–§14.6 **kararları**
-kaydeder; §14.2 ve §14.3 uygulanmıştır, §14.4–§14.6'nın kodu henüz yoktur — her alt
+kaydeder; §14.2, §14.3 ve §14.4 uygulanmıştır, §14.5–§14.6'nın kodu henüz yoktur — her alt
 bölüm kendi fazıyla ayrıntılanır ve o fazın commit'inde "planlanan" etiketi kalkar.
 
 ### 14.0 Geçersiz kılananlar
@@ -4913,10 +4913,10 @@ bölüm kendi fazıyla ayrıntılanır ve o fazın commit'inde "planlanan" etike
 |---|---|---|
 | "hız, top kontrolü, **cesaret** gibi nitelikler yoktur" | D30, §3.2 | `courage` (Cesaret) artık bir niteliktir; `kişi` ailesinin üçüncü anahtarıdır |
 | `politeness` · `confidence` · `resourcefulness` anahtarları ve Kibarlık · Özgüven · Beceriklilik etiketleri | §3.2 tablosu, §5, §13.3 | `empathy` (Empati) · `courage` (Cesaret) · `discipline` (Disiplin); §14.1 |
-
-| Günlük kondisyon toparlanması `5 + eşya bonusu`, tavan 12 (INV-41) | §6.6, §12 | *Planlanan (§14.4):* aktif konutun uyku kazancı doğal +5'in yerini alır, tavan yükselir |
+| Günlük kondisyon toparlanması `5 + eşya bonusu`, tavan 12 (INV-41) | §6.6, §12 | **Uygulandı (§14.4):** aktif konutun uykusu doğal +5'in yerini alır; tavan `MAX_CONDITION_RECOVERY_PER_DAY` = 20. INV-41'in *kuralı* (toparlanma bir tavanla kesilir) geçerlidir, yalnız sayı değişti |
 | Aktivite olaylarının zincirlenmesi kapsam dışı | §13.12 | *Planlanan (§14.6):* ertelenmiş sonuç tablosu zincire izin verir |
-| `estate-*` mağaza itemleri (`realEstate` kategorisi) | §12.13, §13.3 | *Planlanan (§14.4):* mağazadan kalkar, konut sistemine geçer. **Konut fazına kadar mağazada kalır** — daha erken kaldırmak günlük bonuslarını ve pasiflerini sahipsiz bırakırdı |
+| `estate-*` mağaza itemleri (`realEstate` kategorisi) | §12.13, §13.3 | **Uygulandı (§14.4):** mağazadan kalktı (43 kalem), konut sistemine geçti; alan kariyerler tam iade alır (`legacy_items.reconcile`) |
+| Haftalık `upkeep` ile ödenen gayrimenkul (D27) | §6.5 | **Uygulandı (§14.4):** konut `upkeep` değil aylık kira ya da bir kerelik satın alma ile ödenir; `upkeep` artık yalnız iki abonelik gear'ında (fotoğrafçı, medya ekibi) kalır |
 | `inventory`'deki her satırın pasif bonus vermesi (§13.3) ve `personal-*` / `home-*` katalog kalemleri | §12.13, §13.3, INV-60 | **Uygulandı (§14.2):** yuvası olan satırlardan yalnız `equipped` olanlar sayılır; yuvasız satırlar (gayrimenkul, yatırım) eskisi gibi her zaman sayılır. Eski sekiz kalem katalogdan kalktı |
 
 **Dokunulmayanlar** (yeni sistemler bunlara uymak zorundadır): INV-39 ve INV-62
@@ -5072,27 +5072,80 @@ kümesi 12'de kalır (INV-21); yalnızca üç anahtar adını değiştirir, iki 
   (tanışılmış ve izin verilen kişiler; `S/B`'de ilki "Tek başına", `B`'de ilk uygun kişi
   seçili), "Riskli" rozeti ve ters giden sonucun bildirimi vardır.
 
-### 14.4 Konut, uyku ve kira (planlanan)
+### 14.4 Konut, uyku ve kira
 
-- **D87.** Kariyerin tek bir *aktif konutu* vardır; sahip olunan/kiralanan
-  konutlar ayrı tablodadır. Uyku kazancı, yolculuk etkisi ve karizma derecesi
-  yalnız aktif konuttan gelir. Başlangıç konaklaması (yurt/aile evi/paylaşımlı
-  daire) kariyer açılışında verilir.
-- **D88.** Günlük toparlanma = aktif konutun uyku kazancı (+ eşya bonusu);
-  §6.6'nın `+5`'i ve INV-41'in 12 tavanı bu sürümde geçersizdir, yeni tavan
-  konut kataloğundan türetilir (⟦AÇIK-21⟧). `ev-uyku` aktivitesi yeniden
-  dengelenir. Sakatlık sistemi (v2 maddesi) gelene dek "sakatlık süresi %X
-  kısalır" etkileri katalogda durur ama hiçbir şey okumaz.
-- **D89.** Kira **gerçek aylık**tır: ayın 1'inde, haftanın günü fark
-  etmeksizin tahsil edilir (Pazartesi bloğundan ayrı bir tetik). Ödenemeyen
-  kira konutu kaybettirir; oyuncu başlangıç konaklamasına (aile evi) döner —
-  D29'un %50 iade yolu kiralık konuta uygulanmaz çünkü sahip olunan bir şey
-  yoktur. `LEDGER_KINDS`'e `rent` eklenir.
-- **D90.** Otel odası transferden sonra N gün otomatik verilir; tatil
-  mülkleri yalnız `winter_break` ve `summer_transfer_window` fazlarında
-  kullanılabilir ve "tam dinlenme günü" aksiyonuyla günlük kazanç verir
-  (`domain/season.py::derive_phase`).
-- **INV-67.** Bir kariyerin aynı anda en fazla bir aktif konutu vardır.
+- **D87.** Bir kariyerin tek bir *aktif konutu* vardır (`residence` tablosu,
+  `active = 1`); uykusu, yolculuk etkisi ve karizma derecesi yalnız ondan
+  gelir. Katalog `catalog/housing.py`'dedir: 14 yaşanabilir konut (yurt, aile evi, paylaşımlı daire, stüdyo, 1+1, otel, 2+1,
+  bahçeli ev, sahil dairesi, loft, akıllı daire, rezidans, deniz villası,
+  rehabilitasyon villası), 4 tatil mülkü (köy evi, göl kulübesi, yazlık, dağ evi) ve
+  6 ev geliştirmesi. Kariyer **Altyapı yurdu**nda açılır (migration 021 var olan
+  kariyerlere de yazar). Yurt ve aile evi (`kind: start`) hep serbesttir: ücretsiz,
+  her an geri dönülebilir. Konut iki adımda değişir: *edinmek* (`acquire`) ve
+  *taşınmak* (`activate`); kira ve başlangıç konutu edinince zaten taşınılır, satın
+  alınan konutta taşınma ayrı bir adımdır.
+- **D88.** Günlük toparlanma = aktif konutun `sleep` değeri **+** konutun ve
+  takılı geliştirmelerinin günlük düzeltmeleri **+** giyilen eşyaların
+  `daily_effects.condition` payı, `MAX_CONDITION_RECOVERY_PER_DAY` (20) ile kesilir.
+  `condition.daily_recovery()` hâlâ tek okuma yoludur (T1 önizlemesi ile gün
+  uygulaması hiç ayrışmaz) ve `base` artık konutun uykusudur, sabit 5 değil.
+  - **Ölçek.** Dokümanın uyku kazancı 0-100 ölçeğinde +20…+50'dir; bu oyunda bir
+    maç ≈30 yakar ve günlük tavan 12'ydi. Değerler dokümanın **0,3 katı**, tam sayıya
+    yuvarlanmış olarak alınır (yurt +20 → 6 … rehabilitasyon villası +45 → 14;
+    tatil günü +50 → 15); böylece yurt, eski doğal 5'e yakın bir başlangıç verir ve
+    konut yükseltmek bir hafta boyunca gerçekten hissedilir. Sayılar ⟦AÇIK-21⟧.
+  - **Okunan ek etkiler:** yurtta oda arkadaşı gürültüsü (%20 şansla o günün uykusu
+    yarıya iner; tohum `Random(f"{seed}:housing_noise:{tarih}")`, T1 yarınki günü
+    önizlerken aynı zarı atar, yani önizleme ile uygulama aynıdır); aile evinde ev
+    yemeği +2 ve tesise uzaklık −2; ortopedik yatak +1 uyku; karartma perdesi +1 uyku
+    ve gürültüyü iptal eder; özel aşçı her sabah +2 (aylık ücretli).
+  - **Karizma.** Aktif yaşanabilir konutun `grade` × `CHARISMA_PER_GRADE` kadar
+    pasif `charisma` bonusu vardır (D73 okuma tarafı katmanı; `attributes.passive_bonus`).
+    Tatil mülklerinin derecesi yalnız gösterimdir (D87: yalnız aktif konut).
+  - **`ev-uyku`** aktivitesi 14 → 8 kondisyona indi: gecelik dinlenme artık konuttan
+    geldiği için aktivite "erken yat" ekidir, ikinci bir gece değil.
+  - **Kayıtlı ama hiçbir şey okumaz** (`note` metni olarak katalogda durur, D88'in
+    sakatlık cümlesi gibi): sakatlık süresi %10/%25/%5 kısalır, maç sonrası sauna +5
+    ve sahil yürüyüşü +10, ev spor salonunun haftalık antrenmanı, stüdyonun gece
+    kaybı azaltması, loft'un ev partisi bonusu ve maç öncesi gece −3, akıllı evin
+    kondisyon tahmini (T1 zaten gösterir), bahçeli evin koşusu, site salonu, dağ
+    evinin "tavan +5"i (kondisyon tavanı zaten 100), ev arkadaşı ve takım ağırlama
+    olayları (§14.5–§14.6'nın işi).
+- **D89.** Kira **gerçek aylık**tır: ayın 1'inde, haftanın günü fark etmeksizin,
+  Pazartesi bloğundan ayrı ve onun *ardından* tahsil edilir (gelir önce gelir,
+  D29'un sırası). Yeni kira sözleşmesinde taşınma günü ayın kalan günleri kadar
+  **orantılı** kira ödenir (`kira × kalan_gün / ay_günü`, en az 1); aksi hâlde
+  ayın 2'sinde taşınıp 1'inde çıkan oyuncu hiç kira ödemezdi. Sözleşmenin kirası
+  taşınırken donar (`price_paid` gibi). Ödenemeyen kira konutu kaybettirir: sözleşme
+  biter ve oyuncu **aile evine** döner (D29'un %50 iadesi uygulanmaz, sahip olunan bir
+  şey yoktur). Özel aşçının aylık ücreti aynı günde alınır; ödenemezse aşçı gider,
+  konut gitmez. `LEDGER_KINDS`'e `rent` eklenir (kira, otel ve aşçı).
+- **D90.** *Otel.* Transferden sonra (`transfer.accept`, aynı işlemde) sahip
+  olunan bir konutta oturmayan oyuncu, `HOTEL_STAY_DAYS` (14) günlük otel odasına
+  taşınır: günlük ücret her gün alınır (ödenemezse ya da süre dolunca aile evi).
+  Sahip olunan konutta oturan oyuncu olduğu yerde kalır; kiralık sözleşmeler şehir
+  değiştirince biter. Otel elle edinilemez. *Tatil mülkleri* yaşanamaz;
+  yalnız `winter_break` ve `summer_transfer_window` fazlarında `rest` ile
+  kullanılır: günün bütün süresi harcanır (bu yüzden günde bir kez), konutun
+  `rest.condition` kazancı ve küçük nitelik/ilişki etkileri `_apply_effects` ile
+  uygulanır. Faz dışında `409 rest_out_of_season`.
+- **D95.** Satın alma peşinatsız, tek seferlik ve tam bedeldir (`price`; ipotek
+  yok) ve satılamaz; geliştirmeler yalnız *sahip olunan yaşanabilir* konuta
+  takılır ve konutla kalır. Kiralık konuta geliştirme takılamaz (dokümanın kuralı).
+  Bir konutu değiştirmek kiralık sözleşmeyi ve otel odasını bitirir; sahip
+  olunan konut listede kalır.
+- **INV-67.** Bir kariyerin aynı anda en fazla bir aktif konutu vardır — bu
+  `residence`'ta kısmi benzersiz bir indekstir (`idx_residence_one_active`), INV-66
+  gibi veritabanı garantisidir.
+- **INV-69.** Bir `rented` ya da `hotel` satırı her zaman aktif satırdır: ayrılmak
+  onu siler. Boşta duran bir sözleşme yoktur, dolayısıyla kimse oturmadığı bir
+  daire için kira ödemez.
+- **Uçlar.** `GET /careers/{cid}/housing` (katalog + durum), `POST …/housing/{id}/acquire`,
+  `…/activate`, `…/upgrades/{upgrade_id}`, `…/rest`. Hepsi `career_state` döner
+  (D28). Hatalar: `residence_not_held` (404), `residence_already_held`,
+  `residence_not_available`, `upgrade_already_installed`, `rest_out_of_season` (409),
+  artı mevcut `insufficient_funds`. `T3` yanıtı `residence_moves[]` taşır ve zorunlu
+  bir taşınma (çıkarılma, otelin bitişi) `residence_moved` olayıyla günü durdurur.
 
 ### 14.5 Tetikleyiciler ve olay kuyruğu (planlanan)
 
@@ -5131,4 +5184,4 @@ Bu olaylar maç sonrası tetikleyicilere uyarlanır; gerçek maç içi tetikleyi
 |---|---|---|
 | ⟦AÇIK-19⟧ | §14.5 maç içi tetikleyiciler | Kırmızı kart, oyundan alınma ve gol pozisyonu olaylarının `match_engine` → `career_engine` taşınması; bu sürümde yok |
 | ⟦AÇIK-20⟧ | §14.3 "biriyle" çarpanı | Solo ile partnerli aktivite arasındaki skill/ilişki takasının sayıları |
-| ⟦AÇIK-21⟧ | §14.4 konut katalog değerleri | Kondisyon ölçeği, yeni günlük tavan, kira tutarları ve peşinatlar |
+| ⟦AÇIK-21⟧ | §14.4 konut katalog değerleri | 0,3 katı kondisyon ölçeği, günlük tavan 20, kira/fiyat/otel ücreti tutarları, otelin 14 günü ve gürültünün %20'si yer tutucudur |

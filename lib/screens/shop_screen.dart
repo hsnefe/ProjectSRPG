@@ -17,7 +17,6 @@ enum ShopCategory {
   vehicle('Araç'),
   living('Ev'),
   special('Özel'),
-  realEstate('Gayrimenkul'),
   investment('Yatırım');
 
   const ShopCategory(this.label);
@@ -65,11 +64,8 @@ const _iconBySlot = {
   'foundation': Icons.volunteer_activism,
 };
 
-/// Yuvası olmayan kalemler (gayrimenkul, yatırım) kendi kimliğiyle eşlenir.
+/// Yuvası olmayan kalemler (yatırım) kendi kimliğiyle eşlenir.
 const _iconByCatalogId = {
-  'estate-studio': Icons.apartment,
-  'estate-flat': Icons.location_city,
-  'estate-villa': Icons.villa,
   'invest-bond': Icons.account_balance,
   'invest-gold': Icons.savings,
   'invest-fund': Icons.trending_up,
@@ -87,9 +83,6 @@ const _tintByCategory = {
 };
 
 const _tintByCatalogId = {
-  'estate-studio': Color(0xFF5A7D9A),
-  'estate-flat': AppColors.accent,
-  'estate-villa': AppColors.success,
   'invest-bond': Color(0xFF4A5568),
   'invest-gold': AppColors.warning,
   'invest-fund': AppColors.success,
@@ -129,8 +122,7 @@ String? _passiveBenefitLabelFor(Map<String, double> passiveEffects) {
 }
 
 /// İki rozetin tek satırı. Bir kalem ikisini birden taşıyabiliyor
-/// (`estate-flat`: günlük kondisyon + sahipken özgüven), o yüzden
-/// birleştiriliyor; kart tek bir `benefitLabel` alanı taşıyor.
+/// (günlük etki + sahipken bonus), o yüzden birleştiriliyor; kart tek bir `benefitLabel` alanı taşıyor.
 String? _benefitLabelFor(api.CatalogItem item) {
   final labels = [
     ?_dailyBenefitLabelFor(item.dailyEffects),

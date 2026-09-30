@@ -193,8 +193,8 @@ def test_daily_energy_bonus_sums_only_the_items_that_carry_one():
     assert "home-coffee-machine" in DAILY_ENERGY_BONUS
     assert daily_energy_bonus([]) == 0
     assert daily_energy_bonus(["home-cinema"]) == 0
-    assert daily_energy_bonus(["home-coffee-machine", "estate-studio"]) == (
-        DAILY_ENERGY_BONUS["home-coffee-machine"] + DAILY_ENERGY_BONUS["estate-studio"]
+    assert daily_energy_bonus(["home-coffee-machine", "home-cinema"]) == (
+        DAILY_ENERGY_BONUS["home-coffee-machine"]
     )
 
 

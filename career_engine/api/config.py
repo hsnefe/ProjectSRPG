@@ -151,20 +151,31 @@ DAY_BUDGET_DEFAULTS = {"time": 720.0, "energy": 100.0}
 CONTRACT_EXPIRING_DAYS = 30
 RELATIONSHIP_LOW_THRESHOLD = 20
 
-# §6.3 - "atlanan her gün için doğal kondisyon toparlanması uygulanır".
-# Scaled against the match cost: a match at normal effort burns roughly 30
-# points (§6.6), and league rounds are 7 days apart, so 7 x 5 = 35 lets a
-# quiet week roughly pay a match back. Anything the user does on top —
-# sleep (+14), sauna (+16), a late night (-12) — is the margin they
-# actually manage.
-NATURAL_CONDITION_RECOVERY_PER_DAY = 5
+# §6.3 - "atlanan her gün için doğal kondisyon toparlanması uygulanır". Since
+# §14.4 (D88) that number is no longer a flat constant: it is the ACTIVE
+# RESIDENCE's sleep (catalog/housing.py), so where the player lives is what
+# decides how fast a match is paid back. The old flat 5 is gone; the academy
+# dorm every career opens in sleeps +6, which keeps day one close to it.
 
-# §6.6 - the ceiling on ONE day's natural recovery, base + owned-item bonus
-# included (INV-41). Without it, owning enough of the shop pays a match back
-# in two quiet days and condition stops being a resource the player manages,
-# which is the whole point of §6.6. Sized so a fully-equipped player recovers
-# a match (~30) in three days instead of seven, not in one.
-MAX_CONDITION_RECOVERY_PER_DAY = 12
+# §6.6 - the ceiling on ONE day's natural recovery, residence sleep + its
+# modifiers + owned-item bonus included (INV-41). Without it, owning enough of
+# the shop pays a match back in two quiet days and condition stops being a
+# resource the player manages, which is the whole point of §6.6. §14.4 raised
+# it 12 -> 20 because the best home alone now sleeps +14; sized so a fully
+# equipped player still needs two to three days for a ~30-point match, not one.
+# ⟦AÇIK-21⟧ owns the number.
+MAX_CONDITION_RECOVERY_PER_DAY = 20
+
+# §14.4 D87/D90 - the home every career opens in, and the free one an eviction
+# or an expired hotel stay falls back to.
+STARTING_RESIDENCE = "res-dorm"
+FALLBACK_RESIDENCE = "res-family"
+
+# §14.4 D90 - how long the club's hotel room lasts after a transfer. ⟦AÇIK-21⟧
+HOTEL_STAY_DAYS = 14
+
+# §14.4 D89 - rent falls due on this day of the month, whatever the weekday.
+RENT_DAY_OF_MONTH = 1
 
 # §6.3 D53 - the chance that any one advanced day brings a social offer.
 # Rolled before any query, the way news' TRIGGER_CHANCE is. Sized against the
@@ -201,4 +212,5 @@ LEDGER_KINDS = (
     "purchase", "upkeep", "lifestyle", "training", "sale",
     "sponsorship",  # §12.7 - weekly, alongside the wage
     "refund",       # §14.2 D81 - a retired shop item paid back in full
+    "rent",         # §14.4 D89 - monthly rent, hotel nights and the private chef
 )

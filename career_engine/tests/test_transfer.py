@@ -193,6 +193,19 @@ def test_accepting_moves_the_player_and_writes_the_contract(api_client, summer_c
     assert contract["team"]["team_id"] == target["team"]["team_id"]
 
 
+def test_accepting_books_a_hotel_room(api_client, summer_career):
+    """§14.4 D90 - a new city: the club puts the player up for a while."""
+    offers = api_client.get(f"/careers/{summer_career}/transfer/offers").json()["offers"]
+    target = next(o for o in offers if not o["is_renewal"])
+    body = api_client.post(
+        f"/careers/{summer_career}/transfer/offers/{target['offer_id']}/accept"
+    ).json()
+
+    assert body["residence_move"]["to"] == "res-hotel"
+    housing = api_client.get(f"/careers/{summer_career}/housing").json()
+    assert housing["active_residence_id"] == "res-hotel"
+
+
 def test_accepting_resets_the_club_relationships(api_client, summer_career):
     """§13.1/D69 through the endpoint, not the domain function: S4's response
     is FE's only chance to learn the new names without re-fetching R1."""

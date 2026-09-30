@@ -38,10 +38,9 @@ const _shopItems = [
   {'catalog_id': 'special-foundation', 'title': 'Hayır vakfı', 'category': 'special',
    'description': '…', 'price': 0, 'upkeep_weekly': 0, 'note': 'Bir olayla kazanılır',
    'slot': 'foundation', 'grade': 5, 'acquire': 'grant'},
-  {'catalog_id': 'estate-studio', 'title': 'Stüdyo daire', 'category': 'realEstate',
-   'description': '…', 'price': 1850000, 'upkeep_weekly': 800, 'note': '1+0, 55 m²'},
-  {'catalog_id': 'estate-villa', 'title': 'Deniz manzaralı villa', 'category': 'realEstate',
-   'description': '…', 'price': 12750000, 'upkeep_weekly': 4500, 'note': 'Havuzlu, 380 m²'},
+  {'catalog_id': 'veh-hypercar', 'title': 'Hiper otomobil', 'category': 'vehicle',
+   'description': '…', 'price': 12750000, 'upkeep_weekly': 0, 'note': 'Sınırlı üretim',
+   'slot': 'vehicle', 'grade': 5, 'acquire': 'shop'},
   {'catalog_id': 'invest-gold', 'title': 'Altın', 'category': 'investment',
    'description': '…', 'price': 40000, 'upkeep_weekly': 0, 'note': '100 gram'},
 ];
@@ -162,11 +161,13 @@ void main() {
     // §14.2 · derece, kartın köşesinde.
     expect(find.text('3'), findsWidgets);
 
-    await tester.tap(find.text('Gayrimenkul'));
+    await tester.tap(find.text('Araç'));
     await tester.pumpAndSettle();
 
     expect(find.text('Takım elbise'), findsNothing);
-    expect(find.text('Stüdyo daire'), findsOneWidget);
+    expect(find.text('Hiper otomobil'), findsOneWidget);
+    // §14.4 · gayrimenkul artık mağazada değil, Konut ekranında.
+    expect(find.text('Gayrimenkul'), findsNothing);
 
     await tester.tap(find.text('Yatırım'));
     await tester.pumpAndSettle();
@@ -284,10 +285,10 @@ void main() {
     await tester.pumpWidget(_wrap(ShopScreen(session: _shopSession())));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Gayrimenkul'));
+    await tester.tap(find.text('Araç'));
     await tester.pumpAndSettle();
 
-    await tester.tap(_card('Deniz manzaralı villa'));
+    await tester.tap(_card('Hiper otomobil'));
     await tester.pumpAndSettle();
 
     expect(find.text('Bakiye yetersiz'), findsOneWidget);
@@ -313,6 +314,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Alışveriş'), findsOneWidget);
-    expect(find.text('Gayrimenkul'), findsOneWidget);
+    expect(find.text('Yatırım'), findsOneWidget);
   });
 }

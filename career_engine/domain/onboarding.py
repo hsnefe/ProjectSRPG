@@ -14,7 +14,7 @@ from typing import Optional
 
 from api import config, errors
 from api.ids import new_career_id
-from domain import day_budget, season, team_assignment, wallet
+from domain import day_budget, housing, season, team_assignment, wallet
 from worlddata import positions as positions_data
 from worlddata.attributes import starting_attributes
 from worlddata.competitions import (
@@ -125,6 +125,7 @@ def create_career(
         conn, career_id, config.STARTING_MONEY, "starting_balance", "career:init", SEASON_STARTS_ON
     )
     day_budget.refill(conn, career_id)
+    housing.start(conn, career_id, SEASON_STARTS_ON)  # §14.4 D87 - everyone opens in the dorm
 
     _seed_world(conn, career_id, rng)
     team_id = team_assignment.assign_starting_team(

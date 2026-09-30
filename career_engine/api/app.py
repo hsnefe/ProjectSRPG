@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api import config
 from api.errors import install_exception_handlers
 from api.routers import (
-    careers, catalog, inventory, matches, news, player, relationships, season, social,
+    careers, catalog, housing, inventory, matches, news, player, relationships, season, social,
     sponsorship, time, transfer, world,
 )
 from db.connection import get_connection
@@ -56,6 +56,7 @@ def create_app() -> FastAPI:
     app.include_router(transfer.router)
     app.include_router(sponsorship.router)
     app.include_router(inventory.router)
+    app.include_router(housing.router)
 
     return app
 

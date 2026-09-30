@@ -2547,6 +2547,157 @@ class EquipResult {
   final List<InventoryItem> items;
 }
 
+/// §14.4 · konut kataloğundaki bir satır ve kariyerin ona göre durumu.
+/// `kind`: start (ücretsiz) · rent (aylık kira) · hotel (günlük, kulüp verir) ·
+/// buy (satın alınır) · holiday (yalnız dinlenme günü).
+class Residence {
+  const Residence({
+    required this.id,
+    required this.title,
+    required this.kind,
+    required this.sleep,
+    required this.grade,
+    required this.price,
+    required this.rentMonthly,
+    required this.dailyFee,
+    required this.noiseChance,
+    required this.description,
+    required this.note,
+    required this.held,
+    required this.active,
+    required this.tenure,
+    required this.expiresOn,
+    required this.upgrades,
+    required this.restCondition,
+  });
+
+  factory Residence.fromJson(Map<String, dynamic> json) {
+    return Residence(
+      id: json['residence_id'] as String,
+      title: json['title'] as String,
+      kind: json['kind'] as String,
+      sleep: json['sleep'] as int,
+      grade: json['grade'] as int,
+      price: json['price'] as int,
+      rentMonthly: json['rent_monthly'] as int,
+      dailyFee: json['daily_fee'] as int,
+      noiseChance: (json['noise_chance'] as num).toDouble(),
+      description: json['description'] as String,
+      note: json['note'] as String,
+      held: json['held'] as bool,
+      active: json['active'] as bool,
+      tenure: json['tenure'] as String?,
+      expiresOn: json['expires_on'] as String?,
+      upgrades: (json['upgrades'] as List<dynamic>? ?? const []).cast<String>(),
+      restCondition:
+          (json['rest'] as Map<String, dynamic>?)?['condition'] as int?,
+    );
+  }
+
+  final String id;
+  final String title;
+  final String kind;
+
+  /// Bir gecenin kondisyonu (dokümanın 0,3 katı, §14.4 D88).
+  final int sleep;
+
+  /// Karizma derecesi 0-5; yalnız aktifken sayılır.
+  final int grade;
+  final int price;
+  final int rentMonthly;
+  final int dailyFee;
+  final double noiseChance;
+  final String description;
+  final String note;
+  final bool held;
+  final bool active;
+  final String? tenure;
+  final String? expiresOn;
+  final List<String> upgrades;
+
+  /// Tatil mülkünün dinlenme günü kazancı; diğerlerinde null.
+  final int? restCondition;
+
+  bool get isHoliday => kind == 'holiday';
+  bool get isOwnedHome => kind == 'buy' && held;
+}
+
+/// §14.4 D95 · sahip olunan eve takılan geliştirme.
+class ResidenceUpgrade {
+  const ResidenceUpgrade({
+    required this.id,
+    required this.title,
+    required this.price,
+    required this.monthlyFee,
+    required this.note,
+  });
+
+  factory ResidenceUpgrade.fromJson(Map<String, dynamic> json) {
+    return ResidenceUpgrade(
+      id: json['upgrade_id'] as String,
+      title: json['title'] as String,
+      price: json['price'] as int,
+      monthlyFee: (json['monthly_fee'] as int?) ?? 0,
+      note: json['note'] as String,
+    );
+  }
+
+  final String id;
+  final String title;
+  final int price;
+  final int monthlyFee;
+  final String note;
+}
+
+/// §14.4 · `GET/POST /careers/{cid}/housing…`. Her yazan uç `career_state` ve
+/// güncel konut resmini birlikte döner (D28); `conditionTotal` yarınki gecenin
+/// kondisyon değeri, `restEffects` yalnız dinlenme gününde dolu.
+class HousingState {
+  const HousingState({
+    required this.careerState,
+    required this.activeResidenceId,
+    required this.residences,
+    required this.upgrades,
+    required this.conditionTotal,
+    required this.noiseChance,
+    required this.moved,
+  });
+
+  factory HousingState.fromJson(Map<String, dynamic> json) {
+    final recovery = json['condition_recovery'] as Map<String, dynamic>;
+    return HousingState(
+      careerState: CareerState.fromJson(
+        json['career_state'] as Map<String, dynamic>,
+      ),
+      activeResidenceId: json['active_residence_id'] as String,
+      residences: [
+        for (final row in (json['residences'] as List<dynamic>))
+          Residence.fromJson(row as Map<String, dynamic>),
+      ],
+      upgrades: [
+        for (final row in (json['upgrades'] as List<dynamic>))
+          ResidenceUpgrade.fromJson(row as Map<String, dynamic>),
+      ],
+      conditionTotal: (recovery['total'] as num).toInt(),
+      noiseChance:
+          ((recovery['noise'] as Map<String, dynamic>)['chance'] as num)
+              .toDouble(),
+      moved: json['moved'] as bool? ?? false,
+    );
+  }
+
+  final CareerState careerState;
+  final String activeResidenceId;
+  final List<Residence> residences;
+  final List<ResidenceUpgrade> upgrades;
+  final int conditionTotal;
+  final double noiseChance;
+  final bool moved;
+
+  Residence get active =>
+      residences.firstWhere((r) => r.id == activeResidenceId);
+}
+
 /// T4 · `POST /careers/{cid}/purchases`.
 class PurchaseResult {
   const PurchaseResult({

@@ -22,7 +22,7 @@ from typing import List, Optional
 
 from api import config, errors, serializers
 from api.ids import new_transfer_offer_id
-from domain import contracts, fame as fame_mod, relationships, season as season_mod
+from domain import contracts, fame as fame_mod, housing, relationships, season as season_mod
 
 OPEN = "open"
 ACCEPTED = "accepted"
@@ -323,6 +323,10 @@ def accept(conn: sqlite3.Connection, career_id: str, offer_id: str, on_date: str
         conn, career_id, row["team_id"], seed, f"{on_date}T00:00:00+03:00"
     )
 
+    # §14.4 D90 - a new city: leases end and the club books a hotel room, unless
+    # the player lives in a home they own. Same transaction as the move itself.
+    residence_move = housing.on_transfer(conn, career_id, on_date)
+
     competition_id = conn.execute(
         "SELECT e.competition_id FROM competition_entry e "
         "JOIN competition c ON c.career_id = e.career_id "
@@ -340,6 +344,8 @@ def accept(conn: sqlite3.Connection, career_id: str, offer_id: str, on_date: str
         ),
         "contract": contract,
         "relationships_reset": relationships_reset,
+        # §14.4 - null when the player already lives in a home they own.
+        "residence_move": residence_move,
     }
 
 

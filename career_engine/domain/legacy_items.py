@@ -25,7 +25,14 @@ LEGACY_TO_NEW = {
     "home-tv": "home-cinema",
     "home-espresso": "home-coffee-machine",
 }
-LEGACY_REFUNDED = ("personal-boots", "home-console", "home-treadmill")
+#
+# §14.4 D87: the three estate-* rows left the shop for the housing system, which
+# has its own rows and its own price scale - a flat bought at 3200 cannot be
+# mapped onto a home that costs something else, so they are refunded in full too.
+LEGACY_REFUNDED = (
+    "personal-boots", "home-console", "home-treadmill",
+    "estate-studio", "estate-flat", "estate-villa",
+)
 
 
 def reconcile(conn: sqlite3.Connection) -> int:

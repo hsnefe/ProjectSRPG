@@ -1,11 +1,11 @@
 """§5.6 N3 'shop' - id, title, description, price, note per item. Since §14.2
-there are 46: 40 equippable gear rows in six categories, the three real-estate
-rows and the three investments. `category` uses ShopCategory's own identifiers
+there are 43: 40 equippable gear rows in six categories and the three
+investments. (The three real-estate rows left for the housing system, §14.4.) `category` uses ShopCategory's own identifiers
 (clothing/accessory/tech/vehicle/living/special/realEstate/investment) so FE
 needs no translation layer.
 
-D27: the three real-estate items carry upkeep_weekly > 0, and since §14.2 so do
-the two subscription gear rows (photographer, media team) — the other rows are
+D27 (real-estate upkeep) is retired by §14.4: only the two subscription gear rows
+carry upkeep_weekly now (photographer, media team) — the other rows are
 one-off purchases with no ongoing cost. Amounts are
 authored, not derived from price by a fixed formula; ⟦AÇIK-5⟧ still covers
 whether this scale is right.
@@ -42,8 +42,7 @@ an occupied slot's `equipped` row contributes its passive/daily effects
 (domain/inventory.py is the only reader of that); a slotless row - the
 realEstate and investment rows - always counts, exactly as before. `acquire:
 grant` rows (#38-#42's story items) are never sold; `grant_item:<id>` hands
-them over. The realEstate rows stay here until the housing phase (§14.4) takes
-them over - removing them earlier would orphan their daily bonuses.
+them over; since §14.4 the realEstate rows are gone (catalog/housing.py).
 """
 
 # §14.2 D80 - gear categories (how the shop groups it) and the bonus a grade
@@ -207,23 +206,6 @@ SHOP_ITEMS = [
           "Adın bir yardım vakfında yazılı.", acquire="grant",
           extra_passive={"attribute:empathy": 1.5}),
 
-    # --- realEstate (D27: tek gerçek düzenli gider kaynağı) ---
-    {"catalog_id": "estate-studio", "title": "Stüdyo daire", "category": "realEstate",
-     "description": "Tesise on beş dakika. Küçük ama kendi başına yaşamak için yeterli.",
-     "price": 1400, "upkeep_weekly": 4, "note": "1+0, 55 m²",
-     "daily_effects": {"energy": 2}},
-    {"catalog_id": "estate-flat", "title": "Şehir merkezi daire", "category": "realEstate",
-     "description": "Merkezde geniş bir kat. Aile ziyaretleri için yer var.",
-     "price": 3200, "upkeep_weekly": 12, "note": "3+1, 120 m²",
-     "daily_effects": {"condition": 1},
-     "passive_effects": {"attribute:courage": 2.0}},
-    {"catalog_id": "estate-villa", "title": "Deniz manzaralı villa", "category": "realEstate",
-     "description": "Sezon arasında kaçılacak yer. Bahçesinde kendi antrenman alanı "
-                     "kurulabilir.",
-     "price": 9000, "upkeep_weekly": 30, "note": "Havuzlu, 380 m²",
-     "daily_effects": {"condition": 1},
-     "passive_effects": {"attribute:courage": 3.0, "attribute:charisma": 1.0}},
-
     # --- investment (§12.13: weekly_return_rate, of `price`, frozen into
     # inventory.weekly_return at purchase) ---
     {"catalog_id": "invest-bond", "title": "Devlet tahvili", "category": "investment",
@@ -240,7 +222,7 @@ SHOP_ITEMS = [
      "weekly_return_rate": 0.20 / 52},
 ]
 
-assert len(SHOP_ITEMS) == 46
+assert len(SHOP_ITEMS) == 43
 assert len({i["catalog_id"] for i in SHOP_ITEMS}) == len(SHOP_ITEMS)
 
 # D45 says derived values aren't stored; this one is derived at IMPORT from the
