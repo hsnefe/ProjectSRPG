@@ -54,3 +54,6 @@ career_engine/*.db
 career_engine/*.db-journal
 # Widget Preview related
 .widget_preview/
+
+# Local Claude Code skills (Blender skill pack etc.)
+.claude/skills/
