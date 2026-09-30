@@ -1,0 +1,8 @@
+{
+ "canvas": [
+  1600,
+  900
+ ],
+ "lift_frames": 12,
+ "note": "lift_i is progress i/11: bar down at chest (0) to lockout (11); all layers share the 1600x900 canvas; chest is a separate layer so the game can bob it for breathing"
+}

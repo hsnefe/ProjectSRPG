@@ -7,6 +7,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart' show ValueChanged;
 
 import 'package:project_srpg/game/game_banner.dart';
+import 'package:project_srpg/game/stage_fit.dart';
 import 'package:project_srpg/game/training_result.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 
@@ -37,9 +38,9 @@ Offset unitToCanvas(Offset unit, Rect grid) =>
     Offset(grid.left + unit.dx * grid.width, grid.top + unit.dy * grid.height);
 
 Offset canvasToUnit(Offset point, Rect grid) => Offset(
-      (point.dx - grid.left) / grid.width,
-      (point.dy - grid.top) / grid.height,
-    );
+  (point.dx - grid.left) / grid.width,
+  (point.dy - grid.top) / grid.height,
+);
 
 /// The flexibility drill: three dot-to-dot patterns are shown one at a time,
 /// then the player redraws all three from memory in order. A wrong node ends
@@ -99,12 +100,11 @@ class FlexibilityGame extends FlameGame {
   bool succeeded = false;
 
   TrainingResult get result => TrainingResult(
-        drill: TrainingDrill.flexibility,
-        outcome:
-            succeeded ? TrainingOutcome.success : TrainingOutcome.failure,
-        score: succeeded ? 1 - 0.25 * mistakes : 0,
-        detail: '$recallIndex/$patternCount desen · $mistakes hata',
-      );
+    drill: TrainingDrill.flexibility,
+    outcome: succeeded ? TrainingOutcome.success : TrainingOutcome.failure,
+    score: succeeded ? 1 - 0.25 * mistakes : 0,
+    detail: '$recallIndex/$patternCount desen · $mistakes hata',
+  );
 
   /// How much of the current demo pattern has been traced, in fractional
   /// segments (e.g. 1.4 = the first segment plus 40% of the second). Drives
@@ -355,11 +355,59 @@ const _skin = Color(0xFFC08A63);
 /// The backdrop: a mat and a slow, looping forward-stretch figure. Purely
 /// decorative — nothing here is read by [FlexibilityGame.advance] — but
 /// without it the screen is a bare lock pad with no read on "esneklik".
-class MatSceneComponent extends Component with HasGameReference<FlexibilityGame> {
+class MatSceneComponent extends Component
+    with HasGameReference<FlexibilityGame> {
   @override
   int get priority => 0;
 
   double _t = 0;
+
+  /// Blender'da render edilen esneme odası (`flexibility/bg_stretch_room`) ve
+  /// öne eğilme döngüsünün 24 karesi. Hepsi yüklenemezse aşağıdaki çubuk
+  /// figürlü eski çizim çalışmaya devam eder.
+  Sprite? _bg;
+  List<Sprite>? _frames;
+
+  static const _canvas = Size(1600, 900);
+  static const _frameCount = 24;
+
+  /// Kare 320×256; içindeki kalça pivotu bu piksele, o da kanvasta aşağıdaki
+  /// noktaya oturur (`layout.json`). Kareler sahneden 1.396 kat düşük
+  /// yoğunlukla çekildi, o yüzden büyütülerek çizilir.
+  static const _frameSize = Size(320, 256);
+  static const _frameHip = Offset(130, 162.1);
+  static const _figureHip = Offset(720, 680.9);
+  static const _frameScale = (1600 / 9.4) / (256 / 2.1);
+
+  /// Görseller yüklenene (ya da yüklenemeyeceği anlaşılana) kadar düz zemin
+  /// çizilir; eski çubuk figür yalnızca yükleme başarısız olursa çıkar, yoksa
+  /// her açılışta kısa bir süre yanıp söner.
+  bool _settled = false;
+
+  /// Yükleme `onLoad`'u bekletmez: bu bileşen giriş katmanıyla aynı ağaçta ve
+  /// 25 görselin çözülmesi, dokunuşları alan `PatternInputLayer`'ın
+  /// bağlanmasını geciktirmemeli (widget testleri de sahte zamanda görsel
+  /// çözülmesini hiç bitiremez).
+  @override
+  Future<void> onLoad() async {
+    _loadStage();
+  }
+
+  Future<void> _loadStage() async {
+    try {
+      _bg = await Sprite.load('flexibility/bg_stretch_room.png');
+      _frames = [
+        for (var i = 1; i <= _frameCount; i++)
+          await Sprite.load(
+            'flexibility/stretch_${i.toString().padLeft(2, '0')}.png',
+          ),
+      ];
+    } catch (_) {
+      _bg = null;
+      _frames = null;
+    }
+    _settled = true;
+  }
 
   @override
   void update(double dt) {
@@ -371,7 +419,24 @@ class MatSceneComponent extends Component with HasGameReference<FlexibilityGame>
     final u = game.size.x;
     final v = game.size.y;
 
-    canvas.drawRect(Rect.fromLTWH(0, 0, u, v), Paint()..color = AppColors.surface1);
+    final bg = _bg;
+    final frames = _frames;
+    if (bg != null && frames != null) {
+      _paintStage(canvas, bg, frames);
+      return;
+    }
+    if (!_settled) {
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, u, v),
+        Paint()..color = AppColors.surface1,
+      );
+      return;
+    }
+
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, u, v),
+      Paint()..color = AppColors.surface1,
+    );
 
     final mat = Rect.fromCenter(
       center: Offset(u * 0.16, v * 0.90),
@@ -386,6 +451,47 @@ class MatSceneComponent extends Component with HasGameReference<FlexibilityGame>
     _paintFigure(canvas, u, v);
   }
 
+  /// Oda ve eğilen figür. Figürün eğimi eski çubuk figürle aynı eğriyi
+  /// izler, `0.5 + 0.5·sin(0.9t)`: kare 1 dik durur, kare 13 tam eğilir ve
+  /// `sin`'in başlangıcı (yarı eğik) `π/2` faz kaydırmasıyla tutulur. Kare
+  /// başına ~8° kaldığı için komşu kareler birbirine karıştırılır; yoksa
+  /// yavaş bir esneme 24 kareli bir slayta dönerdi.
+  void _paintStage(Canvas canvas, Sprite bg, List<Sprite> frames) {
+    final size = game.size;
+    final s = coverScale(size, _canvas);
+    final origin = coverOrigin(size, _canvas);
+
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, 0, size.x, size.y));
+    canvas.translate(origin.dx, origin.dy);
+    canvas.scale(s);
+
+    bg.render(canvas, size: Vector2(_canvas.width, _canvas.height));
+
+    final turns = (0.9 * _t + math.pi / 2) / (2 * math.pi);
+    final pos = (turns - turns.floorToDouble()) * _frameCount;
+    final i = pos.floor() % _frameCount;
+    final blend = pos - pos.floorToDouble();
+
+    final w = _frameSize.width * _frameScale;
+    final h = _frameSize.height * _frameScale;
+    final anchor = Anchor(
+      _frameHip.dx / _frameSize.width,
+      _frameHip.dy / _frameSize.height,
+    );
+    final at = Vector2(_figureHip.dx, _figureHip.dy);
+    frames[i].render(canvas, position: at, size: Vector2(w, h), anchor: anchor);
+    frames[(i + 1) % _frameCount].render(
+      canvas,
+      position: at,
+      size: Vector2(w, h),
+      anchor: anchor,
+      overridePaint: Paint()..color = Color.fromRGBO(255, 255, 255, blend),
+    );
+
+    canvas.restore();
+  }
+
   void _paintFigure(Canvas canvas, double u, double v) {
     // A slow bend-and-ease toward the toes, so the corner reads "stretching"
     // rather than just idling.
@@ -394,7 +500,8 @@ class MatSceneComponent extends Component with HasGameReference<FlexibilityGame>
 
     final hip = Offset(u * 0.16, v * 0.84);
     final torsoLen = v * 0.20;
-    final shoulder = hip +
+    final shoulder =
+        hip +
         Offset(math.sin(leanAngle) * torsoLen, -math.cos(leanAngle) * torsoLen);
 
     final limb = Paint()
@@ -415,8 +522,8 @@ class MatSceneComponent extends Component with HasGameReference<FlexibilityGame>
     canvas.drawLine(hip, shoulder, torso);
 
     // Arms reach past the shoulder toward the floor as the lean deepens.
-    final reach = shoulder +
-        Offset(math.sin(leanAngle) * v * 0.13, v * 0.11 * bend);
+    final reach =
+        shoulder + Offset(math.sin(leanAngle) * v * 0.13, v * 0.11 * bend);
     canvas.drawLine(shoulder, reach, limb);
 
     canvas.drawCircle(
@@ -445,9 +552,14 @@ class PatternGridComponent extends Component
 
   void _paintNodes(Canvas canvas, Rect grid) {
     final r = grid.width * 0.05;
-    for (var i = 0; i < FlexibilityGame.gridSide * FlexibilityGame.gridSide; i++) {
+    for (
+      var i = 0;
+      i < FlexibilityGame.gridSide * FlexibilityGame.gridSide;
+      i++
+    ) {
       final p = unitToCanvas(nodeUnit(i), grid);
-      final visited = game.phase == FlexPhase.recalling && game.stroke.contains(i);
+      final visited =
+          game.phase == FlexPhase.recalling && game.stroke.contains(i);
       canvas.drawCircle(p, r, Paint()..color = AppColors.surface1);
       canvas.drawCircle(
         p,
@@ -458,7 +570,11 @@ class PatternGridComponent extends Component
           ..strokeWidth = visited ? 3 : 1.5,
       );
       if (visited) {
-        canvas.drawCircle(p, grid.width * 0.02, Paint()..color = AppColors.accent);
+        canvas.drawCircle(
+          p,
+          grid.width * 0.02,
+          Paint()..color = AppColors.accent,
+        );
       }
     }
   }
@@ -484,10 +600,15 @@ class PatternGridComponent extends Component
     }
 
     // Dots on the visited nodes so the *order* reads, not just the shape.
-    final dotPaint = Paint()..color = AppColors.warning.withValues(alpha: opacity);
+    final dotPaint = Paint()
+      ..color = AppColors.warning.withValues(alpha: opacity);
     final shown = reveal.floor().clamp(0, pattern.length - 1);
     for (var i = 0; i <= shown; i++) {
-      canvas.drawCircle(unitToCanvas(nodeUnit(pattern[i]), grid), grid.width * 0.026, dotPaint);
+      canvas.drawCircle(
+        unitToCanvas(nodeUnit(pattern[i]), grid),
+        grid.width * 0.026,
+        dotPaint,
+      );
     }
   }
 
@@ -530,7 +651,8 @@ class PatternInputLayer extends PositionComponent
     this.size = size;
   }
 
-  Offset _unitOf(Offset canvasPos) => canvasToUnit(canvasPos, gridRectFor(game.size));
+  Offset _unitOf(Offset canvasPos) =>
+      canvasToUnit(canvasPos, gridRectFor(game.size));
 
   @override
   void onTapDown(TapDownEvent event) {

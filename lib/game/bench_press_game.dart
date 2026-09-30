@@ -7,6 +7,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart' show ValueChanged;
 
 import 'package:project_srpg/game/game_banner.dart';
+import 'package:project_srpg/game/stage_fit.dart';
 import 'package:project_srpg/game/training_result.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 
@@ -89,14 +90,13 @@ class BenchPressGame extends FlameGame {
   }
 
   TrainingResult get result => TrainingResult(
-        drill: TrainingDrill.strength,
-        outcome:
-            succeeded ? TrainingOutcome.success : TrainingOutcome.failure,
-        score: _quality.isEmpty
-            ? 0
-            : _quality.reduce((a, b) => a + b) / _quality.length,
-        detail: '$successes başarılı tekrar / $failures kaçak',
-      );
+    drill: TrainingDrill.strength,
+    outcome: succeeded ? TrainingOutcome.success : TrainingOutcome.failure,
+    score: _quality.isEmpty
+        ? 0
+        : _quality.reduce((a, b) => a + b) / _quality.length,
+    detail: '$successes başarılı tekrar / $failures kaçak',
+  );
 
   @override
   Color backgroundColor() => AppColors.surface1;
@@ -184,7 +184,9 @@ class BenchPressGame extends FlameGame {
   void _finish() {
     phase = BenchPhase.done;
     if (isMounted) {
-      add(GameBanner(succeeded ? 'BAŞARILI' : 'YETERSİZ', highlight: succeeded));
+      add(
+        GameBanner(succeeded ? 'BAŞARILI' : 'YETERSİZ', highlight: succeeded),
+      );
     }
     onFinished(result);
     onStateChanged();
@@ -204,9 +206,77 @@ class BenchSceneComponent extends Component
 
   double _breath = 0;
 
+  /// Blender'da render edilen birinci kişi sahnesi (`strength/`): tavan ve
+  /// rack, göğüs ve halterin 12 kaldırma karesi. Hepsi aynı 1600×900
+  /// kanvasta hizalı. Göğüs ayrı katman, çünkü nefes onu kımıldatıyor;
+  /// halter, plakalar ve kollar ise `liftProgress`'e göre seçilen karede.
+  /// Yüklenemezse aşağıdaki çizim aynen çalışır.
+  Sprite? _bg;
+  Sprite? _chestSprite;
+  List<Sprite>? _lift;
+  bool _settled = false;
+
+  static const _canvas = Size(1600, 900);
+  static const _liftFrames = 12;
+
+  /// Yükleme `onLoad`'u bekletmez: 14 görselin çözülmesi, dokunuşları alan
+  /// giriş katmanının bağlanmasını geciktirmemeli (widget testleri sahte
+  /// zamanda görsel çözülmesini hiç bitiremez). Yüklenene kadar düz zemin
+  /// çizilir; eski çizim yalnızca yükleme başarısız olursa çıkar.
+  @override
+  Future<void> onLoad() async {
+    _loadStage();
+  }
+
+  Future<void> _loadStage() async {
+    try {
+      final bg = await Sprite.load('strength/bench_bg.png');
+      final chest = await Sprite.load('strength/bench_chest.png');
+      final lift = [
+        for (var i = 0; i < _liftFrames; i++)
+          await Sprite.load(
+            'strength/bench_lift_${i.toString().padLeft(2, '0')}.png',
+          ),
+      ];
+      _bg = bg;
+      _chestSprite = chest;
+      _lift = lift;
+    } catch (_) {
+      _bg = null;
+      _chestSprite = null;
+      _lift = null;
+    }
+    _settled = true;
+  }
+
   @override
   void update(double dt) {
     _breath += dt;
+  }
+
+  /// Tavan, göğüs, halter ve kollar. Kare, yükselişin en yakın adımından
+  /// seçilir: 0.55 sn'lik bir tekrarda her kare ~50 ms görünür, karışım
+  /// (crossfade) ise hareket eden halterin iki hayalet kopyasını çizerdi.
+  void _paintStage(Canvas canvas, double lift) {
+    final size = game.size;
+    final s = coverScale(size, _canvas);
+    final origin = coverOrigin(size, _canvas);
+
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, 0, size.x, size.y));
+    canvas.translate(origin.dx, origin.dy);
+    canvas.scale(s);
+
+    final full = Vector2(_canvas.width, _canvas.height);
+    _bg!.render(canvas, size: full);
+
+    final bob = math.sin(_breath * 2.2) * _canvas.height * 0.006;
+    _chestSprite!.render(canvas, position: Vector2(0, bob), size: full);
+
+    final index = (lift.clamp(0.0, 1.0) * (_liftFrames - 1)).round();
+    _lift![index].render(canvas, size: full);
+
+    canvas.restore();
   }
 
   @override
@@ -220,18 +290,30 @@ class BenchSceneComponent extends Component
       canvas.translate(math.sin(game.liftT * 60) * 2, 0);
     }
 
-    _paintCeiling(canvas, u, v);
-    _paintRack(canvas, u, v);
-    _paintChest(canvas, u, v);
-    _paintBarbell(canvas, u, v, lift);
-    _paintArms(canvas, u, v, lift);
+    if (_bg != null && _chestSprite != null && _lift != null) {
+      _paintStage(canvas, lift);
+    } else if (!_settled) {
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, u, v),
+        Paint()..color = AppColors.surface1,
+      );
+    } else {
+      _paintCeiling(canvas, u, v);
+      _paintRack(canvas, u, v);
+      _paintChest(canvas, u, v);
+      _paintBarbell(canvas, u, v, lift);
+      _paintArms(canvas, u, v, lift);
+    }
     _paintStrain(canvas, u, v);
 
     canvas.restore();
   }
 
   void _paintCeiling(Canvas canvas, double u, double v) {
-    canvas.drawRect(Rect.fromLTWH(0, 0, u, v), Paint()..color = AppColors.surface1);
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, u, v),
+      Paint()..color = AppColors.surface1,
+    );
 
     // One light, faked with three ovals. Looking up is the whole point of the
     // shot, so it has to be the first thing the eye lands on.
@@ -293,12 +375,7 @@ class BenchSceneComponent extends Component
 
   void _paintChest(Canvas canvas, double u, double v) {
     final rise = math.sin(_breath * 2.2) * v * 0.006;
-    final rect = Rect.fromLTRB(
-      u * 0.16,
-      v * 0.86 + rise,
-      u * 0.84,
-      v * 1.06,
-    );
+    final rect = Rect.fromLTRB(u * 0.16, v * 0.86 + rise, u * 0.84, v * 1.06);
     canvas.drawRRect(
       RRect.fromRectAndRadius(rect, Radius.circular(u * 0.10)),
       Paint()..color = _chest,
@@ -362,7 +439,11 @@ class BenchSceneComponent extends Component
 
     // Plates. Ellipses rather than circles: the foreshortening is what sells
     // the point of view.
-    const plateColors = [Color(0xFF2A2F3A), Color(0xFF20242C), AppColors.border];
+    const plateColors = [
+      Color(0xFF2A2F3A),
+      Color(0xFF20242C),
+      AppColors.border,
+    ];
     for (final sign in [-1, 1]) {
       for (var i = 0; i < 3; i++) {
         final cx = u * 0.5 + sign * (half - u * 0.02 - i * u * 0.028 * scale);
@@ -416,11 +497,7 @@ class BenchSceneComponent extends Component
 
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: hand,
-            width: u * 0.070,
-            height: v * 0.040,
-          ),
+          Rect.fromCenter(center: hand, width: u * 0.070, height: v * 0.040),
           const Radius.circular(5),
         ),
         Paint()..color = _skin,
@@ -507,12 +584,13 @@ class PowerBarComponent extends Component
     final zoneTop = yAt(game.zoneCenter + game.zoneHalf);
     final zoneBottom = yAt(game.zoneCenter - game.zoneHalf);
     final missed = game.phase == BenchPhase.lifting && !game.lastRepOk;
-    final zoneColor = _hitFlash > 0 ? (missed ? _danger : AppColors.success) : AppColors.success;
+    final zoneColor = _hitFlash > 0
+        ? (missed ? _danger : AppColors.success)
+        : AppColors.success;
 
     canvas.drawRect(
       Rect.fromLTRB(track.left, zoneTop, track.right, zoneBottom),
-      Paint()
-        ..color = zoneColor.withValues(alpha: _hitFlash > 0 ? 0.55 : 0.30),
+      Paint()..color = zoneColor.withValues(alpha: _hitFlash > 0 ? 0.55 : 0.30),
     );
     final edge = Paint()
       ..color = zoneColor
@@ -571,8 +649,9 @@ class PowerBarComponent extends Component
         Offset(track.center.dx, y),
         u * 0.05 * (1 - _hitFlash / 0.25),
         Paint()
-          ..color = (game.lastRepOk ? AppColors.success : _danger)
-              .withValues(alpha: _hitFlash / 0.25)
+          ..color = (game.lastRepOk ? AppColors.success : _danger).withValues(
+            alpha: _hitFlash / 0.25,
+          )
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2,
       );
