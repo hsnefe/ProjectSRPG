@@ -390,6 +390,61 @@ void main() {
 
       expect(result.item.upkeepWeekly, 1800);
     });
+
+    test('§14.2 · inventory() parses slot/grade/equipped', () async {
+      final client = _clientWith((request) {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/careers/car_1/inventory');
+        return _json({
+          'items': [
+            {'catalog_id': 'acc-swiss-watch', 'slot': 'watch', 'grade': 4,
+             'equipped': true, 'purchased_at': '2026-03-14',
+             'price_paid': 4500, 'upkeep_weekly': 0},
+            {'catalog_id': 'estate-flat', 'slot': null, 'grade': null,
+             'equipped': false, 'purchased_at': '2026-03-14',
+             'price_paid': 3200, 'upkeep_weekly': 12},
+          ],
+        });
+      });
+
+      final items = await client.inventory('car_1');
+
+      expect(items.map((i) => i.catalogId), ['acc-swiss-watch', 'estate-flat']);
+      expect(items.first.equipped, isTrue);
+      expect(items.first.grade, 4);
+      expect(items.last.slot, isNull);
+    });
+
+    test('§14.2 · equipItem()/unequipItem() POST to the item and parse the list',
+        () async {
+      final paths = <String>[];
+      final client = _clientWith((request) {
+        expect(request.method, 'POST');
+        paths.add(request.url.path);
+        return _json({
+          'career_state': {
+            'current_date': '2026-03-14', 'season_id': '25/26',
+            'money': 100, 'condition': 72, 'day_budget': {'time': 720.0},
+          },
+          'items': [
+            {'catalog_id': 'acc-swiss-watch', 'slot': 'watch', 'grade': 4,
+             'equipped': request.url.path.endsWith('/equip')},
+          ],
+          'passive_bonus': {'charisma': 2.0},
+          'condition_recovery': const {},
+        });
+      });
+
+      final worn = await client.equipItem('car_1', 'acc-swiss-watch');
+      final off = await client.unequipItem('car_1', 'acc-swiss-watch');
+
+      expect(paths, [
+        '/careers/car_1/inventory/acc-swiss-watch/equip',
+        '/careers/car_1/inventory/acc-swiss-watch/unequip',
+      ]);
+      expect(worn.items.single.equipped, isTrue);
+      expect(off.items.single.equipped, isFalse);
+    });
   });
 
   group('match (M1-M3)', () {

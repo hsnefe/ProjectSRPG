@@ -184,20 +184,36 @@ class PlayerState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Satın alınmış ürünlerin kimlikleri. ⚠️ Yalnızca bu oturumda yapılan
-  /// alışverişleri tutar: contract'ta `inventory`'yi listeleyen bir GET ucu
-  /// yok (T4 yalnızca az önce alınan tek kalemi döner), o yüzden P1 gibi
-  /// baştan yüklenemez — bilinen bir sınır, uydurma bir veri değil.
+  /// Satın alınmış ürünlerin kimlikleri. §14.2'den beri sunucudaki envanterden
+  /// kurulur ([applyInventory]); T4 yanıtı o listeye kadar geçici olarak
+  /// [markOwned] ile işaretler.
   final Set<String> _owned = <String>{};
 
+  /// §14.2 · üstünde olan (giyili) kalemler; yalnız yuvası olanlar girer.
+  final Set<String> _equipped = <String>{};
+
   bool owns(String id) => _owned.contains(id);
+
+  bool isEquipped(String id) => _equipped.contains(id);
+
+  /// §14.2 · sunucunun envanter listesini yerel duruma yazan tek yol.
+  void applyInventory(List<InventoryItem> items) {
+    _owned
+      ..clear()
+      ..addAll(items.map((i) => i.catalogId));
+    _equipped
+      ..clear()
+      ..addAll(items.where((i) => i.equipped).map((i) => i.catalogId));
+    notifyListeners();
+  }
 
   bool canAfford(int price) => _money >= price;
 
   /// T4 başarıyla satın aldıktan sonra ekranın çağırdığı işaretleyici.
-  void markOwned(String id) {
-    if (!_owned.add(id)) return;
-    notifyListeners();
+  void markOwned(String id, {bool equipped = false}) {
+    final added = _owned.add(id);
+    final worn = equipped && _equipped.add(id);
+    if (added || worn) notifyListeners();
   }
 
   static String _initialsOf(String name) {

@@ -17,6 +17,9 @@ class ShopItem {
     this.note,
     this.benefitLabel,
     this.imageAsset,
+    this.grade,
+    this.slot,
+    this.grantOnly = false,
   });
 
   final String id;
@@ -45,8 +48,18 @@ class ShopItem {
   /// değişmez — dosya bulunamazsa yine prosedürel görsele düşer.
   final String? imageAsset;
 
-  String get priceLabel => formatMoney(price);
+  /// §14.2 · 1-5 derece (karizma basamağı). Yalnız giyilebilir kalemlerde dolu.
+  final int? grade;
 
+  /// §14.2 · giyilebilir kalemin yuvası; null ise kalem giyilmez.
+  final String? slot;
+
+  /// §14.2 D82 · satın alınmaz, bir olay ya da sponsorluk verir.
+  final bool grantOnly;
+
+  bool get equippable => slot != null;
+
+  String get priceLabel => grantOnly ? 'Kazanılır' : formatMoney(price);
 }
 
 /// Buzlu cam ürün kartı: fotoğraf (ya da tonlu prosedürel gövde), üstünde ışık
@@ -60,6 +73,7 @@ class ShopItemCard extends StatelessWidget {
     required this.item,
     this.onTap,
     this.owned = false,
+    this.equipped = false,
     this.affordable = true,
     this.faded = false,
     this.width = 172,
@@ -72,6 +86,9 @@ class ShopItemCard extends StatelessWidget {
 
   /// Satın alınmış: sağ üstte 'Sahip' pili çıkar.
   final bool owned;
+
+  /// §14.2 · üstünde: pil 'Takılı' olur.
+  final bool equipped;
 
   /// Bakiye yetiyor mu; yetmiyorsa fiyat kırmızıya döner.
   final bool affordable;
@@ -155,9 +172,21 @@ class ShopItemCard extends StatelessWidget {
                       top: 10,
                       right: 10,
                       child: _Pill(
-                        icon: Icons.check,
-                        label: 'Sahip',
+                        icon: equipped ? Icons.checkroom : Icons.check,
+                        label: equipped ? 'Takılı' : 'Sahip',
                         color: AppColors.success,
+                      ),
+                    ),
+                  // §14.2 · derece, sol üstte: ikonun yanına değil köşeye, çünkü
+                  // ikon zaten orada.
+                  if (item.grade != null)
+                    Positioned(
+                      top: 10,
+                      left: 10,
+                      child: _Pill(
+                        icon: Icons.star,
+                        label: '${item.grade}',
+                        color: AppColors.warning,
                       ),
                     ),
                   // Alt şerit: kendi arkasındaki görüntüyü bulanıklaştırır.

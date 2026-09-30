@@ -21,6 +21,8 @@ domain/requirements.py, and through it every `requires` gate in the game.
 """
 import sqlite3
 
+from domain import inventory
+
 
 def get_value(conn: sqlite3.Connection, career_id: str, player_id: str, attribute_key: str) -> float:
     row = conn.execute(
@@ -59,12 +61,10 @@ def passive_bonus(conn: sqlite3.Connection, career_id: str, attribute_key: str) 
     """
     from catalog.shop import PASSIVE_ATTRIBUTE_BONUS  # local, like condition.daily_recovery
 
-    rows = conn.execute(
-        "SELECT item_id FROM inventory WHERE career_id = ?", (career_id,)
-    ).fetchall()
+    # §14.2: only what is switched on counts (domain/inventory.py).
     return sum(
-        PASSIVE_ATTRIBUTE_BONUS.get(row["item_id"], {}).get(attribute_key, 0.0)
-        for row in rows
+        PASSIVE_ATTRIBUTE_BONUS.get(item_id, {}).get(attribute_key, 0.0)
+        for item_id in inventory.contributing_ids(conn, career_id)
     )
 
 

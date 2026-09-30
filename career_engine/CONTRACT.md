@@ -4904,8 +4904,8 @@ yazılması gerekiyor, D23 gereği FE'de), ama imza sonrası iş listesine dahil
 `sosyal-sistem-tasarim-dokumani.md`'nin uygulanması. §11, §12 ve §13 gibi imza
 sonrası eklenmiştir; yalnızca kendi "Geçersiz kılananlar" tablosundakileri
 geçersiz kılar. §14.1 (skill'ler) uygulanmıştır; §14.2–§14.6 **kararları**
-kaydeder ama kodu henüz yoktur — her alt bölüm kendi fazıyla ayrıntılanır ve
-o fazın commit'inde "planlanan" etiketi kalkar.
+kaydeder; §14.2 uygulanmıştır, §14.3–§14.6'nın kodu henüz yoktur — her alt
+bölüm kendi fazıyla ayrıntılanır ve o fazın commit'inde "planlanan" etiketi kalkar.
 
 ### 14.0 Geçersiz kılananlar
 
@@ -4916,8 +4916,8 @@ o fazın commit'inde "planlanan" etiketi kalkar.
 
 | Günlük kondisyon toparlanması `5 + eşya bonusu`, tavan 12 (INV-41) | §6.6, §12 | *Planlanan (§14.4):* aktif konutun uyku kazancı doğal +5'in yerini alır, tavan yükselir |
 | Aktivite olaylarının zincirlenmesi kapsam dışı | §13.12 | *Planlanan (§14.6):* ertelenmiş sonuç tablosu zincire izin verir |
-| `estate-*` mağaza itemleri (`realEstate` kategorisi) | §12.13, §13.3 | *Planlanan (§14.4):* mağazadan kalkar, konut sistemine geçer |
-| `inventory`'deki her satırın pasif bonus vermesi | §13.3, INV-60 | *Planlanan (§14.2):* yalnız `equipped` satırlar verir |
+| `estate-*` mağaza itemleri (`realEstate` kategorisi) | §12.13, §13.3 | *Planlanan (§14.4):* mağazadan kalkar, konut sistemine geçer. **Konut fazına kadar mağazada kalır** — daha erken kaldırmak günlük bonuslarını ve pasiflerini sahipsiz bırakırdı |
+| `inventory`'deki her satırın pasif bonus vermesi (§13.3) ve `personal-*` / `home-*` katalog kalemleri | §12.13, §13.3, INV-60 | **Uygulandı (§14.2):** yuvası olan satırlardan yalnız `equipped` olanlar sayılır; yuvasız satırlar (gayrimenkul, yatırım) eskisi gibi her zaman sayılır. Eski sekiz kalem katalogdan kalktı |
 
 **Dokunulmayanlar** (yeni sistemler bunlara uymak zorundadır): INV-39 ve INV-62
 (aynı anda tek açık teklif / tek açık aktivite olayı), D4 (ilişki listesi yok,
@@ -4951,22 +4951,68 @@ kümesi 12'de kalır (INV-21); yalnızca üç anahtar adını değiştirir, iki 
 - **INV-65.** `ATTRIBUTE_KEYS` hâlâ kapalı 12'li kümedir ve `kişi` ailesi tam
   olarak `charisma`, `empathy`, `courage`, `intelligence`, `discipline`'dir.
 
-### 14.2 İtemler: equip, derece, kazanılan itemler (planlanan)
+### 14.2 İtemler: equip, derece, kazanılan itemler
 
-- **D80.** `inventory`'ye `equipped` ve `grade` (1–5) eklenir; her item bir
-  *bonus kategorisine* (giyim, aksesuar, teknoloji, araç, ev, özel) bağlıdır ve
-  kategori başına en fazla bir satır aktiftir. `attributes.passive_bonus` ve
-  günlük bonus endeksleri yalnız `equipped` satırları toplar. Satın alma yeni
-  itemi, o kategoride aktif yoksa, otomatik takar.
-- **D81.** Mevcut `personal-*` / `home-*` itemleri tasarım dokümanının
-  itemleriyle değişir; `investment-*` itemleri dokunulmaz. Değişen itemi
-  zaten satın almış kariyerler bir veri migration'ıyla en yakın karşılığa
-  eşlenir ya da iade edilir (faz 3'te karar kaydı).
-- **D82.** Yeni `grant_item:<catalog_id>` effect anahtarı, satın alınamayan
-  itemleri (#38–#42: imzalı forma, ilk gol topu, krampon serisi, kulüp kartı,
-  vakıf) bir olay seçeneği, sosyal teklif ya da sponsorluktan verir. Fiyatsız
-  satırdır (`price_paid = 0`); ödenemeyen `upkeep` yolunda satılamaz.
-- **INV-66.** Bir kategoride birden fazla `equipped = 1` satırı yoktur.
+- **D80.** `inventory`'ye `slot`, `grade` (1–5) ve `equipped` eklenir
+  (`db/migrations/020_item_equip.sql`). `slot` ve `grade` alım anında katalogdan
+  kopyalanıp **dondurulur** (`price_paid` ile aynı gerekçe). Bir satır, `slot`'u
+  NULL ise (gayrimenkul, yatırım, 020'den önceki her satır) ya da kendi yuvasının
+  `equipped` satırıysa **sayılır** (pasif + günlük etkiler). Tek okuyucu
+  `domain/inventory.py::contributing_ids()`; nitelikler, kondisyon ve gün döngüsü
+  `inventory` tablosunu kendileri okumaz. `upkeep` ise **her** sahip olunan
+  satırdan ödenir: giyilmemiş bir palto da para tutar — aksi halde equip,
+  ücretsiz satış olurdu.
+- **Yuva ve kategori.** Doküman "aynı kategoriden tek item" diyor ama
+  "Aksesuar"da saat, kolye ve cüzdan birlikte giyilebilmeli ("iki saat
+  takılamaz"). Bu yüzden *kategori* yalnız mağaza gruplamasıdır (`clothing`,
+  `accessory`, `tech`, `vehicle`, `living`, `special`); *yuva* (`shoes`, `top`,
+  `outerwear`, `formal`, `watch`, `ring`, `vehicle`, `cinema`…) ince tanedir ve
+  yuva başına tek aktif satır vardır. 40 giyilebilir kalem 28 yuvaya dağılır.
+- **Derece → karizma.** Derece-N kalem pasif olarak `charisma`'ya
+  `N × 0.5` ekler (`CHARISMA_PER_GRADE`). Dokümanın yan etkileri küçük ek pasifler
+  olur: akıllı saat `discipline` +0.5, sanat eseri `intelligence` +0.5, vakıf
+  `empathy` +1.5. Ölçek ⟦AÇIK-16⟧'nın (pasif bonus ölçeği) parçasıdır.
+  Fiyatlar dereceyle büyür ve başlangıç maaşına (haftada 40) göre yazılmıştır:
+  derece-1 birkaç haftalık maaş, derece-5 bir sezonun çoğu.
+- **Satın alma ve giyme.** T4 yuva boşsa kalemi alır almaz giydirir; yuva
+  doluysa kalem dolapta kalır (oyuncunun seçtiğini sessizce değiştirmemek için).
+  `GET /careers/{cid}/inventory` envanteri listeler (daha önce böyle bir uç
+  yoktu). `POST …/inventory/{id}/equip` ve `…/unequip` yuvayı devreder ya da
+  boşaltır; tam `CareerState` döner (D28/INV-18), ayrıca `items`, kişi
+  niteliklerinin yeni `passive_bonus`'u ve `condition_recovery`. Hatalar:
+  `item_not_owned` (404), `item_not_equippable` (409, yuvasız kalem),
+  `item_not_for_sale` (409).
+- **D81.** Dokümanın §3.5'teki "Şehir manzaralı loft" (#36) ve "Deniz manzaralı
+  villa" (#37) kalemleri **item olarak yoktur**: §4'te aynı adlarla gayrimenkul
+  (#10, #13) oldukları için iki kez satın alınırlardı. Karizmaları konutun
+  derecesi olarak §14.4'te aktif konuttan gelir. Mağaza 46 kalemdir: 40 gear, 3
+  gayrimenkul, 3 yatırım. Eski `personal-*` / `home-*` sekiz kalem katalogdan
+  kalktı; alan kariyerler `domain/legacy_items.py::reconcile()` ile açılışta
+  çözülür (INV-17 gereği para hareketi SQL'de değil `wallet.apply()` ile
+  olduğundan migration değil, başlangıç adımıdır; idempotent):
+
+  | Eski kalem | Sonuç |
+  |---|---|
+  | `personal-watch` · `personal-suit` · `personal-headphones` · `home-tv` · `home-espresso` | En yakın yeni kaleme taşınır (`acc-smart-watch` · `cloth-tailored-suit` · `tech-earbuds` · `home-cinema` · `home-coffee-machine`), `price_paid` korunur, giydirilir |
+  | `personal-boots` · `home-console` · `home-treadmill` | `price_paid` kadar tam iade (`money_ledger.kind = 'refund'`); koşu bandının işi §14.4'ün ev spor salonuna kalır |
+
+  Günlük şöhret (+0.3) İsviçre saatine, günlük enerji (+3) kahve makinesine geçti.
+- **D82.** Yeni `grant_item:<catalog_id>` effect anahtarı (değer 1) satın
+  alınamayan kalemleri verir: #38 imzalı forma, #39 ilk gol topu, #40 krampon
+  serisi, #42 hayır vakfı (`acquire: "grant"`, fiyat 0, satılamaz). Aynı
+  dağıtım döngüsünün üç kopyasında çalışır (T2, T6, sosyal kabul/katılım); zaten
+  sahip olunan kalem ikinci kez verilmez ve hata vermez. T2 ve T6 yanıtlarında `granted_items[]` döner (sosyal yanıtlar bunu
+  henüz taşımaz). **Bu fazda hiçbir şablon bir kalem vermez**:
+  kaynaklar sonraki fazlarla bağlanır (olay seçenekleri §14.5–§14.6, krampon
+  serisi sponsorluk anlaşmasıyla, ilk gol topu maç sonrası tetikleyiciyle). #41
+  lüks kulüp kartı satın alınır (derece 4).
+- **Henüz yapılmayanlar.** Dokümanın bağlam notları — kışın aktif palto, kötü
+  formda ters tepen spor araba, haber manşetleri, sahne görünümü — bu sürümde
+  yalnız `note` metnidir; mekaniği §14.7'deki haber/bağlam fazındadır.
+- **INV-66.** Bir kariyerde aynı yuvada birden fazla `equipped = 1` satırı
+  yoktur. Bu, sadece `domain/inventory.py`'de değil, veritabanında kısmi bir
+  benzersiz indekstir (`idx_inventory_one_equipped_per_slot`); koddaki bir hata
+  ikinci satırı yazamaz.
 
 ### 14.3 Sosyal aktiviteler, risk ve "biriyle" modu (planlanan)
 

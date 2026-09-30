@@ -20,7 +20,7 @@ from api import config
 from api.ids import new_news_id
 from catalog import shop
 from domain import (
-    condition, contracts, engine_client, fame, formulas, investments, scheduling,
+    condition, contracts, engine_client, fame, formulas, inventory, investments, scheduling,
     season as season_mod, social, sponsorship, squad, transfer, wallet,
 )
 from worlddata.competitions import ULUSAL_KUPA
@@ -592,10 +592,7 @@ def process_day(conn: sqlite3.Connection, career_id: str, on_date: str, seed: in
     # `remaining` to config.DAY_BUDGET_DEFAULTS wholesale (not additive) — an
     # add() here would be silently wiped a moment later. The bonus travels
     # out in the return value instead, for the caller to apply AFTER refill.
-    owned_ids = [
-        row["item_id"] for row in
-        conn.execute("SELECT item_id FROM inventory WHERE career_id = ?", (career_id,)).fetchall()
-    ]
+    owned_ids = inventory.contributing_ids(conn, career_id)  # §14.2: worn rows only
     energy_bonus = shop.daily_energy_bonus(owned_ids)
     fame_bonus = shop.daily_fame_bonus(owned_ids)
     if fame_bonus:

@@ -2447,6 +2447,9 @@ class PurchasedItem {
     required this.purchasedAt,
     required this.pricePaid,
     required this.upkeepWeekly,
+    this.slot,
+    this.grade,
+    this.equipped = false,
   });
 
   factory PurchasedItem.fromJson(Map<String, dynamic> json) {
@@ -2455,6 +2458,9 @@ class PurchasedItem {
       purchasedAt: json['purchased_at'] as String,
       pricePaid: json['price_paid'] as int,
       upkeepWeekly: json['upkeep_weekly'] as int,
+      slot: json['slot'] as String?,
+      grade: json['grade'] as int?,
+      equipped: json['equipped'] as bool? ?? false,
     );
   }
 
@@ -2462,6 +2468,56 @@ class PurchasedItem {
   final String purchasedAt;
   final int pricePaid;
   final int upkeepWeekly;
+
+  /// §14.2 · yuva boşsa kalem satın alınır alınmaz giyilir (`equipped`).
+  final String? slot;
+  final int? grade;
+  final bool equipped;
+}
+
+/// §14.2 · `GET /careers/{cid}/inventory` satırı. Sahiplik ve "üstünde mi"
+/// artık sunucunun durumu (INV-66): istemci kendi kümesini bu listeden kurar.
+class InventoryItem {
+  const InventoryItem({
+    required this.catalogId,
+    required this.equipped,
+    this.slot,
+    this.grade,
+  });
+
+  factory InventoryItem.fromJson(Map<String, dynamic> json) {
+    return InventoryItem(
+      catalogId: json['catalog_id'] as String,
+      slot: json['slot'] as String?,
+      grade: json['grade'] as int?,
+      equipped: json['equipped'] as bool? ?? false,
+    );
+  }
+
+  final String catalogId;
+  final String? slot;
+  final int? grade;
+  final bool equipped;
+}
+
+/// §14.2 · equip/unequip yanıtı. `passiveBonus` burada yalnız bilgi için:
+/// seviye ölçeği FE'de yeniden yazılmasın diye ekran P1'i tazeler.
+class EquipResult {
+  const EquipResult({required this.careerState, required this.items});
+
+  factory EquipResult.fromJson(Map<String, dynamic> json) {
+    return EquipResult(
+      careerState:
+          CareerState.fromJson(json['career_state'] as Map<String, dynamic>),
+      items: [
+        for (final row in (json['items'] as List<dynamic>? ?? const []))
+          InventoryItem.fromJson(row as Map<String, dynamic>),
+      ],
+    );
+  }
+
+  final CareerState careerState;
+  final List<InventoryItem> items;
 }
 
 /// T4 · `POST /careers/{cid}/purchases`.
@@ -2854,6 +2910,16 @@ class CatalogItem {
   /// kontrolü tekrarlar (INV-30), buradaki gri kart yalnızca kullanıcıyı
   /// boşuna dokunmaktan kurtarır.
   Map<String, int> get requires => _requiresOf(raw);
+
+  /// §14.2 · giyilebilir kalemin yuvası ('watch', 'shoes'…). Null ise kalem
+  /// giyilmez (gayrimenkul, yatırım): her zaman sayılır.
+  String? get slot => raw['slot'] as String?;
+
+  /// §14.2 · 1-5 derece; yalnızca yuvası olan kalemlerde dolu.
+  int? get grade => raw['grade'] as int?;
+
+  /// §14.2 D82 · 'shop' satın alınır, 'grant' bir olay/sponsorluk verir.
+  bool get grantOnly => raw['acquire'] == 'grant';
 
   /// `shop` kataloğu.
   int? get price => raw['price'] as int?;

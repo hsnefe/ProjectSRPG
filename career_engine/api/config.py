@@ -192,4 +192,5 @@ LEDGER_KINDS = (
     "wage", "appearance_bonus", "goal_bonus",
     "purchase", "upkeep", "lifestyle", "training", "sale",
     "sponsorship",  # §12.7 - weekly, alongside the wage
+    "refund",       # §14.2 D81 - a retired shop item paid back in full
 )

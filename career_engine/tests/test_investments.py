@@ -25,7 +25,7 @@ def test_pay_returns_pays_every_owned_item_with_a_return(db_conn, career_id):
 
 
 def test_pay_returns_skips_items_with_no_return(db_conn, career_id):
-    _own(db_conn, career_id, "home-tv", 0)  # not an investment item, no return
+    _own(db_conn, career_id, "home-cinema", 0)  # not an investment item, no return
     entries = investments.pay_returns(db_conn, career_id, "2026-08-03")
     assert entries == []
 

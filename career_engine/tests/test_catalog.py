@@ -174,7 +174,7 @@ def test_daily_condition_bonus_sums_only_the_items_that_carry_one():
 
     assert set(DAILY_CONDITION_BONUS) <= {i["catalog_id"] for i in SHOP_ITEMS}
     assert daily_condition_bonus([]) == 0
-    assert daily_condition_bonus(["home-tv"]) == 0
+    assert daily_condition_bonus(["home-cinema"]) == 0
     assert daily_condition_bonus(list(DAILY_CONDITION_BONUS)) == sum(DAILY_CONDITION_BONUS.values())
 
 
@@ -190,11 +190,11 @@ def test_daily_energy_bonus_sums_only_the_items_that_carry_one():
     from catalog.shop import DAILY_ENERGY_BONUS, daily_energy_bonus
 
     assert set(DAILY_ENERGY_BONUS) <= {i["catalog_id"] for i in SHOP_ITEMS}
-    assert "home-espresso" in DAILY_ENERGY_BONUS
+    assert "home-coffee-machine" in DAILY_ENERGY_BONUS
     assert daily_energy_bonus([]) == 0
-    assert daily_energy_bonus(["home-tv"]) == 0
-    assert daily_energy_bonus(["home-espresso", "estate-studio"]) == (
-        DAILY_ENERGY_BONUS["home-espresso"] + DAILY_ENERGY_BONUS["estate-studio"]
+    assert daily_energy_bonus(["home-cinema"]) == 0
+    assert daily_energy_bonus(["home-coffee-machine", "estate-studio"]) == (
+        DAILY_ENERGY_BONUS["home-coffee-machine"] + DAILY_ENERGY_BONUS["estate-studio"]
     )
 
 
@@ -202,9 +202,9 @@ def test_daily_fame_bonus_sums_only_the_items_that_carry_one():
     from catalog.shop import DAILY_FAME_BONUS, daily_fame_bonus
 
     assert set(DAILY_FAME_BONUS) <= {i["catalog_id"] for i in SHOP_ITEMS}
-    assert "personal-watch" in DAILY_FAME_BONUS
+    assert "acc-swiss-watch" in DAILY_FAME_BONUS
     assert daily_fame_bonus([]) == 0
-    assert daily_fame_bonus(["personal-watch"]) == DAILY_FAME_BONUS["personal-watch"]
+    assert daily_fame_bonus(["acc-swiss-watch"]) == DAILY_FAME_BONUS["acc-swiss-watch"]
 
 
 def test_every_daily_effect_bonus_is_reachable_from_the_shop():

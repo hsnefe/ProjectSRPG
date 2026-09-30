@@ -22,7 +22,7 @@ def _first_monday_from(iso: str) -> str:
     return (day + _dt.timedelta(days=(0 - day.weekday()) % 7)).isoformat()
 from catalog.shop import SHOP_ITEMS
 
-BOOTS_PRICE = next(i["price"] for i in SHOP_ITEMS if i["catalog_id"] == "personal-boots")
+BOOTS_PRICE = next(i["price"] for i in SHOP_ITEMS if i["catalog_id"] == "cloth-sneaker-white")
 from tests.conftest import (
     advance_to_match_day,
     create_career,
@@ -127,7 +127,7 @@ def test_post_purchase_charges_money_and_records_inventory(api_client, created_c
     grant_money(career_id, 20000)
     funded = config.STARTING_MONEY + 20000
 
-    resp = api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "personal-boots"})
+    resp = api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "cloth-sneaker-white"})
     assert resp.status_code == 200
     body = resp.json()
 
@@ -140,8 +140,8 @@ def test_post_purchase_charges_money_and_records_inventory(api_client, created_c
 def test_post_purchase_already_owned_errors(api_client, created_career):
     career_id = created_career["career_id"]
     grant_money(career_id, 20000)
-    api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "personal-boots"})
-    resp = api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "personal-boots"})
+    api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "cloth-sneaker-white"})
+    resp = api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "cloth-sneaker-white"})
     assert resp.status_code == 409
     assert resp.json()["code"] == "already_owned"
 
@@ -211,18 +211,18 @@ def test_get_day_reports_what_the_next_day_is_worth(api_client, created_career):
 def test_owning_an_item_raises_both_the_preview_and_the_actual_gain(
     api_client, created_career, mock_engine
 ):
-    """§6.6 end to end: buy the treadmill, and the SAME bigger number shows
+    """§6.6 end to end: buy the city flat, and the SAME bigger number shows
     up in T1's preview and in the condition the next advanced day pays."""
     career_id = created_career["career_id"]
     grant_money(career_id, 100_000)
     assert api_client.post(
-        f"/careers/{career_id}/purchases", json={"catalog_id": "home-treadmill"}
+        f"/careers/{career_id}/purchases", json={"catalog_id": "estate-flat"}
     ).status_code == 200
 
     preview = api_client.get(f"/careers/{career_id}/day").json()["condition_recovery"]
-    assert preview["bonus"] == 2
-    assert preview["total"] == config.NATURAL_CONDITION_RECOVERY_PER_DAY + 2
-    assert [s["item_id"] for s in preview["sources"]] == ["home-treadmill"]
+    assert preview["bonus"] == 1
+    assert preview["total"] == config.NATURAL_CONDITION_RECOVERY_PER_DAY + 1
+    assert [s["item_id"] for s in preview["sources"]] == ["estate-flat"]
 
     conn = sqlite3.connect(config.DB_PATH)
     conn.execute("UPDATE career_state SET condition = 20 WHERE career_id = ?", (career_id,))
@@ -241,7 +241,7 @@ def test_the_item_bonus_still_stops_at_the_attribute_ceiling(
     recovery shelf must still leave it at 100, not 103."""
     career_id = created_career["career_id"]
     grant_money(career_id, 20_000_000)
-    for catalog_id in ("home-treadmill", "estate-villa"):
+    for catalog_id in ("estate-flat", "estate-villa"):
         assert api_client.post(
             f"/careers/{career_id}/purchases", json={"catalog_id": catalog_id}
         ).status_code == 200
@@ -259,7 +259,7 @@ def test_owning_home_espresso_raises_daily_energy(api_client, created_career, mo
     career_id = created_career["career_id"]
     grant_money(career_id, 10_000)
     assert api_client.post(
-        f"/careers/{career_id}/purchases", json={"catalog_id": "home-espresso"}
+        f"/careers/{career_id}/purchases", json={"catalog_id": "home-coffee-machine"}
     ).status_code == 200
 
     body = api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"}).json()
@@ -274,7 +274,7 @@ def test_owning_personal_watch_raises_daily_fame(api_client, created_career, moc
     career_id = created_career["career_id"]
     grant_money(career_id, 10_000)
     assert api_client.post(
-        f"/careers/{career_id}/purchases", json={"catalog_id": "personal-watch"}
+        f"/careers/{career_id}/purchases", json={"catalog_id": "acc-swiss-watch"}
     ).status_code == 200
 
     api_client.post(f"/careers/{career_id}/advance", json={"to": "next_day"})
@@ -596,10 +596,10 @@ def test_post_purchase_has_the_gate_wired_too(api_client, created_career, monkey
 
     career_id = created_career["career_id"]
     grant_money(career_id, 100000)
-    item = next(i for i in shop.SHOP_ITEMS if i["catalog_id"] == "personal-boots")
+    item = next(i for i in shop.SHOP_ITEMS if i["catalog_id"] == "cloth-sneaker-white")
     monkeypatch.setitem(item, "requires", {"charisma": 9})
 
-    resp = api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "personal-boots"})
+    resp = api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "cloth-sneaker-white"})
     assert resp.status_code == 409
     assert resp.json()["code"] == "requirement_not_met"
     assert api_client.get(f"/careers/{career_id}/player").json()["career_state"]["money"] == (

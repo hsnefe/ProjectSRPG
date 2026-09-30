@@ -8,9 +8,15 @@ import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 import 'package:project_srpg/widgets/shop_item_card.dart';
 
+/// §14.2 · N3 `category` değerleriyle birebir aynı isimler. Altı giyilebilir
+/// kategori (`clothing`…`special`) artı eskiden beri var olan ikisi.
 enum ShopCategory {
-  home('Ev'),
-  personal('Kişisel'),
+  clothing('Giyim'),
+  accessory('Aksesuar'),
+  tech('Teknoloji'),
+  vehicle('Araç'),
+  living('Ev'),
+  special('Özel'),
   realEstate('Gayrimenkul'),
   investment('Yatırım');
 
@@ -28,15 +34,39 @@ enum ShopCategory {
 
 /// §5.8 — ikon ve renk tonu BE'den gelmez, FE'nin sunum kararı. `catalog_id`
 /// sabit olduğu için burada elle eşleniyor.
+const _iconBySlot = {
+  'shoes': Icons.directions_walk,
+  'top': Icons.checkroom,
+  'outerwear': Icons.dry_cleaning,
+  'formal': Icons.business_center,
+  'eyewear': Icons.visibility,
+  'bracelet': Icons.circle_outlined,
+  'wallet': Icons.account_balance_wallet,
+  'fragrance': Icons.spa,
+  'necklace': Icons.diamond_outlined,
+  'bag': Icons.backpack,
+  'watch': Icons.watch,
+  'ring': Icons.diamond,
+  'phone': Icons.smartphone,
+  'earbuds': Icons.headphones,
+  'stream_kit': Icons.mic,
+  'photographer': Icons.photo_camera,
+  'media_team': Icons.videocam,
+  'vehicle': Icons.directions_car,
+  'plants': Icons.local_florist,
+  'audio_home': Icons.album,
+  'kitchen': Icons.coffee,
+  'cinema': Icons.tv,
+  'art': Icons.palette,
+  'jersey': Icons.sports_soccer,
+  'goal_ball': Icons.sports_soccer,
+  'signature_boots': Icons.sports_soccer,
+  'membership': Icons.card_membership,
+  'foundation': Icons.volunteer_activism,
+};
+
+/// Yuvası olmayan kalemler (gayrimenkul, yatırım) kendi kimliğiyle eşlenir.
 const _iconByCatalogId = {
-  'home-tv': Icons.tv,
-  'home-espresso': Icons.coffee,
-  'home-console': Icons.sports_esports,
-  'home-treadmill': Icons.directions_run,
-  'personal-watch': Icons.watch,
-  'personal-boots': Icons.sports_soccer,
-  'personal-suit': Icons.checkroom,
-  'personal-headphones': Icons.headphones,
   'estate-studio': Icons.apartment,
   'estate-flat': Icons.location_city,
   'estate-villa': Icons.villa,
@@ -45,15 +75,18 @@ const _iconByCatalogId = {
   'invest-fund': Icons.trending_up,
 };
 
+/// Giyilebilir kalemlerin tonu kategoriden gelir; 40 kimliği tek tek saymaktan
+/// iyi, çünkü aynı kategori aynı renkte okunuyor.
+const _tintByCategory = {
+  'clothing': Color(0xFF4A5568),
+  'accessory': AppColors.warning,
+  'tech': AppColors.accent,
+  'vehicle': AppColors.success,
+  'living': Color(0xFFB07A4B),
+  'special': Color(0xFF7A5CD0),
+};
+
 const _tintByCatalogId = {
-  'home-tv': AppColors.accent,
-  'home-espresso': Color(0xFFB07A4B),
-  'home-console': Color(0xFF7A5CD0),
-  'home-treadmill': AppColors.success,
-  'personal-watch': AppColors.warning,
-  'personal-boots': AppColors.success,
-  'personal-suit': Color(0xFF4A5568),
-  'personal-headphones': AppColors.accent,
   'estate-studio': Color(0xFF5A7D9A),
   'estate-flat': AppColors.accent,
   'estate-villa': AppColors.success,
@@ -111,11 +144,18 @@ ShopItem _toShopItem(api.CatalogItem item) {
     id: item.catalogId,
     title: item.title,
     description: item.description ?? '',
-    icon: _iconByCatalogId[item.catalogId] ?? Icons.shopping_bag_outlined,
-    tint: _tintByCatalogId[item.catalogId] ?? _defaultTint,
+    icon: _iconByCatalogId[item.catalogId] ??
+        _iconBySlot[item.slot] ??
+        Icons.shopping_bag_outlined,
+    tint: _tintByCatalogId[item.catalogId] ??
+        _tintByCategory[item.group] ??
+        _defaultTint,
     price: item.price ?? 0,
     note: item.note,
     benefitLabel: _benefitLabelFor(item),
+    grade: item.grade,
+    slot: item.slot,
+    grantOnly: item.grantOnly,
   );
 }
 
@@ -154,12 +194,29 @@ class _ShopScreenState extends State<ShopScreen> {
   late final CareerSession _session = widget.session ?? CareerSession.instance;
   late Future<api.Catalog> _catalogFuture;
 
-  ShopCategory _category = ShopCategory.home;
+  ShopCategory _category = ShopCategory.clothing;
 
   @override
   void initState() {
     super.initState();
     _catalogFuture = _session.client.catalog('shop');
+    // PlayerScope'a ilk karede ulaşılır: initState'te bağımlılık kurulamaz.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadInventory());
+  }
+
+  /// §14.2 · sahiplik ve "giyili mi" sunucudan gelir. Ekran açılırken bir kez
+  /// çekilir; başarısızsa oturumdaki işaretlere güvenilir (vitrin yine çalışır).
+  Future<void> _loadInventory() async {
+    final player = PlayerScope.of(context);
+    try {
+      final careerId = await _session.resolveExisting();
+      if (careerId == null) return;
+      final items = await _session.client.inventory(careerId);
+      if (!mounted) return;
+      player.applyInventory(items);
+    } catch (_) {
+      // Katalog gelmiş olabilir; envanter gelmediyse vitrin boş sahiplikle açılır.
+    }
   }
 
   void _openItem(ShopItem item) {
@@ -267,11 +324,12 @@ class _ShopScreenState extends State<ShopScreen> {
                                 itemBuilder: (context, index) {
                                   final item = items[index];
                                   final owned = player.owns(item.id);
-                                  final affordable =
+                                  final affordable = item.grantOnly ||
                                       player.canAfford(item.price);
                                   return _HeroShopCard(
                                     item: item,
                                     owned: owned,
+                                    equipped: player.isEquipped(item.id),
                                     affordable: affordable,
                                     faded: !owned && !affordable,
                                     onTap: () => _openItem(item),
@@ -344,8 +402,9 @@ class _HeaderSection extends StatelessWidget {
   }
 }
 
-/// Yaşam Tarzı'ndaki ikili pil toggle'ın dörde genelleştirilmiş hâli: seçili
-/// segment [AnimatedPositioned] ile kayıyor, genişlik gelen alandan bölünüyor.
+/// Sekmeler. Yaşam Tarzı'ndaki ikili pil toggle dört segmentte rahattı; sekiz
+/// kategori tek satıra sığmıyor ve kaydırılan bir şerit, ekrandaki son sekmeyi
+/// görünmez bırakıyordu — bu yüzden sığmayanı alt satıra taşıyan çipler.
 class _CategoryTabs extends StatelessWidget {
   const _CategoryTabs({required this.category, required this.onChanged});
 
@@ -354,66 +413,28 @@ class _CategoryTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const height = 30.0;
-    const padding = 2.0;
-    const values = ShopCategory.values;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final segmentWidth =
-            (constraints.maxWidth - padding * 2) / values.length;
-
-        return Container(
-          height: height,
-          padding: const EdgeInsets.all(padding),
-          decoration: BoxDecoration(
-            color: AppColors.surface1,
-            borderRadius: BorderRadius.circular(999),
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final value in ShopCategory.values)
+          _TabLabel(
+            label: value.label,
+            selected: value == category,
+            onTap: () => onChanged(value),
           ),
-          child: Stack(
-            children: [
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 240),
-                curve: Curves.easeOutCubic,
-                left: segmentWidth * values.indexOf(category),
-                top: 0,
-                bottom: 0,
-                width: segmentWidth,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: AppColors.accent,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-              Row(
-                children: [
-                  for (final value in values)
-                    _TabLabel(
-                      width: segmentWidth,
-                      label: value.label,
-                      selected: value == category,
-                      onTap: () => onChanged(value),
-                    ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
+      ],
     );
   }
 }
 
 class _TabLabel extends StatelessWidget {
   const _TabLabel({
-    required this.width,
     required this.label,
     required this.selected,
     required this.onTap,
   });
 
-  final double width;
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -423,24 +444,19 @@ class _TabLabel extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: SizedBox(
-        width: width,
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: FittedBox(
-              child: AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 200),
-                style: TextStyle(
-                  color: selected
-                      ? AppColors.textPrimary
-                      : AppColors.textSecondary,
-                  fontSize: 11,
-                  fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
-                ),
-                child: Text(label),
-              ),
-            ),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.accent : AppColors.surface1,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+            fontSize: 11,
+            fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
           ),
         ),
       ),
@@ -454,6 +470,7 @@ class _HeroShopCard extends StatelessWidget {
   const _HeroShopCard({
     required this.item,
     required this.owned,
+    this.equipped = false,
     required this.affordable,
     this.faded = false,
     this.onTap,
@@ -463,6 +480,7 @@ class _HeroShopCard extends StatelessWidget {
 
   final ShopItem item;
   final bool owned;
+  final bool equipped;
   final bool affordable;
   final bool faded;
   final VoidCallback? onTap;
@@ -481,6 +499,7 @@ class _HeroShopCard extends StatelessWidget {
           child: ShopItemCard(
             item: item,
             owned: owned,
+            equipped: equipped,
             affordable: affordable,
             faded: faded,
             width: _cardWidth,
@@ -545,7 +564,10 @@ class _ShopItemDetailPageState extends State<_ShopItemDetailPage> {
       final careerId = await widget.session.resolve();
       final result = await widget.session.client.purchase(careerId, item.id);
       player.applyServerUpdate(careerState: result.careerState);
-      player.markOwned(item.id);
+      // §14.2 · yuva boşsa kalem satın alınır alınmaz giyilir; bonus da o an
+      // başlar, o yüzden nitelikleri (seviyeler BE'den) P1'den tazele.
+      player.markOwned(item.id, equipped: result.item.equipped);
+      if (result.item.equipped) player.load();
       if (!context.mounted) return;
       Navigator.of(context).pop();
       messenger.showSnackBar(
@@ -564,13 +586,42 @@ class _ShopItemDetailPageState extends State<_ShopItemDetailPage> {
     }
   }
 
+  /// §14.2 · `POST /inventory/{id}/equip|unequip`. Aynı yuvadaki öncekini
+  /// sunucu çıkarır (INV-66); istemci yalnız dönen listeyi yazar ve P1'i
+  /// tazeler, çünkü seviye ölçeği BE'de.
+  Future<void> _toggleEquip(BuildContext context, bool equipped) async {
+    final item = widget.item;
+    setState(() => _busy = true);
+    final player = PlayerScope.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final careerId = await widget.session.resolve();
+      final client = widget.session.client;
+      final result = equipped
+          ? await client.unequipItem(careerId, item.id)
+          : await client.equipItem(careerId, item.id);
+      player.applyServerUpdate(careerState: result.careerState);
+      player.applyInventory(result.items);
+      player.load();
+      if (!mounted) return;
+      setState(() => _busy = false);
+    } on CareerApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      messenger.showSnackBar(
+        SnackBar(content: Text(e.message ?? 'İşlem başarısız.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
     final animation = widget.animation;
     final player = PlayerScope.of(context);
     final owned = player.owns(item.id);
-    final affordable = player.canAfford(item.price);
+    final equipped = player.isEquipped(item.id);
+    final affordable = item.grantOnly || player.canAfford(item.price);
 
     final scrim = CurvedAnimation(parent: animation, curve: Curves.easeOut);
     final details = CurvedAnimation(
@@ -604,6 +655,7 @@ class _ShopItemDetailPageState extends State<_ShopItemDetailPage> {
                       _HeroShopCard(
                         item: item,
                         owned: owned,
+                        equipped: equipped,
                         affordable: affordable,
                         width: _detailCardWidth,
                         height: _detailCardHeight,
@@ -614,8 +666,12 @@ class _ShopItemDetailPageState extends State<_ShopItemDetailPage> {
                         child: _ItemDetails(
                           item: item,
                           owned: owned,
+                          equipped: equipped,
                           affordable: affordable,
                           onBuy: _busy ? null : () => _buy(context),
+                          onToggleEquip: _busy
+                              ? null
+                              : () => _toggleEquip(context, equipped),
                           busy: _busy,
                         ),
                       ),
@@ -637,17 +693,29 @@ class _ItemDetails extends StatelessWidget {
     required this.owned,
     required this.affordable,
     required this.onBuy,
+    this.equipped = false,
+    this.onToggleEquip,
     this.busy = false,
   });
 
   final ShopItem item;
   final bool owned;
+  final bool equipped;
   final bool affordable;
   final VoidCallback? onBuy;
+
+  /// §14.2 · sahip olunan giyilebilir kalemde düğme Tak/Çıkar'a döner.
+  final VoidCallback? onToggleEquip;
   final bool busy;
 
+  /// Sahip olunan giyilebilir kalemde tek düğme iki iş yapıyor: satın alma
+  /// bitti, geriye giymek ya da çıkarmak kalıyor.
+  bool get _wearable => owned && item.equippable;
+
   String get _buttonLabel {
+    if (_wearable) return equipped ? 'Çıkar' : 'Tak';
     if (owned) return 'Sahipsin';
+    if (item.grantOnly) return 'Bir olayla kazanılır';
     if (!affordable) return 'Bakiye yetersiz';
     return 'Satın Al';
   }
@@ -655,7 +723,7 @@ class _ItemDetails extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final note = item.note;
-    final enabled = !owned && affordable;
+    final enabled = _wearable || (!owned && !item.grantOnly && affordable);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -692,13 +760,13 @@ class _ItemDetails extends StatelessWidget {
                 ),
               if (owned)
                 _Badge(
-                  icon: Icons.check,
-                  label: 'Sahip',
+                  icon: equipped ? Icons.checkroom : Icons.check,
+                  label: equipped ? 'Takılı' : 'Sahip',
                   color: AppColors.success,
                 ),
               // §12.12 · `note`'dan ayrı, canlı bir rozet: sahip olunan bir
               // kalemin gerçekte ne sağladığı, vitrin metninden ayrışıyor.
-              if (owned && item.benefitLabel != null)
+              if (owned && (!item.equippable || equipped) && item.benefitLabel != null)
                 _Badge(
                   icon: Icons.auto_awesome,
                   label: item.benefitLabel!,
@@ -710,7 +778,7 @@ class _ItemDetails extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: enabled ? onBuy : null,
+              onPressed: enabled ? (_wearable ? onToggleEquip : onBuy) : null,
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.accent,
                 foregroundColor: AppColors.textPrimary,

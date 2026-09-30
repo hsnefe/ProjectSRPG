@@ -9,6 +9,7 @@ upkeep week) can take condition lower than 35; only a match itself can't."""
 import sqlite3
 
 from api import config
+from domain import inventory
 
 
 def get_ceiling(conn: sqlite3.Connection, career_id: str) -> float:
@@ -38,20 +39,16 @@ def daily_recovery(conn: sqlite3.Connection, career_id: str) -> dict:
     titles = {i["catalog_id"]: i["title"] for i in SHOP_ITEMS}
 
     base = config.NATURAL_CONDITION_RECOVERY_PER_DAY
-    rows = conn.execute(
-        "SELECT item_id FROM inventory WHERE career_id = ?", (career_id,)
-    ).fetchall()
-
     sources = []
-    for row in rows:
-        amount = DAILY_CONDITION_BONUS.get(row["item_id"])
+    for item_id in inventory.contributing_ids(conn, career_id):  # §14.2: worn rows only
+        amount = DAILY_CONDITION_BONUS.get(item_id)
         if amount:
             sources.append({
-                "item_id": row["item_id"],
+                "item_id": item_id,
                 # The title travels so the hub can name the source without a
                 # second N3 fetch; it is authored catalog text, not an
                 # assembled sentence (§1.3).
-                "title": titles.get(row["item_id"], row["item_id"]),
+                "title": titles.get(item_id, item_id),
                 "amount": amount,
             })
     sources.sort(key=lambda s: (-s["amount"], s["item_id"]))

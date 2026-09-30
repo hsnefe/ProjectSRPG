@@ -10,9 +10,10 @@ from api import config, errors, serializers
 from api.deps import get_db
 from api.schemas.time import ActionRequest, AdvanceRequest, PurchaseRequest
 from catalog.lifestyle import LIFESTYLE_ITEMS
+from catalog import grant_item_id
 from catalog.shop import SHOP_ITEMS
 from catalog.training import TRAINING_ITEMS
-from domain import activity_events, attributes, condition, day_budget, daytime, fame, requirements, social
+from domain import activity_events, attributes, condition, day_budget, daytime, fame, inventory, requirements, social
 from domain import relationships as relationships_domain
 from domain import season as season_mod
 from domain import sponsorship
@@ -64,10 +65,20 @@ def _apply_effects(
         "tactic_changes": [],
         "relationship_changes": [],
         "ledger_entries": [],
+        "granted_items": [],
     }
     for key, value in effects.items():
         if value is None:
             continue  # ⟦AÇIK-9⟧ etc. — placeholder effect, not active yet
+        granted_id = grant_item_id(key)
+        if granted_id is not None:
+            # §14.2 D82 - a story item changes hands. No money moves and the
+            # row is priced at 0; an already-owned item is simply not granted
+            # twice, so a repeated event cannot fail mid-transaction.
+            row = inventory.grant(conn, career_id, granted_id, happened_at[:10])
+            if row is not None:
+                out["granted_items"].append(row)
+            continue
         if key.startswith("attribute:"):
             out["attribute_changes"].append(
                 attributes.apply_delta(conn, career_id, config.USER_PLAYER_ID, key.split(":", 1)[1], value)
@@ -275,6 +286,9 @@ def post_purchase(career_id: str, body: PurchaseRequest, conn: sqlite3.Connectio
     if item is None:
         raise errors.invalid_request(f"unknown catalog_id {body.catalog_id!r}")
 
+    if item.get("acquire", "shop") != "shop":
+        raise errors.item_not_for_sale(body.catalog_id)  # §14.2 D82 - earned, not bought
+
     requirements.check(conn, career_id, config.USER_PLAYER_ID, item.get("requires"))
 
     owned = conn.execute(
@@ -291,12 +305,9 @@ def post_purchase(career_id: str, body: PurchaseRequest, conn: sqlite3.Connectio
     # §12.13 D65: weekly_return is frozen here, same reasoning as
     # price_paid/upkeep_weekly — a re-priced item in the catalog never
     # changes what an already-purchased row pays out.
-    weekly_return = round(item["price"] * item.get("weekly_return_rate", 0))
-    conn.execute(
-        "INSERT INTO inventory (career_id, item_id, purchased_at, price_paid, upkeep_weekly, weekly_return) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (career_id, body.catalog_id, current_date, item["price"], item["upkeep_weekly"], weekly_return),
-    )
+    # §14.2 D80: inventory.add() also freezes slot/grade and wears the item
+    # when its slot is empty. weekly_return is computed there from the same rule.
+    row = inventory.add(conn, career_id, item, current_date, item["price"])
     conn.commit()
 
     return {
@@ -304,6 +315,7 @@ def post_purchase(career_id: str, body: PurchaseRequest, conn: sqlite3.Connectio
         "item": {
             "catalog_id": body.catalog_id, "purchased_at": current_date,
             "price_paid": item["price"], "upkeep_weekly": item["upkeep_weekly"],
+            "slot": row["slot"], "grade": row["grade"], "equipped": row["equipped"],
         },
         "ledger_entries": [entry],
     }

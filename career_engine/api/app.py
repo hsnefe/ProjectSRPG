@@ -8,11 +8,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from api import config
 from api.errors import install_exception_handlers
 from api.routers import (
-    careers, catalog, matches, news, player, relationships, season, social,
+    careers, catalog, inventory, matches, news, player, relationships, season, social,
     sponsorship, time, transfer, world,
 )
 from db.connection import get_connection
 from db.migrate import apply_migrations
+from domain import legacy_items
 
 
 @asynccontextmanager
@@ -22,6 +23,8 @@ async def _lifespan(app: FastAPI):
     conn = get_connection(config.DB_PATH)
     try:
         apply_migrations(conn)
+        # §14.2 D81 - pays back or converts pre-gear shop rows; idempotent.
+        legacy_items.reconcile(conn)
     finally:
         conn.close()
     yield
@@ -52,6 +55,7 @@ def create_app() -> FastAPI:
     app.include_router(season.router)
     app.include_router(transfer.router)
     app.include_router(sponsorship.router)
+    app.include_router(inventory.router)
 
     return app
 

@@ -49,24 +49,24 @@ def test_buying_an_item_raises_the_effective_value_not_the_base(api_client, crea
     """INV-60 - the stored column never moves. The bonus is derived per read."""
     career_id = created_career["career_id"]
     grant_money(career_id, 10000)
-    set_attribute(career_id, "empathy", 58.0)
+    set_attribute(career_id, "charisma", 58.0)
 
-    before = _attribute(api_client, career_id, "empathy")
+    before = _attribute(api_client, career_id, "charisma")
     assert (before["value"], before["passive_bonus"], before["effective_value"]) == (58.0, 0, 58.0)
 
-    resp = api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "personal-suit"})
+    resp = api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "cloth-tailored-suit"})
     assert resp.status_code == 200
 
-    after = _attribute(api_client, career_id, "empathy")
+    after = _attribute(api_client, career_id, "charisma")
     assert after["value"] == 58.0              # base untouched (INV-60)
-    assert after["passive_bonus"] == 3.0       # personal-suit
-    assert after["effective_value"] == 61.0
-    assert after["level"] == 6                 # D74: derived from the EFFECTIVE value
+    assert after["passive_bonus"] == 1.5       # cloth-tailored-suit
+    assert after["effective_value"] == 59.5
+    assert after["level"] == 5                 # D74: derived from the EFFECTIVE value
 
     conn = _db()
     try:
         stored = conn.execute(
-            "SELECT value FROM player_attribute WHERE career_id = ? AND attribute_key = 'empathy'",
+            "SELECT value FROM player_attribute WHERE career_id = ? AND attribute_key = 'charisma'",
             (career_id,),
         ).fetchone()["value"]
     finally:
@@ -80,21 +80,21 @@ def test_bonus_disappears_with_the_item(api_client, created_career):
     even tested."""
     career_id = created_career["career_id"]
     grant_money(career_id, 10000)
-    set_attribute(career_id, "empathy", 58.0)
-    api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "personal-suit"})
-    assert _attribute(api_client, career_id, "empathy")["effective_value"] == 61.0
+    set_attribute(career_id, "charisma", 58.0)
+    api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "cloth-tailored-suit"})
+    assert _attribute(api_client, career_id, "charisma")["effective_value"] == 59.5
 
     # The way D29 repossession takes it away: the inventory row goes.
     conn = _db()
     try:
         conn.execute(
-            "DELETE FROM inventory WHERE career_id = ? AND item_id = 'personal-suit'", (career_id,)
+            "DELETE FROM inventory WHERE career_id = ? AND item_id = 'cloth-tailored-suit'", (career_id,)
         )
         conn.commit()
     finally:
         conn.close()
 
-    after = _attribute(api_client, career_id, "empathy")
+    after = _attribute(api_client, career_id, "charisma")
     assert (after["value"], after["passive_bonus"], after["effective_value"]) == (58.0, 0, 58.0)
 
 
@@ -103,10 +103,10 @@ def test_effective_value_is_clamped_to_one_hundred(api_client, created_career):
     threshold can express (MAX_REQUIREMENT_LEVEL is 10)."""
     career_id = created_career["career_id"]
     grant_money(career_id, 10000)
-    set_attribute(career_id, "empathy", 99.0)
-    api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "personal-suit"})
+    set_attribute(career_id, "charisma", 99.0)
+    api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "cloth-tailored-suit"})
 
-    attr = _attribute(api_client, career_id, "empathy")
+    attr = _attribute(api_client, career_id, "charisma")
     assert attr["effective_value"] == 100.0
     assert attr["level"] == 10
 
@@ -124,9 +124,9 @@ def test_a_bought_item_opens_a_gate(api_client, created_career):
     assert refused.status_code == 409
     assert refused.json()["code"] == "requirement_not_met"
 
-    # personal-watch carries charisma +2.0 -> effective 70.0 -> level 7.
+    # acc-swiss-watch carries charisma +2.0 -> effective 70.0 -> level 7.
     assert api_client.post(
-        f"/careers/{career_id}/purchases", json={"catalog_id": "personal-watch"}
+        f"/careers/{career_id}/purchases", json={"catalog_id": "acc-swiss-watch"}
     ).status_code == 200
     assert _attribute(api_client, career_id, "charisma")["level"] == 7
 
@@ -140,7 +140,7 @@ def test_change_levels_are_reported_from_the_effective_value(api_client, created
     career_id = created_career["career_id"]
     grant_money(career_id, 10000)
     set_attribute(career_id, "charisma", 68.0)
-    api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "personal-watch"})  # +2
+    api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "acc-swiss-watch"})  # +2
 
     # sos-arkadas gives charisma +0.3: base 68.0 -> 68.3, effective 70.0 -> 70.3.
     resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "sos-arkadas"})

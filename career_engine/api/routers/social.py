@@ -20,7 +20,8 @@ from fastapi import APIRouter, Depends
 
 from api import config, errors, serializers
 from api.deps import get_db
-from domain import attributes, condition, day_budget, fame, requirements, social, wallet
+from catalog import grant_item_id
+from domain import attributes, condition, day_budget, fame, inventory, requirements, social, wallet
 from domain import relationships as relationships_domain
 
 router = APIRouter(prefix="/careers/{career_id}/social", tags=["social"])
@@ -84,6 +85,11 @@ def _apply_effects(
     for key, value in effects.items():
         if value is None:
             continue  # placeholder effect, not active yet (⟦AÇIK-9⟧)
+        granted_id = grant_item_id(key)
+        if granted_id is not None:
+            # §14.2 D82 - same hand-over as T2/T6's copy of this loop.
+            inventory.grant(conn, career_id, granted_id, happened_at[:10])
+            continue
         if key.startswith("attribute:"):
             attribute_changes.append(
                 attributes.apply_delta(conn, career_id, config.USER_PLAYER_ID, key.split(":", 1)[1], value)

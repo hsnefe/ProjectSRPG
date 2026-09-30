@@ -12,39 +12,38 @@ import 'package:project_srpg/screens/shop_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/widgets/shop_item_card.dart';
 
-/// N3 `shop` kataloğu — career_engine/catalog/shop.py'nin 14 kaleminin
-/// (dört kategori) aynısı. `category` alanı [ShopCategory]'nin isimleriyle
-/// birebir eşleşir (§5.7).
+/// N3 `shop` kataloğu — career_engine/catalog/shop.py'nin bir kesiti: her
+/// kategoriden en az bir kalem. `category` alanı [ShopCategory]'nin isimleriyle
+/// birebir eşleşir (§5.7); giyilebilir kalemler §14.2'nin `slot`/`grade`/`acquire`
+/// alanlarını taşır.
 const _shopItems = [
-  {'catalog_id': 'home-tv', 'title': 'Akıllı TV', 'category': 'home',
-   'description': '…', 'price': 32000, 'upkeep_weekly': 0, 'note': '65 inç, 4K'},
-  {'catalog_id': 'home-espresso', 'title': 'Espresso makinesi', 'category': 'home',
+  {'catalog_id': 'cloth-tailored-suit', 'title': 'Takım elbise', 'category': 'clothing',
+   'description': '…', 'price': 15400, 'upkeep_weekly': 0, 'note': 'Ismarlama',
+   'slot': 'formal', 'grade': 3, 'acquire': 'shop'},
+  {'catalog_id': 'acc-smart-watch', 'title': 'Akıllı saat', 'category': 'accessory',
+   'description': '…', 'price': 9000, 'upkeep_weekly': 0, 'note': 'Uyku takibi',
+   'slot': 'watch', 'grade': 2, 'acquire': 'shop'},
+  {'catalog_id': 'acc-swiss-watch', 'title': 'İsviçre saati', 'category': 'accessory',
+   'description': '…', 'price': 27500, 'upkeep_weekly': 0, 'note': 'Mekanik',
+   'slot': 'watch', 'grade': 4, 'acquire': 'shop'},
+  {'catalog_id': 'tech-earbuds', 'title': 'Kulaklık', 'category': 'tech',
+   'description': '…', 'price': 6200, 'upkeep_weekly': 0, 'note': 'Gürültü engelleyici',
+   'slot': 'earbuds', 'grade': 1, 'acquire': 'shop'},
+  {'catalog_id': 'veh-scooter', 'title': 'Elektrikli scooter', 'category': 'vehicle',
+   'description': '…', 'price': 9000, 'upkeep_weekly': 0, 'note': 'Sempatik',
+   'slot': 'vehicle', 'grade': 1, 'acquire': 'shop'},
+  {'catalog_id': 'home-coffee-machine', 'title': 'Kahve makinesi', 'category': 'living',
    'description': '…', 'price': 12500, 'upkeep_weekly': 0, 'note': 'Otomatik öğütücülü',
-   'daily_effects': {'energy': 3}},
-  {'catalog_id': 'home-console', 'title': 'Oyun konsolu', 'category': 'home',
-   'description': '…', 'price': 18900, 'upkeep_weekly': 0, 'note': 'İki kollu'},
-  {'catalog_id': 'home-treadmill', 'title': 'Koşu bandı', 'category': 'home',
-   'description': '…', 'price': 41000, 'upkeep_weekly': 0, 'note': 'Eğimli, 20 km/s'},
-  {'catalog_id': 'personal-watch', 'title': 'Kol saati', 'category': 'personal',
-   'description': '…', 'price': 27500, 'upkeep_weekly': 0, 'note': 'Çelik kasa'},
-  {'catalog_id': 'personal-boots', 'title': 'Krampon', 'category': 'personal',
-   'description': '…', 'price': 8900, 'upkeep_weekly': 0, 'note': 'Kişiye özel kalıp'},
-  {'catalog_id': 'personal-suit', 'title': 'Takım elbise', 'category': 'personal',
-   'description': '…', 'price': 15400, 'upkeep_weekly': 0, 'note': 'Ismarlama'},
-  {'catalog_id': 'personal-headphones', 'title': 'Kulaklık', 'category': 'personal',
-   'description': '…', 'price': 6200, 'upkeep_weekly': 0, 'note': 'Gürültü engelleyici'},
+   'slot': 'kitchen', 'grade': 1, 'acquire': 'shop', 'daily_effects': {'energy': 3}},
+  {'catalog_id': 'special-foundation', 'title': 'Hayır vakfı', 'category': 'special',
+   'description': '…', 'price': 0, 'upkeep_weekly': 0, 'note': 'Bir olayla kazanılır',
+   'slot': 'foundation', 'grade': 5, 'acquire': 'grant'},
   {'catalog_id': 'estate-studio', 'title': 'Stüdyo daire', 'category': 'realEstate',
    'description': '…', 'price': 1850000, 'upkeep_weekly': 800, 'note': '1+0, 55 m²'},
-  {'catalog_id': 'estate-flat', 'title': 'Şehir merkezi daire', 'category': 'realEstate',
-   'description': '…', 'price': 4600000, 'upkeep_weekly': 1800, 'note': '3+1, 120 m²'},
   {'catalog_id': 'estate-villa', 'title': 'Deniz manzaralı villa', 'category': 'realEstate',
    'description': '…', 'price': 12750000, 'upkeep_weekly': 4500, 'note': 'Havuzlu, 380 m²'},
-  {'catalog_id': 'invest-bond', 'title': 'Devlet tahvili', 'category': 'investment',
-   'description': '…', 'price': 25000, 'upkeep_weekly': 0, 'note': 'Yıllık %28 getiri'},
   {'catalog_id': 'invest-gold', 'title': 'Altın', 'category': 'investment',
    'description': '…', 'price': 40000, 'upkeep_weekly': 0, 'note': '100 gram'},
-  {'catalog_id': 'invest-fund', 'title': 'Hisse portföyü', 'category': 'investment',
-   'description': '…', 'price': 120000, 'upkeep_weekly': 0, 'note': 'Orta risk'},
 ];
 
 http.Response _json(Object body, {int status = 200}) => http.Response(
@@ -58,7 +57,15 @@ http.Response _json(Object body, {int status = 200}) => http.Response(
 /// döner — "bakiye yetmeyen ürün" testi bunu kullanır.
 CareerSession _shopSession({
   Map<String, int> purchaseResponses = const {},
+  List<Map<String, dynamic>> inventory = const [],
 }) {
+  // §14.2 · sunucunun envanter durumu; equip/unequip uçları bunu değiştirir.
+  final owned = [...inventory];
+  Map<String, dynamic> careerState() => {
+        'current_date': '2026-08-05', 'season_id': '25/26',
+        'money': 48200, 'condition': 72,
+        'day_budget': {'time': 720.0},
+      };
   final mock = MockClient((request) async {
     if (request.url.path == '/catalog/shop') {
       return _json({'items': _shopItems});
@@ -71,6 +78,25 @@ CareerSession _shopSession({
             'season_id': '25/26', 'current_date': '2026-08-05',
           }
         ],
+      });
+    }
+    if (request.url.path == '/careers/car_test/inventory') {
+      return _json({'items': owned});
+    }
+    final equipMatch = RegExp(r'^/careers/car_test/inventory/([\w-]+)/(equip|unequip)$')
+        .firstMatch(request.url.path);
+    if (equipMatch != null) {
+      final id = equipMatch.group(1)!;
+      final on = equipMatch.group(2) == 'equip';
+      final slot = owned.firstWhere((i) => i['catalog_id'] == id)['slot'];
+      for (final row in owned) {
+        if (row['slot'] == slot) row['equipped'] = on && row['catalog_id'] == id;
+      }
+      return _json({
+        'career_state': careerState(),
+        'items': owned,
+        'passive_bonus': const {},
+        'condition_recovery': const {},
       });
     }
     if (request.url.path == '/careers/car_test/purchases') {
@@ -89,9 +115,13 @@ CareerSession _shopSession({
           'money': newMoney, 'condition': 72,
           'day_budget': {'time': 720.0},
         },
+        // §14.2 · yuvası boşken satın alınan giyilebilir kalem hemen giyilir.
         'item': {
           'catalog_id': catalogId, 'purchased_at': '2026-08-05',
           'price_paid': 48200 - newMoney, 'upkeep_weekly': 0,
+          'slot': _shopItems.firstWhere((i) => i['catalog_id'] == catalogId)['slot'],
+          'grade': _shopItems.firstWhere((i) => i['catalog_id'] == catalogId)['grade'],
+          'equipped': true,
         },
         'ledger_entries': const [],
       });
@@ -127,12 +157,15 @@ void main() {
     expect(find.text('Alışveriş'), findsOneWidget);
     expect(find.text('48.200 ₭'), findsOneWidget);
     expect(find.byType(ShopItemCard), findsWidgets);
-    expect(find.text('Akıllı TV'), findsOneWidget);
+    // Varsayılan sekme Giyim.
+    expect(find.text('Takım elbise'), findsOneWidget);
+    // §14.2 · derece, kartın köşesinde.
+    expect(find.text('3'), findsWidgets);
 
     await tester.tap(find.text('Gayrimenkul'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Akıllı TV'), findsNothing);
+    expect(find.text('Takım elbise'), findsNothing);
     expect(find.text('Stüdyo daire'), findsOneWidget);
 
     await tester.tap(find.text('Yatırım'));
@@ -143,11 +176,11 @@ void main() {
 
   testWidgets('alınabilir ürün parayı düşürür ve sahiplenilir', (tester) async {
     await tester.pumpWidget(_wrap(ShopScreen(
-      session: _shopSession(purchaseResponses: {'personal-headphones': 42000}),
+      session: _shopSession(purchaseResponses: {'tech-earbuds': 42000}),
     )));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Kişisel'));
+    await tester.tap(find.text('Teknoloji'));
     await tester.pumpAndSettle();
 
     await tester.tap(_card('Kulaklık'));
@@ -163,22 +196,26 @@ void main() {
     expect(find.text('Satın Al'), findsNothing);
     expect(find.text('42.000 ₭'), findsOneWidget);
 
-    // Kart artık sahip olarak işaretli ve tekrar alınamıyor.
-    expect(find.text('Sahip'), findsOneWidget);
+    // Kart artık sahip olarak işaretli (yuva boştu: hemen giyildi) ve
+    // tekrar alınamıyor; düğme Çıkar'a döndü.
+    expect(find.text('Takılı'), findsOneWidget);
 
     await tester.tap(_card('Kulaklık'));
     await tester.pumpAndSettle();
-    expect(find.text('Sahipsin'), findsOneWidget);
+    expect(find.text('Çıkar'), findsOneWidget);
     expect(find.text('Satın Al'), findsNothing);
   });
 
   testWidgets('§12.12 · sahip olununca canlı fayda rozeti belirir', (tester) async {
     await tester.pumpWidget(_wrap(ShopScreen(
-      session: _shopSession(purchaseResponses: {'home-espresso': 35700}),
+      session: _shopSession(purchaseResponses: {'home-coffee-machine': 35700}),
     )));
     await tester.pumpAndSettle();
 
-    await tester.tap(_card('Espresso makinesi'));
+    await tester.tap(find.text('Ev'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(_card('Kahve makinesi'));
     await tester.pumpAndSettle();
 
     // Henüz sahip değil: not rozeti var, canlı fayda rozeti yok.
@@ -188,12 +225,59 @@ void main() {
     await tester.tap(find.text('Satın Al'));
     await tester.pumpAndSettle();
 
-    await tester.tap(_card('Espresso makinesi'));
+    await tester.tap(_card('Kahve makinesi'));
     await tester.pumpAndSettle();
 
     // Artık sahip: not hâlâ orada, ama ayrıca canlı fayda rozeti de var.
     expect(find.textContaining('Otomatik öğütücülü'), findsOneWidget);
     expect(find.text('Günlük +3 enerji'), findsOneWidget);
+  });
+
+  testWidgets('§14.2 · aynı yuvadaki iki saatten biri giyilir, Tak diğerini çıkarır',
+      (tester) async {
+    await tester.pumpWidget(_wrap(ShopScreen(
+      session: _shopSession(inventory: [
+        {'catalog_id': 'acc-smart-watch', 'slot': 'watch', 'grade': 2, 'equipped': true},
+        {'catalog_id': 'acc-swiss-watch', 'slot': 'watch', 'grade': 4, 'equipped': false},
+      ]),
+    )));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Aksesuar'));
+    await tester.pumpAndSettle();
+
+    // Sunucudaki envanter: biri giyili, biri dolapta.
+    expect(find.text('Takılı'), findsOneWidget);
+    expect(find.text('Sahip'), findsOneWidget);
+
+    await tester.tap(_card('İsviçre saati'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tak'), findsOneWidget);
+
+    await tester.tap(find.text('Tak'));
+    await tester.pumpAndSettle();
+
+    // Düğme Çıkar'a döndü; yuvayı sunucu devretti.
+    expect(find.text('Çıkar'), findsOneWidget);
+
+    await tester.tap(find.text('Çıkar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tak'), findsOneWidget);
+  });
+
+  testWidgets('§14.2 · olayla kazanılan kalem satın alınamaz', (tester) async {
+    await tester.pumpWidget(_wrap(ShopScreen(session: _shopSession())));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Özel'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(_card('Hayır vakfı'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bir olayla kazanılır'), findsWidgets);
+    expect(find.text('Satın Al'), findsNothing);
+    expect(find.text('Bakiye yetersiz'), findsNothing);
   });
 
   testWidgets('bakiye yetmeyen ürün alınamaz', (tester) async {

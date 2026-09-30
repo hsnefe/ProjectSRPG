@@ -140,7 +140,7 @@ def test_get_catalog_lifestyle(api_client):
 def test_get_catalog_shop(api_client):
     resp = api_client.get("/catalog/shop")
     assert resp.status_code == 200
-    assert len(resp.json()["items"]) == 14
+    assert len(resp.json()["items"]) == 46
 
 
 def test_get_catalog_unknown_kind_errors(api_client):

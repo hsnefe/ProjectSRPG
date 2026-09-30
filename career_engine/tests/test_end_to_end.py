@@ -13,7 +13,7 @@ from catalog.shop import SHOP_ITEMS
 
 # Read from the catalog, not copied: a reprice (the ₺ -> ₭ move) should not
 # break a test that is about money moving, not about what boots cost.
-BOOTS_PRICE = next(i["price"] for i in SHOP_ITEMS if i["catalog_id"] == "personal-boots")
+BOOTS_PRICE = next(i["price"] for i in SHOP_ITEMS if i["catalog_id"] == "cloth-sneaker-white")
 from tests.conftest import grant_money, set_attribute
 from worlddata.relationships import STARTING_SCORES
 
@@ -101,7 +101,7 @@ def test_full_career_session(api_client, mock_engine):
     # 6. Buy something — money moves, budget doesn't. A career starts at
     #    STARTING_MONEY (§4), which is far below shop prices, so fund it first.
     grant_money(career_id, 20000)
-    buy = api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "personal-boots"})
+    buy = api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "cloth-sneaker-white"})
     assert buy.status_code == 200
     money_after_purchase = buy.json()["career_state"]["money"]
     assert money_after_purchase == config.STARTING_MONEY + 20000 - BOOTS_PRICE

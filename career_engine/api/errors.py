@@ -55,6 +55,21 @@ def already_owned(item_id: str) -> ApiError:
     return ApiError(409, "already_owned", f"{item_id!r} is already owned")
 
 
+# §14.2 - gear. `item_not_owned` is a 404 (the row does not exist, same reading
+# as social_offer_not_found); the other two are 409 because the request is
+# well-formed and the item's own nature rejects it.
+def item_not_owned(item_id: str) -> ApiError:
+    return ApiError(404, "item_not_owned", f"{item_id!r} is not in the inventory")
+
+
+def item_not_equippable(item_id: str) -> ApiError:
+    return ApiError(409, "item_not_equippable", f"{item_id!r} has no slot to equip into")
+
+
+def item_not_for_sale(item_id: str) -> ApiError:
+    return ApiError(409, "item_not_for_sale", f"{item_id!r} is earned, not bought")
+
+
 # §9 - social offers get their OWN codes rather than a generic offer_*
 # family. §11.9 reserves `offer_not_found` / `offer_not_open` for transfer
 # offers (S3/S4), a different mechanic with a different lifetime; sharing the

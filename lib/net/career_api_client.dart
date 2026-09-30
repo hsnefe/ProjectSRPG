@@ -591,6 +591,27 @@ class CareerApiClient {
     return PurchaseResult.fromJson(body);
   }
 
+  /// §14.2 · `GET /careers/{cid}/inventory` — sahip olunanlar ve hangisinin
+  /// giyili olduğu. Daha önce yoktu; istemci yalnız oturumda aldıklarını biliyordu.
+  Future<List<InventoryItem>> inventory(String careerId) async {
+    final body = await _get('/careers/$careerId/inventory');
+    return [
+      for (final row in (body['items'] as List<dynamic>))
+        InventoryItem.fromJson(row as Map<String, dynamic>),
+    ];
+  }
+
+  /// §14.2 · giyer; aynı yuvadaki öncekini çıkarır (INV-66).
+  Future<EquipResult> equipItem(String careerId, String catalogId) async {
+    final body = await _post('/careers/$careerId/inventory/$catalogId/equip');
+    return EquipResult.fromJson(body);
+  }
+
+  Future<EquipResult> unequipItem(String careerId, String catalogId) async {
+    final body = await _post('/careers/$careerId/inventory/$catalogId/unequip');
+    return EquipResult.fromJson(body);
+  }
+
   // ---------------------------------------------------------------------
   // §5.6 Maç — M1-M3
   // ---------------------------------------------------------------------

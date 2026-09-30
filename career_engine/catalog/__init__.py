@@ -16,6 +16,9 @@ _ATTRIBUTE_KEY = re.compile(r"^attribute:(\w+)$")
 _TACTIC_KEY = re.compile(r"^tactic:(\w+)$")
 _FAME_KEY = re.compile(r"^fame:(\w+)$")
 _RELATIONSHIP_KEY = re.compile(r"^relationship:(\w+)$")
+# §14.2 D82 - hands over a grant-only gear item. Catalog ids carry hyphens, so
+# `\w+` would not do; the value is always 1 (see validate_grant_effects).
+_GRANT_ITEM_KEY = re.compile(r"^grant_item:([\w-]+)$")
 _SIMPLE_EFFECT_KEYS = {"condition", "energy", "money"}
 
 # D41 - the only cost dimensions any catalog item may spend from
@@ -64,7 +67,15 @@ def _is_known_effect_key(key: str) -> bool:
     m = _TACTIC_KEY.match(key)
     if m:
         return m.group(1) in TACTIC_KEYS
-    return bool(_FAME_KEY.match(key) or _RELATIONSHIP_KEY.match(key))
+    return bool(
+        _FAME_KEY.match(key) or _RELATIONSHIP_KEY.match(key) or _GRANT_ITEM_KEY.match(key)
+    )
+
+
+def grant_item_id(key: str):
+    """The catalog id inside a `grant_item:<id>` effect key, or None."""
+    m = _GRANT_ITEM_KEY.match(key)
+    return m.group(1) if m else None
 
 
 def validate_requires(requires: dict, where: str) -> None:

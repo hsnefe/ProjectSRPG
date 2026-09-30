@@ -29,33 +29,33 @@ def test_empty_inventory_recovers_the_flat_base(db_conn, career_id):
 
 
 def test_an_owned_item_raises_the_daily_rate(db_conn, career_id):
-    own(db_conn, career_id, "home-treadmill")
+    own(db_conn, career_id, "estate-flat")
     recovery = condition.daily_recovery(db_conn, career_id)
 
-    bonus = DAILY_CONDITION_BONUS["home-treadmill"]
+    bonus = DAILY_CONDITION_BONUS["estate-flat"]
     assert recovery["bonus"] == bonus
     assert recovery["total"] == config.NATURAL_CONDITION_RECOVERY_PER_DAY + bonus
     assert recovery["sources"] == [
-        {"item_id": "home-treadmill", "title": "Koşu bandı", "amount": bonus}
+        {"item_id": "estate-flat", "title": "Şehir merkezi daire", "amount": bonus}
     ]
 
 
 def test_items_without_a_daily_effect_contribute_nothing(db_conn, career_id):
-    own(db_conn, career_id, "home-tv", "personal-watch")
+    own(db_conn, career_id, "home-cinema", "acc-smart-watch")
     recovery = condition.daily_recovery(db_conn, career_id)
     assert recovery["bonus"] == 0
     assert recovery["sources"] == []
 
 
 def test_bonuses_from_several_items_add_up_and_are_ordered(db_conn, career_id):
-    own(db_conn, career_id, "estate-villa", "home-treadmill", "home-tv")
+    own(db_conn, career_id, "estate-villa", "estate-flat", "home-cinema")
     recovery = condition.daily_recovery(db_conn, career_id)
 
     assert recovery["bonus"] == (
-        DAILY_CONDITION_BONUS["home-treadmill"] + DAILY_CONDITION_BONUS["estate-villa"]
+        DAILY_CONDITION_BONUS["estate-flat"] + DAILY_CONDITION_BONUS["estate-villa"]
     )
     # Biggest contributor first, so a UI listing them needs no sort of its own.
-    assert [s["item_id"] for s in recovery["sources"]] == ["home-treadmill", "estate-villa"]
+    assert [s["item_id"] for s in recovery["sources"]] == ["estate-flat", "estate-villa"]
 
 
 def test_an_inventory_row_for_a_dropped_item_does_not_explode(db_conn, career_id):
@@ -67,10 +67,10 @@ def test_an_inventory_row_for_a_dropped_item_does_not_explode(db_conn, career_id
 
 def test_total_is_capped(db_conn, career_id, monkeypatch):
     monkeypatch.setattr(config, "MAX_CONDITION_RECOVERY_PER_DAY", 6)
-    own(db_conn, career_id, "home-treadmill", "estate-villa")
+    own(db_conn, career_id, "estate-flat", "estate-villa")
     recovery = condition.daily_recovery(db_conn, career_id)
 
-    assert recovery["bonus"] == 3          # uncapped sum is still reported
+    assert recovery["bonus"] == 2          # uncapped sum is still reported
     assert recovery["total"] == 6          # INV-41
     assert recovery["capped"] is True
 
@@ -85,9 +85,9 @@ def test_the_bonus_never_lifts_condition_past_the_attribute_ceiling(db_conn, car
         (career_id, player_id),
     )
     db_conn.execute("UPDATE career_state SET condition = 79 WHERE career_id = ?", (career_id,))
-    own(db_conn, career_id, "home-treadmill", "estate-villa")
+    own(db_conn, career_id, "estate-flat", "estate-villa")
 
     recovery = condition.daily_recovery(db_conn, career_id)
-    assert recovery["total"] == 8
+    assert recovery["total"] == 7
 
     assert condition.apply_delta(db_conn, career_id, recovery["total"]) == 80
