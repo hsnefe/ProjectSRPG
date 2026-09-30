@@ -14,6 +14,7 @@ from catalog import grant_item_id
 from catalog.shop import SHOP_ITEMS
 from catalog.training import TRAINING_ITEMS
 from domain import activity_events, attributes, condition, day_budget, daytime, fame, inventory, requirements, social
+from domain import social_activity
 from domain import relationships as relationships_domain
 from domain import season as season_mod
 from domain import sponsorship
@@ -143,6 +144,11 @@ def post_action(career_id: str, body: ActionRequest, conn: sqlite3.Connection = 
     # threshold isn't met can't have cost the player a minute of the day.
     requirements.check(conn, career_id, config.USER_PLAYER_ID, item.get("requires"))
 
+    # §14.3 D84 - who it is done with. Like the gate above it reads and never
+    # writes, and it comes before the budget for the same reason.
+    partner = social_activity.resolve_partner(conn, career_id, item, body.relationship_id)
+    effects = social_activity.effects_for(item, partner)
+
     happened_at = f"{_current_date(conn, career_id)}T00:00:00+03:00"
 
     # INV-4: check + deduct budget before anything else; writes nothing if
@@ -156,7 +162,30 @@ def post_action(career_id: str, body: ActionRequest, conn: sqlite3.Connection = 
     # the card would simply be gone from the next R1 with nothing in the
     # response to explain it.
     states_before = relationships_domain.state_snapshot(conn, career_id)
-    applied = _apply_effects(conn, career_id, item["effects"], source, reason, happened_at)
+    applied = _apply_effects(conn, career_id, effects, source, reason, happened_at)
+
+    # §14.3 D85 - a risky activity rolls AFTER its normal effects, and what it
+    # loses comes on top of them: the evening still happened, it just cost more.
+    fail_effects = None
+    risk = social_activity.roll_risk(
+        conn, career_id, item, _current_date(conn, career_id), _seed(conn, career_id)
+    )
+    if risk is not None and risk["failed"]:
+        lost = social_activity.fail_effects_for(conn, career_id, item)
+        social_activity.merge_applied(
+            applied, _apply_effects(conn, career_id, lost, source, f"{reason}:fail", happened_at)
+        )
+        fail_effects = lost
+
+    # §14.7 - a media activity may make the papers. The failure headline only
+    # exists on an activity that can fail; a success headline is optional.
+    news_id = None
+    story = (item.get("news") or {}).get("fail" if risk and risk["failed"] else "ok")
+    if story is not None:
+        news_id = daytime._create_news(
+            conn, career_id, story["category"], story["title"], story["body"],
+            _current_date(conn, career_id), source=story.get("source", "Kulüp Bülteni"),
+        )
     state_changes = relationships_domain.state_diff(
         states_before, relationships_domain.state_snapshot(conn, career_id)
     )
@@ -181,7 +210,10 @@ def post_action(career_id: str, body: ActionRequest, conn: sqlite3.Connection = 
         "applied_effects, payload) VALUES (?, ?, ?, ?, ?, ?, ?)",
         (
             career_id, happened_at, source, body.catalog_id,
-            json.dumps(item["costs"]), json.dumps(item["effects"]),
+            json.dumps(item["costs"]),
+            # The log is flat; what a failed roll added sits under `fail:` keys
+            # so an audit can tell the normal effects from the penalty.
+            json.dumps({**effects, **{f"fail:{k}": v for k, v in (fail_effects or {}).items()}}),
             json.dumps(body.result, ensure_ascii=False) if body.result is not None else None,
         ),
     )
@@ -190,8 +222,13 @@ def post_action(career_id: str, body: ActionRequest, conn: sqlite3.Connection = 
     return {
         "career_state": serializers.fetch_career_state(conn, career_id),
         "applied_costs": item["costs"],
-        "applied_effects": item["effects"],
+        "applied_effects": effects,
         **applied,
+        # §14.3 - null for a safe activity; FE shows "it went wrong" from it.
+        "risk": risk,
+        "fail_effects": fail_effects,
+        "with": partner,
+        "news_id": news_id,
         "relationship_state_changes": state_changes,   # §13.2 - empty list, never null
         # §13.4 - null on the overwhelming majority of actions. FE opens the
         # panel when it is not.

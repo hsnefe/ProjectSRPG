@@ -16,6 +16,9 @@ class LifestyleActivity {
     this.conditionDelta = 0,
     this.cost = 0,
     this.unmetRequirements = const {},
+    this.mode = 'S',
+    this.withKinds = const [],
+    this.risky = false,
   });
 
   final String id;
@@ -40,6 +43,19 @@ class LifestyleActivity {
   final Map<String, int> unmetRequirements;
 
   bool get locked => unmetRequirements.isNotEmpty;
+
+  /// §14.3 · 'S' | 'B' | 'S/B'.
+  final String mode;
+
+  /// §14.3 D84 · 'B'/'S/B' aktivitenin yapılabileceği ilişki türleri.
+  final List<String> withKinds;
+
+  /// §14.3 D85 · ters gidebilir.
+  final bool risky;
+
+  bool get needsPartner => mode == 'B';
+  bool get canBeDoneWithSomeone => mode != 'S';
+  bool get canBeDoneAlone => mode != 'B';
 }
 
 /// Buzlu cam aktivite kartı: renkli gradient gövde, köşede filigran ikon ve

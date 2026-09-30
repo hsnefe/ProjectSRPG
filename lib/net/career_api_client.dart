@@ -544,10 +544,13 @@ class CareerApiClient {
     String careerId, {
     required String catalogId,
     Map<String, dynamic>? result,
+    String? relationshipId,
   }) async {
     final body = await _post('/careers/$careerId/actions', body: {
       'catalog_id': catalogId,
       'result': ?result,
+      // §14.3 D84 · 'B' aktivitede zorunlu, 'S/B'de isteğe bağlı (yoksa tek başına).
+      'relationship_id': ?relationshipId,
     });
     return ActionResult.fromJson(body);
   }

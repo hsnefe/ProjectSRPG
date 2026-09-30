@@ -4904,7 +4904,7 @@ yazılması gerekiyor, D23 gereği FE'de), ama imza sonrası iş listesine dahil
 `sosyal-sistem-tasarim-dokumani.md`'nin uygulanması. §11, §12 ve §13 gibi imza
 sonrası eklenmiştir; yalnızca kendi "Geçersiz kılananlar" tablosundakileri
 geçersiz kılar. §14.1 (skill'ler) uygulanmıştır; §14.2–§14.6 **kararları**
-kaydeder; §14.2 uygulanmıştır, §14.3–§14.6'nın kodu henüz yoktur — her alt
+kaydeder; §14.2 ve §14.3 uygulanmıştır, §14.4–§14.6'nın kodu henüz yoktur — her alt
 bölüm kendi fazıyla ayrıntılanır ve o fazın commit'inde "planlanan" etiketi kalkar.
 
 ### 14.0 Geçersiz kılananlar
@@ -5014,23 +5014,63 @@ kümesi 12'de kalır (INV-21); yalnızca üç anahtar adını değiştirir, iki 
   benzersiz indekstir (`idx_inventory_one_equipped_per_slot`); koddaki bir hata
   ikinci satırı yazamaz.
 
-### 14.3 Sosyal aktiviteler, risk ve "biriyle" modu (planlanan)
+### 14.3 Sosyal aktiviteler, risk ve "biriyle" modu
 
-- **D83.** 50 aktivite `catalog/lifestyle.py`'ye beş yeni grupla girer
-  (Ev, Şehir, Kulüp, Medya, Gece). Fiziksel ve dinlenme aktiviteleri kalır;
-  `sos-*` satırları dokümandaki karşılığıyla birleşir. "Ana/yan skill"
-  ayrımı, etkiler sözlüğündeki iki `attribute:` anahtarının büyüklüğüdür.
-- **D84.** "Biriyle" (B, S/B) aktiviteler istekte `relationship_id` alır; bu,
-  altı sabit türden biridir (D4). İlişki puanı `relationship:<rid>` effect'iyle
-  `relationships.apply_delta()` üzerinden yazılır (INV-15). Solo seçildiğinde
-  ilişki etkisi uygulanmaz ama skill kazancı biraz yüksektir (oran ⟦AÇIK-20⟧).
-- **D85.** Riskli aktiviteler şablonda `risk: {chance, fail_effects}` taşır.
-  Zar `Random(f"{seed}:activity_risk:{date}:{catalog_id}")` ile atılır
-  (aynı gün, aynı aktivite, aynı sonuç — `activity_events` ile aynı kalıp);
-  sonuç `ActionResult`'ta döner. Başarısızlıkta `fail_effects` *ek olarak*
-  uygulanır; hiçbir yazma yolu değişmez.
-- **D86.** Belirli skill seviyesiyle açılan aktiviteler mevcut `requires`
-  alanını kullanır (D42); yeni kilit mekanizması yoktur.
+- **D83.** Dokümanın 50 aktivitesi `catalog/lifestyle.py`'nin listesine girer
+  (62 satır). 47'si yeni satırdır (`catalog/lifestyle_social.py`), üçü zaten
+  vardı ve yerinde genişletildi: `ev-meditasyon` (#4, +Disiplin/Cesaret),
+  `sos-kafe` (#11, +Zeka) ve `sos-taraftar` (#34, S/B, `fans`). Beş yeni grup:
+  *Ev ve kişisel gelişim*, *Şehirde*, *Kulüp ve futbol çevresi*, *Medya ve
+  dijital*, *Gece ve sosyal hayat*. Mevcut `sos-arkadas`, `sos-aile` ve
+  `sos-konser` dokümanda karşılığı olmadığından dokunulmadı. Ana/yan skill
+  ayrımı etkiler sözlüğündeki iki `attribute:` anahtarıdır; büyüklükleri
+  süreden **türetilir** (ana skill `0.2 + dakika/600`, en çok 0.5; yan skill onun
+  yarısı), böylece 47 satır birbirinden kopmaz. Bu rakamlar ⟦AÇIK-5⟧.
+- **Alanlar.** Her satır `mode` (`S` · `B` · `S/B`) taşıyabilir; alanı
+  olmayan eski satır tek başınadır. `B`/`S/B` satırı `with` (yapılabileceği ilişki
+  türleri, altı sabit türün alt kümesi) ve `with_delta` (seçilen kişinin kazandığı
+  puan, bugün 2–3) ister. Hepsi içe aktarmada doğrulanır
+  (`validate_social_fields`, INV-28'in kardeşi): yazım hatalı bir tür ya da
+  imkânsız bir şans ilk oyuncuya değil, süreç başlangıcına patlar.
+- **D84.** T2 `ActionRequest.relationship_id` alır. `B` için zorunlu, `S/B` için
+  isteğe bağlı (yoksa tek başına), `S` için reddedilir; `with` listesinde
+  olmayan tür `422`, tanışılmamış kişi `409 relationship_absent` (INV-58). Kontrol
+  D42'nin kapısı gibi **bütçeden önce** yapılır. Biriyle: skill kazancı yazıldığı
+  gibi, artı `relationship:<rid>` (INV-15). Tek başına (yalnız `S/B`): skill
+  kazancı `SOLO_SKILL_BONUS` (1.25) kat, ilişki yok — solo/partner takası budur.
+  Çarpan ⟦AÇIK-20⟧. Altı türde tek NPC olduğundan dokümandaki kaptan, malzemeci,
+  fizyoterapist ve yardımcı antrenör `team`/`coach` üzerinde *anlatım*dır (D4).
+- **D85.** Riskli aktivite (`kulup-soyunma-saka`, `medya-paylasim`,
+  `gece-poker`) `risk: {chance, fail_effects, mitigated_by?}` taşır. Zar, normal
+  etkiler **uygulandıktan sonra** atılır ve kaybettirdiği şey onların *üstüne*
+  biner: akşam yine yaşandı, yalnız daha pahalıya geldi. Tohum
+  `Random(f"{seed}:activity_risk:{tarih}:{catalog_id}:{bugün kaç kez yapıldı}")`:
+  aynı gün aynı aktiviteyi ikinci kez yapmak ikinci bir zardır, ama aynı tohumdan
+  yeniden oynanan kariyer aynı kötü geceleri yaşar. `mitigated_by` bir
+  niteliğin *etkin* seviyesi başına `per_level` kadar şansı düşürür (D74/INV-61),
+  ama `MIN_RISK_CHANCE` (0.05) altına asla; hiçbir beceri riski sıfırlamaz. Para
+  kaybı eldeki bakiyeyle sınırlanır: zar "ters gitti" dedikten sonra
+  `insufficient_funds` ile yanıtlamak kötü geceyi reddedilmiş isteğe çevirirdi.
+  Yanıt `risk: {chance, failed}` (güvenliyse `null`), `fail_effects` ve `with` taşır;
+  `activity_log.applied_effects`'te ceza `fail:` önekiyle normal etkiden ayrı durur.
+  Negatif `attribute:` etkisi yalnızca `fail_effects`'te bulunur (INV-22 bir
+  niteliğin *kendiliğinden* düşmesini yasaklar, seçilmiş bir bedeli değil).
+- **D86.** Seviye kilitli aktivite yeni mekanizma değil, mevcut `requires`'tır
+  (D42): tek örnek `sehir-acik-mikrofon` (Cesaret 6; taze kariyer 5'ten başlar,
+  yani gerçekten kilitli). **Yapılmayan:** dokümanın "bit pazarında pazarlık
+  (#17) sözleşme görüşmelerinde ek diyalog seçeneği açar" notu. `catalog/dialogue.py`'de
+  bir sözleşme-pazarlığı ağacı yok; Zeka 6 kapılı bir yaprak ancak o ağaç yazıldığında
+  anlamlı olur (D23: ağaç FE'de).
+- **Haber (§14.7 ilk adım).** Bir aktivite `news: {ok?, fail?}` taşıyabilir;
+  `fail` başlığı yalnızca riski olan aktivitede bulunabilir. Bugün `medya-paylasim`
+  (iyi ve kötü manşet), `medya-canli-yayin`, `medya-podcast` ve `medya-imza-gunu`
+  (iyi manşet) yayımlar; kategori `Röportaj`, kaynak kendi alanından. Gelen yanıtta
+  `news_id`. Dokümandaki "olumsuz manşet" bu yoldan yalnız paylaşımda çıkar.
+- **Arayüz.** Yaşam Tarzı'nın boş duran "Grupsal" sekmesi bu alandan dolar:
+  *Bireysel* tek başına yapılabilenleri (`S`, `S/B`), *Grupsal* biriyle
+  yapılabilenleri (`B`, `S/B`) gösterir. Detay katmanında "Kiminle?" çipleri
+  (tanışılmış ve izin verilen kişiler; `S/B`'de ilki "Tek başına", `B`'de ilk uygun kişi
+  seçili), "Riskli" rozeti ve ters giden sonucun bildirimi vardır.
 
 ### 14.4 Konut, uyku ve kira (planlanan)
 

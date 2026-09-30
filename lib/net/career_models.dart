@@ -2327,6 +2327,8 @@ class ActionResult {
     this.relationshipStateChanges = const [],
     required this.ledgerEntries,
     this.event,
+    this.risk,
+    this.withKind,
   });
 
   factory ActionResult.fromJson(Map<String, dynamic> json) {
@@ -2353,8 +2355,18 @@ class ActionResult {
       event: json['event'] == null
           ? null
           : ActivityEvent.fromJson(json['event'] as Map<String, dynamic>),
+      risk: json['risk'] == null
+          ? null
+          : ActionRisk.fromJson(json['risk'] as Map<String, dynamic>),
+      withKind: json['with'] as String?,
     );
   }
+
+  /// §14.3 D85 · riskli aktivitede zarın sonucu; güvenli aktivitede null.
+  final ActionRisk? risk;
+
+  /// §14.3 D84 · aktivitenin yapıldığı ilişki türü, tek başınaysa null.
+  final String? withKind;
 
   final CareerState careerState;
   final Map<String, double> appliedCosts;
@@ -2370,6 +2382,21 @@ class ActionResult {
   /// §13.4 · aktivite sırasında bir olay geliştiyse dolu. Aktivitenin kendi
   /// etkileri her hâlükârda uygulandı (INV-3); olay onun DEVAMI, şartı değil.
   final ActivityEvent? event;
+}
+
+/// §14.3 D85 · T2 yanıtındaki `risk`: zarın uygulanan şansı ve sonucu.
+class ActionRisk {
+  const ActionRisk({required this.chance, required this.failed});
+
+  factory ActionRisk.fromJson(Map<String, dynamic> json) {
+    return ActionRisk(
+      chance: (json['chance'] as num).toDouble(),
+      failed: json['failed'] as bool,
+    );
+  }
+
+  final double chance;
+  final bool failed;
 }
 
 /// T3 · `POST /careers/{cid}/advance`.
@@ -2910,6 +2937,17 @@ class CatalogItem {
   /// kontrolü tekrarlar (INV-30), buradaki gri kart yalnızca kullanıcıyı
   /// boşuna dokunmaktan kurtarır.
   Map<String, int> get requires => _requiresOf(raw);
+
+  /// §14.3 · 'S' tek başına, 'B' biriyle, 'S/B' ikisi de. Alanı olmayan
+  /// (eski) aktivite tek başınadır.
+  String get mode => raw['mode'] as String? ?? 'S';
+
+  /// §14.3 D84 · aktivitenin yapılabileceği ilişki türleri (`relationship_id`).
+  List<String> get withKinds =>
+      ((raw['with'] as List<dynamic>?) ?? const []).cast<String>();
+
+  /// §14.3 D85 · ters gidebilen aktivite (toplu/şaka/poker/paylaşım).
+  bool get risky => raw['risk'] != null;
 
   /// §14.2 · giyilebilir kalemin yuvası ('watch', 'shoes'…). Null ise kalem
   /// giyilmez (gayrimenkul, yatırım): her zaman sayılır.

@@ -66,6 +66,24 @@ const _tintByCatalogId = {
   'sos-taraftar': AppColors.warning,
 };
 
+/// §14.3 · elli yeni aktivitenin tek tek ikonu yok; grup başlığından gelir.
+/// Eski on beşi yukarıdaki kimlik haritasında kalıyor.
+const _iconByGroup = {
+  'EV VE KİŞİSEL GELİŞİM': Icons.menu_book_outlined,
+  'ŞEHİRDE': Icons.location_city_outlined,
+  'KULÜP VE FUTBOL ÇEVRESİ': Icons.sports_soccer_outlined,
+  'MEDYA VE DİJİTAL': Icons.videocam_outlined,
+  'GECE VE SOSYAL HAYAT': Icons.nightlife_outlined,
+};
+
+const _tintByGroup = {
+  'EV VE KİŞİSEL GELİŞİM': Color(0xFF6B7FD6),
+  'ŞEHİRDE': Color(0xFF3F9AA8),
+  'KULÜP VE FUTBOL ÇEVRESİ': AppColors.greenDeep,
+  'MEDYA VE DİJİTAL': Color(0xFFC2544D),
+  'GECE VE SOSYAL HAYAT': Color(0xFF8B4FCF),
+};
+
 const _defaultTint = AppColors.textMuted;
 
 LifestyleActivity _toActivity(api.CatalogItem item, PlayerState player) {
@@ -73,8 +91,12 @@ LifestyleActivity _toActivity(api.CatalogItem item, PlayerState player) {
     id: item.catalogId,
     title: item.title,
     description: item.description ?? '',
-    icon: _iconByCatalogId[item.catalogId] ?? Icons.circle_outlined,
-    tint: _tintByCatalogId[item.catalogId] ?? _defaultTint,
+    icon: _iconByCatalogId[item.catalogId] ??
+        _iconByGroup[item.group] ??
+        Icons.circle_outlined,
+    tint: _tintByCatalogId[item.catalogId] ??
+        _tintByGroup[item.group] ??
+        _defaultTint,
     duration: item.durationLabel ?? '',
     conditionDelta: (item.effects['condition'] as num?)?.toInt() ?? 0,
     // Para bir `cost` değil, negatif bir `effect`'tir (§6.2) — kart burada
@@ -83,19 +105,32 @@ LifestyleActivity _toActivity(api.CatalogItem item, PlayerState player) {
     // D42 · eşiği FE karşılaştırır, BE tekrar doğrular (INV-30). Seviyeler
     // P1'den geldiği gibi okunur; FE `value`'dan seviye türetmez.
     unmetRequirements: unmetRequirements(item.requires, player.attributeLevel),
+    mode: item.mode,
+    withKinds: item.withKinds,
+    risky: item.risky,
   );
 }
 
 /// N3'ün `group` alanı §5.7'de FE'nin bugünkü üç bölüm başlığıyla birebir
 /// aynı ('EV AKTİVİTELERİ' vb.) — sabit üç bölüm yerine kataloğun kendi
 /// gruplamasından türetilir.
+///
+/// §14.3 · iki sekme aktivitenin `mode`'undan gelir: Bireysel tek başına
+/// yapılabilenleri ('S' ve 'S/B'), Grupsal biriyle yapılabilenleri ('B' ve
+/// 'S/B') gösterir. 'S/B' ikisinde de görünür çünkü iki türlü de yapılabilir.
 List<_ActivitySectionData> _sectionsFrom(
   List<api.CatalogItem> items,
   PlayerState player,
+  _LifestyleTab tab,
 ) {
   final byGroup = <String, List<LifestyleActivity>>{};
   for (final item in items) {
-    (byGroup[item.group ?? ''] ??= []).add(_toActivity(item, player));
+    final activity = _toActivity(item, player);
+    final shown = tab == _LifestyleTab.individual
+        ? activity.canBeDoneAlone
+        : activity.canBeDoneWithSomeone;
+    if (!shown) continue;
+    (byGroup[item.group ?? ''] ??= []).add(activity);
   }
   return [
     for (final entry in byGroup.entries)
@@ -185,19 +220,8 @@ class _LifestyleScreenState extends State<LifestyleScreen> {
                               ),
                             );
                           },
-                          child: _tab == _LifestyleTab.group
-                              ? const Center(
-                                  key: ValueKey('group'),
-                                  child: Text(
-                                    'Grup aktiviteleri yakında.',
-                                    style: TextStyle(
-                                      color: AppColors.textMuted,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                )
-                              : FutureBuilder<api.Catalog>(
-                                  key: const ValueKey('individual'),
+                          child: FutureBuilder<api.Catalog>(
+                                  key: ValueKey(_tab),
                                   future: _catalogFuture,
                                   builder: (context, snapshot) {
                                     if (snapshot.connectionState !=
@@ -232,6 +256,7 @@ class _LifestyleScreenState extends State<LifestyleScreen> {
                                     final sections = _sectionsFrom(
                                       snapshot.data!.items,
                                       PlayerScope.of(context),
+                                      _tab,
                                     );
                                     return ListView.separated(
                                       padding: const EdgeInsets.fromLTRB(
@@ -547,6 +572,47 @@ class _ActivityDetailPage extends StatefulWidget {
 class _ActivityDetailPageState extends State<_ActivityDetailPage> {
   bool _busy = false;
 
+  /// §14.3 D84 · kiminle yapılacağı. Tek başına yapılabilen aktivitede null
+  /// 'tek başına' demek; yalnız 'B' aktivitede seçim zorunlu.
+  String? _partner;
+
+  /// Bu aktivitenin yapılabileceği, tanışılmış ilişkiler. Henüz tanışılmamış
+  /// partner burada yok: BE `relationship_absent` derdi (INV-58).
+  List<api.RelationshipCard> _candidates = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.activity.canBeDoneWithSomeone) _loadCandidates();
+  }
+
+  Future<void> _loadCandidates() async {
+    try {
+      final careerId = await widget.session.resolve();
+      final cards = await widget.session.client.relationships(careerId);
+      if (!mounted) return;
+      final allowed = widget.activity.withKinds;
+      setState(() {
+        _candidates = [
+          for (final card in cards)
+            if (allowed.contains(card.relationshipId) &&
+                card.state != api.RelationshipState.absent)
+              card,
+        ];
+        // 'B' aktivitede bir seçim olmadan düğme çalışmaz; ilkini öner.
+        if (widget.activity.needsPartner && _candidates.isNotEmpty) {
+          _partner = _candidates.first.relationshipId;
+        }
+      });
+    } catch (_) {
+      // Liste gelmediyse 'B' aktivite yapılamaz, tek başına olanlar yapılır.
+    }
+  }
+
+  /// 'B' aktivite biriyle seçilmeden yapılamaz.
+  bool get _canPerform =>
+      !widget.activity.needsPartner || _partner != null;
+
   /// T2 · `POST /careers/{cid}/actions`. Bütçe/para yetmezse (`409`) BE
   /// hiçbir şey yazmaz (INV-3/4) — burada da yalnızca bir uyarı gösterip
   /// sayfada kalınır; başarıdaysa detay kapanır.
@@ -558,12 +624,29 @@ class _ActivityDetailPageState extends State<_ActivityDetailPage> {
       final result = await widget.session.client.postAction(
         careerId,
         catalogId: widget.activity.id,
+        relationshipId: _partner,
       );
       player.applyServerUpdate(
         careerState: result.careerState,
         attributeChanges: result.attributeChanges,
       );
       if (!context.mounted) return;
+      // §14.3 D85 · riskli aktivitenin sonucu, detay kapanmadan önce söylenir;
+      // SnackBar kapanan sayfadan sağ çıkar (mesajcı sayfadan önce alındı).
+      final risk = result.risk;
+      if (risk != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              risk.failed
+                  ? 'Bu sefer tutmadı — bir bedeli oldu.'
+                  : 'Tuttu, her şey yolunda gitti.',
+            ),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
       // §13.4 · aktivite sırasında bir olay geliştiyse detay kapanmadan önce
       // olay ekranı açılır. Aktivitenin kendi etkileri zaten uygulandı
       // (INV-3): olay bir DEVAM, bir şart değil — kullanıcı geri tuşuyla
@@ -636,7 +719,11 @@ class _ActivityDetailPageState extends State<_ActivityDetailPage> {
                         opacity: details,
                         child: _ActivityDetails(
                           activity: activity,
-                          onPerform: (_busy || activity.locked)
+                          candidates: _candidates,
+                          partner: _partner,
+                          onPartnerChanged: (id) =>
+                              setState(() => _partner = id),
+                          onPerform: (_busy || activity.locked || !_canPerform)
                               ? null
                               : () => _perform(context),
                           busy: _busy,
@@ -658,12 +745,20 @@ class _ActivityDetails extends StatelessWidget {
   const _ActivityDetails({
     required this.activity,
     required this.onPerform,
+    this.candidates = const [],
+    this.partner,
+    this.onPartnerChanged,
     this.busy = false,
   });
 
   final LifestyleActivity activity;
   final VoidCallback? onPerform;
   final bool busy;
+
+  /// §14.3 · seçilebilir ilişkiler ve seçili olan (null = tek başına).
+  final List<api.RelationshipCard> candidates;
+  final String? partner;
+  final ValueChanged<String?>? onPartnerChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -708,6 +803,15 @@ class _ActivityDetails extends StatelessWidget {
                   label: formatMoney(activity.cost),
                   color: AppColors.warning,
                 ),
+              // §14.3 D85 · zar atılacağını önceden söyle; sonuç sürpriz olabilir,
+              // riskin varlığı olmamalı.
+              if (activity.risky)
+                _Badge(
+                  key: const Key('lifestyle_risk_badge'),
+                  icon: Icons.casino_outlined,
+                  label: 'Riskli',
+                  color: AppColors.danger,
+                ),
               // D42 · kartta yalnızca bir kilit ikonu var; gerekçeyi burada,
               // diğer rozetlerin yanında okunur biçimde yazıyoruz.
               if (activity.locked)
@@ -719,6 +823,43 @@ class _ActivityDetails extends StatelessWidget {
                 ),
             ],
           ),
+          // §14.3 D84 · kiminle: tek başına yapılabiliyorsa 'Tek başına' ilk çip
+          // (ve bir ilişkiden çok skill kazandırır), sonra tanışılmış kişiler.
+          if (activity.canBeDoneWithSomeone) ...[
+            const SizedBox(height: 14),
+            Text(
+              activity.needsPartner
+                  ? 'Kiminle?'
+                  : 'Kiminle? Tek başına daha çok beceri, biriyle ilişki kazandırır.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 11,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              alignment: WrapAlignment.center,
+              children: [
+                if (activity.canBeDoneAlone)
+                  _PartnerChip(
+                    key: const Key('partner_chip_solo'),
+                    label: 'Tek başına',
+                    selected: partner == null,
+                    onTap: () => onPartnerChanged?.call(null),
+                  ),
+                for (final card in candidates)
+                  _PartnerChip(
+                    key: Key('partner_chip_${card.relationshipId}'),
+                    label: card.personName,
+                    selected: partner == card.relationshipId,
+                    onTap: () => onPartnerChanged?.call(card.relationshipId),
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
@@ -749,6 +890,42 @@ class _ActivityDetails extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PartnerChip extends StatelessWidget {
+  const _PartnerChip({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.accent : AppColors.surface1,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+            fontSize: 11,
+            fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
+          ),
+        ),
       ),
     );
   }

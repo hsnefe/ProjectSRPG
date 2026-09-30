@@ -53,7 +53,7 @@ cd career_engine && ./.venv/Scripts/python.exe -m pytest -q
 cd career_engine && ./.venv/Scripts/python.exe -m pytest tests/test_rollover.py -k promotion
 ```
 
-599 backend tests pass as of 2026-09-30 (`career_engine/README.md`'s count lags behind — trust
+617 backend tests pass as of 2026-09-30 (`career_engine/README.md`'s count lags behind — trust
 the run, not the README). `tests/test_end_to_end.py` walks every domain area in one session and
 is the one to watch after cross-cutting changes.
 

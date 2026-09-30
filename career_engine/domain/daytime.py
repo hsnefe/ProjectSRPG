@@ -294,12 +294,15 @@ def list_events(
     return events
 
 
-def _create_news(conn: sqlite3.Connection, career_id: str, category: str, title: str, body: str, on_date: str) -> str:
+def _create_news(
+    conn: sqlite3.Connection, career_id: str, category: str, title: str, body: str, on_date: str,
+    source: str = "Kulüp Bülteni",
+) -> str:
     news_id = new_news_id()
     conn.execute(
         "INSERT INTO news (career_id, news_id, published_at, category, title, source, body, fixture_id) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, NULL)",
-        (career_id, news_id, f"{on_date}T09:00:00+03:00", category, title, "Kulüp Bülteni", body),
+        (career_id, news_id, f"{on_date}T09:00:00+03:00", category, title, source, body),
     )
     return news_id
 

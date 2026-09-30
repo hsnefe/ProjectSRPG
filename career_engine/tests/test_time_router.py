@@ -549,7 +549,12 @@ def test_post_action_gated_item_runs_once_the_level_is_reached(api_client, creat
     grant_money(career_id, 10000)
     set_attribute(career_id, "charisma", 70.0)   # exactly level 7, sos-taraftar's gate
 
-    resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "sos-taraftar"})
+    # §14.3: done WITH the fans (an S/B activity), the authored gain applies as
+    # written; alone it would be SOLO_SKILL_BONUS times larger.
+    resp = api_client.post(
+        f"/careers/{career_id}/actions",
+        json={"catalog_id": "sos-taraftar", "relationship_id": "fans"},
+    )
     assert resp.status_code == 200
     assert {"key": "charisma", "before": 70.0, "after": 70.5, "passive_bonus": 0,
             "level_before": 7, "level_after": 7} in resp.json()["attribute_changes"]

@@ -10,6 +10,12 @@ D42/D31: the five SOSYAL items also move kişi attributes now. They are
 deliberately an order of magnitude below a kişi training session (0.1-0.5
 vs 0.8): time spent among people grows you, but it is not a substitute for
 actually working on it.
+
+§14.3 D83: the design doc's social-skill activities join this list
+(catalog/lifestyle_social.py, 47 rows). Three of the doc's rows already existed
+here and were extended in place instead of duplicated - `ev-meditasyon` is its
+#4, `sos-kafe` its #11, `sos-taraftar` its #34 - which is why those three carry
+the new `mode` / `with` fields alongside their original shape.
 """
 
 LIFESTYLE_ITEMS = [
@@ -30,7 +36,8 @@ LIFESTYLE_ITEMS = [
      "description": "Sessiz bir odada nefes çalışması yap. Maç öncesi baskıyı "
                      "yönetmeni kolaylaştırır.",
      "duration_label": "30 dakika",
-     "costs": {"time": 30}, "effects": {"condition": 5},
+     "costs": {"time": 30},
+     "effects": {"condition": 5, "attribute:discipline": 0.3, "attribute:courage": 0.1},
      "event_chance": 0.03},
     {"catalog_id": "ev-oyun", "title": "Video Oyunu", "group": "EV AKTİVİTELERİ",
      "description": "Birkaç saat oyun oyna, kafanı dağıt. Keyifli ama geç saate "
@@ -90,7 +97,8 @@ LIFESTYLE_ITEMS = [
                      "kafan dinlenir.",
      "duration_label": "1 saat",
      "costs": {"time": 60},
-     "effects": {"condition": 1, "money": -1, "attribute:empathy": 0.1},
+     "effects": {"condition": 1, "money": -1, "attribute:empathy": 0.2,
+                 "attribute:intelligence": 0.1},
      "event_chance": 0.3},
     {"catalog_id": "sos-aile", "title": "Aile Ziyareti", "group": "SOSYAL AKTİVİTELER",
      "description": "Ailenle vakit geçir. Kariyerin baskısını hafifletir, "
@@ -121,8 +129,15 @@ LIFESTYLE_ITEMS = [
      "effects": {"condition": -2, "fame:overall": None,
                  "attribute:charisma": 0.5, "attribute:courage": 0.3},
      "requires": {"charisma": 7},
+     # §14.3 D84: the fan-club meeting is also the doc's "with someone" activity
+     # (#34, fans). Optional, so the original solo use keeps working.
+     "mode": "S/B", "with": ["fans"], "with_delta": 2,
      "event_chance": 0.35},
 ]
+
+from catalog.lifestyle_social import SOCIAL_ACTIVITIES  # noqa: E402
+
+LIFESTYLE_ITEMS.extend(SOCIAL_ACTIVITIES)
 
 # §13.4/D75 - every row names its own `event_chance`. The pool a given
 # activity draws from lives on the TEMPLATE side (content/activity_events.py's
@@ -134,9 +149,54 @@ LIFESTYLE_ITEMS = [
 # eventful".
 assert all("event_chance" in i for i in LIFESTYLE_ITEMS)
 
-assert len(LIFESTYLE_ITEMS) == 15
+assert len(LIFESTYLE_ITEMS) == 62
 assert len({i["catalog_id"] for i in LIFESTYLE_ITEMS}) == len(LIFESTYLE_ITEMS)
 
+from api.config import ATTRIBUTE_KEYS, RELATIONSHIP_KINDS  # noqa: E402
 from catalog import validate_catalog  # noqa: E402 (after data, INV-28)
 
+ACTIVITY_MODES = ("S", "B", "S/B")
+
+
+def validate_social_fields(items: list) -> None:
+    """§14.3 - the `mode` / `with` / `risk` / `news` fields, checked the way
+    INV-28 checks effect keys: a typo'd relationship kind or an impossible
+    chance fails the import, not the first player to try the activity."""
+    for item in items:
+        where = f"lifestyle:{item['catalog_id']!r}"
+        mode = item.get("mode", "S")
+        if mode not in ACTIVITY_MODES:
+            raise ValueError(f"{where} has mode {mode!r}")
+        partners = item.get("with")
+        if mode == "S":
+            if partners:
+                raise ValueError(f"{where} is solo but lists `with`")
+        else:
+            if not partners or not set(partners) <= set(RELATIONSHIP_KINDS):
+                raise ValueError(f"{where} has `with` {partners!r}, not relationship kinds")
+            delta = item.get("with_delta", 0)
+            if not isinstance(delta, int) or delta <= 0:
+                raise ValueError(f"{where} has with_delta {delta!r}")
+        risk = item.get("risk")
+        if risk:
+            chance = risk.get("chance")
+            if not isinstance(chance, (int, float)) or not 0 < chance < 1:
+                raise ValueError(f"{where} risk chance {chance!r} is not in (0, 1)")
+            validate_catalog(
+                [{"catalog_id": item["catalog_id"], "effects": risk.get("fail_effects", {})}],
+                "lifestyle:risk",
+            )
+            if not risk.get("fail_effects"):
+                raise ValueError(f"{where} has a risk with nothing to lose")
+            mitigation = risk.get("mitigated_by")
+            if mitigation and mitigation["attribute"] not in ATTRIBUTE_KEYS:
+                raise ValueError(f"{where} is mitigated by an unknown attribute")
+        for outcome, story in (item.get("news") or {}).items():
+            if outcome not in ("ok", "fail") or not {"category", "title", "body"} <= set(story):
+                raise ValueError(f"{where} has a malformed news entry {outcome!r}")
+            if outcome == "fail" and not risk:
+                raise ValueError(f"{where} has a failure headline but no risk")
+
+
 validate_catalog(LIFESTYLE_ITEMS, "lifestyle")
+validate_social_fields(LIFESTYLE_ITEMS)

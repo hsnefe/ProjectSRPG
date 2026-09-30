@@ -125,6 +125,14 @@ STARTING_RELEASE_CLAUSE = 900
 # neither of the two dates a contract is allowed to end on.
 STARTING_CONTRACT_SEASONS = 2
 
+# §14.3 D84/⟦AÇIK-20⟧ - an S/B activity done alone earns this much more skill
+# than the same one done with someone (who earns the relationship instead).
+# That is the whole solo-vs-partner trade; the number is a placeholder.
+SOLO_SKILL_BONUS = 1.25
+
+# §14.3 D85 - a skill can lower a risky activity's chance, but never to zero.
+MIN_RISK_CHANCE = 0.05
+
 # §6.5 D25/D26/D27 - weekly cadence for wage, upkeep, and bonuses.
 WAGE_WEEKDAY = 0  # Monday, per date.weekday()
 

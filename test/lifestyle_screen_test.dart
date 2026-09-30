@@ -94,6 +94,55 @@ const _lifestyleItems = [
   },
 ];
 
+/// §14.3 · bir 'B' (zorunlu ortak), bir 'S/B' ve bir riskli aktivite. Eski on
+/// beşten ayrı tutuldu: gate testleri yatay listelerin sırasına güveniyor ve
+/// yeni bölümler o sırayı kaydırırdı; yeni testler bunu `extraItems` ile ister.
+const _socialItems = [
+  {
+    'catalog_id': 'kulup-malzemeci', 'title': 'Malzemeciyle Çay',
+    'group': 'KULÜP VE FUTBOL ÇEVRESİ', 'description': '…',
+    'duration_label': '45 dakika', 'costs': {'time': 45},
+    'effects': {'attribute:empathy': 0.3},
+    'mode': 'B', 'with': ['team'], 'with_delta': 2,
+  },
+  {
+    'catalog_id': 'sehir-muze', 'title': 'Müze ya da Sergi Gez',
+    'group': 'ŞEHİRDE', 'description': '…',
+    'duration_label': '2 saat', 'costs': {'time': 120},
+    'effects': {'attribute:intelligence': 0.4},
+    'mode': 'S/B', 'with': ['partner', 'family'], 'with_delta': 2,
+  },
+  {
+    'catalog_id': 'medya-paylasim', 'title': 'Sosyal Medyada Paylaşım Yap',
+    'group': 'MEDYA VE DİJİTAL', 'description': '…',
+    'duration_label': '30 dakika', 'costs': {'time': 30},
+    'effects': {'attribute:charisma': 0.3},
+    'risk': {'chance': 0.3, 'fail_effects': {'relationship:media': -4}},
+  },
+];
+
+/// §14.3 · R1 kartları: tanışılmış takım ve aile, tanışılmamış partner.
+const _relationshipCards = [
+  {
+    'relationship_id': 'team', 'kind': 'team', 'category': 'Takım Arkadaşları',
+    'score': 58, 'person_name': 'Burak Şen', 'contact_name': 'Takım grubu',
+    'last_contact_at': '2026-08-13', 'has_pending_request': false, 'traits': {},
+    'state': 'active',
+  },
+  {
+    'relationship_id': 'family', 'kind': 'family', 'category': 'Aile',
+    'score': 29, 'person_name': 'Sevgi Yılmaz', 'contact_name': 'Anne',
+    'last_contact_at': '2026-07-28', 'has_pending_request': false, 'traits': {},
+    'state': 'active',
+  },
+  {
+    'relationship_id': 'partner', 'kind': 'partner', 'category': 'Partner',
+    'score': 0, 'person_name': 'Elif Demir', 'contact_name': 'Elif',
+    'last_contact_at': null, 'has_pending_request': false, 'traits': {},
+    'state': 'absent',
+  },
+];
+
 http.Response _json(Object body) => http.Response(
       jsonEncode(body),
       200,
@@ -104,10 +153,16 @@ http.Response _json(Object body) => http.Response(
 /// `career_state`. Yalnızca testin gerçekten tıkladığı kalemler için gerekir.
 CareerSession _lifestyleSession({
   Map<String, Map<String, dynamic>> actionResponses = const {},
+  List<Map<String, dynamic>>? actionLog,
+  Map<String, dynamic>? risk,
+  List<Map<String, dynamic>> extraItems = const [],
 }) {
   final mock = MockClient((request) async {
     if (request.url.path == '/catalog/lifestyle') {
-      return _json({'items': _lifestyleItems});
+      return _json({'items': [..._lifestyleItems, ...extraItems]});
+    }
+    if (request.url.path == '/careers/car_test/relationships') {
+      return _json({'relationships': _relationshipCards});
     }
     if (request.url.path == '/careers') {
       return _json({
@@ -121,6 +176,7 @@ CareerSession _lifestyleSession({
     }
     if (request.url.path == '/careers/car_test/actions') {
       final body = jsonDecode(request.body) as Map<String, dynamic>;
+      actionLog?.add(body);
       final careerState = actionResponses[body['catalog_id']];
       if (careerState == null) {
         return http.Response('unexpected catalog_id ${body['catalog_id']}', 404);
@@ -132,11 +188,22 @@ CareerSession _lifestyleSession({
         'attribute_changes': const [],
         'relationship_changes': const [],
         'ledger_entries': const [],
+        'risk': risk,
+        'with': body['relationship_id'],
       });
     }
     return http.Response('unexpected ${request.url}', 404);
   });
   return CareerSession(client: CareerApiClient(httpClient: mock, baseUrl: 'http://test'));
+}
+
+/// Liste tembel kuruluyor; uzun bir yüzey açınca tüm bölümler kurulur ve
+/// testin her kartı kaydırmadan bulabilmesi sağlanır.
+void _tallSurface(WidgetTester tester) {
+  tester.view.physicalSize = const Size(800, 6000);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
 }
 
 /// D42 · `sos-taraftar`'a bir eşik takar ve oyuncunun cazibe seviyesini
@@ -262,22 +329,142 @@ void main() {
     expect(find.byTooltip('Alışveriş'), findsOneWidget);
   });
 
-  testWidgets('Grupsal sekmesi placeholder gösterir', (tester) async {
-    await tester.pumpWidget(
-      _wrap(LifestyleScreen(session: _lifestyleSession())),
-    );
+  testWidgets(
+      '§14.3 · Grupsal sekme biriyle yapılabilenleri, Bireysel tek başına olanları gösterir',
+      (tester) async {
+    _tallSurface(tester);
+    await tester.pumpWidget(_wrap(LifestyleScreen(
+      session: _lifestyleSession(extraItems: _socialItems),
+    )));
     await tester.pumpAndSettle();
+
+    // Bireysel: tek başına yapılabilenler ('S' ve 'S/B'), 'B' yok.
+    expect(find.text('EV AKTİVİTELERİ'), findsOneWidget);
+    expect(find.text('Müze ya da Sergi Gez'), findsOneWidget);
+    expect(find.text('Malzemeciyle Çay'), findsNothing);
 
     await tester.tap(find.text('Grupsal'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Grup aktiviteleri yakında.'), findsOneWidget);
+    // Grupsal: biriyle yapılabilenler ('B' ve 'S/B'); tek başına olanlar yok.
+    expect(find.text('Malzemeciyle Çay'), findsOneWidget);
+    expect(find.text('Müze ya da Sergi Gez'), findsOneWidget);
     expect(find.text('EV AKTİVİTELERİ'), findsNothing);
+    expect(find.text('Uyku'), findsNothing);
 
     await tester.tap(find.text('Bireysel'));
     await tester.pumpAndSettle();
 
     expect(find.text('EV AKTİVİTELERİ'), findsOneWidget);
+  });
+
+  testWidgets('§14.3 · B aktivite ortağı otomatik seçer ve relationship_id gönderir',
+      (tester) async {
+    _tallSurface(tester);
+    final log = <Map<String, dynamic>>[];
+    await tester.pumpWidget(_wrap(LifestyleScreen(
+      session: _lifestyleSession(
+        actionLog: log,
+        extraItems: _socialItems,
+        actionResponses: {
+          'kulup-malzemeci': _careerState(condition: 72, money: 48200),
+        },
+      ),
+    )));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Grupsal'));
+    await tester.pumpAndSettle();
+    await tester.tap(_card('Malzemeciyle Çay'));
+    await tester.pumpAndSettle();
+
+    // 'B': tek başına seçeneği yok, yalnızca izin verilen ve tanışılmış kişi.
+    expect(find.byKey(const Key('partner_chip_solo')), findsNothing);
+    expect(find.byKey(const Key('partner_chip_team')), findsOneWidget);
+    expect(find.byKey(const Key('partner_chip_family')), findsNothing);
+
+    await tester.tap(find.text('Yap'));
+    await tester.pumpAndSettle();
+
+    expect(log.single['relationship_id'], 'team');
+  });
+
+  testWidgets(
+      '§14.3 · S/B aktivite varsayılan tek başına, tanışılmamış partner listede yok',
+      (tester) async {
+    _tallSurface(tester);
+    final log = <Map<String, dynamic>>[];
+    await tester.pumpWidget(_wrap(LifestyleScreen(
+      session: _lifestyleSession(
+        actionLog: log,
+        extraItems: _socialItems,
+        actionResponses: {
+          'sehir-muze': _careerState(condition: 72, money: 48200),
+        },
+      ),
+    )));
+    await tester.pumpAndSettle();
+
+    await tester.tap(_card('Müze ya da Sergi Gez'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('partner_chip_solo')), findsOneWidget);
+    expect(find.byKey(const Key('partner_chip_family')), findsOneWidget);
+    // Elif henüz tanışılmadı (INV-58): BE `relationship_absent` derdi.
+    expect(find.byKey(const Key('partner_chip_partner')), findsNothing);
+
+    await tester.tap(find.text('Yap'));
+    await tester.pumpAndSettle();
+    // Tek başına: relationship_id hiç gönderilmez.
+    expect(log.single.containsKey('relationship_id'), isFalse);
+  });
+
+  testWidgets('§14.3 · ortak seçilince relationship_id gönderilir', (tester) async {
+    _tallSurface(tester);
+    final log = <Map<String, dynamic>>[];
+    await tester.pumpWidget(_wrap(LifestyleScreen(
+      session: _lifestyleSession(
+        actionLog: log,
+        extraItems: _socialItems,
+        actionResponses: {
+          'sehir-muze': _careerState(condition: 72, money: 48200),
+        },
+      ),
+    )));
+    await tester.pumpAndSettle();
+
+    await tester.tap(_card('Müze ya da Sergi Gez'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('partner_chip_family')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Yap'));
+    await tester.pumpAndSettle();
+
+    expect(log.single['relationship_id'], 'family');
+  });
+
+  testWidgets('§14.3 · riskli aktivite rozet taşır ve ters giden sonuç söylenir',
+      (tester) async {
+    _tallSurface(tester);
+    await tester.pumpWidget(_wrap(LifestyleScreen(
+      session: _lifestyleSession(
+        risk: {'chance': 0.3, 'failed': true},
+        extraItems: _socialItems,
+        actionResponses: {
+          'medya-paylasim': _careerState(condition: 72, money: 48200),
+        },
+      ),
+    )));
+    await tester.pumpAndSettle();
+
+    await tester.tap(_card('Sosyal Medyada Paylaşım Yap'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('lifestyle_risk_badge')), findsOneWidget);
+
+    await tester.tap(find.text('Yap'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('tutmadı'), findsOneWidget);
   });
 
   testWidgets('karta basınca detay açılır, Yap kondisyonu değiştirir',
