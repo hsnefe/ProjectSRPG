@@ -11,11 +11,11 @@ const attributeLabels = {
   'passing': 'Pas',
   'dribbling': 'Dribling',
   'tackling': 'Müdahale',
-  'charisma': 'Cazibe',
-  'politeness': 'Kibarlık',
-  'confidence': 'Özgüven',
+  'charisma': 'Karizma',
+  'empathy': 'Empati',
+  'courage': 'Cesaret',
   'intelligence': 'Zeka',
-  'resourcefulness': 'Beceriklilik',
+  'discipline': 'Disiplin',
 };
 
 String attributeLabel(String key) => attributeLabels[key] ?? key;
@@ -37,8 +37,8 @@ Map<String, int> unmetRequirements(
   return unmet;
 }
 
-/// Kilit rozetinin metni: 'Özgüven 6 gerekli', birden fazlaysa
-/// 'Özgüven 6 · Cazibe 8 gerekli'. Karşılanmayanları listeler, hepsini değil —
+/// Kilit rozetinin metni: 'Cesaret 6 gerekli', birden fazlaysa
+/// 'Cesaret 6 · Karizma 8 gerekli'. Karşılanmayanları listeler, hepsini değil —
 /// oyuncunun eksiği neyse onu okur.
 String requirementLabel(Map<String, int> unmet) {
   if (unmet.isEmpty) return '';

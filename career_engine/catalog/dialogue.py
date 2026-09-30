@@ -47,7 +47,7 @@ DIALOGUE_RELATIONSHIP = {
 # paylaşımcı olacağım."
 # `requires` (D42) reads as "you need to be this person to say this". The
 # v1 thresholds sit just above a fresh career's kişi levels (charisma 7,
-# politeness 5, confidence 5, intelligence 6, resourcefulness 2) so the
+# empathy 5, courage 5, intelligence 6, discipline 2) so the
 # locks are visible from day one and open through the kişi training paths.
 # INV-32 (asserted below) keeps every tree walkable regardless.
 # §6.2/D41 - what a conversation costs from the day. Talking used to be free,
@@ -69,8 +69,8 @@ DIALOGUE_DEFAULT_COSTS = {"time": 45.0, "energy": 4.0}
 DIALOGUE_OUTCOMES = {
     "coach_01": {
         # Saying the right thing to a coach who just criticised you is a
-        # politeness move, not a confidence one.
-        "r0": {"relationship_delta": 3, "attribute_effects": {}, "requires": {"politeness": 6},
+        # empathy move, not a courage one.
+        "r0": {"relationship_delta": 3, "attribute_effects": {}, "requires": {"empathy": 6},
                "costs": {"time": 40.0, "energy": 5.0}, "condition": -1},
         "r1": {"relationship_delta": -2, "attribute_effects": {},
                "costs": {"time": 25.0, "energy": 8.0}, "condition": -3},
@@ -79,7 +79,7 @@ DIALOGUE_OUTCOMES = {
                "costs": {"time": 20.0, "energy": 2.0}},
     },
     "team_01": {
-        "r0": {"relationship_delta": 2, "attribute_effects": {}, "requires": {"confidence": 6}},
+        "r0": {"relationship_delta": 2, "attribute_effects": {}, "requires": {"courage": 6}},
         "r1": {"relationship_delta": 0, "attribute_effects": {}},
     },
     "media_01": {
@@ -94,7 +94,7 @@ DIALOGUE_OUTCOMES = {
     "partner_01": {
         "r0": {"relationship_delta": 1, "attribute_effects": {}},
         # Making five minutes appear on a match day.
-        "r1": {"relationship_delta": 3, "attribute_effects": {}, "requires": {"resourcefulness": 3},
+        "r1": {"relationship_delta": 3, "attribute_effects": {}, "requires": {"discipline": 3},
                "costs": {"time": 90.0, "energy": 3.0}, "condition": 1},
         # §13.2/D72 - the two courting leaves. FE shows this pair INSTEAD of
         # r0/r1 while the relationship is `courting`, which is why they live
@@ -124,25 +124,25 @@ DIALOGUE_OUTCOMES = {
         "r0": {"relationship_delta": 3, "attribute_effects": {}, "requires": {"intelligence": 6},
                "costs": {"time": 35.0, "energy": 4.0}},
         "r1": {"relationship_delta": 0, "attribute_effects": {}},
-        "r2": {"relationship_delta": 1, "attribute_effects": {}, "requires": {"confidence": 5}},
+        "r2": {"relationship_delta": 1, "attribute_effects": {}, "requires": {"courage": 5}},
     },
     "team_02": {
         "r0": {"relationship_delta": 2, "attribute_effects": {}, "requires": {"charisma": 5}},
         "r1": {"relationship_delta": 0, "attribute_effects": {}},
     },
     "media_02": {
-        "r0": {"relationship_delta": 1, "attribute_effects": {}, "requires": {"politeness": 5}},
+        "r0": {"relationship_delta": 1, "attribute_effects": {}, "requires": {"empathy": 5}},
         "r1": {"relationship_delta": -2, "attribute_effects": {},
                "costs": {"time": 50.0, "energy": 7.0}, "condition": -1},
         "r2": {"relationship_delta": -1, "attribute_effects": {}},
     },
     "partner_02": {
-        "r0": {"relationship_delta": 3, "attribute_effects": {}, "requires": {"resourcefulness": 2},
+        "r0": {"relationship_delta": 3, "attribute_effects": {}, "requires": {"discipline": 2},
                "costs": {"time": 45.0, "energy": 2.0}},
         "r1": {"relationship_delta": -1, "attribute_effects": {}},
     },
     "family_02": {
-        "r0": {"relationship_delta": 4, "attribute_effects": {}, "requires": {"resourcefulness": 3},
+        "r0": {"relationship_delta": 4, "attribute_effects": {}, "requires": {"discipline": 3},
                "costs": {"time": 30.0, "energy": 2.0}},
         "r1": {"relationship_delta": -1, "attribute_effects": {}},
         "r2": {"relationship_delta": -3, "attribute_effects": {}},

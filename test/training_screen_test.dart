@@ -111,7 +111,7 @@ CareerSession _gatedTrainingSession({required int confidenceLevel}) {
   final items = [
     for (final item in _trainingItems)
       if (item['catalog_id'] == 'sut')
-        {...item, 'requires': const {'confidence': 6}}
+        {...item, 'requires': const {'courage': 6}}
       else
         item,
   ];
@@ -143,7 +143,7 @@ CareerSession _gatedTrainingSession({required int confidenceLevel}) {
         },
         'attributes': [
           {
-            'key': 'confidence', 'family': 'kişi',
+            'key': 'courage', 'family': 'kişi',
             'value': confidenceLevel * 10.0, 'level': confidenceLevel,
             'passive_bonus': 0.0, 'effective_value': confidenceLevel * 10.0,
           },
@@ -425,7 +425,7 @@ void main() {
 
     expect(_button(tester, 'Şut').onPressed, isNull);
     expect(find.byKey(const Key('training_requirement_row')), findsOneWidget);
-    expect(find.text('Özgüven 6 gerekli'), findsOneWidget);
+    expect(find.text('Cesaret 6 gerekli'), findsOneWidget);
     expect(find.text('Kilitli'), findsOneWidget);
   });
 

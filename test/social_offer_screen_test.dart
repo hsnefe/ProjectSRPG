@@ -230,7 +230,7 @@ void main() {
 
   testWidgets('requires kapısı nitelik adıyla rozetlenir', (tester) async {
     await _open(tester, _Backend(),
-        offer: _offer(requires: const {'politeness': 4}));
+        offer: _offer(requires: const {'empathy': 4}));
 
     expect(find.text('Kabul için'), findsOneWidget);
     expect(find.textContaining('4'), findsWidgets);

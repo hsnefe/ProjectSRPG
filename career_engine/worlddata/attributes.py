@@ -44,13 +44,16 @@ FIXED_STARTING_ATTRIBUTES = {
     "flexibility": 30.0,
 }
 
-# kişi ailesi — unchanged from the pre-role catalog on purpose.
+# kişi ailesi = the five social skills (§14, D79). Values are unchanged from the
+# pre-rename catalog on purpose: discipline keeps resourcefulness's 29, courage
+# confidence's 51, empathy politeness's 58, so every existing gate still reads
+# the same level.
 PERSONALITY_ATTRIBUTES = {
     "charisma": 74.0,
-    "politeness": 58.0,
-    "confidence": 51.0,
+    "empathy": 58.0,
+    "courage": 51.0,
     "intelligence": 63.0,
-    "resourcefulness": 29.0,
+    "discipline": 29.0,
 }
 
 

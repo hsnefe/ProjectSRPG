@@ -394,7 +394,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('lifestyle_requirement_badge')), findsOneWidget);
-    expect(find.text('Cazibe 8 gerekli'), findsOneWidget);
+    expect(find.text('Karizma 8 gerekli'), findsOneWidget);
     expect(find.text('Kilitli'), findsOneWidget);
     expect(find.text('Yap'), findsNothing);
 
@@ -468,7 +468,7 @@ void main() {
       isTrue,
     );
 
-    // Cazibeyi yükselten başka bir sosyal aktiviteyi yap. Yatay sıra az önce
+    // Karizmayı yükselten başka bir sosyal aktiviteyi yap. Yatay sıra az önce
     // sonuna kaydırıldığı için başa dönmek gerekiyor.
     await tester.scrollUntilVisible(
       find.text('Arkadaş Buluşması'),

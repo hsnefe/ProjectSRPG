@@ -586,7 +586,7 @@ def test_post_action_satisfied_threshold_reads_as_no_gate(api_client, created_ca
     resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "sos-taraftar"})
     assert resp.status_code == 200
     changed = {c["key"] for c in resp.json()["attribute_changes"]}
-    assert changed == {"charisma", "confidence"}
+    assert changed == {"charisma", "courage"}
 
 
 def test_post_purchase_has_the_gate_wired_too(api_client, created_career, monkeypatch):
@@ -612,13 +612,13 @@ def test_attribute_change_reports_the_level_it_crossed(api_client, created_caree
     local copy sees the gate open without re-deriving anything."""
     career_id = created_career["career_id"]
     grant_money(career_id, 10000)
-    set_attribute(career_id, "confidence", 59.8)   # level 5
+    set_attribute(career_id, "courage", 59.8)   # level 5
 
     # §13.5 retired ozguven-koclugu; sos-konser is the kişi path that
     # replaced it (D78), and +0.4 still crosses the decade.
     resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "sos-konser"})
     assert resp.status_code == 200
-    change = next(c for c in resp.json()["attribute_changes"] if c["key"] == "confidence")
+    change = next(c for c in resp.json()["attribute_changes"] if c["key"] == "courage")
     assert change["before"] == 59.8
     assert change["after"] == pytest.approx(60.2)   # float; the level is the point
     assert (change["level_before"], change["level_after"]) == (5, 6)

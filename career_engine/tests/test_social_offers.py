@@ -200,11 +200,11 @@ def test_an_unmet_requirement_keeps_the_offer_from_being_made(
 ):
     """D42 as eligibility, not enforcement: an offer the player could only
     decline is a notification, not an offer. media_interview_request wants
-    politeness level 3, and a player with none is never asked."""
+    empathy level 3, and a player with none is never asked."""
     always_offer(monkeypatch)
     db_conn.execute(
         "INSERT INTO player_attribute (career_id, player_id, attribute_key, value) "
-        "VALUES (?, ?, 'politeness', 5)",  # level 0
+        "VALUES (?, ?, 'empathy', 5)",  # level 0
         (offer_career, player_id),
     )
 

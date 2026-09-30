@@ -209,7 +209,7 @@ def test_gated_option_is_refused_and_leaves_the_event_open(
     again rather than losing the moment to a 409."""
     career_id = created_career["career_id"]
     force_template("kafe-taniyan-birisi")
-    set_attribute(career_id, "confidence", 20.0)   # level 2, under every gate
+    set_attribute(career_id, "courage", 20.0)   # level 2, under every gate
     event = _open_event(api_client, career_id)
     gated = next((o for o in event["options"] if o["requires"]), None)
     assert gated is not None, "this template should have a gated option"
@@ -234,7 +234,7 @@ def test_an_option_can_introduce_a_partner(
 ):
     career_id = created_career["career_id"]
     force_template("kafe-taniyan-birisi")
-    set_attribute(career_id, "confidence", 60.0)   # clears the option's gate
+    set_attribute(career_id, "courage", 60.0)   # clears the option's gate
     event = _open_event(api_client, career_id)
     assert event["template_id"] == "kafe-taniyan-birisi"
 
@@ -259,7 +259,7 @@ def test_introducing_does_nothing_once_a_partner_exists(
 
     career_id = created_career["career_id"]
     force_template("kafe-taniyan-birisi")
-    set_attribute(career_id, "confidence", 60.0)
+    set_attribute(career_id, "courage", 60.0)
     conn = _db()
     try:
         relationships.set_state(conn, career_id, "partner", config.STATE_ACTIVE)

@@ -10,7 +10,7 @@ void main() {
 
     test('yalnızca karşılanmayanları döner', () {
       final unmet = unmetRequirements(
-        const {'charisma': 8, 'confidence': 6},
+        const {'charisma': 8, 'courage': 6},
         (key) => key == 'charisma' ? 7 : 6,
       );
       expect(unmet, {'charisma': 8});
@@ -29,13 +29,13 @@ void main() {
 
   group('requirementLabel', () {
     test('tek eşik', () {
-      expect(requirementLabel(const {'confidence': 6}), 'Özgüven 6 gerekli');
+      expect(requirementLabel(const {'courage': 6}), 'Cesaret 6 gerekli');
     });
 
     test('birden fazla eşik nokta ile ayrılır', () {
       expect(
-        requirementLabel(const {'confidence': 6, 'charisma': 8}),
-        'Özgüven 6 · Cazibe 8 gerekli',
+        requirementLabel(const {'courage': 6, 'charisma': 8}),
+        'Cesaret 6 · Karizma 8 gerekli',
       );
     });
 
@@ -50,15 +50,15 @@ void main() {
         PlayerAttribute(key: 'charisma', family: 'kişi', value: 74.0, level: 7),
       ]);
       expect(lookup('charisma'), 7);
-      expect(lookup('politeness'), 0);
+      expect(lookup('empathy'), 0);
     });
   });
 
   test('etiketler on iki niteliğin hepsini kapsar', () {
     // D30: radar neyse model o — eksik bir etiket ekranda ham anahtarı
-    // ('resourcefulness') gösterirdi.
+    // ('discipline') gösterirdi.
     expect(attributeLabels.length, 12);
-    expect(attributeLabel('resourcefulness'), 'Beceriklilik');
+    expect(attributeLabel('discipline'), 'Disiplin');
     expect(attributeLabel('bilinmeyen'), 'bilinmeyen');
   });
 }

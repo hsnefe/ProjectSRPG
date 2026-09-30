@@ -266,7 +266,7 @@ void main() {
           ],
           'attribute_changes': [
             {
-              'key': 'politeness', 'before': 58.0, 'after': 58.6,
+              'key': 'empathy', 'before': 58.0, 'after': 58.6,
               'level_before': 5, 'level_after': 5,
             }
           ],
@@ -572,7 +572,7 @@ void main() {
               'family': 'kişi', 'drill': null,
               'costs': {'time': 60, 'energy': 5},
               'effects': {'attribute:charisma': 0.8, 'money': -1500},
-              'requires': {'confidence': 6},
+              'requires': {'courage': 6},
             },
           ],
         });
@@ -587,7 +587,7 @@ void main() {
       // D42 · eşiği olmayan kalem boş sözlük döner, null değil — çağıran
       // her yerde `requires.isEmpty` diye bakabilsin.
       expect(catalog.items[0].requires, isEmpty);
-      expect(catalog.items[1].requires, {'confidence': 6});
+      expect(catalog.items[1].requires, {'courage': 6});
     });
 
     test('dialogueCatalog() parses thresholds and carries no rewards',
@@ -607,7 +607,7 @@ void main() {
             {
               'dialogue_id': 'coach_01', 'relationship_id': 'coach',
               'leaves': [
-                {'leaf_id': 'r0', 'requires': {'politeness': 6}},
+                {'leaf_id': 'r0', 'requires': {'empathy': 6}},
               ],
             },
           ],

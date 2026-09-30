@@ -26,7 +26,7 @@ through the day loop, `passive_effects` never writes at all — it rides on
 top of the stored value at read time (domain/attributes.effective_value) and
 disappears the moment the item does. That is what lets §12.12's five
 "showroom" rows finally mean something without breaking INV-22: a sold suit
-takes its politeness with it, and no attribute ever fell.
+takes its empathy with it, and no attribute ever fell.
 
 §12.13 `weekly_return_rate`: an `investment`-category item's weekly return as
 a fraction of `price` (not `effects`/`daily_effects` — it isn't an anchor-key
@@ -51,7 +51,7 @@ SHOP_ITEMS = [
      "description": "Boş günlerin standart eğlencesi. Takım arkadaşlarıyla online "
                      "turnuvalar için de iyi bahane.",
      "price": 70, "upkeep_weekly": 0, "note": "İki kollu",
-     "passive_effects": {"attribute:resourcefulness": 2.0}},
+     "passive_effects": {"attribute:discipline": 2.0}},
     {"catalog_id": "home-treadmill", "title": "Koşu bandı", "category": "home",
      "description": "Kamp dışı günlerde kondisyonu evde korumanın en kolay yolu.",
      "price": 110, "upkeep_weekly": 0, "note": "Eğimli, 20 km/s",
@@ -66,16 +66,16 @@ SHOP_ITEMS = [
     {"catalog_id": "personal-boots", "title": "Krampon", "category": "personal",
      "description": "Kendi ayağına göre kalıplanmış çift. Islak zeminde fark ediyor.",
      "price": 45, "upkeep_weekly": 0, "note": "Kişiye özel kalıp",
-     "passive_effects": {"attribute:confidence": 1.0}},
+     "passive_effects": {"attribute:courage": 1.0}},
     {"catalog_id": "personal-suit", "title": "Takım elbise", "category": "personal",
      "description": "Deplasman yolculukları ve kulüp galaları için.",
      "price": 60, "upkeep_weekly": 0, "note": "Ismarlama",
-     "passive_effects": {"attribute:politeness": 3.0}},
+     "passive_effects": {"attribute:empathy": 3.0}},
     {"catalog_id": "personal-headphones", "title": "Kulaklık", "category": "personal",
      "description": "Otobüs yolculuklarında dış sesi kesiyor; maç öncesi rutinin "
                      "parçası.",
      "price": 40, "upkeep_weekly": 0, "note": "Gürültü engelleyici",
-     "passive_effects": {"attribute:confidence": 2.0}},
+     "passive_effects": {"attribute:courage": 2.0}},
 
     # --- realEstate (D27: tek gerçek düzenli gider kaynağı) ---
     {"catalog_id": "estate-studio", "title": "Stüdyo daire", "category": "realEstate",
@@ -86,13 +86,13 @@ SHOP_ITEMS = [
      "description": "Merkezde geniş bir kat. Aile ziyaretleri için yer var.",
      "price": 3200, "upkeep_weekly": 12, "note": "3+1, 120 m²",
      "daily_effects": {"condition": 1},
-     "passive_effects": {"attribute:confidence": 2.0}},
+     "passive_effects": {"attribute:courage": 2.0}},
     {"catalog_id": "estate-villa", "title": "Deniz manzaralı villa", "category": "realEstate",
      "description": "Sezon arasında kaçılacak yer. Bahçesinde kendi antrenman alanı "
                      "kurulabilir.",
      "price": 9000, "upkeep_weekly": 30, "note": "Havuzlu, 380 m²",
      "daily_effects": {"condition": 1},
-     "passive_effects": {"attribute:confidence": 3.0, "attribute:charisma": 1.0}},
+     "passive_effects": {"attribute:courage": 3.0, "attribute:charisma": 1.0}},
 
     # --- investment (§12.13: weekly_return_rate, of `price`, frozen into
     # inventory.weekly_return at purchase) ---

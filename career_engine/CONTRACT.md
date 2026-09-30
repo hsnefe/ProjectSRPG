@@ -4896,3 +4896,46 @@ yazılması gerekiyor, D23 gereği FE'de), ama imza sonrası iş listesine dahil
 | Kulüp bazlı **medya** ilişkisi | Medya ülke basınıdır, kulübün değil; §3.4'ün `outlet` trait'i tek bir kuruma bağlı |
 | Aktivite olaylarının zincirlenmesi (bir olayın başka bir olayı doğurması) | v1'de tek adım; zincir §12.8'in `plan_days_ahead` kalıbını ister ve o kalıp gün kilidiyle geliyor (D76 onu reddetti) |
 | Pasif bonusun `saha` ailesine açılması | Bir kol saatinin şut isabetini artırmasının açıklaması yok; `saha` antrenmanla kazanılır ve §13.5'ten sonra da öyle kalır |
+
+---
+
+## 14. EK: SOSYAL SKILL'LER, AKTİVİTE/İTEM/KONUT GENİŞLEMESİ
+
+`sosyal-sistem-tasarim-dokumani.md`'nin uygulanması. §11, §12 ve §13 gibi imza
+sonrası eklenmiştir; yalnızca kendi "Geçersiz kılananlar" tablosundakileri
+geçersiz kılar. Bu sürümde yalnızca §14.1 yazılıdır; sonraki alt bölümler
+(item equip, aktivite/risk, konut, trigger/kuyruk) kendi fazlarıyla eklenir.
+
+### 14.0 Geçersiz kılananlar
+
+| Eski hüküm | Nerede | Yeni durum |
+|---|---|---|
+| "hız, top kontrolü, **cesaret** gibi nitelikler yoktur" | D30, §3.2 | `courage` (Cesaret) artık bir niteliktir; `kişi` ailesinin üçüncü anahtarıdır |
+| `politeness` · `confidence` · `resourcefulness` anahtarları ve Kibarlık · Özgüven · Beceriklilik etiketleri | §3.2 tablosu, §5, §13.3 | `empathy` (Empati) · `courage` (Cesaret) · `discipline` (Disiplin); §14.1 |
+
+§1–§13'teki metin, örnek JSON ve tablolar eski adlarla **olduğu gibi kalır**;
+okurken §14.1'deki eşleme uygulanır.
+
+### 14.1 Beş sosyal skill (D79)
+
+**D79.** `kişi` ailesi, tasarım dokümanının beş sosyal skill'idir. Anahtar
+kümesi 12'de kalır (INV-21); yalnızca üç anahtar adını değiştirir, iki anahtar
+(`charisma`, `intelligence`) aynı kalır:
+
+| Eski anahtar | Yeni anahtar | Etiket |
+|---|---|---|
+| `charisma` | `charisma` | Karizma |
+| `politeness` | `empathy` | Empati |
+| `confidence` | `courage` | Cesaret |
+| `intelligence` | `intelligence` | Zeka |
+| `resourcefulness` | `discipline` | Disiplin |
+
+- Başlangıç değerleri, seviye hesabı (`floor(değer/10)`), `requires` eşikleri ve
+  pasif bonuslar **değişmez**: her eski eşik yeni adıyla aynı seviyeyi okur.
+  Eşikler bilinçli olarak yeniden kalibre edilmemiştir; dokümanın yeni
+  gate'leri (Empati ≥2 gibi) 0–10 ölçeğine çevrilerek kendi fazlarında yazılır.
+- Kalıcı veride anahtar yalnızca `player_attribute.attribute_key`'de saklanır;
+  `db/migrations/019_social_skill_keys.sql` mevcut kariyerlerdeki satırları
+  yeniden adlandırır.
+- **INV-65.** `ATTRIBUTE_KEYS` hâlâ kapalı 12'li kümedir ve `kişi` ailesi tam
+  olarak `charisma`, `empathy`, `courage`, `intelligence`, `discipline`'dir.

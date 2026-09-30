@@ -90,21 +90,21 @@ LIFESTYLE_ITEMS = [
                      "kafan dinlenir.",
      "duration_label": "1 saat",
      "costs": {"time": 60},
-     "effects": {"condition": 1, "money": -1, "attribute:politeness": 0.1},
+     "effects": {"condition": 1, "money": -1, "attribute:empathy": 0.1},
      "event_chance": 0.3},
     {"catalog_id": "sos-aile", "title": "Aile Ziyareti", "group": "SOSYAL AKTİVİTELER",
      "description": "Ailenle vakit geçir. Kariyerin baskısını hafifletir, "
                      "aile ilişkini güçlendirir.",
      "duration_label": "Yarım gün",
      "costs": {"time": 360},
-     "effects": {"condition": 4, "relationship:family": 3, "attribute:politeness": 0.3},
+     "effects": {"condition": 4, "relationship:family": 3, "attribute:empathy": 0.3},
      "event_chance": 0.2},
     {"catalog_id": "sos-konser", "title": "Konser", "group": "SOSYAL AKTİVİTELER",
      "description": "Gece boyu sahne önünde ol. Eğlencesi bol, ertesi günkü "
                      "antrenmana bedeli ağır.",
      "duration_label": "Tüm gece",
      "costs": {"time": 540},
-     "effects": {"condition": -12, "money": -8, "attribute:confidence": 0.4},
+     "effects": {"condition": -12, "money": -8, "attribute:courage": 0.4},
      "event_chance": 0.4},
     # D35 - "Tribünün gözünde değerin artar" vaadi burada ilk kez karşılığını
     # buluyor: fame:overall AÇIK-9 kapanana kadar null (§3.2 notu).
@@ -119,7 +119,7 @@ LIFESTYLE_ITEMS = [
      "duration_label": "2 saat",
      "costs": {"time": 120},
      "effects": {"condition": -2, "fame:overall": None,
-                 "attribute:charisma": 0.5, "attribute:confidence": 0.3},
+                 "attribute:charisma": 0.5, "attribute:courage": 0.3},
      "requires": {"charisma": 7},
      "event_chance": 0.35},
 ]

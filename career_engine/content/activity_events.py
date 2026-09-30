@@ -52,7 +52,7 @@ ACTIVITY_EVENTS = [
         "options": [
             {
                 "option_id": "masasina_git", "label": "Masasına geç",
-                "requires": {"confidence": 5},
+                "requires": {"courage": 5},
                 "costs": {"time": 45.0, "energy": 5.0},
                 "effects": {"attribute:charisma": 0.4},
                 "starts_relationship": "partner",
@@ -78,7 +78,7 @@ ACTIVITY_EVENTS = [
                 "option_id": "tanis", "label": "Yanına git",
                 "requires": {"charisma": 6},
                 "costs": {"time": 60.0, "energy": 8.0},
-                "effects": {"attribute:confidence": 0.3},
+                "effects": {"attribute:courage": 0.3},
                 "starts_relationship": "partner",
             },
             {
@@ -103,7 +103,7 @@ ACTIVITY_EVENTS = [
                 "option_id": "imza_ver", "label": "İmzala ve fotoğraf çektir",
                 "costs": {"time": 20.0, "energy": 2.0},
                 "effects": {"relationship:fans": 4, "fame:overall": 0.2,
-                            "attribute:politeness": 0.2},
+                            "attribute:empathy": 0.2},
             },
             {
                 "option_id": "el_salla", "label": "El sallayıp devam et",
@@ -135,7 +135,7 @@ ACTIVITY_EVENTS = [
             {
                 "option_id": "sert_cevap", "label": "Kamerayı kapattır",
                 "costs": {"time": 10.0, "energy": 6.0},
-                "effects": {"relationship:media": -5, "attribute:confidence": 0.3,
+                "effects": {"relationship:media": -5, "attribute:courage": 0.3,
                             "condition": -2},
             },
         ],
@@ -157,7 +157,7 @@ ACTIVITY_EVENTS = [
             },
             {
                 "option_id": "bir_saat", "label": "Bir saat otur, erken çık",
-                "requires": {"resourcefulness": 3},
+                "requires": {"discipline": 3},
                 "costs": {"time": 45.0, "energy": 5.0},
                 "effects": {"relationship:team": 2, "money": -2},
             },
@@ -182,7 +182,7 @@ ACTIVITY_EVENTS = [
                 "option_id": "ac", "label": "Aç ve konuş",
                 "costs": {"time": 30.0, "energy": 2.0},
                 "effects": {"relationship:family": 4, "condition": 2,
-                            "attribute:politeness": 0.2},
+                            "attribute:empathy": 0.2},
             },
             {
                 "option_id": "sonra", "label": "Yarın ararım",
@@ -204,7 +204,7 @@ ACTIVITY_EVENTS = [
             {
                 "option_id": "cevapla", "label": "Kısa bir cevap yaz",
                 "costs": {"time": 10.0, "energy": 1.0},
-                "effects": {"fame:overall": 0.1, "attribute:resourcefulness": 0.2},
+                "effects": {"fame:overall": 0.1, "attribute:discipline": 0.2},
             },
             {
                 "option_id": "yarin", "label": "Telefonu bırak",

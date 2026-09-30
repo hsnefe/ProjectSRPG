@@ -33,8 +33,8 @@ def test_level_is_exactly_the_threshold_equivalence(n):
 # --- unmet(): pure, no database -------------------------------------------
 
 def test_unmet_reports_only_the_failing_keys_with_both_levels():
-    levels = {"charisma": 7, "confidence": 6}
-    assert requirements.unmet(levels, {"charisma": 8, "confidence": 6}) == {"charisma": (7, 8)}
+    levels = {"charisma": 7, "courage": 6}
+    assert requirements.unmet(levels, {"charisma": 8, "courage": 6}) == {"charisma": (7, 8)}
 
 
 def test_unmet_treats_a_missing_key_as_level_zero():
@@ -81,17 +81,17 @@ def test_check_treats_an_absent_map_as_no_gate(db_conn, gated_player, requires):
 
 def test_check_raises_on_the_first_unmet_key_in_authored_order(db_conn, gated_player):
     career_id, pid = gated_player
-    # Neither is met (politeness has no row at all -> level 0); the author's
+    # Neither is met (empathy has no row at all -> level 0); the author's
     # order decides which one the message names.
     with pytest.raises(ApiError) as exc:
-        requirements.check(db_conn, career_id, pid, {"politeness": 6, "charisma": 9})
-    assert "politeness" in exc.value.message
+        requirements.check(db_conn, career_id, pid, {"empathy": 6, "charisma": 9})
+    assert "empathy" in exc.value.message
 
 
 def test_check_reads_a_missing_attribute_row_as_level_zero(db_conn, gated_player):
     career_id, pid = gated_player
     with pytest.raises(ApiError):
-        requirements.check(db_conn, career_id, pid, {"resourcefulness": 1})
+        requirements.check(db_conn, career_id, pid, {"discipline": 1})
 
 
 # --- INV-31: what a `requires` map may contain ----------------------------
@@ -110,7 +110,7 @@ def test_validate_requires_rejects(bad):
 
 
 @pytest.mark.parametrize("ok", [None, {}, {"charisma": 0}, {"charisma": 10},
-                                {"politeness": 6, "intelligence": 6}])
+                                {"empathy": 6, "intelligence": 6}])
 def test_validate_requires_accepts(ok):
     validate_requires(ok, "test")
 

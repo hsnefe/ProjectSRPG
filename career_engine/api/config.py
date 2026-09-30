@@ -30,11 +30,15 @@ ATTRIBUTE_KEYS = {
     "passing":         "saha",
     "dribbling":       "saha",
     "tackling":        "saha",
+    # §14 (D79): the kişi family IS the five social skills — Karizma, Empati,
+    # Cesaret, Zeka, Disiplin. Only three keys changed name (politeness ->
+    # empathy, confidence -> courage, resourcefulness -> discipline); the set
+    # stays closed at 12 (INV-21).
     "charisma":        "kişi",
-    "politeness":      "kişi",
-    "confidence":      "kişi",
+    "empathy":         "kişi",
+    "courage":         "kişi",
     "intelligence":    "kişi",
-    "resourcefulness": "kişi",
+    "discipline":      "kişi",
 }
 
 # §12.11 D63 - the fixed 3-key tactical-training catalog. Kept separate from

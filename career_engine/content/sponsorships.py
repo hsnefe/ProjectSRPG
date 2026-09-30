@@ -82,7 +82,7 @@ SPONSORSHIPS = [
                 "çağıracak. Bu ligdeki en iyi krampon anlaşması.",
         "accept_label": "İmzala",
         "decline_label": "Şimdilik hayır",
-        "requires": {"charisma": 7, "confidence": 6},
+        "requires": {"charisma": 7, "courage": 6},
         "obligation": {
             "every_days": 45,
             "title": "Lansman etkinliği",
@@ -102,7 +102,7 @@ SPONSORSHIPS = [
                 "kuruyor ve başında seni istiyor. Rakam büyük, takvim ağır.",
         "accept_label": "Turu kabul et",
         "decline_label": "Bu kadarına giremem",
-        "requires": {"charisma": 8, "politeness": 6},
+        "requires": {"charisma": 8, "empathy": 6},
         "obligation": {
             "every_days": 21,
             "title": "Okul ziyareti",

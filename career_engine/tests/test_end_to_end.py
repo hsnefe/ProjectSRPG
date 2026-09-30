@@ -106,7 +106,7 @@ def test_full_career_session(api_client, mock_engine):
     money_after_purchase = buy.json()["career_state"]["money"]
     assert money_after_purchase == config.STARTING_MONEY + 20000 - BOOTS_PRICE
 
-    # 7. Chat with the coach. The conciliatory reply is gated on politeness
+    # 7. Chat with the coach. The conciliatory reply is gated on empathy
     #    6 (D42) and a fresh career sits at 58.0 — level 5 — so it bounces
     #    first, without touching the score.
     locked = api_client.post(
@@ -119,7 +119,7 @@ def test_full_career_session(api_client, mock_engine):
     assert unchanged["score"] == STARTING_SCORES["coach"]
     assert unchanged["recent_events"] == []
 
-    set_attribute(career_id, "politeness", 60.0)
+    set_attribute(career_id, "empathy", 60.0)
     interact = api_client.post(
         f"/careers/{career_id}/relationships/coach/interact",
         json={"dialogue_id": "coach_01", "choice_path": ["start", "r0"]},

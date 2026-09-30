@@ -60,7 +60,7 @@ CareerSession _dialogSession() {
 }
 
 /// D42 · eşik taşıyan bir diyalog kataloğu + oyuncunun seviyeleri. Tek ağaç,
-/// tek yaprak ('end') ve o yaprak `confidence` ister; [confidenceLevel] ile
+/// tek yaprak ('end') ve o yaprak `courage` ister; [confidenceLevel] ile
 /// oyuncunun o eşiği tutup tutmadığı ayarlanır.
 CareerSession _gatedSession({required int confidenceLevel}) {
   final mock = MockClient((request) async {
@@ -80,7 +80,7 @@ CareerSession _gatedSession({required int confidenceLevel}) {
           {
             'dialogue_id': 'test_dialogue_01', 'relationship_id': 'test_rel',
             'leaves': [
-              {'leaf_id': 'end', 'requires': {'confidence': 6}},
+              {'leaf_id': 'end', 'requires': {'courage': 6}},
             ],
           },
         ],
@@ -100,7 +100,7 @@ CareerSession _gatedSession({required int confidenceLevel}) {
         },
         'attributes': [
           {
-            'key': 'confidence', 'family': 'kişi',
+            'key': 'courage', 'family': 'kişi',
             'value': confidenceLevel * 10.0, 'level': confidenceLevel,
           },
         ],
@@ -280,7 +280,7 @@ void main() {
 
     // §5.4 · gizlenmez, griye çekilir: metin duruyor, gerekçe altında.
     expect(find.text('İyiyim, sen nasılsın?'), findsOneWidget);
-    expect(find.text('Özgüven 6 gerekli'), findsOneWidget);
+    expect(find.text('Cesaret 6 gerekli'), findsOneWidget);
 
     final button = tester.widget<OutlinedButton>(
       find.byKey(const Key('locked_choice_end')),
@@ -302,7 +302,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
 
     expect(find.byKey(const Key('locked_choice_end')), findsNothing);
-    expect(find.text('Özgüven 6 gerekli'), findsNothing);
+    expect(find.text('Cesaret 6 gerekli'), findsNothing);
 
     await tester.tap(find.text('İyiyim, sen nasılsın?'));
     await tester.pump();

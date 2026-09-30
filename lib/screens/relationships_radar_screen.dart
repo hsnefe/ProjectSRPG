@@ -12,11 +12,11 @@ class RelationshipsRadarScreen extends StatelessWidget {
   /// skorlarından (R1) DEĞİL, oyuncunun kendi kişi niteliklerinden gelir —
   /// ikisi ayrı kavramlar, yalnızca eski sabit veride sayılar örtüşüyordu.
   static const _axes = {
-    'charisma': 'Cazibe',
-    'politeness': 'Kibarlık',
-    'confidence': 'Özgüven',
+    'charisma': 'Karizma',
+    'empathy': 'Empati',
+    'courage': 'Cesaret',
     'intelligence': 'Zeka',
-    'resourcefulness': 'Beceriklilik',
+    'discipline': 'Disiplin',
   };
 
   @override

@@ -92,20 +92,20 @@ def test_get_player_levels_match_the_fresh_kişi_values(api_client, created_care
     body = api_client.get(f"/careers/{created_career['career_id']}/player").json()
     levels = {a["key"]: a["level"] for a in body["attributes"]}
     assert levels["charisma"] == 7        # 74.0
-    assert levels["politeness"] == 5      # 58.0
-    assert levels["confidence"] == 5      # 51.0
+    assert levels["empathy"] == 5      # 58.0
+    assert levels["courage"] == 5      # 51.0
     assert levels["intelligence"] == 6    # 63.0
-    assert levels["resourcefulness"] == 2  # 29.0
+    assert levels["discipline"] == 2  # 29.0
 
 
 def test_get_player_level_follows_the_value_after_training(api_client, created_career):
     from tests.conftest import set_attribute
 
     career_id = created_career["career_id"]
-    set_attribute(career_id, "confidence", 59.9)
+    set_attribute(career_id, "courage", 59.9)
     body = api_client.get(f"/careers/{career_id}/player").json()
-    assert next(a for a in body["attributes"] if a["key"] == "confidence")["level"] == 5
+    assert next(a for a in body["attributes"] if a["key"] == "courage")["level"] == 5
 
-    set_attribute(career_id, "confidence", 60.0)
+    set_attribute(career_id, "courage", 60.0)
     body = api_client.get(f"/careers/{career_id}/player").json()
-    assert next(a for a in body["attributes"] if a["key"] == "confidence")["level"] == 6
+    assert next(a for a in body["attributes"] if a["key"] == "courage")["level"] == 6

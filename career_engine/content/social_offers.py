@@ -104,7 +104,7 @@ SOCIAL_OFFERS = [
                                                         "attribute:charisma": 0.5}},
         "decline": {"relationship_delta": -5, "effects": {}},
         "costs": {"time": 60},
-        "requires": {"politeness": 3},
+        "requires": {"empathy": 3},
     },
 
     # --- fans -------------------------------------------------------------

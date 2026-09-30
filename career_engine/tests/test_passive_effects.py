@@ -39,25 +39,25 @@ def test_validate_passive_effects_rejects_saha_and_negatives():
     with pytest.raises(ValueError):
         validate_passive_effects({"attribute:shooting": 2.0}, "test")
     with pytest.raises(ValueError):
-        validate_passive_effects({"attribute:politeness": -1.0}, "test")
+        validate_passive_effects({"attribute:empathy": -1.0}, "test")
     with pytest.raises(ValueError):
-        validate_passive_effects({"attribute:politeness": True}, "test")
-    validate_passive_effects({"attribute:politeness": 2.0}, "test")   # the happy path
+        validate_passive_effects({"attribute:empathy": True}, "test")
+    validate_passive_effects({"attribute:empathy": 2.0}, "test")   # the happy path
 
 
 def test_buying_an_item_raises_the_effective_value_not_the_base(api_client, created_career):
     """INV-60 - the stored column never moves. The bonus is derived per read."""
     career_id = created_career["career_id"]
     grant_money(career_id, 10000)
-    set_attribute(career_id, "politeness", 58.0)
+    set_attribute(career_id, "empathy", 58.0)
 
-    before = _attribute(api_client, career_id, "politeness")
+    before = _attribute(api_client, career_id, "empathy")
     assert (before["value"], before["passive_bonus"], before["effective_value"]) == (58.0, 0, 58.0)
 
     resp = api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "personal-suit"})
     assert resp.status_code == 200
 
-    after = _attribute(api_client, career_id, "politeness")
+    after = _attribute(api_client, career_id, "empathy")
     assert after["value"] == 58.0              # base untouched (INV-60)
     assert after["passive_bonus"] == 3.0       # personal-suit
     assert after["effective_value"] == 61.0
@@ -66,7 +66,7 @@ def test_buying_an_item_raises_the_effective_value_not_the_base(api_client, crea
     conn = _db()
     try:
         stored = conn.execute(
-            "SELECT value FROM player_attribute WHERE career_id = ? AND attribute_key = 'politeness'",
+            "SELECT value FROM player_attribute WHERE career_id = ? AND attribute_key = 'empathy'",
             (career_id,),
         ).fetchone()["value"]
     finally:
@@ -80,9 +80,9 @@ def test_bonus_disappears_with_the_item(api_client, created_career):
     even tested."""
     career_id = created_career["career_id"]
     grant_money(career_id, 10000)
-    set_attribute(career_id, "politeness", 58.0)
+    set_attribute(career_id, "empathy", 58.0)
     api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "personal-suit"})
-    assert _attribute(api_client, career_id, "politeness")["effective_value"] == 61.0
+    assert _attribute(api_client, career_id, "empathy")["effective_value"] == 61.0
 
     # The way D29 repossession takes it away: the inventory row goes.
     conn = _db()
@@ -94,7 +94,7 @@ def test_bonus_disappears_with_the_item(api_client, created_career):
     finally:
         conn.close()
 
-    after = _attribute(api_client, career_id, "politeness")
+    after = _attribute(api_client, career_id, "empathy")
     assert (after["value"], after["passive_bonus"], after["effective_value"]) == (58.0, 0, 58.0)
 
 
@@ -103,10 +103,10 @@ def test_effective_value_is_clamped_to_one_hundred(api_client, created_career):
     threshold can express (MAX_REQUIREMENT_LEVEL is 10)."""
     career_id = created_career["career_id"]
     grant_money(career_id, 10000)
-    set_attribute(career_id, "politeness", 99.0)
+    set_attribute(career_id, "empathy", 99.0)
     api_client.post(f"/careers/{career_id}/purchases", json={"catalog_id": "personal-suit"})
 
-    attr = _attribute(api_client, career_id, "politeness")
+    attr = _attribute(api_client, career_id, "empathy")
     assert attr["effective_value"] == 100.0
     assert attr["level"] == 10
 
