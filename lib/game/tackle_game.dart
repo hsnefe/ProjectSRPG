@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart' show ValueChanged, ValueNotifier;
 
 import 'package:project_srpg/game/conditioning_game.dart' show RunSide;
 import 'package:project_srpg/game/game_banner.dart';
+import 'package:project_srpg/game/run_frames.dart';
 import 'package:project_srpg/game/shot_objective.dart';
 import 'package:project_srpg/game/training_result.dart';
 import 'package:project_srpg/theme/app_colors.dart';
@@ -143,18 +144,17 @@ class TackleGame extends FlameGame {
   /// Üç kademenin 0..1 ağırlığı. `ShotObjective.weightOf` ile aynı tablo ama o
   /// metot bir senaryo hedefine bağlı, buradan çağrılamıyor.
   static double weightOf(ShotGrade grade) => switch (grade) {
-        ShotGrade.fail => 0,
-        ShotGrade.good => 0.6,
-        ShotGrade.great => 1,
-      };
+    ShotGrade.fail => 0,
+    ShotGrade.good => 0.6,
+    ShotGrade.great => 1,
+  };
 
   TrainingResult get result => TrainingResult(
-        drill: TrainingDrill.tackling,
-        outcome:
-            succeeded ? TrainingOutcome.success : TrainingOutcome.failure,
-        score: weightOf(grade ?? ShotGrade.fail),
-        detail: timedOut ? 'Süre doldu' : (grade ?? ShotGrade.fail).label,
-      );
+    drill: TrainingDrill.tackling,
+    outcome: succeeded ? TrainingOutcome.success : TrainingOutcome.failure,
+    score: weightOf(grade ?? ShotGrade.fail),
+    detail: timedOut ? 'Süre doldu' : (grade ?? ShotGrade.fail).label,
+  );
 
   @override
   Color backgroundColor() => AppColors.surface1;
@@ -213,8 +213,10 @@ class TackleGame extends FlameGame {
   void _countStep(RunSide side) {
     // İlk adımın öncesinde bir aralık yok; tempo ikinciden itibaren ölçülür.
     if (steps > 0) {
-      final beat = (1 - (sinceLastStep - targetGap).abs() / gapTolerance)
-          .clamp(0.0, 1.0);
+      final beat = (1 - (sinceLastStep - targetGap).abs() / gapTolerance).clamp(
+        0.0,
+        1.0,
+      );
       rhythm = rhythm + (beat - rhythm) * rhythmGain;
     }
     sinceLastStep = 0;
@@ -237,8 +239,10 @@ class TackleGame extends FlameGame {
     }
     if (phase != TacklePhase.window) return;
 
-    final offCentre =
-        ((windowElapsed / windowDuration - 0.5).abs() * 2).clamp(0.0, 1.0);
+    final offCentre = ((windowElapsed / windowDuration - 0.5).abs() * 2).clamp(
+      0.0,
+      1.0,
+    );
     _grade(offCentre <= greatBand ? ShotGrade.great : ShotGrade.good);
   }
 
@@ -262,8 +266,10 @@ class TackleGame extends FlameGame {
 
     switch (phase) {
       case TacklePhase.closing:
-        approach.value =
-            math.min(1, approach.value + closeRate * closeScale * cadence * dt);
+        approach.value = math.min(
+          1,
+          approach.value + closeRate * closeScale * cadence * dt,
+        );
         if (approach.value >= 1) _openWindow();
       case TacklePhase.window:
         windowElapsed += dt;
@@ -299,7 +305,9 @@ class TackleGame extends FlameGame {
   void _finish() {
     phase = TacklePhase.done;
     if (isMounted) {
-      add(GameBanner(succeeded ? 'BAŞARILI' : 'YETERSİZ', highlight: succeeded));
+      add(
+        GameBanner(succeeded ? 'BAŞARILI' : 'YETERSİZ', highlight: succeeded),
+      );
     }
     onFinished(result);
     onStateChanged();
@@ -378,6 +386,29 @@ class ChaseComponent extends Component with HasGameReference<TackleGame> {
   @override
   int get priority => 5;
 
+  /// Kondisyon koşusundaki Blender futbolcusunun koşu döngüsü: savunmacı ev
+  /// formasıyla (kırmızı-mavi, her zamanki oyuncu), rakip deplasman formasıyla.
+  /// İkisi de yüklenemezse eski çubuk figür çalışır.
+  RunFrames? _home;
+  RunFrames? _away;
+  bool _settled = false;
+
+  /// Yükleme `onLoad`'u bekletmez: 16 görselin çözülmesi dokunuşları alan
+  /// bileşenlerin bağlanmasını geciktirmemeli (widget testleri sahte zamanda
+  /// görsel çözülmesini hiç bitiremez). Yüklenene kadar figürler çizilmez,
+  /// çubuk figür yalnızca yükleme başarısız olursa çıkar; yoksa her açılışta
+  /// kısa bir süre yanıp sönerdi.
+  @override
+  Future<void> onLoad() async {
+    _loadFrames();
+  }
+
+  Future<void> _loadFrames() async {
+    _home = await RunFrames.load('sprites/footballer_run');
+    _away = await RunFrames.load('sprites/footballer_run_away');
+    _settled = true;
+  }
+
   @override
   void render(Canvas canvas) {
     final u = game.size.x;
@@ -430,11 +461,12 @@ class ChaseComponent extends Component with HasGameReference<TackleGame> {
     double v,
     double scale,
   ) {
-    final left =
-        (1 - game.windowElapsed / game.windowDuration).clamp(0.0, 1.0);
+    final left = (1 - game.windowElapsed / game.windowDuration).clamp(0.0, 1.0);
     final offCentre =
-        ((game.windowElapsed / game.windowDuration - 0.5).abs() * 2)
-            .clamp(0.0, 1.0);
+        ((game.windowElapsed / game.windowDuration - 0.5).abs() * 2).clamp(
+          0.0,
+          1.0,
+        );
     final colour = offCentre <= TackleGame.greatBand
         ? AppColors.success
         : AppColors.warning;
@@ -503,9 +535,16 @@ class ChaseComponent extends Component with HasGameReference<TackleGame> {
     required Color shirt,
     required bool rival,
   }) {
+    final frames = rival ? _away : _home;
+    if (frames == null && !_settled) return;
+
     final stumbling = !rival && game.stumbleLeft > 0;
     final cadence = game.cadence;
-    final bob = math.sin(phi * 2) * v * 0.012 * cadence * scale;
+    // Kareler zıplamayı zaten içinde taşıyor; üstüne ikincisini eklemek
+    // ayakları zeminden koparırdı.
+    final bob = frames != null
+        ? 0.0
+        : math.sin(phi * 2) * v * 0.012 * cadence * scale;
 
     canvas.save();
     canvas.translate(0, bob);
@@ -515,18 +554,53 @@ class ChaseComponent extends Component with HasGameReference<TackleGame> {
       canvas.translate(-hip.dx, -hip.dy);
     }
 
-    final thigh = v * 0.085 * scale;
-    final shin = v * 0.085 * scale;
+    if (frames != null) {
+      final size = v * RunFrames.heightFrac * scale;
+      frames.paint(canvas, hip, phi, size);
+      // Basan ayağın kramponu yanıyor: dönüşümlü basmanın geri bildirimi bu,
+      // o yüzden kareler üstünde de aynen duruyor. Rakipte böyle bir şey yok.
+      if (!rival) {
+        for (final left in [true, false]) {
+          if ((left ? game.leftFlash : game.rightFlash) <= 0) continue;
+          frames.paintFootFlash(canvas, hip, phi, size, left: left);
+        }
+      }
+    } else {
+      final thigh = v * 0.085 * scale;
+      final shin = v * 0.085 * scale;
 
-    // Arka bacak, gövde, ön bacak, kollar, kafa — figür z-sıralaması olmadan
-    // derinlikli okunsun diye bu sırada.
-    _paintLeg(canvas, hip, phi + math.pi, thigh, shin, u, v, scale,
-        side: RunSide.left, back: true, rival: rival);
-    _paintTorso(canvas, hip, u, v, scale, shirt);
-    _paintLeg(canvas, hip, phi, thigh, shin, u, v, scale,
-        side: RunSide.right, back: false, rival: rival);
-    _paintArms(canvas, hip, phi, v, scale);
-    _paintHead(canvas, hip, v, scale);
+      // Arka bacak, gövde, ön bacak, kollar, kafa — figür z-sıralaması
+      // olmadan derinlikli okunsun diye bu sırada.
+      _paintLeg(
+        canvas,
+        hip,
+        phi + math.pi,
+        thigh,
+        shin,
+        u,
+        v,
+        scale,
+        side: RunSide.left,
+        back: true,
+        rival: rival,
+      );
+      _paintTorso(canvas, hip, u, v, scale, shirt);
+      _paintLeg(
+        canvas,
+        hip,
+        phi,
+        thigh,
+        shin,
+        u,
+        v,
+        scale,
+        side: RunSide.right,
+        back: false,
+        rival: rival,
+      );
+      _paintArms(canvas, hip, phi, v, scale);
+      _paintHead(canvas, hip, v, scale);
+    }
 
     if (stumbling) {
       canvas.drawArc(
@@ -564,7 +638,8 @@ class ChaseComponent extends Component with HasGameReference<TackleGame> {
     final thighAngle = 0.55 * math.sin(phi);
     final kneeBend = 0.60 + 0.60 * math.max(0, -math.sin(phi));
 
-    final knee = hip +
+    final knee =
+        hip +
         Offset(math.sin(thighAngle) * thigh, math.cos(thighAngle) * thigh);
     final shinAngle = thighAngle - kneeBend;
     final foot =
@@ -581,8 +656,8 @@ class ChaseComponent extends Component with HasGameReference<TackleGame> {
 
     // Basan ayağın kramponu yanıyor: dönüşümlü basmanın geri bildiriminin
     // tamamı bu, o yüzden şaşmaz olmalı. Rakipte böyle bir şey yok.
-    final flashing = !rival &&
-        (side == RunSide.left ? game.leftFlash : game.rightFlash) > 0;
+    final flashing =
+        !rival && (side == RunSide.left ? game.leftFlash : game.rightFlash) > 0;
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromCenter(
@@ -631,11 +706,13 @@ class ChaseComponent extends Component with HasGameReference<TackleGame> {
     for (final side in [0, 1]) {
       final swing = side == 0 ? phi + math.pi : phi;
       final elbowAngle = -1.2 + 0.9 * math.sin(swing);
-      final elbow = shoulder +
+      final elbow =
+          shoulder +
           Offset(math.sin(elbowAngle) * upper, math.cos(elbowAngle) * upper);
       final handAngle = elbowAngle + 1.1;
       final hand =
-          elbow + Offset(math.sin(handAngle) * fore, math.cos(handAngle) * fore);
+          elbow +
+          Offset(math.sin(handAngle) * fore, math.cos(handAngle) * fore);
 
       final paint = Paint()
         ..color = side == 0

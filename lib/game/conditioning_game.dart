@@ -6,6 +6,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart' show ValueChanged, ValueNotifier;
 
 import 'package:project_srpg/game/game_banner.dart';
+import 'package:project_srpg/game/run_frames.dart';
 import 'package:project_srpg/game/stage_fit.dart';
 import 'package:project_srpg/game/training_result.dart';
 import 'package:project_srpg/theme/app_colors.dart';
@@ -516,59 +517,14 @@ class RunnerComponent extends Component
   Sprite? _upperArm;
   Sprite? _forearm;
 
-  /// Kare kare koşu döngüsü: Blender'daki low-poly futbolcunun 8 karelik
-  /// koşusu (`sprites/footballer_run/run_01..08.png`, 256×256, şeffaf).
+  /// Kare kare koşu döngüsü (`sprites/footballer_run/`, bkz. [RunFrames]).
   /// Varsa parça parça rig'in ve çubuk figürün önüne geçer; yoksa onlar
   /// çalışmaya devam eder.
-  List<Sprite>? _frames;
-
-  static const _frameCount = 8;
-  static const _framePx = 256.0;
-
-  /// Karenin içinde kalçanın durduğu piksel (Blender kamerasından ölçüldü) —
-  /// oyunun `hip` noktasına bu piksel oturur, böylece kareler arası zıplama
-  /// olmaz ve ayaklar aynı zemin çizgisine basar.
-  static const _frameHip = Offset(138.5, 175.8);
-
-  /// Kare boyunun ekran yüksekliğine oranı: karakter karenin ~%90'ını
-  /// kaplıyor, eski rig'in `v * 0.34`'lük boyuna denk gelsin diye.
-  static const _frameHeightFrac = 0.378;
-
-  /// Her karede iki ayakkabının merkezi (kare pikseli). "Sağ" ayak, oyunun
-  /// `phi` fazıyla ilerleyen, öndeki bacak; Blender'daki `Boot_L`.
-  static const _rightFootPx = [
-    Offset(100.4, 208.5),
-    Offset(131.1, 227.5),
-    Offset(173.0, 219.9),
-    Offset(161.0, 230.3),
-    Offset(128.9, 238.0),
-    Offset(99.4, 220.8),
-    Offset(89.7, 207.1),
-    Offset(86.5, 193.6),
-  ];
-  static const _leftFootPx = [
-    Offset(128.9, 238.0),
-    Offset(99.4, 220.8),
-    Offset(89.7, 207.1),
-    Offset(86.5, 193.6),
-    Offset(100.4, 208.5),
-    Offset(131.1, 227.5),
-    Offset(173.0, 219.9),
-    Offset(161.0, 230.3),
-  ];
+  RunFrames? _frames;
 
   @override
   Future<void> onLoad() async {
-    try {
-      _frames = [
-        for (var i = 1; i <= _frameCount; i++)
-          await Sprite.load(
-            'sprites/footballer_run/run_${i.toString().padLeft(2, '0')}.png',
-          ),
-      ];
-    } catch (_) {
-      _frames = null;
-    }
+    _frames = await RunFrames.load('sprites/footballer_run');
     try {
       _torsoHead = await Sprite.load('sprites/run_torso_head.png');
       _thigh = await Sprite.load('sprites/run_thigh.png');
@@ -623,7 +579,7 @@ class RunnerComponent extends Component
         canvas,
         hip,
         phi,
-        onStage ? _Stage.runnerFrameSize(game.size) : v * _frameHeightFrac,
+        onStage ? _Stage.runnerFrameSize(game.size) : v * RunFrames.heightFrac,
         frames,
       );
     } else if (torsoHead != null &&
@@ -701,48 +657,20 @@ class RunnerComponent extends Component
     canvas.restore();
   }
 
-  /// Adımın fazına ([phi], 0…2π) denk gelen kareyi çizer. Kareler Blender'da
-  /// `phi` ile aynı yönde ilerleyen bir fazla üretildi (kare 1: öndeki bacak
-  /// dikey, ileri savruluyor), yani kare seçmek `phi`'yi 8'e bölmekten ibaret.
-  /// Basan ayağın yanan ayakkabı ipucu diğer iki rig'deki gibi çalışır, sadece
-  /// gerçek botların üstüne biner ve yalnızca yanarken çizilir.
+  /// Adımın fazına denk gelen kareyi çizer; basan ayağın yanan ayakkabı ipucu
+  /// diğer iki rig'deki gibi çalışır, sadece gerçek botların üstüne biner.
   void _paintFrame(
     Canvas canvas,
     Offset hip,
     double phi,
     double size,
-    List<Sprite> frames,
+    RunFrames frames,
   ) {
-    final turns = phi / (2 * math.pi);
-    final index =
-        ((turns - turns.floorToDouble()) * _frameCount).floor() % _frameCount;
-    final k = size / _framePx;
-
-    frames[index].render(
-      canvas,
-      position: Vector2(hip.dx, hip.dy),
-      size: Vector2(size, size),
-      anchor: Anchor(_frameHip.dx / _framePx, _frameHip.dy / _framePx),
-    );
-
+    frames.paint(canvas, hip, phi, size);
     for (final side in RunSide.values) {
-      final flashing =
-          (side == RunSide.left ? game.leftFlash : game.rightFlash) > 0;
-      if (!flashing) continue;
-      final px = (side == RunSide.left ? _leftFootPx : _rightFootPx)[index];
-      final foot =
-          hip + Offset((px.dx - _frameHip.dx) * k, (px.dy - _frameHip.dy) * k);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: foot,
-            width: size * 0.15,
-            height: size * 0.05,
-          ),
-          const Radius.circular(3),
-        ),
-        Paint()..color = AppColors.success.withValues(alpha: 0.85),
-      );
+      final left = side == RunSide.left;
+      if ((left ? game.leftFlash : game.rightFlash) <= 0) continue;
+      frames.paintFootFlash(canvas, hip, phi, size, left: left);
     }
   }
 
