@@ -77,11 +77,20 @@ written *against* them rather than the other way round:
 
 **Precedence inside CONTRACT.md matters.** §1–§10 are the signed v1.0 body. §11 (season
 rollover, transfer, contract lifecycle), §12 (coach talk, squad status, sponsorship) and §13
-(relationship lifetimes/scope, passive benefits, activity events) were appended *after*
-signature, and each opens with a "Geçersiz kılananlar" table naming exactly what it overrides —
+(relationship lifetimes/scope, passive benefits, activity events) and §14 (social skills,
+equip/grade items, social activities with risk, housing, trigger queue, deferred consequences)
+were appended *after* signature, and each opens with a "Geçersiz kılananlar" table naming exactly what it overrides —
 §11 has the last word in its own area, §12 and §13 each override only what their own table
 lists. Reading an older clause without checking that table is the main way to get a wrong
-answer here.
+answer here. §14 is partly *decisions without code yet*: its subsections are marked
+"planlanan" until the phase that builds them lands, so check the code before assuming a §14
+rule is live (only §14.1, the five social skills, is).
+
+**Known gap — no in-match triggers.** Relationship/social events that depend on something
+happening *during* a match (a red card, being substituted off, a scoring chance where the
+player chooses pass or shot) cannot fire: `match_engine` events never reach `career_engine`,
+which only sees the final result (`domain/matches.py::apply_result`; `user_cards` is always 0).
+Triggers are calendar- and post-match-only until that changes (⟦AÇIK-19⟧, CONTRACT.md §14.7).
 
 When touching an endpoint, a response field or a game rule, find its clause first. Comments
 throughout both code bases cite sections (`§5.6`, `D38`, `INV-17`, `[İ-33]`) — keep that habit;

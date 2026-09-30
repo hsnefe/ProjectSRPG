@@ -4903,8 +4903,9 @@ yazılması gerekiyor, D23 gereği FE'de), ama imza sonrası iş listesine dahil
 
 `sosyal-sistem-tasarim-dokumani.md`'nin uygulanması. §11, §12 ve §13 gibi imza
 sonrası eklenmiştir; yalnızca kendi "Geçersiz kılananlar" tablosundakileri
-geçersiz kılar. Bu sürümde yalnızca §14.1 yazılıdır; sonraki alt bölümler
-(item equip, aktivite/risk, konut, trigger/kuyruk) kendi fazlarıyla eklenir.
+geçersiz kılar. §14.1 (skill'ler) uygulanmıştır; §14.2–§14.6 **kararları**
+kaydeder ama kodu henüz yoktur — her alt bölüm kendi fazıyla ayrıntılanır ve
+o fazın commit'inde "planlanan" etiketi kalkar.
 
 ### 14.0 Geçersiz kılananlar
 
@@ -4912,6 +4913,16 @@ geçersiz kılar. Bu sürümde yalnızca §14.1 yazılıdır; sonraki alt bölü
 |---|---|---|
 | "hız, top kontrolü, **cesaret** gibi nitelikler yoktur" | D30, §3.2 | `courage` (Cesaret) artık bir niteliktir; `kişi` ailesinin üçüncü anahtarıdır |
 | `politeness` · `confidence` · `resourcefulness` anahtarları ve Kibarlık · Özgüven · Beceriklilik etiketleri | §3.2 tablosu, §5, §13.3 | `empathy` (Empati) · `courage` (Cesaret) · `discipline` (Disiplin); §14.1 |
+
+| Günlük kondisyon toparlanması `5 + eşya bonusu`, tavan 12 (INV-41) | §6.6, §12 | *Planlanan (§14.4):* aktif konutun uyku kazancı doğal +5'in yerini alır, tavan yükselir |
+| Aktivite olaylarının zincirlenmesi kapsam dışı | §13.12 | *Planlanan (§14.6):* ertelenmiş sonuç tablosu zincire izin verir |
+| `estate-*` mağaza itemleri (`realEstate` kategorisi) | §12.13, §13.3 | *Planlanan (§14.4):* mağazadan kalkar, konut sistemine geçer |
+| `inventory`'deki her satırın pasif bonus vermesi | §13.3, INV-60 | *Planlanan (§14.2):* yalnız `equipped` satırlar verir |
+
+**Dokunulmayanlar** (yeni sistemler bunlara uymak zorundadır): INV-39 ve INV-62
+(aynı anda tek açık teklif / tek açık aktivite olayı), D4 (ilişki listesi yok,
+altı sabit tür), D29 (ödenemeyen `upkeep` → %50 iade), INV-3 (tek işlem),
+INV-28 (bilinmeyen katalog anahtarı süreç başında patlar).
 
 §1–§13'teki metin, örnek JSON ve tablolar eski adlarla **olduğu gibi kalır**;
 okurken §14.1'deki eşleme uygulanır.
@@ -4939,3 +4950,99 @@ kümesi 12'de kalır (INV-21); yalnızca üç anahtar adını değiştirir, iki 
   yeniden adlandırır.
 - **INV-65.** `ATTRIBUTE_KEYS` hâlâ kapalı 12'li kümedir ve `kişi` ailesi tam
   olarak `charisma`, `empathy`, `courage`, `intelligence`, `discipline`'dir.
+
+### 14.2 İtemler: equip, derece, kazanılan itemler (planlanan)
+
+- **D80.** `inventory`'ye `equipped` ve `grade` (1–5) eklenir; her item bir
+  *bonus kategorisine* (giyim, aksesuar, teknoloji, araç, ev, özel) bağlıdır ve
+  kategori başına en fazla bir satır aktiftir. `attributes.passive_bonus` ve
+  günlük bonus endeksleri yalnız `equipped` satırları toplar. Satın alma yeni
+  itemi, o kategoride aktif yoksa, otomatik takar.
+- **D81.** Mevcut `personal-*` / `home-*` itemleri tasarım dokümanının
+  itemleriyle değişir; `investment-*` itemleri dokunulmaz. Değişen itemi
+  zaten satın almış kariyerler bir veri migration'ıyla en yakın karşılığa
+  eşlenir ya da iade edilir (faz 3'te karar kaydı).
+- **D82.** Yeni `grant_item:<catalog_id>` effect anahtarı, satın alınamayan
+  itemleri (#38–#42: imzalı forma, ilk gol topu, krampon serisi, kulüp kartı,
+  vakıf) bir olay seçeneği, sosyal teklif ya da sponsorluktan verir. Fiyatsız
+  satırdır (`price_paid = 0`); ödenemeyen `upkeep` yolunda satılamaz.
+- **INV-66.** Bir kategoride birden fazla `equipped = 1` satırı yoktur.
+
+### 14.3 Sosyal aktiviteler, risk ve "biriyle" modu (planlanan)
+
+- **D83.** 50 aktivite `catalog/lifestyle.py`'ye beş yeni grupla girer
+  (Ev, Şehir, Kulüp, Medya, Gece). Fiziksel ve dinlenme aktiviteleri kalır;
+  `sos-*` satırları dokümandaki karşılığıyla birleşir. "Ana/yan skill"
+  ayrımı, etkiler sözlüğündeki iki `attribute:` anahtarının büyüklüğüdür.
+- **D84.** "Biriyle" (B, S/B) aktiviteler istekte `relationship_id` alır; bu,
+  altı sabit türden biridir (D4). İlişki puanı `relationship:<rid>` effect'iyle
+  `relationships.apply_delta()` üzerinden yazılır (INV-15). Solo seçildiğinde
+  ilişki etkisi uygulanmaz ama skill kazancı biraz yüksektir (oran ⟦AÇIK-20⟧).
+- **D85.** Riskli aktiviteler şablonda `risk: {chance, fail_effects}` taşır.
+  Zar `Random(f"{seed}:activity_risk:{date}:{catalog_id}")` ile atılır
+  (aynı gün, aynı aktivite, aynı sonuç — `activity_events` ile aynı kalıp);
+  sonuç `ActionResult`'ta döner. Başarısızlıkta `fail_effects` *ek olarak*
+  uygulanır; hiçbir yazma yolu değişmez.
+- **D86.** Belirli skill seviyesiyle açılan aktiviteler mevcut `requires`
+  alanını kullanır (D42); yeni kilit mekanizması yoktur.
+
+### 14.4 Konut, uyku ve kira (planlanan)
+
+- **D87.** Kariyerin tek bir *aktif konutu* vardır; sahip olunan/kiralanan
+  konutlar ayrı tablodadır. Uyku kazancı, yolculuk etkisi ve karizma derecesi
+  yalnız aktif konuttan gelir. Başlangıç konaklaması (yurt/aile evi/paylaşımlı
+  daire) kariyer açılışında verilir.
+- **D88.** Günlük toparlanma = aktif konutun uyku kazancı (+ eşya bonusu);
+  §6.6'nın `+5`'i ve INV-41'in 12 tavanı bu sürümde geçersizdir, yeni tavan
+  konut kataloğundan türetilir (⟦AÇIK-21⟧). `ev-uyku` aktivitesi yeniden
+  dengelenir. Sakatlık sistemi (v2 maddesi) gelene dek "sakatlık süresi %X
+  kısalır" etkileri katalogda durur ama hiçbir şey okumaz.
+- **D89.** Kira **gerçek aylık**tır: ayın 1'inde, haftanın günü fark
+  etmeksizin tahsil edilir (Pazartesi bloğundan ayrı bir tetik). Ödenemeyen
+  kira konutu kaybettirir; oyuncu başlangıç konaklamasına (aile evi) döner —
+  D29'un %50 iade yolu kiralık konuta uygulanmaz çünkü sahip olunan bir şey
+  yoktur. `LEDGER_KINDS`'e `rent` eklenir.
+- **D90.** Otel odası transferden sonra N gün otomatik verilir; tatil
+  mülkleri yalnız `winter_break` ve `summer_transfer_window` fazlarında
+  kullanılabilir ve "tam dinlenme günü" aksiyonuyla günlük kazanç verir
+  (`domain/season.py::derive_phase`).
+- **INV-67.** Bir kariyerin aynı anda en fazla bir aktif konutu vardır.
+
+### 14.5 Tetikleyiciler ve olay kuyruğu (planlanan)
+
+- **D91.** Tek bir trigger altyapısı: *takvim* (doğum günü, yıl dönümü,
+  sözleşmeye altı ay kala) ve *maç sonrası* (`matches.apply_result`: seri,
+  derbi, eski kulübe karşı maç, galibiyet). Tetikleyici olay yaratmaz,
+  *kuyruğa aday yazar*.
+- **D92.** Öncelikli bekleme kuyruğu: INV-39 ve INV-62 korunur — aynı anda tek
+  açık teklif, tek açık aktivite olayı. Kuyruktaki adaylar öncelik ve
+  `expires_on` ile sıralanır; takvim kaynaklı olaylar (doğum günü) süresi
+  geçince yazmadan düşer (INV-63 ile aynı kural).
+- **D93.** Dokümandaki 40 olay altı sabit ilişki türüne eşlenir: yönetim →
+  `coach`, menajer → `family`/`media`, teknik ekip → `coach`, sponsor → mevcut
+  sponsorluk sistemi (§12.13). Yeni ilişki türü eklenmez.
+
+### 14.6 Ertelenmiş sonuç (planlanan)
+
+- **D94.** `deferred_consequence` tablosu: bir seçim, `due_on` tarihli bir etki
+  sözlüğü ve isteğe bağlı bir takip olay şablonu yazar; gün akışında vadesi
+  gelen satırlar uygulanır ya da kuyruğa aday olur. Bu, dokümanın zincirlerini
+  (#7 → #8) ve gecikmeli sırlarını (#6) tek mekanizmayla çözer. `plan_days_ahead`
+  gibi günü kilitlemez (D76'nın gerekçesi korunur).
+- **INV-68.** Vadesi gelen `deferred_consequence` tam bir kez uygulanır
+  (uygulama ve işaretleme aynı işlemde, INV-3).
+
+### 14.7 Bilinen eksikler ve açık değerler
+
+**Maç içi tetikleyiciler bu sürümde yoktur.** Kırmızı kart, oyundan alınma ve
+gol pozisyonunda pas/şut kararı (dokümandaki #2, #4, #13) `match_engine`'in
+olay akışına ve client'ın `MatchController`'ına bağlıdır; `career_engine` bugün
+kullanıcının kartlarını da görmez (`user_cards` hep 0, `domain/matches.py`).
+Bu olaylar maç sonrası tetikleyicilere uyarlanır; gerçek maç içi tetikleyici
+`API_CONTRACT.md`'nin ve `match_engine`'in değişmesini gerektirir.
+
+| Kimlik | Yer | Açık |
+|---|---|---|
+| ⟦AÇIK-19⟧ | §14.5 maç içi tetikleyiciler | Kırmızı kart, oyundan alınma ve gol pozisyonu olaylarının `match_engine` → `career_engine` taşınması; bu sürümde yok |
+| ⟦AÇIK-20⟧ | §14.3 "biriyle" çarpanı | Solo ile partnerli aktivite arasındaki skill/ilişki takasının sayıları |
+| ⟦AÇIK-21⟧ | §14.4 konut katalog değerleri | Kondisyon ölçeği, yeni günlük tavan, kira tutarları ve peşinatlar |
