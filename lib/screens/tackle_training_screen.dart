@@ -1,10 +1,9 @@
-import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import 'package:project_srpg/game/tackle_game.dart';
 import 'package:project_srpg/game/tackle_scenarios.dart';
 import 'package:project_srpg/game/training_result.dart';
-import 'package:project_srpg/theme/app_colors.dart';
+import 'package:project_srpg/widgets/fullscreen_game.dart';
 import 'package:project_srpg/widgets/game_chrome.dart';
 import 'package:project_srpg/widgets/tackle_controls.dart';
 import 'package:project_srpg/widgets/training_result_panel.dart';
@@ -70,64 +69,36 @@ class _TackleTrainingScreenState extends State<TackleTrainingScreen> {
   Widget build(BuildContext context) {
     final open = _game.phase == TacklePhase.window;
 
-    return Scaffold(
-      backgroundColor: AppColors.surface1,
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppColors.surface2,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border, width: 0.5),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Column(
-                    children: [
-                      const GameHeaderBar(title: 'Müdahale'),
-                      GameBriefBar(
-                        title: '${_scenario.kind.label} · ${_scenario.title}',
-                        text: _scenario.brief,
-                      ),
-                      TackleGauges(game: _game),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: GameWidget(game: _game),
-                          ),
-                        ),
-                      ),
-                      if (_result case final result?)
-                        TrainingResultPanel(
-                          result: result,
-                          onDone: () => Navigator.of(context).pop(result),
-                        )
-                      else ...[
-                        TackleControls(game: _game, windowOpen: open),
-                        // Tek deneme: pip dolmadan oturum biter, boş halka
-                        // "bir hakkın var" demenin en kısa yolu. Asıl iş
-                        // ipucu satırında.
-                        AttemptFooter(
-                          log: const [],
-                          total: 1,
-                          hint: _hint,
-                          lastLabel: null,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
+    final result = _result;
+    return FullscreenGame(
+      game: _game,
+      top: [
+        const GameHeaderBar(title: 'Müdahale'),
+        GameBriefBar(
+          title: '${_scenario.kind.label} · ${_scenario.title}',
+          text: _scenario.brief,
         ),
-      ),
+        TackleGauges(game: _game),
+      ],
+      bottom: result != null
+          ? TrainingResultPanel(
+              result: result,
+              onDone: () => Navigator.of(context).pop(result),
+            )
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TackleControls(game: _game, windowOpen: open),
+                // Tek deneme: pip dolmadan oturum biter, boş halka "bir hakkın
+                // var" demenin en kısa yolu. Asıl iş ipucu satırında.
+                AttemptFooter(
+                  log: const [],
+                  total: 1,
+                  hint: _hint,
+                  lastLabel: null,
+                ),
+              ],
+            ),
     );
   }
 }

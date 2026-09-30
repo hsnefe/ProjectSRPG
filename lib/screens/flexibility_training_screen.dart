@@ -1,9 +1,8 @@
-import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import 'package:project_srpg/game/flexibility_game.dart';
 import 'package:project_srpg/game/training_result.dart';
-import 'package:project_srpg/theme/app_colors.dart';
+import 'package:project_srpg/widgets/fullscreen_game.dart';
 import 'package:project_srpg/widgets/game_chrome.dart';
 import 'package:project_srpg/widgets/training_result_panel.dart';
 
@@ -18,8 +17,7 @@ class FlexibilityTrainingScreen extends StatefulWidget {
       _FlexibilityTrainingScreenState();
 }
 
-class _FlexibilityTrainingScreenState
-    extends State<FlexibilityTrainingScreen> {
+class _FlexibilityTrainingScreenState extends State<FlexibilityTrainingScreen> {
   late final FlexibilityGame _game = FlexibilityGame(
     onStateChanged: _onGameState,
     onFinished: _onFinished,
@@ -69,55 +67,21 @@ class _FlexibilityTrainingScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.surface1,
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppColors.surface2,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border, width: 0.5),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Column(
-                    children: [
-                      const GameHeaderBar(title: 'Esneklik & Toparlanma'),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: GameWidget(game: _game),
-                          ),
-                        ),
-                      ),
-                      if (_result case final result?)
-                        TrainingResultPanel(
-                          result: result,
-                          onDone: () => Navigator.of(context).pop(result),
-                        )
-                      else
-                        AttemptFooter(
-                          log: _log,
-                          total: FlexibilityGame.patternCount,
-                          hint: _hint,
-                          lastLabel:
-                              _game.mistakes > 0 ? '${_game.mistakes} hata' : null,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
+    final result = _result;
+    return FullscreenGame(
+      game: _game,
+      top: const [GameHeaderBar(title: 'Esneklik & Toparlanma')],
+      bottom: result != null
+          ? TrainingResultPanel(
+              result: result,
+              onDone: () => Navigator.of(context).pop(result),
+            )
+          : AttemptFooter(
+              log: _log,
+              total: FlexibilityGame.patternCount,
+              hint: _hint,
+              lastLabel: _game.mistakes > 0 ? '${_game.mistakes} hata' : null,
             ),
-          ),
-        ),
-      ),
     );
   }
 }

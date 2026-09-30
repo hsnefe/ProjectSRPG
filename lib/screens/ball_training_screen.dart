@@ -1,10 +1,9 @@
-import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import 'package:project_srpg/game/shot_game.dart';
 import 'package:project_srpg/game/shot_scenarios.dart';
 import 'package:project_srpg/game/training_result.dart';
-import 'package:project_srpg/theme/app_colors.dart';
+import 'package:project_srpg/widgets/fullscreen_game.dart';
 import 'package:project_srpg/widgets/game_chrome.dart';
 import 'package:project_srpg/widgets/training_result_panel.dart';
 
@@ -32,7 +31,8 @@ class BallTrainingScreen extends StatefulWidget {
 }
 
 class _BallTrainingScreenState extends State<BallTrainingScreen> {
-  late final List<ShotScenario> _playlist = widget.playlist ??
+  late final List<ShotScenario> _playlist =
+      widget.playlist ??
       (widget.mode == ShotMode.pass
           ? ShotScenarios.passSession()
           : ShotScenarios.shotSession());
@@ -88,69 +88,33 @@ class _BallTrainingScreenState extends State<BallTrainingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.surface1,
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppColors.surface2,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppColors.border,
-                    width: 0.5,
-                  ),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Column(
-                    children: [
-                      GameHeaderBar(
-                        title: _isPass ? 'Pas Antrenmanı' : 'Şut Antrenmanı',
-                      ),
-                      if (_game.scenario case final scenario?)
-                        GameBriefBar(
-                          // Durum ilerledikçe başlık da ilerlesin: hangi
-                          // denemede olduğun, nerede durduğunla aynı şey.
-                          title: '${scenario.kind.label} · ${scenario.title}',
-                          text: scenario.brief,
-                        ),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: GameWidget(game: _game),
-                          ),
-                        ),
-                      ),
-                      if (_result case final result?)
-                        TrainingResultPanel(
-                          result: result,
-                          onDone: () => Navigator.of(context).pop(result),
-                        )
-                      else
-                        AttemptFooter(
-                          log: [
-                            for (final attempt in _game.attemptLog)
-                              AttemptMark.ofGrade(attempt.grade),
-                          ],
-                          total: ShotGame.attemptsPerSession,
-                          hint: _hint,
-                          lastLabel: _game.result,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+    final result = _result;
+    return FullscreenGame(
+      game: _game,
+      top: [
+        GameHeaderBar(title: _isPass ? 'Pas Antrenmanı' : 'Şut Antrenmanı'),
+        if (_game.scenario case final scenario?)
+          GameBriefBar(
+            // Durum ilerledikçe başlık da ilerlesin: hangi denemede olduğun,
+            // nerede durduğunla aynı şey.
+            title: '${scenario.kind.label} · ${scenario.title}',
+            text: scenario.brief,
           ),
-        ),
-      ),
+      ],
+      bottom: result != null
+          ? TrainingResultPanel(
+              result: result,
+              onDone: () => Navigator.of(context).pop(result),
+            )
+          : AttemptFooter(
+              log: [
+                for (final attempt in _game.attemptLog)
+                  AttemptMark.ofGrade(attempt.grade),
+              ],
+              total: ShotGame.attemptsPerSession,
+              hint: _hint,
+              lastLabel: _game.result,
+            ),
     );
   }
 }

@@ -1,10 +1,11 @@
-import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 
 import 'package:project_srpg/game/conditioning_game.dart';
 import 'package:project_srpg/game/training_result.dart';
 import 'package:project_srpg/theme/app_colors.dart';
+import 'package:project_srpg/widgets/fullscreen_game.dart';
+import 'package:project_srpg/widgets/game_chrome.dart';
 import 'package:project_srpg/widgets/training_result_panel.dart';
 
 /// Kondisyon koşusu. Sol ve sağ butonlara sırayla basarak adam koşturulur;
@@ -49,98 +50,19 @@ class _ConditioningTrainingScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.surface1,
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppColors.surface2,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppColors.border,
-                    width: 0.5,
-                  ),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Column(
-                    children: [
-                      const _HeaderSection(),
-                      _TimeBar(timeLeft: _game.timeLeft),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: GameWidget(game: _game),
-                          ),
-                        ),
-                      ),
-                      if (_result case final result?)
-                        TrainingResultPanel(
-                          result: result,
-                          onDone: () => Navigator.of(context).pop(result),
-                        )
-                      else
-                        _StepControls(
-                          game: _game,
-                          stumbling: _game.stumbleLeft > 0,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _HeaderSection extends StatelessWidget {
-  const _HeaderSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: AppColors.border,
-            width: 0.5,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            icon: const Icon(
-              Icons.chevron_left,
-              size: 24,
-              color: AppColors.textMuted,
-            ),
-          ),
-          const SizedBox(width: 8),
-          const Text(
-            'Kondisyon Koşusu',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
+    final result = _result;
+    return FullscreenGame(
+      game: _game,
+      top: [
+        const GameHeaderBar(title: 'Kondisyon Koşusu'),
+        _TimeBar(timeLeft: _game.timeLeft),
+      ],
+      bottom: result != null
+          ? TrainingResultPanel(
+              result: result,
+              onDone: () => Navigator.of(context).pop(result),
+            )
+          : _StepControls(game: _game, stumbling: _game.stumbleLeft > 0),
     );
   }
 }
@@ -185,12 +107,7 @@ class _StepControls extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
       decoration: const BoxDecoration(
-        border: Border(
-          top: BorderSide(
-            color: AppColors.border,
-            width: 0.5,
-          ),
-        ),
+        border: Border(top: BorderSide(color: AppColors.border, width: 0.5)),
       ),
       child: Column(
         children: [
@@ -254,13 +171,9 @@ class _SideButton extends StatelessWidget {
       child: OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
-          foregroundColor: stumbling
-              ? AppColors.danger
-              : AppColors.textPrimary,
+          foregroundColor: stumbling ? AppColors.danger : AppColors.textPrimary,
           side: BorderSide(
-            color: stumbling
-                ? AppColors.danger
-                : AppColors.border,
+            color: stumbling ? AppColors.danger : AppColors.border,
           ),
           minimumSize: Size.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -269,9 +182,7 @@ class _SideButton extends StatelessWidget {
             fontWeight: FontWeight.w700,
             letterSpacing: 1,
           ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
         child: Text(label),
       ),

@@ -50,21 +50,26 @@ tests/        conftest.py's fixtures (db_conn, api_client, mock_engine)
               plus one test file per domain module / router
 ```
 
-## ⚠️ Known limitation: match_engine's E11/E12 don't exist yet
+## match_engine's E11/E12 (2026-09-21: confirmed live)
 
-CONTRACT.md §7 documents two additions match_engine needs — `POST /matches`
+CONTRACT.md §7 documents two additions match_engine needed — `POST /matches`
 (E11, used by nothing in *this* repo directly; FE calls it) and
 `POST /simulate/batch` (E12, used by `domain/engine_client.py` for every
-fixture the user isn't playing). Adding them is separate repo work,
-out of scope for this branch.
+fixture the user isn't playing). Both now exist on match_engine's `master`
+(commits `3601fa7` E11, `33bcb84` E12) and were verified end-to-end against
+live servers (career_engine :8001 + match_engine :8000, no mocks): creating
+a career and calling `POST /careers/{cid}/advance` through to the season
+opener made a real `engine_client.simulate_batch()` call, and every other
+round-1 fixture came back `status='played'` with real (non-mocked, varied)
+scores and stats — no `502 engine_unavailable`.
 
-Until match_engine has E12, `POST /careers/{cid}/advance` and
-`POST /careers/{cid}/matches/{fid}/result` will fail with
-`502 engine_unavailable` against a real match_engine server — the client
-code is written correctly against the documented contract and needs
-nothing further on this side once E12 lands. Tests don't depend on a live
-match_engine: `tests/conftest.py`'s `mock_engine` fixture stands in for
-`domain.engine_client.simulate_batch()`.
+Note `POST /careers/{cid}/matches/{fid}/result` was never actually affected
+by this: per D33 the FE talks to match_engine directly for the user's own
+match and only reports the outcome back here, so that endpoint doesn't call
+`engine_client` at all. Only `/advance` (via the background batch) does.
+
+Tests still don't depend on a live match_engine: `tests/conftest.py`'s
+`mock_engine` fixture stands in for `domain.engine_client.simulate_batch()`.
 
 ## Known follow-ups (not bugs, deliberately out of scope)
 

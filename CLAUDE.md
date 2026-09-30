@@ -53,7 +53,7 @@ cd career_engine && ./.venv/Scripts/python.exe -m pytest -q
 cd career_engine && ./.venv/Scripts/python.exe -m pytest tests/test_rollover.py -k promotion
 ```
 
-455 backend tests pass as of 2026-09-14 (`career_engine/README.md`'s count lags behind — trust
+580 backend tests pass as of 2026-09-30 (`career_engine/README.md`'s count lags behind — trust
 the run, not the README). `tests/test_end_to_end.py` walks every domain area in one session and
 is the one to watch after cross-cutting changes.
 
@@ -67,8 +67,8 @@ only the client. `.claude/launch.json` defines a `web` preview config on port 50
 Two signed contract documents are the source of truth for every wire format, and code is
 written *against* them rather than the other way round:
 
-- `career_engine/CONTRACT.md` (~3400 lines, Turkish) — the career endpoints (C/P/W/R/T/M/N/S
-  ids), the SQLite schema, the numbered decision record (D1–D57), the invariants (INV-1…INV-49),
+- `career_engine/CONTRACT.md` (~4900 lines, Turkish) — the career endpoints (C/P/W/R/T/M/N/S
+  ids), the SQLite schema, the numbered decision record (D1–D78), the invariants (INV-1…INV-64),
   error codes, and §10's deliberately open items. Open values are marked `⟦AÇIK-n⟧` in both the
   contract and the code standing in for them — `grep "⟦AÇIK" ` finds every edit point.
 - `../API_CONTRACT.md` (workspace root) — the match_engine ↔ match screen contract: tick
@@ -76,19 +76,21 @@ written *against* them rather than the other way round:
   directive/effort semantics.
 
 **Precedence inside CONTRACT.md matters.** §1–§10 are the signed v1.0 body. §11 (season
-rollover, transfer, contract lifecycle) and §12 (coach talk, squad status, sponsorship) were
-appended *after* signature, and each opens with a "Geçersiz kılananlar" table naming exactly
-what it overrides — §11 has the last word in its own area, §12 overrides only what it lists.
-Reading an older clause without checking those two tables is the main way to get a wrong
+rollover, transfer, contract lifecycle), §12 (coach talk, squad status, sponsorship) and §13
+(relationship lifetimes/scope, passive benefits, activity events) were appended *after*
+signature, and each opens with a "Geçersiz kılananlar" table naming exactly what it overrides —
+§11 has the last word in its own area, §12 and §13 each override only what their own table
+lists. Reading an older clause without checking that table is the main way to get a wrong
 answer here.
 
 When touching an endpoint, a response field or a game rule, find its clause first. Comments
 throughout both code bases cite sections (`§5.6`, `D38`, `INV-17`, `[İ-33]`) — keep that habit;
 those references are how the two repos stay in step.
 
-`career_engine/README.md` lists the known gaps (match_engine's E11/E12 still don't exist, so
-`advance` and match `result` fail with `502 engine_unavailable` against a real engine; the
-player's age never advances) — read it before assuming something is broken.
+`career_engine/README.md` lists the known gaps (match_engine's E11/E12 landed on `master` and
+were confirmed end-to-end against a live match_engine on 2026-09-21 — see that file's
+"match_engine's E11/E12" section; the player's age never advances) — read it before assuming
+something is broken.
 
 ## career_engine layout and rules
 
@@ -104,7 +106,7 @@ catalog/   static reference data (training, lifestyle, shop, dialogue, match act
 content/   generated-content templates (social_offers, sponsorships)
 worlddata/ the fixed v1 world: teams, competitions, positions, attributes, formations
 db/        connection setup + numbered .sql migrations applied in filename order
-           (001–011; there is no 008 — the gap is harmless, the loader globs and sorts)
+           (001–018; there is no 008 — the gap is harmless, the loader globs and sorts)
 tests/     conftest.py fixtures (db_conn, career_id, player_id, mock_engine) + one file
            per domain module / router
 ```
@@ -124,7 +126,7 @@ endpoint owns the transaction so a multi-step action is all-or-nothing (INV-3).
 Every state-mutating endpoint returns the full `CareerState` block (D28/INV-18). Every table
 carries `career_id` with `ON DELETE CASCADE`; foreign keys are ON per connection (INV-9).
 
-Two recent loops are worth knowing before touching either end of them:
+Three recent loops are worth knowing before touching either end of them:
 
 - **coach talk → trust → selection.** `domain/coach_talk.py` moves `CoachTraits.trust`
   separately from the coach's relationship *score*; `domain/squad.py` reads trust when deciding
@@ -134,6 +136,13 @@ Two recent loops are worth knowing before touching either end of them:
   calendar year (D44) and derives the phase rather than storing it (D45); `domain/rollover.py`
   is the single transaction that turns one season into the next (INV-36). It is its own
   endpoint rather than part of `advance` (D46), and it does not move `game_date` (D47).
+- **lifestyle actions → activity events → investment income.** §13 dropped the `kişi` (personal)
+  training family and split what it did in two: `domain/investments.py::pay_returns()` pays
+  owned investment-category shop items their frozen `weekly_return` the same way
+  `sponsorship.py` pays deals, and `domain/activity_events.py` is the single write path for
+  `activity_event` (D75/D76) — at most one open at a time (INV-62), answering it is optional
+  unlike a social plan, and walking away from it expires it (INV-63) rather than leaving a state
+  nothing can resolve.
 
 ## Flutter layout and rules
 

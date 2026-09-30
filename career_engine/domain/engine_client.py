@@ -5,11 +5,11 @@ client (D33 — FE talks to match_engine directly for that, career_engine
 only sees the result via M2). This is exclusively for the fixtures the
 user isn't playing.
 
-⚠️ As of this branch, match_engine does NOT yet expose E12 (§7's "v1.2
-EKİ" is separate repo work, out of scope here) — this client is written
-correctly against the documented contract and will work once match_engine
-adds it. Until then, calls fail with engine_unavailable. Tests mock this
-module's simulate_batch() rather than requiring a live match_engine.
+match_engine exposes E12 as of `master` commit `33bcb84`; verified
+end-to-end against a live match_engine on 2026-09-21 (real, varied scores
+came back for a full round of background fixtures, no engine_unavailable).
+Tests still mock this module's simulate_batch() rather than requiring a
+live match_engine.
 """
 from typing import List
 

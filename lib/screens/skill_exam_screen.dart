@@ -1,9 +1,9 @@
-import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import 'package:project_srpg/game/shot_game.dart';
 import 'package:project_srpg/game/skill_exam_game.dart';
 import 'package:project_srpg/theme/app_colors.dart';
+import 'package:project_srpg/widgets/fullscreen_game.dart';
 import 'package:project_srpg/widgets/game_chrome.dart';
 
 /// Bir yetenek sınavının oynanan hâli.
@@ -81,62 +81,30 @@ class _SkillExamScreenState extends State<SkillExamScreen> {
   Widget build(BuildContext context) {
     final grade = _grade;
 
-    return Scaffold(
-      backgroundColor: AppColors.surface1,
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppColors.surface2,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border, width: 0.5),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Column(
-                    children: [
-                      GameHeaderBar(title: widget.exam.title),
-                      GameBriefBar(text: widget.exam.brief),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: GameWidget(game: _game),
-                          ),
-                        ),
-                      ),
-                      if (grade != null)
-                        _GradePanel(
-                          grade: grade,
-                          made: _game.made,
-                          total: ShotGame.attemptsPerSession,
-                          unit: widget.exam.unit,
-                          onRetry: _retry,
-                          onSave: () => Navigator.of(context).pop(grade),
-                        )
-                      else
-                        AttemptFooter(
-                          log: [
-                            for (final attempt in _game.attemptLog)
-                              AttemptMark.ofGrade(attempt.grade),
-                          ],
-                          total: ShotGame.attemptsPerSession,
-                          hint: _hint,
-                          lastLabel: _game.result,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
+    return FullscreenGame(
+      game: _game,
+      top: [
+        GameHeaderBar(title: widget.exam.title),
+        GameBriefBar(text: widget.exam.brief),
+      ],
+      bottom: grade != null
+          ? _GradePanel(
+              grade: grade,
+              made: _game.made,
+              total: ShotGame.attemptsPerSession,
+              unit: widget.exam.unit,
+              onRetry: _retry,
+              onSave: () => Navigator.of(context).pop(grade),
+            )
+          : AttemptFooter(
+              log: [
+                for (final attempt in _game.attemptLog)
+                  AttemptMark.ofGrade(attempt.grade),
+              ],
+              total: ShotGame.attemptsPerSession,
+              hint: _hint,
+              lastLabel: _game.result,
             ),
-          ),
-        ),
-      ),
     );
   }
 }
