@@ -12,7 +12,7 @@ from typing import Optional
 
 from api import config, errors, serializers
 from catalog.match_actions import ACTION_SCHEMAS, OUTCOME_SETS, is_assist, is_goal
-from domain import condition, daytime, formulas, instructions, relationships, squad, wallet
+from domain import condition, daytime, formulas, instructions, relationships, squad, triggers, wallet
 from worlddata import positions
 from worlddata.formations import DEFAULT_FORMATION
 from worlddata.teams import ALL_TEAMS
@@ -414,6 +414,17 @@ def apply_result(conn: sqlite3.Connection, career_id: str, fixture_id: str, body
     )
 
     seed = conn.execute("SELECT seed FROM career WHERE career_id = ?", (career_id,)).fetchone()["seed"]
+
+    # §14.5 D91 - the result is now a trigger: a win, a red card, a first goal can
+    # queue a relationship event. Only what M2 carries is visible here; in-match
+    # moments are ⟦AÇIK-19⟧. The queue opens at most one, and INV-62 holds.
+    facts = triggers.post_match_facts(
+        conn, career_id, fixture, body, user_side,
+        goal_count=goal_count, minutes=minutes, started=started, on_date=on_date,
+    )
+    triggers.run_post_match(conn, career_id, fixture, facts, on_date, seed)
+    event = triggers.promote(conn, career_id, on_date)
+
     sim = daytime._simulate_day_fixtures(conn, career_id, on_date, seed)
     other_results = sim["results"]
 
@@ -449,6 +460,9 @@ def apply_result(conn: sqlite3.Connection, career_id: str, fixture_id: str, body
         "trait_changes": trait_changes,
         "ledger_entries": ledger_entries,
         "news_created": [news_id],
+        # §14.5 - null on most matches; the event T5 would list, so FE can open it
+        # without a second call.
+        "event": event,
     }
 
 

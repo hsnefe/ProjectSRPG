@@ -14,7 +14,8 @@ from catalog import grant_item_id
 from catalog.shop import SHOP_ITEMS
 from catalog.training import TRAINING_ITEMS
 from domain import activity_events, attributes, condition, day_budget, daytime, fame, inventory, requirements, social
-from domain import social_activity
+from domain import effects as effects_domain
+from domain import deferred, social_activity, triggers
 from domain import relationships as relationships_domain
 from domain import season as season_mod
 from domain import sponsorship
@@ -44,65 +45,10 @@ def _seed(conn: sqlite3.Connection, career_id: str) -> int:
     ).fetchone()["seed"]
 
 
-def _apply_effects(
-    conn: sqlite3.Connection,
-    career_id: str,
-    effects: dict,
-    source: str,
-    reason: str,
-    happened_at: str,
-) -> dict:
-    """§5.7's effect key space, applied through each value's own single write
-    path. Extracted from post_action when §13.4's T6 became a second caller:
-    an activity-event option pays out in exactly the same currency a catalog
-    item does, and two copies of this loop would be two places to forget a
-    key the day one is added.
-
-    Note what it does NOT do: spend budget, check requirements or commit.
-    Callers own the order (gate, then budget, then this) and the transaction.
-    """
-    out = {
-        "attribute_changes": [],
-        "tactic_changes": [],
-        "relationship_changes": [],
-        "ledger_entries": [],
-        "granted_items": [],
-    }
-    for key, value in effects.items():
-        if value is None:
-            continue  # ⟦AÇIK-9⟧ etc. — placeholder effect, not active yet
-        granted_id = grant_item_id(key)
-        if granted_id is not None:
-            # §14.2 D82 - a story item changes hands. No money moves and the
-            # row is priced at 0; an already-owned item is simply not granted
-            # twice, so a repeated event cannot fail mid-transaction.
-            row = inventory.grant(conn, career_id, granted_id, happened_at[:10])
-            if row is not None:
-                out["granted_items"].append(row)
-            continue
-        if key.startswith("attribute:"):
-            out["attribute_changes"].append(
-                attributes.apply_delta(conn, career_id, config.USER_PLAYER_ID, key.split(":", 1)[1], value)
-            )
-        elif key.startswith("tactic:"):
-            out["tactic_changes"].append(
-                tactics.apply_delta(conn, career_id, config.USER_PLAYER_ID, key.split(":", 1)[1], value)
-            )
-        elif key == "condition":
-            condition.apply_delta(conn, career_id, value)
-        elif key == "energy":
-            day_budget.add(conn, career_id, "energy", value, ceiling=config.DAY_BUDGET_DEFAULTS.get("energy"))
-        elif key == "money":
-            out["ledger_entries"].append(wallet.apply(conn, career_id, value, source, reason, happened_at))
-        elif key.startswith("fame:"):
-            fame.apply(conn, career_id, config.USER_PLAYER_ID, value, reason, happened_at, scope=key.split(":", 1)[1])
-        elif key.startswith("relationship:"):
-            out["relationship_changes"].append(
-                relationships_domain.apply_delta(
-                    conn, career_id, key.split(":", 1)[1], value, reason, happened_at, touches_contact=True
-                )
-            )
-    return out
+# §14.5 - the loop that used to live here moved to domain/effects.py, because the
+# day loop now applies effects too (an ignored event, a due consequence) and cannot
+# import a router. Kept under its old name: T2, T6 and the housing router call it.
+_apply_effects = effects_domain.apply
 
 
 def _current_date(conn: sqlite3.Connection, career_id: str) -> str:
@@ -212,6 +158,15 @@ def post_action(career_id: str, body: ActionRequest, conn: sqlite3.Connection = 
             conn, career_id, body.catalog_id, item,
             _current_date(conn, career_id), _seed(conn, career_id),
         )
+        # §14.5 D91 - a dressing-room joke that backfired is also a trigger. It
+        # only queues; the queue opens it when INV-62 allows, which is right now
+        # unless the roll above already opened something.
+        triggers.run_activity(
+            conn, career_id, body.catalog_id, bool(risk and risk["failed"]),
+            _current_date(conn, career_id),
+        )
+        if event is None:
+            event = triggers.promote(conn, career_id, _current_date(conn, career_id))
 
     conn.execute(
         "INSERT INTO activity_log (career_id, happened_at, kind, catalog_id, applied_costs, "
@@ -309,6 +264,11 @@ def choose_activity_event(
     state_changes = relationships_domain.state_diff(
         states_before, relationships_domain.state_snapshot(conn, career_id)
     )
+
+    # §14.6 D94 - whatever the option leaves for later is written down now, in the
+    # same transaction as the answer (INV-3).
+    for later in option.get("defer", []):
+        deferred.schedule(conn, career_id, current_date, f"{event['template_id']}:{option_id}", later)
 
     resolved = activity_events.resolve(conn, career_id, event_id, option_id, current_date)
     conn.commit()
@@ -457,7 +417,7 @@ def post_advance(career_id: str, body: AdvanceRequest, conn: sqlite3.Connection 
         # behind must not be able to survive into the next one, where its
         # text ("yan masadaki biri") would no longer be about anything.
         # Writes nothing but the status — no effects, no costs, no ledger.
-        activity_events.expire_open(conn, career_id)
+        activity_events.expire_open(conn, career_id, current_date)
 
         day_result = daytime.process_day(conn, career_id, next_date, seed)
         current_date = next_date

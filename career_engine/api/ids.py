@@ -44,3 +44,12 @@ def new_social_conflict_id() -> str:
     # 'scf_': 'sc_' would sit one letter away from 'sp_'/'spl_' in a log line
     # full of social ids, and these three get read side by side.
     return "scf_" + secrets.token_hex(6)
+
+
+def new_event_candidate_id() -> str:
+    # 'ec_': distinct from 'ae_' (the event a candidate becomes) on purpose.
+    return "ec_" + secrets.token_hex(6)
+
+
+def new_deferred_consequence_id() -> str:
+    return "dc_" + secrets.token_hex(6)

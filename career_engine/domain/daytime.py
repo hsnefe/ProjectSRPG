@@ -20,8 +20,8 @@ from api import config
 from api.ids import new_news_id
 from catalog import shop
 from domain import (
-    condition, contracts, engine_client, fame, formulas, housing, inventory, investments,
-    scheduling, season as season_mod, social, sponsorship, squad, transfer, wallet,
+    condition, contracts, deferred, engine_client, fame, formulas, housing, inventory, investments,
+    scheduling, season as season_mod, social, sponsorship, squad, transfer, triggers, wallet,
 )
 from catalog import housing as housing_catalog
 from worlddata.competitions import ULUSAL_KUPA
@@ -139,6 +139,10 @@ STOP_EVENT_KINDS = {
     # §14.4/D89-D90 - the home was taken away (unpaid rent, a hotel stay that ran
     # out). Not something to sail past: the player wakes up somewhere else.
     "residence_moved",
+    # §14.5/D92 - a relationship event was just opened from the queue. It has to
+    # stop the loop: an open event expires when the next day begins (INV-63), so
+    # sailing on would close the moment before anyone saw it.
+    "relationship_event",
 }
 
 
@@ -648,6 +652,25 @@ def process_day(conn: sqlite3.Connection, career_id: str, on_date: str, seed: in
             conn, career_id, config.USER_PLAYER_ID, fame_bonus, "shop_item_daily",
             f"{on_date}T00:00:00+03:00", scope="overall",
         )
+
+    # §14.6 D94/INV-68 - what earlier choices left for today, before the day's own
+    # triggers so a follow-up it queues can be opened this very morning. After the
+    # recovery so a money loss is clamped against the balance the player really has.
+    for due in deferred.apply_due(conn, career_id, on_date):
+        if due["news"]:
+            news_created.append(_create_news(
+                conn, career_id, due["news"]["category"], due["news"]["title"],
+                due["news"]["body"], on_date,
+            ))
+
+    # §14.5 D91/D92 - the calendar writes candidates; the queue opens at most one.
+    triggers.run_calendar(conn, career_id, on_date, seed)
+    trigger_event = triggers.promote(conn, career_id, on_date)
+    if trigger_event:
+        events.append({
+            "kind": "relationship_event", "ref_id": trigger_event["event_id"],
+            "template_id": trigger_event["template_id"],
+        })
 
     # §6.3 D53: the day's chance of a social offer. After the recovery so a
     # template whose accept branch costs condition is priced against the

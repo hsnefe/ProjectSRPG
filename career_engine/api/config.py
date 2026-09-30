@@ -174,6 +174,17 @@ FALLBACK_RESIDENCE = "res-family"
 # §14.4 D90 - how long the club's hotel room lasts after a transfer. ⟦AÇIK-21⟧
 HOTEL_STAY_DAYS = 14
 
+# §14.5 D92 - a relationship event opens at most once in this many days. The
+# triggers are many and the season is long; the gap is what keeps them from
+# arriving as a wall. ⟦AÇIK-5⟧
+TRIGGER_EVENT_MIN_GAP_DAYS = 2
+
+# §14.5 - the master switch for calendar and post-match triggers. True in the
+# game; the test suite turns it off by default (tests/conftest.py) for the same
+# reason it turns off social offers: a random event that stops the advance loop
+# makes every test that walks the calendar quietly test the dice as well.
+TRIGGERS_ENABLED = True
+
 # §14.4 D89 - rent falls due on this day of the month, whatever the weekday.
 RENT_DAY_OF_MONTH = 1
 

@@ -19,7 +19,8 @@ _RELATIONSHIP_KEY = re.compile(r"^relationship:(\w+)$")
 # §14.2 D82 - hands over a grant-only gear item. Catalog ids carry hyphens, so
 # `\w+` would not do; the value is always 1 (see validate_grant_effects).
 _GRANT_ITEM_KEY = re.compile(r"^grant_item:([\w-]+)$")
-_SIMPLE_EFFECT_KEYS = {"condition", "energy", "money"}
+# `sponsorship:end` (§14.6) is the one keyword effect: a brand walks away.
+_SIMPLE_EFFECT_KEYS = {"condition", "energy", "money", "sponsorship:end"}
 
 # D41 - the only cost dimensions any catalog item may spend from
 # day_budget. ⟦AÇIK-5⟧ owns the actual resource list; this is deliberately

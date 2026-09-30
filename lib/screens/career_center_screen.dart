@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
+import 'package:project_srpg/screens/activity_event_screen.dart';
 import 'package:project_srpg/screens/calendar_screen.dart';
 import 'package:project_srpg/screens/league_table_screen.dart';
 import 'package:project_srpg/screens/lifestyle_screen.dart';
@@ -266,6 +267,13 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
       return;
     }
 
+    // §14.5 · kuyruktan bir ilişki olayı açıldı ve gün onun için durdu. Olay
+    // cevapsız kalırsa ertesi gün kapanır (INV-63), o yüzden hemen gösterilir.
+    if (last.stopReason == 'relationship_event') {
+      await _openPendingEvent();
+      return;
+    }
+
     final offerId = last.stopReason == 'social_offer' ? last.stoppedOfferId : null;
     if (offerId != null) {
       await _openOffer(offerId);
@@ -405,6 +413,37 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
       _hubFuture = _loadHub();
       _dayFuture = _loadDay();
     });
+    // §14.5 · biten maç bir olay açmış olabilir (M2 yanıtındaki `event`); ekran
+    // dönüşünde açık olay varsa gösterilir.
+    _openPendingEvent();
+  }
+
+  /// §14.5 · T5 ile açık aktivite/ilişki olayını çeker ve olay ekranını açar.
+  /// Hiç yoksa ya da çekilemezse sessizce döner: olay cevap zorunlu değildir
+  /// (D76), açılamaması kullanıcının çözeceği bir şey değil.
+  Future<void> _openPendingEvent() async {
+    final player = PlayerScope.of(context);
+    try {
+      final careerId = await _session.resolve();
+      final events = await _session.client.activityEvents(careerId);
+      if (!mounted || events.isEmpty) return;
+      final result = await showActivityEventScreen(
+        context,
+        session: _session,
+        event: events.first,
+      );
+      if (!mounted || result == null) return;
+      player.applyServerUpdate(
+        careerState: result.careerState,
+        attributeChanges: result.attributeChanges,
+      );
+      setState(() {
+        _hubFuture = _loadHub();
+        _dayFuture = _loadDay();
+      });
+    } catch (_) {
+      // Bkz. yukarı: olay zorunlu değil.
+    }
   }
 
   @override

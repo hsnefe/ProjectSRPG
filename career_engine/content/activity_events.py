@@ -224,8 +224,14 @@ ACTIVITY_EVENTS = [
 from api.config import RELATIONSHIP_KINDS  # noqa: E402 (after data)
 from catalog import validate_catalog, validate_requires  # noqa: E402
 
-_BY_TEMPLATE = {t["template_id"]: t for t in ACTIVITY_EVENTS}
-assert len(_BY_TEMPLATE) == len(ACTIVITY_EVENTS), "duplicate template_id"
+# §14.5 - the relationship events are answered through the same T5/T6 path, so
+# `template()` and `option()` must find them; `for_catalog()` (and with it every
+# lifestyle activity's spawn roll) keeps reading ACTIVITY_EVENTS only, because
+# their `catalog_ids` are empty by design. Each file validates its own rows.
+from content.relationship_events import RELATIONSHIP_EVENTS  # noqa: E402
+
+_BY_TEMPLATE = {t["template_id"]: t for t in ACTIVITY_EVENTS + RELATIONSHIP_EVENTS}
+assert len(_BY_TEMPLATE) == len(ACTIVITY_EVENTS) + len(RELATIONSHIP_EVENTS), "duplicate template_id"
 
 _option_items = []
 for _tpl in ACTIVITY_EVENTS:

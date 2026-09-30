@@ -4904,7 +4904,7 @@ yazılması gerekiyor, D23 gereği FE'de), ama imza sonrası iş listesine dahil
 `sosyal-sistem-tasarim-dokumani.md`'nin uygulanması. §11, §12 ve §13 gibi imza
 sonrası eklenmiştir; yalnızca kendi "Geçersiz kılananlar" tablosundakileri
 geçersiz kılar. §14.1 (skill'ler) uygulanmıştır; §14.2–§14.6 **kararları**
-kaydeder; §14.2, §14.3 ve §14.4 uygulanmıştır, §14.5–§14.6'nın kodu henüz yoktur — her alt
+kaydeder; §14.2–§14.6'nın hepsi uygulanmıştır, yalnız §14.7 (bilinen eksikler) açıktır — her alt
 bölüm kendi fazıyla ayrıntılanır ve o fazın commit'inde "planlanan" etiketi kalkar.
 
 ### 14.0 Geçersiz kılananlar
@@ -4914,7 +4914,9 @@ bölüm kendi fazıyla ayrıntılanır ve o fazın commit'inde "planlanan" etike
 | "hız, top kontrolü, **cesaret** gibi nitelikler yoktur" | D30, §3.2 | `courage` (Cesaret) artık bir niteliktir; `kişi` ailesinin üçüncü anahtarıdır |
 | `politeness` · `confidence` · `resourcefulness` anahtarları ve Kibarlık · Özgüven · Beceriklilik etiketleri | §3.2 tablosu, §5, §13.3 | `empathy` (Empati) · `courage` (Cesaret) · `discipline` (Disiplin); §14.1 |
 | Günlük kondisyon toparlanması `5 + eşya bonusu`, tavan 12 (INV-41) | §6.6, §12 | **Uygulandı (§14.4):** aktif konutun uykusu doğal +5'in yerini alır; tavan `MAX_CONDITION_RECOVERY_PER_DAY` = 20. INV-41'in *kuralı* (toparlanma bir tavanla kesilir) geçerlidir, yalnız sayı değişti |
-| Aktivite olaylarının zincirlenmesi kapsam dışı | §13.12 | *Planlanan (§14.6):* ertelenmiş sonuç tablosu zincire izin verir |
+| Aktivite olaylarının zincirlenmesi kapsam dışı | §13.12 | **Uygulandı (§14.6):** ertelenmiş sonuç tablosu zincire izin verir |
+| Cevapsız kalan olay hiçbir etki yazmaz | INV-63 | **Uygulandı (§14.5):** kural olduğu gibi kalır, tek istisnayla — bir şablon `on_ignore` taşıyorsa görmezden gelmenin bedeli yazılır (annenin doğum gününü unutmak da bir seçimdir) |
+| Kaynağı yalnız bir yaşam aktivitesi olan olay (`catalog_id` hep bir aktivite) | §13.4 | **Uygulandı (§14.5):** tetikleyiciden doğan olayın `catalog_id`'si `trigger:<tür>`'dür; aynı T5/T6 yolundan cevaplanır |
 | `estate-*` mağaza itemleri (`realEstate` kategorisi) | §12.13, §13.3 | **Uygulandı (§14.4):** mağazadan kalktı (43 kalem), konut sistemine geçti; alan kariyerler tam iade alır (`legacy_items.reconcile`) |
 | Haftalık `upkeep` ile ödenen gayrimenkul (D27) | §6.5 | **Uygulandı (§14.4):** konut `upkeep` değil aylık kira ya da bir kerelik satın alma ile ödenir; `upkeep` artık yalnız iki abonelik gear'ında (fotoğrafçı, medya ekibi) kalır |
 | `inventory`'deki her satırın pasif bonus vermesi (§13.3) ve `personal-*` / `home-*` katalog kalemleri | §12.13, §13.3, INV-60 | **Uygulandı (§14.2):** yuvası olan satırlardan yalnız `equipped` olanlar sayılır; yuvasız satırlar (gayrimenkul, yatırım) eskisi gibi her zaman sayılır. Eski sekiz kalem katalogdan kalktı |
@@ -5147,29 +5149,85 @@ kümesi 12'de kalır (INV-21); yalnızca üç anahtar adını değiştirir, iki 
   artı mevcut `insufficient_funds`. `T3` yanıtı `residence_moves[]` taşır ve zorunlu
   bir taşınma (çıkarılma, otelin bitişi) `residence_moved` olayıyla günü durdurur.
 
-### 14.5 Tetikleyiciler ve olay kuyruğu (planlanan)
+### 14.5 Tetikleyiciler ve olay kuyruğu
 
-- **D91.** Tek bir trigger altyapısı: *takvim* (doğum günü, yıl dönümü,
-  sözleşmeye altı ay kala) ve *maç sonrası* (`matches.apply_result`: seri,
-  derbi, eski kulübe karşı maç, galibiyet). Tetikleyici olay yaratmaz,
-  *kuyruğa aday yazar*.
-- **D92.** Öncelikli bekleme kuyruğu: INV-39 ve INV-62 korunur — aynı anda tek
-  açık teklif, tek açık aktivite olayı. Kuyruktaki adaylar öncelik ve
-  `expires_on` ile sıralanır; takvim kaynaklı olaylar (doğum günü) süresi
-  geçince yazmadan düşer (INV-63 ile aynı kural).
-- **D93.** Dokümandaki 40 olay altı sabit ilişki türüne eşlenir: yönetim →
-  `coach`, menajer → `family`/`media`, teknik ekip → `coach`, sponsor → mevcut
-  sponsorluk sistemi (§12.13). Yeni ilişki türü eklenmez.
+- **D91.** Tek bir tetikleyici altyapısı (`domain/triggers.py`), `career_engine`'in
+  gerçekten görebildiği dört girdiyle: *takvim* (`daytime.process_day`: doğum günü,
+  yıl dönümü, sözleşmeye 182 gün kala, derbiye 3 gün kala, sabit bir gala günü, artı
+  tohumlu günlük zarlar), *biten maç* (`matches.apply_result`: galibiyet, mağlubiyet,
+  kırmızı kartlı mağlubiyet, yedek kalmak, golsüz kalmak, erken oyundan çıkmak, üç
+  mağlubiyetlik seri, eski kulübe gol, özel gün, ilk gol), *ters giden aktivite* (T2:
+  soyunma odası şakası) ve *vadesi gelen sonuç* (§14.6). Tetikleyici olay **açmaz**,
+  `event_candidate`'e aday yazar. Şablonlar `content/relationship_events.py`'de:
+  dokümanın 40 olayı ve zincirlerin ihtiyaç duyduğu ikisi (`rel-gruplasma-rakip`,
+  `rel-ilk-gol-topu`), toplam 42. Tetikleyici sözlüğü kapalıdır ve içe aktarmada
+  doğrulanır (INV-28'in kardeşi). Dönen değerler:
+  - `daily` bir kez/sezon anahtarlıdır; `needs` kapalı kümesi: `partner_active`,
+    `sponsor_active`, `offer_open`, `window_open`, `low_condition` (<45).
+  - Doğum günü ve yıl dönümü tarihleri veri olmadığı için kariyer tohumundan
+    türetilir (`Random(f"{seed}:calendar:…")`, günler 1-28); derbi rakipleri kendi
+    liginden tohumla seçilen iki takımdır (`triggers.rivals`). Bayram gezici
+    olduğundan "özel gün" sabit bir tarihtir (`SPECIAL_DAYS`).
+  - `post_match` tetikleyicisi isteğe bağlı `chance` taşır (fikstür başına
+    tohumlu zar): "galibiyet" iki haftada bir doğru olur ve her seferinde bir
+    tribün sahnesi açmamalıdır.
+  - Hepsinin ana anahtarı `config.TRIGGERS_ENABLED`'dır; test paketi varsayılan
+    olarak kapatır (`SOCIAL_OFFER_DAILY_CHANCE`'in gerekçesiyle).
+- **D92.** Öncelikli bekleme kuyruğu. `promote()` açık olay yoksa (INV-62) ve son
+  tetikleyici olayı `TRIGGER_EVENT_MIN_GAP_DAYS` (2) günden eskiyse, en yüksek
+  `priority`'li (eşitte en eski, sonra `template_id`) adayı bir `activity_event`'e
+  çevirir. Aday `expires_in_days` (varsayılan 3; doğum günü 2, sözleşme görüşmesi 14)
+  sonra yazmadan düşer (`expired`); geçerliliğini yitirmiş aday (ayrılmış partnerin
+  yıl dönümü) atlanır. Olay gün döngüsünde açıldıysa `relationship_event` günü
+  durdurur — aksi hâlde INV-63 olayı kimse görmeden ertesi gün kapatırdı. M2 yanıtı
+  ve T2 yanıtı aynı olayı `event` alanında taşır. INV-39 ve INV-62 **olduğu gibi**
+  korunur: kuyruk ikisini de aşmaz, yalnız onların önünde bekler.
+- **D93.** Doküman eşlemesi (yeni ilişki türü yok, D4): yönetim → `coach`; menajer →
+  `family`; sponsor → mevcut sponsorluk sistemi (`fame:overall`, `money`,
+  `sponsorship:end`). Gate'ler dokümanın ≥2/≥3'ünün 0-10 ölçeğine ×2-3 ile
+  çevrilmiş hâlidir: doküman 2 → seviye 7, doküman 3 → seviye 8 (karizma 7, empati
+  5, cesaret 5, zeka 6, disiplin 2'den başlar) — ⟦AÇIK-5⟧. Her olayın kapısız bir
+  çıkışı vardır (INV-32'nin kardeşi, içe aktarmada doğrulanır).
+- **Maç içi olaylar.** Dokümandaki #2 (kırmızı kart), #4 (gol pozisyonu) ve #13
+  (oyundan alınma) gerçek zamanlı değil, **sonuçtan** uyarlanmıştır: kırmızı kartlı
+  mağlubiyet, golsüz ama takımın gol attığı maç, 60. dakikadan önce oyundan çıkma.
+  Gerçek hâli ⟦AÇIK-19⟧'dur (§14.7).
+- **`on_ignore`.** Şablon, görmezden gelmenin bedelini yazabilir (annenin doğum günü
+  −14, takım arkadaşının doğum günü −6, yıl dönümü −20, kaptanlık −3). Bu, INV-63'ün
+  tek istisnasıdır ve para kaybı bakiyeyle sınırlanır (`clamp_money`).
+- **INV-70.** Bir kariyerde aynı `dedupe_key` iki kez aday olmaz (veritabanında
+  benzersiz kısıt), bekleyen bir şablon ikinci kez kuyruğa girmez. Bir tetikleyici
+  iki kez ateşlenirse — yeniden denenen bir ilerleme, tekrar okunan bir maç — sonuç
+  aynıdır.
+- **Uygulanmayanlar.** Doküman #28 "medya ilişkiyi soruyor" ve #26 "paparazzi" için
+  partnerin açık olması şarttır (`partner_active`); yeni bir tanışma yolu yoktur.
+  Olayların sahne görünümleri (arka planlar) FE'nin işidir.
 
-### 14.6 Ertelenmiş sonuç (planlanan)
+### 14.6 Ertelenmiş sonuç
 
-- **D94.** `deferred_consequence` tablosu: bir seçim, `due_on` tarihli bir etki
-  sözlüğü ve isteğe bağlı bir takip olay şablonu yazar; gün akışında vadesi
-  gelen satırlar uygulanır ya da kuyruğa aday olur. Bu, dokümanın zincirlerini
-  (#7 → #8) ve gecikmeli sırlarını (#6) tek mekanizmayla çözer. `plan_days_ahead`
-  gibi günü kilitlemez (D76'nın gerekçesi korunur).
-- **INV-68.** Vadesi gelen `deferred_consequence` tam bir kez uygulanır
-  (uygulama ve işaretleme aynı işlemde, INV-3).
+- **D94.** `deferred_consequence`: bir şablon seçeneği `defer: [{days, effects,
+  followup?, news?}]` taşıyabilir; T6 seçimi işlerken (aynı işlemde, INV-3) satırı
+  yazar. Gün döngüsü, vadesi gelen satırları **tetikleyicilerden önce** uygular
+  (sonucu bir takip olayı kuyruğa yazıyorsa o sabah açılabilsin): etkiler
+  `domain/effects.py` ile, para kaybı bakiyeyle sınırlı (bir ilerlemeyi
+  `insufficient_funds` ile patlatmamak için), başlık varsa haber, takip şablonu
+  varsa `deferred` türünde bir aday. `plan_days_ahead` gibi günü kilitlemez
+  (D76'nın gerekçesi). Kullanıldığı yerler: #5 borç geri gelir ya da gelmez, #6 sır
+  35 gün sonra ya güven ya skandal, #7 → #8 zinciri (görmezden gelinen yeni transfer
+  21 gün sonra rakip klikte çıkar), #12 bahane yakalanır, #23 bir yardım bir sonraki
+  talebe zemin hazırlar (şablon kendi takibidir), #26 sessizlik 3 gün sonra patlar,
+  #31 ve #39 (sponsor 14 gün sonra bırakır).
+- **INV-68.** Vadesi gelen `deferred_consequence` tam bir kez uygulanır: satır,
+  etkileriyle aynı işlemde `applied`'a geçer ve yalnız `pending` satırlar okunur.
+- **Yeni effect anahtarı `sponsorship:end`.** En eski etkin sponsorluk anlaşmasını
+  bozar (yükümlülükleri geçersiz kalır, medya cezası yok — olayın kendisi onu
+  seçimle zaten yazdı). INV-28 kümesine eklendi. Uygulayan: `domain/effects.py`,
+  ki `api/routers/time.py::_apply_effects` bunun eski adıdır.
+- **Hikâye kalemlerinin kaynakları (D82'nin bağlanması).** `special-signed-jersey`:
+  #21 kardeşin maçına gitmek. `special-first-goal-ball`: ilk golden sonra açılan
+  `rel-ilk-gol-topu` olayı. `special-signature-boots`: Vento krampon sözleşmesini
+  imzalamak (`content/sponsorships.py::boot_brand.grant_item`). `special-foundation`
+  hâlâ kaynaksızdır (§14.7'ye yazıldı).
 
 ### 14.7 Bilinen eksikler ve açık değerler
 
@@ -5184,4 +5242,6 @@ Bu olaylar maç sonrası tetikleyicilere uyarlanır; gerçek maç içi tetikleyi
 |---|---|---|
 | ⟦AÇIK-19⟧ | §14.5 maç içi tetikleyiciler | Kırmızı kart, oyundan alınma ve gol pozisyonu olaylarının `match_engine` → `career_engine` taşınması; bu sürümde yok |
 | ⟦AÇIK-20⟧ | §14.3 "biriyle" çarpanı | Solo ile partnerli aktivite arasındaki skill/ilişki takasının sayıları |
+| ⟦AÇIK-22⟧ | §14.5 tetikleyici olasılıkları ve kuyruk sayıları | Günlük zarların şansları, post-match `chance`'lar, 2 günlük aralık, `expires_in_days`'ler ve `on_ignore` bedelleri yer tutucudur |
+| ⟦AÇIK-23⟧ | §14.6 `special-foundation` kaynağı | "Kendi adına hayır vakfı" (#42) hiçbir olayın/ödülün sonucu değil; bugün ne satılır ne verilir |
 | ⟦AÇIK-21⟧ | §14.4 konut katalog değerleri | 0,3 katı kondisyon ölçeği, günlük tavan 20, kira/fiyat/otel ücreti tutarları, otelin 14 günü ve gürültünün %20'si yer tutucudur |

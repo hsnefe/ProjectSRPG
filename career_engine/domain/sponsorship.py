@@ -26,6 +26,7 @@ from content.sponsorships import SPONSORSHIPS, public_view, template
 from domain import (
     condition as condition_mod,
     day_budget,
+    inventory,
     relationships,
     requirements,
     season as season_mod,
@@ -239,6 +240,9 @@ def accept(conn: sqlite3.Connection, career_id: str, deal_id: str, on_date: str)
                 "due_on, status) VALUES (?, ?, ?, ?, ?)",
                 (career_id, new_obligation_id(), deal_id, due.isoformat(), PENDING),
             )
+
+    if spec.get("grant_item"):
+        inventory.grant(conn, career_id, spec["grant_item"], on_date)
 
     row = conn.execute(
         "SELECT * FROM sponsorship_deal WHERE career_id = ? AND deal_id = ?",

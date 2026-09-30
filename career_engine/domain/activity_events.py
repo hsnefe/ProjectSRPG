@@ -34,7 +34,7 @@ from typing import List, Optional
 from api import config
 from api.ids import new_activity_event_id
 from content.activity_events import for_catalog, option as template_option, template
-from domain import requirements
+from domain import effects, requirements
 
 OPEN = "open"
 RESOLVED = "resolved"
@@ -182,16 +182,22 @@ def resolve(
     return get(conn, career_id, event_id)
 
 
-def expire_open(conn: sqlite3.Connection, career_id: str) -> List[str]:
+def expire_open(conn: sqlite3.Connection, career_id: str, on_date: Optional[str] = None) -> List[str]:
     """INV-63 - D76's other half. Called from the advance loop: whatever the
-    player walked away from is gone, and gone WITHOUT applying anything.
+    player walked away from is gone, and gone WITHOUT applying anything -
+    except (§14.5) for a relationship event that says what ignoring it costs.
+    Forgetting your mother's birthday is a choice too, and `on_ignore` is how a
+    template says so; every other event still writes nothing.
+
+    `on_date` is only needed to stamp that cost; a caller with no date (a test
+    asserting the row moved) gets the plain INV-63 behaviour.
 
     Returns the expired ids so the caller can report them; T3 does not today,
     because an event the player ignored is not news. The list exists so a
     test can assert the row moved rather than reading the table itself.
     """
     rows = conn.execute(
-        "SELECT event_id FROM activity_event WHERE career_id = ? AND status = ?",
+        "SELECT event_id, template_id FROM activity_event WHERE career_id = ? AND status = ?",
         (career_id, OPEN),
     ).fetchall()
     if not rows:
@@ -200,4 +206,13 @@ def expire_open(conn: sqlite3.Connection, career_id: str) -> List[str]:
         "UPDATE activity_event SET status = ? WHERE career_id = ? AND status = ?",
         (EXPIRED, career_id, OPEN),
     )
+    if on_date is not None:
+        for row in rows:
+            cost = (template(row["template_id"]) or {}).get("on_ignore")
+            if cost:
+                # clamp_money: nobody can answer an `insufficient_funds` here.
+                effects.apply(
+                    conn, career_id, cost, "lifestyle", f"event_ignored:{row['template_id']}",
+                    f"{on_date}T08:00:00+03:00", clamp_money=True,
+                )
     return [r["event_id"] for r in rows]

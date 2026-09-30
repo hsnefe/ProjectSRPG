@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_session.dart';
 import 'package:project_srpg/screens/calendar_screen.dart';
+import 'package:project_srpg/screens/activity_event_screen.dart';
 import 'package:project_srpg/screens/career_center_screen.dart';
 import 'package:project_srpg/screens/pre_match_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
@@ -155,8 +156,12 @@ CareerSession _hubSession(
   http.Response Function(http.Request)? onAdvance,
   List<Map<String, dynamic>>? socialOffers,
   List<Map<String, dynamic>>? socialPlans,
+  List<Map<String, dynamic>>? activityEvents,
 }) {
   final mock = MockClient((request) async {
+    if (request.url.path == '/careers/car_test/activity-events') {
+      return _json({'events': activityEvents ?? const <dynamic>[]});
+    }
     if (request.url.path == '/careers') return _json(_careersListBody);
     if (request.url.path == '/careers/car_test') return _json(hubBody);
     if (request.url.path == '/careers/car_test/day') {
@@ -664,6 +669,42 @@ testWidgets('döngü bir teklifte durunca teklif ekranı açılır', (tester) as
 
     expect(find.byType(SocialOfferScreen), findsOneWidget);
     expect(find.text('Fazladan idman'), findsOneWidget);
+  });
+
+  testWidgets('§14.5 · döngü bir ilişki olayında durunca olay ekranı açılır',
+      (tester) async {
+    final session = _hubSession(
+      _hubBody(nextFixture: _fixture),
+      activityEvents: const [
+        {
+          'event_id': 'ae_1', 'template_id': 'rel-anne-dogum-gunu',
+          'catalog_id': 'trigger:date', 'opened_on': '2026-08-20',
+          'status': 'open', 'chosen_option': null, 'resolved_on': null,
+          'title': 'Annenin doğum günü',
+          'body': 'Bugün annenin doğum günü.',
+          'options': [
+            {'option_id': 'ziyaret', 'label': 'Ziyaret et', 'requires': {}, 'costs': {}},
+            {'option_id': 'hediye', 'label': 'Hediye yolla', 'requires': {}, 'costs': {}},
+          ],
+        },
+      ],
+      onAdvance: (request) => _json(_advanceBody(
+        date: '2026-08-20',
+        stopReason: 'relationship_event',
+        stoppedEvents: const [
+          {'kind': 'relationship_event', 'ref_id': 'ae_1', 'template_id': 'rel-anne-dogum-gunu'}
+        ],
+      )),
+    );
+    await tester.pumpWidget(_wrap(CareerCenterScreen(session: session)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('İlerle'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ActivityEventScreen), findsOneWidget);
+    expect(find.text('Annenin doğum günü'), findsOneWidget);
+    expect(find.text('Ziyaret et'), findsOneWidget);
   });
 
   testWidgets('teklif cevaplanınca sonuç panelinden geçilip ekran kapanır',

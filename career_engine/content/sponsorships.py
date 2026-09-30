@@ -83,6 +83,9 @@ SPONSORSHIPS = [
         "accept_label": "İmzala",
         "decline_label": "Şimdilik hayır",
         "requires": {"charisma": 7, "courage": 6},
+        # §14.6/D82 - signing hands over the story item (#40), the first pair of
+        # the signature series. domain/sponsorship.accept() is the only reader.
+        "grant_item": "special-signature-boots",
         "obligation": {
             "every_days": 45,
             "title": "Lansman etkinliği",

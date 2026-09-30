@@ -34,6 +34,19 @@ def social_offers_off(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def relationship_triggers_off(monkeypatch):
+    """§14.5 - calendar, post-match and activity triggers are off for the suite by
+    default, `social_offers_off`'s reason again: an opened relationship event
+    stops the advance loop, so left on, every test walking the calendar would be
+    asking whether somebody's birthday landed that week. tests/test_triggers.py
+    turns them back on; the queue, the promotion and the answering path are the
+    real ones either way (only the switch moves)."""
+    from api import config
+
+    monkeypatch.setattr(config, "TRIGGERS_ENABLED", False)
+
+
+@pytest.fixture(autouse=True)
 def sponsorship_offers_off(monkeypatch):
     """The sponsorship roll is off by default too, for `social_offers_off`'s
     reason: it is a random daily event that stops the advance loop, so any

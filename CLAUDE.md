@@ -53,7 +53,7 @@ cd career_engine && ./.venv/Scripts/python.exe -m pytest -q
 cd career_engine && ./.venv/Scripts/python.exe -m pytest tests/test_rollover.py -k promotion
 ```
 
-646 backend tests pass as of 2026-09-30 (`career_engine/README.md`'s count lags behind — trust
+676 backend tests pass as of 2026-09-30 (`career_engine/README.md`'s count lags behind — trust
 the run, not the README). `tests/test_end_to_end.py` walks every domain area in one session and
 is the one to watch after cross-cutting changes.
 
@@ -84,8 +84,10 @@ were appended *after* signature, and each opens with a "Geçersiz kılananlar" t
 lists. Reading an older clause without checking that table is the main way to get a wrong
 answer here. §14 is partly *decisions without code yet*: its subsections are marked
 "planlanan" until the phase that builds them lands, so check the code before assuming a §14
-rule is live (§14.1–§14.4 are: skills, gear, social activities, housing; §14.5–§14.6, the
-trigger queue and deferred consequences, are not).
+rule is live (all of §14.1–§14.6 are: skills, gear, social activities, housing, the trigger queue and
+deferred consequences; only §14.7, the known gaps, is open). Triggers are switched off
+in the test suite by default (`config.TRIGGERS_ENABLED`, tests/conftest.py) — tests in
+`tests/test_triggers.py` turn them on.
 
 **Known gap — no in-match triggers.** Relationship/social events that depend on something
 happening *during* a match (a red card, being substituted off, a scoring chance where the
@@ -116,7 +118,7 @@ catalog/   static reference data (training, lifestyle, shop, dialogue, match act
 content/   generated-content templates (social_offers, sponsorships)
 worlddata/ the fixed v1 world: teams, competitions, positions, attributes, formations
 db/        connection setup + numbered .sql migrations applied in filename order
-           (001–021; there is no 008 — the gap is harmless, the loader globs and sorts)
+           (001–022; there is no 008 — the gap is harmless, the loader globs and sorts)
 tests/     conftest.py fixtures (db_conn, career_id, player_id, mock_engine) + one file
            per domain module / router
 ```
