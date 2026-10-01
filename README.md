@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="assets/images/landing.png" alt="ProjectSRPG" width="720"/>
-
 # ⚽ ProjectSRPG
 
 ### Bir futbolcunun kariyerini sen yönet — antrenmandan transfere, sosyal hayattan maç anındaki kararlara kadar.
@@ -21,7 +19,7 @@
 ---
 
 <p align="center">
-  <img src="docs/media/hero.gif" alt="ProjectSRPG oynanış turu" width="820"/>
+  <img src="docs/media/hero.gif" alt="ProjectSRPG oynanış turu" width="300"/>
 </p>
 
 ## 🎮 Oyun Neler Sunuyor?
@@ -54,13 +52,6 @@ Maç `match_engine` ile canlı simüle edilir (SSE akışı). Kritik anlarda oyu
 Hocan, takım arkadaşların, menajerin, ailen… Her karakterin bir **skoru ve karakter özellikleri** var. Diyalog ekranlarında sahneye uygun arka planlar, prosedürel yüzler ve daktilo efektli konuşmalar karşılar seni.
 
 <img src="docs/media/dialogue.gif" alt="İlişki diyaloğu" width="100%"/>
-
-</td>
-<td width="50%" valign="top">
-
-### 💼 Kariyer Yönetimi
-Sözleşme müzakeresi, **transfer teklifleri**, sponsorluklar, yatırım gelirleri, ev seçimi ve yaşam tarzı harcamaları. Para birimi **₭ (Kredi)**; her kuruşun defterde izi var.
-
 
 </td>
 </tr>
