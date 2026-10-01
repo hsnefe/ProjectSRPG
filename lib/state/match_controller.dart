@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show Icons;
 
+import 'package:flutter/widgets.dart' show AppLifecycleState;
+
+import '../boot/python_host.dart';
 import '../game/event_icons.dart';
 import '../game/intervention_stats.dart';
 import '../game/match_feed.dart';
@@ -35,10 +38,26 @@ class MatchController extends ChangeNotifier {
     int? startCondition,
     MatchApiClient? apiClient,
     MatchStreamSource? streamSource,
+    PythonHost? host,
+    List<Duration>? reconnectDelays,
   })  : startCondition = startCondition ?? staminaCatalog.ceiling,
         _playerCondition = (startCondition ?? staminaCatalog.ceiling).toDouble(),
         _apiClient = apiClient ?? MatchApiClient(),
-        _streamSource = streamSource ?? HttpMatchSseClient();
+        _streamSource = streamSource ?? HttpMatchSseClient(),
+        _host = host ?? PythonHost.instance,
+        _reconnectDelays = reconnectDelays ?? defaultReconnectDelays;
+
+  /// Akış koptuğunda yeniden bağlanma aralıkları (sırayla); hepsi tükenirse
+  /// [connectionError] dolar. Toplam ~15 sn: gözetmenin soketi yeniden
+  /// bağlaması (~2 sn) ve Python'un kalkması bunun çok altında kalır.
+  static const defaultReconnectDelays = [
+    Duration(milliseconds: 300),
+    Duration(milliseconds: 700),
+    Duration(milliseconds: 1500),
+    Duration(seconds: 3),
+    Duration(seconds: 4),
+    Duration(seconds: 6),
+  ];
 
   final String matchId;
 
@@ -67,6 +86,17 @@ class MatchController extends ChangeNotifier {
 
   final MatchApiClient _apiClient;
   final MatchStreamSource _streamSource;
+  final PythonHost _host;
+  final List<Duration> _reconnectDelays;
+
+  /// Alınan en büyük zarf `seq`'i — yeniden bağlanırken `Last-Event-ID`.
+  int _lastSeq = 0;
+  int _reconnectAttempt = 0;
+  Timer? _reconnectTimer;
+
+  /// Uygulama arka plandayken (`hidden`/`paused`) true: maç sunucuda
+  /// duraklatıldı, akıştaki hatalar yok sayılır ve dönüşte tazelenir.
+  bool _backgrounded = false;
 
   StreamSubscription<MatchStreamMessage>? _subscription;
   int _requestSeq = 0;
@@ -130,9 +160,15 @@ class MatchController extends ChangeNotifier {
   DirectivesInfo? get directives => _directives;
   List<MatchEvent> get events => List.unmodifiable(_events);
 
-  /// Dolu ise SSE bağlantısı koptu/hata verdi/404 döndü — UI bu durumda
-  /// ekrandan çıkıp mesaj göstermeli (reconnect bu turda yok).
+  /// Dolu ise SSE bağlantısı kopup **yeniden bağlanma hakları da tükendi**
+  /// (ya da 4xx döndü) — UI bu durumda ekrandan çıkıp mesaj göstermeli.
   String? get connectionError => _connectionError;
+
+  /// Akış koptu, bir sonraki yeniden bağlanma denemesi bekleniyor.
+  bool get isReconnecting => _reconnectTimer != null;
+
+  /// Uygulama arka planda; maç sunucuda duraklatıldı.
+  bool get isBackgrounded => _backgrounded;
 
   String? get lastDirectiveNote => _lastDirectiveNote;
 
@@ -199,23 +235,111 @@ class MatchController extends ChangeNotifier {
     );
   }
 
-  void connect() {
+  void connect() => _open();
+
+  /// (Yeniden) bağlanır; önceki abonelik kapatılır. Daha önce zarf alındıysa
+  /// `Last-Event-ID` ile yalnızca eksik olanlar gelir.
+  void _open() {
+    _subscription?.cancel();
     final uri = Uri.parse('${ApiConfig.baseUrl}$streamUrl');
-    _subscription = _streamSource.connect(uri).listen(
-          _onMessage,
-          onError: _onStreamError,
-          onDone: _onStreamDone,
-        );
+    _subscription = _streamSource
+        .connect(uri, lastEventId: _lastSeq > 0 ? '$_lastSeq' : null)
+        .listen(_onMessage, onError: _onStreamError, onDone: _onStreamDone);
+  }
+
+  /// Uygulama yaşam döngüsü (MatchScreen'in `AppLifecycleListener`'ından).
+  ///
+  /// Arka plana geçerken maç sunucuda duraklatılır: telefon içi Python da
+  /// askıya alınır ya da soketleri geri alınır, canlı bir maç ise o sırada
+  /// tick üretip kullanıcıdan gizlice ilerlemesin. `inactive` (bildirim
+  /// gölgesi, çağrı) geçici olduğu için yok sayılır.
+  void handleAppLifecycle(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+        _goToBackground();
+      case AppLifecycleState.resumed:
+        _returnToForeground();
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+        break;
+    }
+  }
+
+  Future<void> _goToBackground() async {
+    if (_backgrounded || _finished || _disposed) return;
+    _backgrounded = true;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    try {
+      await _apiClient.postPause(matchId, reason: 'app_backgrounded');
+    } catch (_) {
+      // Sunucu zaten ulaşılmazsa duraklatılacak bir şey de ilerlemiyordur;
+      // dönüşte `resume` + yeniden bağlanma yine doğruyu kurar.
+    }
+  }
+
+  Future<void> _returnToForeground() async {
+    if (!_backgrounded || _disposed) return;
+    // Önce motorlar: soketler geri alındıysa gözetmen yeniden bağlayana dek
+    // beklenir, yoksa `resume` ilk istekte bağlantı hatası verirdi.
+    final healthy = await _host.recover();
+    if (_disposed) return;
+    if (!healthy) {
+      _failConnection('Oyun motoru yanıt vermiyor.');
+      return;
+    }
+    _backgrounded = false;
+    if (_finished) return;
+    try {
+      await _apiClient.postResume(matchId, reason: 'app_backgrounded');
+    } on MatchApiException catch (e) {
+      if (_disposed) return;
+      if (e.statusCode == 404) {
+        _failConnection('Maç sunucuda bulunamadı.');
+        return;
+      }
+    } catch (_) {
+      // Yeniden bağlanma kendi yeniden denemesiyle sürer.
+    }
+    if (_disposed) return;
+    // Askıdan dönen TCP bağlantısı sessizce ölü olabilir (hata vermeden);
+    // her dönüşte tazelenir. `Last-Event-ID` sayesinde boşluk/tekrar yok.
+    _reconnectAttempt = 0;
+    _open();
+  }
+
+  void _failConnection(String message) {
+    _connectionError = message;
+    notifyListeners();
+  }
+
+  /// Bir sonraki yeniden bağlanma denemesini kurar; hak kalmadıysa `false`.
+  bool _scheduleReconnect() {
+    if (_reconnectTimer != null) return true;
+    if (_reconnectAttempt >= _reconnectDelays.length) return false;
+    final delay = _reconnectDelays[_reconnectAttempt++];
+    _reconnectTimer = Timer(delay, () {
+      _reconnectTimer = null;
+      if (_disposed || _finished || _backgrounded) return;
+      _open();
+      notifyListeners();
+    });
+    notifyListeners();
+    return true;
   }
 
   void _onMessage(MatchStreamMessage message) {
+    _reconnectAttempt = 0; // veri geldi: bağlantı çalışıyor
     if (message is MatchTickMessage) {
+      if (message.tick.seq > _lastSeq) _lastSeq = message.tick.seq;
       // Tick geldiyse teklif kapandı - yanıtımızla ya da sunucunun 180 sn
       // emniyet zaman aşımıyla.
       _activeOffer = null;
       _pendingOfferPrompt = null;
       _applyTick(message.tick);
     } else if (message is MatchInterventionMessage) {
+      if (message.offer.seq > _lastSeq) _lastSeq = message.offer.seq;
       // Fırsat sayacı gösterimden bağımsız: `resolved:true` replay zarfı
       // ekranda modal açmasa da o teklif maçta gerçekten sunulmuştu.
       _offeredIds.add(message.offer.offerId);
@@ -414,6 +538,12 @@ class MatchController extends ChangeNotifier {
   }
 
   void _onStreamError(Object error) {
+    if (_disposed || _backgrounded || _finished) return;
+    // 4xx (404 maç yok, 410 maç bitti, 400/422 hatalı istek...) yeniden
+    // denemekle düzelmez; yalnızca ağ hataları ve 5xx geçici sayılır.
+    final status = error is MatchStreamException ? error.statusCode : null;
+    final fatal = status != null && status >= 400 && status < 500;
+    if (!fatal && _scheduleReconnect()) return;
     if (error is MatchStreamException) {
       _connectionError =
           error.message ?? error.code ?? 'Maç akışına bağlanılamadı.';
@@ -424,10 +554,13 @@ class MatchController extends ChangeNotifier {
   }
 
   void _onStreamDone() {
-    if (!_finished && _connectionError == null) {
-      _connectionError = 'Bağlantı beklenmedik şekilde kapandı.';
-      notifyListeners();
-    }
+    if (_disposed || _backgrounded || _finished) return;
+    // Hata sonrası gelen `done` aynı kopmanın ikinci yarısıdır: bir yeniden
+    // bağlanma zaten kurulduysa ya da hata kaydedildiyse tekrar işlenmez.
+    if (_reconnectTimer != null || _connectionError != null) return;
+    if (_scheduleReconnect()) return;
+    _connectionError = 'Bağlantı beklenmedik şekilde kapandı.';
+    notifyListeners();
   }
 
   /// `POST /matches/{id}/directive` (E4). Toleranslı bir uç olduğu için
@@ -531,6 +664,7 @@ class MatchController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _reconnectTimer?.cancel();
     _subscription?.cancel();
     super.dispose();
   }

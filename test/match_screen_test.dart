@@ -20,10 +20,17 @@ import 'package:project_srpg/widgets/intervention_offer_modal.dart';
 
 /// A stream source the test drives by hand instead of relying on real HTTP.
 class _FakeSseClient implements MatchStreamSource {
-  final controller = StreamController<MatchStreamMessage>();
+  /// Güncel akışın denetleyicisi; yeniden bağlanma (arka plandan dönüş)
+  /// gerçek istemci gibi her `connect`'te yeni bir akış açar.
+  StreamController<MatchStreamMessage> controller = StreamController();
+  var _connected = false;
 
   @override
-  Stream<MatchStreamMessage> connect(Uri uri) => controller.stream;
+  Stream<MatchStreamMessage> connect(Uri uri, {String? lastEventId}) {
+    if (_connected) controller = StreamController();
+    _connected = true;
+    return controller.stream;
+  }
 }
 
 TickFrame _tick({
@@ -919,4 +926,31 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+  testWidgets('arka plana geçince maç duraklatılır, dönünce sürdürülür', (
+    tester,
+  ) async {
+    final source = _FakeSseClient();
+    final requests = <http.Request>[];
+    final controller = _buildController(source, recordedRequests: requests);
+    await _pumpMatchScreen(tester, controller);
+    await _emitTick(tester, source, _tick(minute: 5));
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    await tester.pump();
+    expect(
+      requests.where((r) => r.url.path == '/matches/m_test/pause'),
+      hasLength(1),
+    );
+    expect(requests.last.body, contains('app_backgrounded'));
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    await tester.pump();
+    expect(
+      requests.where((r) => r.url.path == '/matches/m_test/resume'),
+      hasLength(1),
+    );
+  });
 }

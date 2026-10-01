@@ -55,7 +55,10 @@ class MatchStreamIgnored extends MatchStreamMessage {
 /// `MatchController`'ın test edilebilmesi için soyutlanmış SSE kaynağı —
 /// gerçek HTTP olmadan sahte bir akış enjekte edilebilir.
 abstract class MatchStreamSource {
-  Stream<MatchStreamMessage> connect(Uri uri);
+  /// [lastEventId] doluysa `Last-Event-ID` başlığı olarak gönderilir ve sunucu
+  /// o `seq`'ten **sonraki** zarfları yeniden oynatır (E3, `envelope_buffer`);
+  /// yeniden bağlanan istemci böylece ne tekrar görür ne de boşluk bırakır.
+  Stream<MatchStreamMessage> connect(Uri uri, {String? lastEventId});
 }
 
 /// `HttpMatchSseClient` — `text/event-stream` formatını (`id:`/`event:`/
@@ -69,9 +72,10 @@ class HttpMatchSseClient implements MatchStreamSource {
   final http.Client _client;
 
   @override
-  Stream<MatchStreamMessage> connect(Uri uri) async* {
+  Stream<MatchStreamMessage> connect(Uri uri, {String? lastEventId}) async* {
     final request = http.Request('GET', uri)
       ..headers['Accept'] = 'text/event-stream';
+    if (lastEventId != null) request.headers['Last-Event-ID'] = lastEventId;
     final streamedResponse = await _client.send(request);
 
     if (streamedResponse.statusCode != 200) {
@@ -101,8 +105,9 @@ class HttpMatchSseClient implements MatchStreamSource {
         if (dataBuffer.isNotEmpty) dataBuffer.writeln();
         dataBuffer.write(line.substring('data:'.length).trim());
       }
-      // `id:` alanı zarfın `seq`'iyle aynıdır (data içinde de var) — bu
-      // turda reconnect/replay kapsam dışı olduğu için ayrıca tutulmuyor.
+      // `id:` alanı zarfın `seq`'iyle aynıdır (data içinde de var); yeniden
+      // bağlanmada `MatchController` zarfın kendi `seq`'ini kullanır, burada
+      // ayrıca tutulmuyor.
     }
   }
 

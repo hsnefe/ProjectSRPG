@@ -16,7 +16,7 @@ class _FakeStreamSource implements MatchStreamSource {
   Uri? lastUri;
 
   @override
-  Stream<MatchStreamMessage> connect(Uri uri) {
+  Stream<MatchStreamMessage> connect(Uri uri, {String? lastEventId}) {
     lastUri = uri;
     return controller.stream;
   }

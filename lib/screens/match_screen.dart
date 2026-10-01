@@ -85,11 +85,18 @@ class _MatchScreenState extends State<MatchScreen> {
   /// olası). `route.isActive` bu yarışı kapatır.
   MaterialPageRoute<_MinigameAnswer>? _minigameRoute;
 
+  /// Arka plana geçişte maçı sunucuda duraklatır, dönüşte sürdürür
+  /// (`MatchController.handleAppLifecycle`).
+  late final AppLifecycleListener _lifecycle;
+
   @override
   void initState() {
     super.initState();
     widget.controller.addListener(_onControllerChanged);
     widget.controller.connect();
+    _lifecycle = AppLifecycleListener(
+      onStateChange: widget.controller.handleAppLifecycle,
+    );
   }
 
   void _cycleSpeed() {
@@ -360,6 +367,7 @@ class _MatchScreenState extends State<MatchScreen> {
 
   @override
   void dispose() {
+    _lifecycle.dispose();
     widget.controller.removeListener(_onControllerChanged);
     widget.controller.dispose();
     _speed.dispose();

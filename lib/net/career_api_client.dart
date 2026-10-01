@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import 'api_config.dart';
 import 'career_models.dart';
+import 'timeout_client.dart';
 
 /// `career_engine` REST çağrılarından dönen 2xx-dışı yanıtları taşır.
 ///
@@ -24,8 +25,14 @@ class CareerApiException implements Exception {
 /// `career_engine`'in 25 ucunun tamamını saran ince istemci (CONTRACT.md §4).
 class CareerApiClient {
   CareerApiClient({http.Client? httpClient, String? baseUrl})
-      : _client = httpClient ?? http.Client(),
+      : _client = httpClient ??
+            TimeoutClient(http.Client(), timeout: defaultTimeout),
         _baseUrl = baseUrl ?? ApiConfig.careerBaseUrl;
+
+  /// Sezon ilerletme tüm günün maçlarını `match_engine`'e batch atar (sunucu
+  /// tarafı zaman aşımı 30 sn, `MATCH_ENGINE_TIMEOUT_S`); istemci onu
+  /// beklemeli, o yüzden daha uzun.
+  static const defaultTimeout = Duration(seconds: 60);
 
   final http.Client _client;
   final String _baseUrl;

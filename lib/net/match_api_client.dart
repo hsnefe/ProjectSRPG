@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import 'api_config.dart';
 import 'match_models.dart';
+import 'timeout_client.dart';
 
 /// `match_engine` REST çağrılarından dönen 2xx-dışı yanıtları taşır.
 ///
@@ -26,8 +27,12 @@ class MatchApiException implements Exception {
 /// istemci. SSE akışı (E3) ayrı bir sınıfta (`match_sse_client.dart`) ele alınır.
 class MatchApiClient {
   MatchApiClient({http.Client? httpClient, String? baseUrl})
-      : _client = httpClient ?? http.Client(),
+      : _client = httpClient ??
+            TimeoutClient(http.Client(), timeout: defaultTimeout),
         _baseUrl = baseUrl ?? ApiConfig.baseUrl;
+
+  /// Tek maç uçları milisaniyeler içinde döner; bu süre bir donmayı ayırır.
+  static const defaultTimeout = Duration(seconds: 10);
 
   final http.Client _client;
   final String _baseUrl;
@@ -171,6 +176,28 @@ class MatchApiClient {
   /// career_engine'in M1 yanıtındaki `engine_payload`'ı olduğu gibi taşır; FE
   /// içeriğini yorumlamaz (career_engine CONTRACT.md §5.6). Yanıt zarfı E1
   /// ile birebir aynı, `NextMatchResponse` burada da geçerli.
+  /// E6/E7 · `reason`: `"user_left"` | `"app_backgrounded"`. Sunucu tarafında
+  /// duraklatmak bedelsiz: `run_loop` yalnızca bir sonraki tick'i istemeyi
+  /// bırakır, maç durumu bellekte olduğu gibi kalır.
+  Future<void> postPause(String matchId, {required String reason}) =>
+      _postPauseResume(matchId, 'pause', reason);
+
+  Future<void> postResume(String matchId, {required String reason}) =>
+      _postPauseResume(matchId, 'resume', reason);
+
+  Future<void> _postPauseResume(
+    String matchId,
+    String action,
+    String reason,
+  ) async {
+    final response = await _client.post(
+      _uri('/matches/$matchId/$action'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'reason': reason}),
+    );
+    if (response.statusCode != 204) throw _errorFrom(response);
+  }
+
   Future<NextMatchResponse> createMatch(
     Map<String, dynamic> enginePayload,
   ) async {

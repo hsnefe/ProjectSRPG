@@ -14,7 +14,7 @@ class _FakeStreamSource implements MatchStreamSource {
   final controller = StreamController<MatchStreamMessage>();
 
   @override
-  Stream<MatchStreamMessage> connect(Uri uri) => controller.stream;
+  Stream<MatchStreamMessage> connect(Uri uri, {String? lastEventId}) => controller.stream;
 }
 
 TickFrame _tick({
