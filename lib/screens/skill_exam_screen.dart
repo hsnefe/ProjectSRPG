@@ -27,8 +27,8 @@ class SkillExamScreen extends StatefulWidget {
 
 class _SkillExamScreenState extends State<SkillExamScreen> {
   late final ShotGame _game = ShotGame(
-    mode: widget.exam.mode,
-    scene: widget.exam.scene,
+    mode: widget.exam.mode!,
+    scene: widget.exam.scene!,
     onStateChanged: _onGameState,
     onFinished: (_) => _onFinished(),
   );

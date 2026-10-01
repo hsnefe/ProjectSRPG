@@ -25,6 +25,8 @@ final _options = api.CareerOptions.fromJson({
     _exam('passing', 'Pas Sınavı', 'passing'),
     _exam('tackling', 'Müdahale Sınavı', 'tackling'),
     _exam('dribbling', 'Dribling Sınavı', 'dribbling'),
+    // Oyunu henüz olmayan bir sınav elle notlanmaya devam eder.
+    _exam('future_exam', 'Gelecek Sınav', 'tackling'),
   ],
   'starting_values': {
     'money': 100,
@@ -65,13 +67,12 @@ void main() {
   testWidgets('oyunu olan sınav oynanır, olmayan elle notlanır', (tester) async {
     await _pumpStep(tester);
 
-    // Şut ve pas oynanarak notlanıyor: iki "Sınava Gir" düğmesi.
-    expect(find.text('Sınava Gir'), findsNWidgets(2));
+    // Şut, pas, müdahale ve dribling oynanarak notlanıyor.
+    expect(find.text('Sınava Gir'), findsNWidgets(4));
 
-    // Müdahale ve driblingin oyunu yok; ikisi de beşli not sırasını koruyor,
-    // yani 1..5 rakamlarından her biri iki kez çıkıyor.
+    // Yalnızca oyunu olmayan sınav beşli not sırasını koruyor.
     for (var value = 1; value <= 5; value++) {
-      expect(find.text('$value'), findsNWidgets(2));
+      expect(find.text('$value'), findsOneWidget);
     }
   });
 
@@ -81,7 +82,7 @@ void main() {
     await _pumpStep(tester, levels: const {'shooting': 4});
 
     expect(find.text('Tekrar Gir'), findsOneWidget);
-    expect(find.text('Sınava Gir'), findsOneWidget);
+    expect(find.text('Sınava Gir'), findsNWidgets(3));
     expect(find.text('sınav notun'), findsOneWidget);
   });
 
@@ -89,10 +90,9 @@ void main() {
     final graded = <String, int>{};
     await _pumpStep(tester, onLevel: (id, level) => graded[id] = level);
 
-    // Müdahale kartının 3'ü — dribling kartında da bir 3 var, ilkini seçiyoruz.
-    await tester.tap(find.text('3').first);
+    await tester.tap(find.text('3'));
     await tester.pump();
 
-    expect(graded, {'tackling': 3});
+    expect(graded, {'future_exam': 3});
   });
 }

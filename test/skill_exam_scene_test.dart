@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:project_srpg/game/pitch_projector.dart';
 import 'package:project_srpg/game/shot_game.dart';
 import 'package:project_srpg/game/skill_exam_game.dart';
+import 'package:project_srpg/game/training_result.dart';
 
 const _size = Size(360, 600);
 
@@ -181,11 +182,33 @@ void main() {
   });
 
   group('sınav kataloğu', () {
-    test('şut ve pas oynanır, diğerleri elle notlanır', () {
-      expect(SkillExamGame.forExamId('shooting')?.scene, ShotScene.shotExam);
-      expect(SkillExamGame.forExamId('passing')?.scene, ShotScene.passExam);
-      expect(SkillExamGame.forExamId('dribbling'), isNull);
-      expect(SkillExamGame.forExamId('tackling'), isNull);
+    test(
+      'şut, pas, dribling ve müdahale oynanır, bilinmeyen elle notlanır',
+      () {
+        expect(SkillExamGame.forExamId('shooting')?.scene, ShotScene.shotExam);
+        expect(SkillExamGame.forExamId('passing')?.scene, ShotScene.passExam);
+        expect(
+          SkillExamGame.forExamId('dribbling')?.drill,
+          TrainingDrill.dribble,
+        );
+        expect(
+          SkillExamGame.forExamId('tackling')?.drill,
+          TrainingDrill.tackling,
+        );
+        expect(SkillExamGame.forExamId('bilinmeyen'), isNull);
+      },
+    );
+
+    test('antrenman skoru 1–5 notuna çevrilir', () {
+      TrainingResult withScore(double score) => TrainingResult(
+        drill: TrainingDrill.dribble,
+        outcome: TrainingOutcome.success,
+        score: score,
+        detail: '',
+      );
+      expect(SkillExamGame.gradeOfResult(withScore(0)), 1);
+      expect(SkillExamGame.gradeOfResult(withScore(0.6)), 3);
+      expect(SkillExamGame.gradeOfResult(withScore(1)), 5);
     });
 
     test('her oyunun modu sahnesiyle uyumlu', () {

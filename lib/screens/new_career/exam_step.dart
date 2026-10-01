@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:project_srpg/game/skill_exam_game.dart';
+import 'package:project_srpg/game/training_result.dart';
+import 'package:project_srpg/screens/dribble_training_screen.dart';
+import 'package:project_srpg/screens/tackle_training_screen.dart';
 import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/screens/new_career/wizard_kit.dart';
 import 'package:project_srpg/screens/skill_exam_screen.dart';
@@ -211,12 +214,27 @@ class _PlayRow extends StatelessWidget {
   final ValueChanged<int> onGraded;
 
   Future<void> _play(BuildContext context) async {
-    final grade = await Navigator.of(context).push<int>(
-      MaterialPageRoute<int>(
-        builder: (_) => SkillExamScreen(exam: game),
-        settings: const RouteSettings(name: SkillExamScreen.routeName),
-      ),
-    );
+    final int? grade;
+    switch (game.drill) {
+      case TrainingDrill.dribble || TrainingDrill.tackling:
+        // Antrenmanın aynı oyunu; sonuç skoru 1–5 notuna çevrilir.
+        final result = await Navigator.of(context).push<TrainingResult>(
+          MaterialPageRoute<TrainingResult>(
+            builder: (_) => game.drill == TrainingDrill.dribble
+                ? const DribbleTrainingScreen()
+                : const TackleTrainingScreen(),
+            settings: const RouteSettings(name: SkillExamScreen.routeName),
+          ),
+        );
+        grade = result == null ? null : SkillExamGame.gradeOfResult(result);
+      default:
+        grade = await Navigator.of(context).push<int>(
+          MaterialPageRoute<int>(
+            builder: (_) => SkillExamScreen(exam: game),
+            settings: const RouteSettings(name: SkillExamScreen.routeName),
+          ),
+        );
+    }
     // Sınavı yarıda bırakmak notu silmez; eldeki not neyse o kalır.
     if (grade != null) onGraded(grade);
   }

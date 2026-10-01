@@ -1,4 +1,5 @@
 import 'package:project_srpg/game/shot_game.dart';
+import 'package:project_srpg/game/training_result.dart';
 
 /// Hangi yetenek sınavının oynanabilir bir mini oyunu var.
 ///
@@ -28,24 +29,57 @@ enum SkillExamGame {
         'yükseltir.',
     aimHint: '1) Sürükle: arkadaşını hedefle, bırak',
     unit: 'isabetli pas',
+  ),
+
+  /// Dribling koridoru: antrenmandaki aynı koşu, skoru nota çevrilir.
+  dribbling(
+    examId: 'dribbling',
+    title: 'Dribling Sınavı',
+    brief:
+        'Koridorda konilere çarpmadan bitişe var. Temiz ve hızlı koşu '
+        'notunu yükseltir.',
+    unit: 'skor',
+    drill: TrainingDrill.dribble,
+  ),
+
+  /// Tek denemelik müdahale: antrenmandaki aynı baskı, kademesi nota çevrilir.
+  tackling(
+    examId: 'tackling',
+    title: 'Müdahale Sınavı',
+    brief:
+        'Rakibe yetiş, açılan pencerede müdahale et. Zamanlaman notunu '
+        'belirler.',
+    unit: 'skor',
+    drill: TrainingDrill.tackling,
   );
 
   const SkillExamGame({
     required this.examId,
     required this.title,
-    required this.mode,
-    required this.scene,
+    this.mode,
+    this.scene,
     required this.brief,
-    required this.aimHint,
+    this.aimHint = '',
     required this.unit,
+    this.drill,
   });
 
   /// `catalog/skill_exams.py` içindeki `exam_id`.
   final String examId;
 
   final String title;
-  final ShotMode mode;
-  final ShotScene scene;
+
+  /// Şut/pas sınavlarının (ShotGame) kipi ve sahnesi; diğer sınavlarda null.
+  final ShotMode? mode;
+  final ShotScene? scene;
+
+  /// Şut/pas dışındaki sınavlar antrenman ekranını çalıştırır; hangisi
+  /// olduğunu bu söyler. Null ise sınav [SkillExamScreen]'de oynanır.
+  final TrainingDrill? drill;
+
+  /// Antrenman ekranlarının verdiği 0..1 skoru katalogdaki 1–5 notuna çevirir.
+  static int gradeOfResult(TrainingResult result) =>
+      (1 + (result.score * 4).round()).clamp(1, 5);
 
   /// Sınav başlamadan önce ekranda duran tek satırlık açıklama.
   final String brief;
