@@ -2,7 +2,7 @@
 import pytest
 
 from api import config
-from tests.conftest import create_career, grant_money, set_attribute
+from tests.conftest import create_career, grant_money, seed_social, set_attribute
 
 
 @pytest.fixture
@@ -145,7 +145,9 @@ def test_list_activity_events_recovers_an_open_one(api_client, created_career, a
 
 # --- T6 ---------------------------------------------------------------------
 
-def _open_event(api_client, career_id, catalog_id="sos-kafe"):
+def _open_event(api_client, career_id, catalog_id="sos-kafe", seed=True):
+    if seed:
+        seed_social(career_id)
     grant_money(career_id, 1000)
     return _do(api_client, career_id, catalog_id).json()["event"]
 
@@ -210,7 +212,7 @@ def test_gated_option_is_refused_and_leaves_the_event_open(
     career_id = created_career["career_id"]
     force_template("kafe-taniyan-birisi")
     set_attribute(career_id, "courage", 20.0)   # level 2, under every gate
-    event = _open_event(api_client, career_id)
+    event = _open_event(api_client, career_id, seed=False)
     gated = next((o for o in event["options"] if o["requires"]), None)
     assert gated is not None, "this template should have a gated option"
 

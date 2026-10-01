@@ -29,6 +29,7 @@ from tests.conftest import (
     create_career,
     grant_money,
     play_users_match,
+    seed_social,
     set_attribute,
 )
 from worlddata.attributes import BASE_SKILL_VALUE
@@ -578,6 +579,7 @@ def test_post_action_gate_is_checked_before_the_budget(api_client, created_caree
 
 def test_post_action_social_activity_grows_a_kişi_attribute(api_client, created_career):
     career_id = created_career["career_id"]
+    seed_social(career_id)
     grant_money(career_id, 10000)
     resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "sos-arkadas"})
     assert resp.status_code == 200
@@ -591,6 +593,7 @@ def test_post_action_satisfied_threshold_reads_as_no_gate(api_client, created_ca
     """sos-taraftar requires charisma 7 and a fresh career is exactly there
     — a met threshold must be as invisible as an absent one."""
     career_id = created_career["career_id"]
+    seed_social(career_id)
     resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "sos-taraftar"})
     assert resp.status_code == 200
     changed = {c["key"] for c in resp.json()["attribute_changes"]}

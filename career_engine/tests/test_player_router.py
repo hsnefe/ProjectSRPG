@@ -91,11 +91,8 @@ def test_get_player_ships_a_level_alongside_every_value(api_client, created_care
 def test_get_player_levels_match_the_fresh_kişi_values(api_client, created_career):
     body = api_client.get(f"/careers/{created_career['career_id']}/player").json()
     levels = {a["key"]: a["level"] for a in body["attributes"]}
-    assert levels["charisma"] == 7        # 74.0
-    assert levels["empathy"] == 5      # 58.0
-    assert levels["courage"] == 5      # 51.0
-    assert levels["intelligence"] == 6    # 63.0
-    assert levels["discipline"] == 2  # 29.0
+    for key in ("charisma", "empathy", "courage", "intelligence", "discipline"):
+        assert levels[key] == 0   # a new career starts every social skill at 0
 
 
 def test_get_player_level_follows_the_value_after_training(api_client, created_career):

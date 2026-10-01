@@ -44,16 +44,14 @@ FIXED_STARTING_ATTRIBUTES = {
     "flexibility": 30.0,
 }
 
-# kişi ailesi = the five social skills (§14, D79). Values are unchanged from the
-# pre-rename catalog on purpose: discipline keeps resourcefulness's 29, courage
-# confidence's 51, empathy politeness's 58, so every existing gate still reads
-# the same level.
+# kişi ailesi = the five social skills (§14, D79). A new career starts every
+# social skill at 0; they grow only from lifestyle activities, offers and dialogue.
 PERSONALITY_ATTRIBUTES = {
-    "charisma": 74.0,
-    "empathy": 58.0,
-    "courage": 51.0,
-    "intelligence": 63.0,
-    "discipline": 29.0,
+    "charisma": 0.0,
+    "empathy": 0.0,
+    "courage": 0.0,
+    "intelligence": 0.0,
+    "discipline": 0.0,
 }
 
 

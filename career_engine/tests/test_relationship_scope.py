@@ -2,7 +2,7 @@
 import pytest
 
 from api import config
-from tests.conftest import create_career, grant_money, set_attribute
+from tests.conftest import create_career, grant_money, seed_social, set_attribute
 from worlddata.relationships import CLUB_STAFF_POOL, STARTING_SCORES
 
 
@@ -223,6 +223,7 @@ def _make_courting(career_id):
 def test_courting_partner_is_listed_and_can_be_established(api_client, created_career):
     """§13.2/D72 - the leaf that turns a courting relationship into a real one."""
     career_id = created_career["career_id"]
+    seed_social(career_id)
     _make_courting(career_id)
 
     rels = api_client.get(f"/careers/{career_id}/relationships").json()["relationships"]

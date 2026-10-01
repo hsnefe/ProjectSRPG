@@ -208,6 +208,16 @@ def grant_money(career_id, amount, reason="test:top-up") -> None:
         conn.close()
 
 
+LEGACY_SOCIAL = {"charisma": 74.0, "empathy": 58.0, "courage": 51.0, "intelligence": 63.0, "discipline": 29.0}
+
+
+def seed_social(career_id, **overrides) -> None:
+    """A new career starts every social skill at 0; tests that stand on a
+    threshold gate seed the values they need (default: the pre-zero spread)."""
+    for key, value in {**LEGACY_SOCIAL, **overrides}.items():
+        set_attribute(career_id, key, value)
+
+
 def set_attribute(career_id, attribute_key, value) -> None:
     """Puts one of the user player's attributes at an exact value, through
     attributes.apply_delta() so INV-8's clamp still governs it. Tests that

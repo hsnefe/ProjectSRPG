@@ -7,7 +7,7 @@ from api import config
 from catalog import KNOWN_PASSIVE_EFFECT_KEYS
 from catalog.lifestyle import LIFESTYLE_ITEMS, validate_social_fields
 from domain import social_activity
-from tests.conftest import create_career, grant_money, set_attribute
+from tests.conftest import create_career, grant_money, seed_social, set_attribute
 
 BY_ID = {i["catalog_id"]: i for i in LIFESTYLE_ITEMS}
 KISI = {k for k, family in config.ATTRIBUTE_KEYS.items() if family == "kişi"}
@@ -149,6 +149,7 @@ def test_a_failed_roll_adds_its_penalty_on_top_of_the_normal_effects(
     api_client, created_career, monkeypatch
 ):
     career_id = created_career["career_id"]
+    seed_social(career_id)
     _make_certain_to_fail(monkeypatch, "kulup-soyunma-saka")
     team_before = api_client.get(f"/careers/{career_id}/relationships/team").json()["score"]
 

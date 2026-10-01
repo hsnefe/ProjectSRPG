@@ -1,6 +1,6 @@
 import pytest
 
-from tests.conftest import create_career, set_attribute
+from tests.conftest import create_career, seed_social, set_attribute
 from worlddata.relationships import STARTING_SCORES
 
 
@@ -122,6 +122,7 @@ def test_interact_locked_leaf_is_refused_and_writes_nothing(api_client, created_
     """INV-30 — a refused choice must leave no trace at all: not the score,
     not the event log, not the attribute the leaf would have moved."""
     career_id = created_career["career_id"]
+    seed_social(career_id)
     before = api_client.get(f"/careers/{career_id}/relationships/media").json()
     charisma_before = next(
         a for a in api_client.get(f"/careers/{career_id}/player").json()["attributes"]
