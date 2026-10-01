@@ -1,4 +1,3 @@
-import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import 'package:project_srpg/game/match_scenarios.dart';
@@ -6,8 +5,7 @@ import 'package:project_srpg/game/shot_objective.dart';
 import 'package:project_srpg/game/tackle_game.dart';
 import 'package:project_srpg/game/tackle_scenarios.dart';
 import 'package:project_srpg/net/match_models.dart';
-import 'package:project_srpg/theme/app_colors.dart';
-import 'package:project_srpg/widgets/game_chrome.dart';
+import 'package:project_srpg/widgets/fullscreen_game.dart';
 import 'package:project_srpg/widgets/tackle_controls.dart';
 
 /// Bir müdahale teklifinin FE kontrolündeki sonucu — `outcomeKey` motora giden
@@ -108,95 +106,18 @@ class _InterventionTackleScreenState extends State<InterventionTackleScreen> {
         .pop<InterventionTackleResult>(tackleResultOf(_game.grade!));
   }
 
-  String get _hint {
-    switch (_game.phase) {
-      case TacklePhase.ready:
-        return 'Koşmaya başlamak için SOL ya da SAĞ — tek deneme.';
-      case TacklePhase.closing:
-        return 'Tempoyu tuttur · pencere o kadar genişler';
-      case TacklePhase.window:
-        return 'Şimdi!';
-      case TacklePhase.done:
-        return 'Sonuç işleniyor…';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final open = _game.phase == TacklePhase.window;
 
     // §0 v1.7 · zorunlu mini oyun, çıkışı yok — sistem geri hareketi burada
-    // yutulur; `showBack: false` de aynı sözü başlık çubuğunda tekrarlar.
+    // yutulur.
     return PopScope(
       canPop: false,
-      child: Scaffold(
-        backgroundColor: AppColors.surface1,
-        body: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: AppColors.surface2,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.border, width: 0.5),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Column(
-                      children: [
-                        // Başlık motorun kendi cümlesi (§7.2 `prompt`) — maçta o
-                        // an ne olduğunu söyleyen tek yetkili metin. Durumun
-                        // tarifi onun altında, çünkü o yalnızca sahneyi anlatıyor.
-                        GameHeaderBar(
-                          title: widget.offer.prompt,
-                          showBack: false,
-                          leading: MinigameMinuteChip(minute: widget.offer.minute),
-                        ),
-                        // §7.5 · `tackle_hard`ın kırmızı kart uyarısı modaldan
-                        // buraya taşındı (§0 v1.7) — burada gösterilmesi daha
-                        // isabetli: modalda kararın ÖNCESİNDEydi ("müdahale
-                        // etmeli miyim"), burada kararın SIRASINDA — tam olarak
-                        // oyunun ölçtüğü zamanlama penceresi hakkında bir uyarı.
-                        if (widget.offer.riskHint case final hint?)
-                          GameRiskBar(text: hint),
-                        if (_scenario case final scenario?)
-                          GameBriefBar(
-                            title: scenario.title,
-                            text: scenario.brief,
-                          ),
-                        TackleGauges(game: _game),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: GameWidget(game: _game),
-                            ),
-                          ),
-                        ),
-                        TackleControls(game: _game, windowOpen: open),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-                          child: Text(
-                            _hint,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+      child: FullscreenGame(
+        game: _game,
+        top: [TackleGauges(game: _game)],
+        bottom: TackleControls(game: _game, windowOpen: open),
       ),
     );
   }

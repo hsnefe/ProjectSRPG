@@ -49,7 +49,7 @@ void main() {
   });
 
   group('ekran', () {
-    testWidgets('başlık motorun kendi cümlesi, altında durumun tarifi',
+    testWidgets('üst çubuklar (başlık, brifing) şimdilik gösterilmez',
         (tester) async {
       const scenario = TackleScenario(
         id: 'test_durum',
@@ -67,12 +67,8 @@ void main() {
       );
       await tester.pump();
 
-      expect(
-        find.text('Rakip dikine çıkıyor, son savunmacı müdahaleye gidiyor'),
-        findsOneWidget,
-      );
-      expect(find.text('Son adam sensin'), findsOneWidget);
-      expect(find.text('Arkanda kaleciden başka kimse yok.'), findsOneWidget);
+      expect(find.byType(GameHeaderBar), findsNothing);
+      expect(find.byType(GameBriefBar), findsNothing);
       expect(find.text('MÜDAHALE'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
@@ -96,23 +92,13 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('risk_hint gösterilir (§7.5, panelden buraya taşındı)',
-        (tester) async {
+    testWidgets('risk_hint çubuğu şimdilik gösterilmez', (tester) async {
       await tester.pumpWidget(
         MaterialApp(home: InterventionTackleScreen(offer: _offer())),
       );
       await tester.pump();
 
-      // `_offer()`'ın varsayılan `riskHint`'i — `tackle_hard`ın kırmızı kart
-      // uyarısı. Artık modalda değil bu ekranda, prompt'un hemen altında.
-      expect(
-        find.descendant(
-          of: find.byType(GameRiskBar),
-          matching:
-              find.text('Kötü zamanlama doğrudan kırmızı kart getirir.'),
-        ),
-        findsOneWidget,
-      );
+      expect(find.byType(GameRiskBar), findsNothing);
 
       await tester.pumpWidget(const SizedBox.shrink());
     });
@@ -146,14 +132,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.byType(InterventionTackleScreen), findsOneWidget);
 
-      // `GameHeaderBar(showBack: false)` — geri oku hiç çizilmez.
-      expect(
-        find.descendant(
-          of: find.byType(GameHeaderBar),
-          matching: find.byType(IconButton),
-        ),
-        findsNothing,
-      );
+      // Başlık çubuğu yok, geri oku da yok.
+      expect(find.byType(IconButton), findsNothing);
 
       // Sistem geri hareketi de `PopScope(canPop:false)` tarafından yutulur.
       // Canlı bir GameWidget yüzünden pumpAndSettle asla oturmaz.

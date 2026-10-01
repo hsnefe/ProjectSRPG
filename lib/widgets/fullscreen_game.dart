@@ -11,14 +11,14 @@ import 'package:project_srpg/theme/app_colors.dart';
 /// şeritler olarak biniyor. Şeritlerin içeriği [maxContentWidth] ile sınırlı:
 /// geniş (web) pencerede butonlar ekran boyu uzamasın, ama oyun uzasın.
 ///
-/// `intervention_*` ekranları bunu kullanmıyor — onlar maç içinde modal
-/// olarak açılıyor ve kendi çerçevesini koruyor.
+/// `intervention_*` (maç içi müdahale) ekranları da bunu kullanıyor; üst ya da
+/// alt şerit boş bırakılabilir ve o durumda hiç çizilmez.
 class FullscreenGame<T extends FlameGame> extends StatelessWidget {
   const FullscreenGame({
     super.key,
     required this.game,
     required this.top,
-    required this.bottom,
+    this.bottom,
     this.maxContentWidth = 560,
   });
 
@@ -28,7 +28,7 @@ class FullscreenGame<T extends FlameGame> extends StatelessWidget {
   final List<Widget> top;
 
   /// Alt şeritte duran tek parça: kontroller, sonuç paneli, vb.
-  final Widget bottom;
+  final Widget? bottom;
 
   final double maxContentWidth;
 
@@ -39,22 +39,28 @@ class FullscreenGame<T extends FlameGame> extends StatelessWidget {
       body: Stack(
         children: [
           Positioned.fill(child: GameWidget<T>(game: game)),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: _Strip(
-              maxWidth: maxContentWidth,
-              top: true,
-              child: Column(mainAxisSize: MainAxisSize.min, children: top),
+          if (top.isNotEmpty)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _Strip(
+                maxWidth: maxContentWidth,
+                top: true,
+                child: Column(mainAxisSize: MainAxisSize.min, children: top),
+              ),
             ),
-          ),
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: _Strip(maxWidth: maxContentWidth, top: false, child: bottom),
-          ),
+          if (bottom case final bottom?)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: _Strip(
+                maxWidth: maxContentWidth,
+                top: false,
+                child: bottom,
+              ),
+            ),
         ],
       ),
     );

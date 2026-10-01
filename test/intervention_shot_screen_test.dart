@@ -1,7 +1,6 @@
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:project_srpg/game/match_scenarios.dart';
 import 'package:project_srpg/game/pitch_projector.dart';
 import 'package:project_srpg/game/shot_game.dart';
 import 'package:project_srpg/game/shot_scenarios.dart';
@@ -144,44 +143,14 @@ void main() {
   });
 
   group('InterventionShotScreen (ince sarmalayıcı)', () {
-    testWidgets('shows the offer prompt as its header title', (tester) async {
+    testWidgets('üst/alt çubuklar şimdilik gösterilmez', (tester) async {
       await tester.pumpWidget(MaterialApp(home: InterventionShotScreen(offer: _offer())));
       await tester.pump();
 
-      // Başlık motorun cümlesi kalıyor (§7.2 `prompt`) — sahne değişse de o
-      // an maçta ne olduğunu söyleyen tek yetkili metin bu.
-      expect(find.text('Forvet ceza sahasında topla buluştu'), findsOneWidget);
-    });
-
-    testWidgets('sahneyi teklifin action_key havuzundan seçer', (tester) async {
-      await tester.pumpWidget(MaterialApp(home: InterventionShotScreen(offer: _offer())));
-      await tester.pump();
-
-      // `finish_power` havuzundan biri açılmış olmalı; hangisi olduğu
-      // rastgele, ama havuzun dışından olamaz.
-      final titles = [
-        for (final s in MatchScenarios.poolFor('finish_power')) s.title,
-      ];
-      expect(
-        titles.where((t) => find.text(t).evaluate().isNotEmpty),
-        hasLength(1),
-        reason: 'açılan sahne finish_power havuzunda değil',
-      );
-    });
-
-    testWidgets('tanınmayan bir aksiyonda eski sabit sahneye düşer',
-        (tester) async {
-      // İleri uyumluluk: motorun ekleyeceği bir aksiyon ekranı kırmamalı.
-      // Sahne brifingi olmadan açılır, teklif normal akışında oynanır.
-      await tester.pumpWidget(MaterialApp(
-        home: InterventionShotScreen(
-          offer: _offer(actionKey: 'bir_gun_eklenecek_aksiyon'),
-        ),
-      ));
-      await tester.pump();
-
+      expect(find.byType(GameHeaderBar), findsNothing);
+      expect(find.byType(GameRiskBar), findsNothing);
       expect(find.byType(GameBriefBar), findsNothing);
-      expect(find.text('Forvet ceza sahasında topla buluştu'), findsOneWidget);
+      expect(find.text('Forvet ceza sahasında topla buluştu'), findsNothing);
     });
 
     testWidgets('geri tuşu yoktur, ekran terk edilemez (§0 v1.7)',
@@ -203,7 +172,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300)); // push geçişi
 
-      // `GameHeaderBar(showBack: false)` — geri oku hiç çizilmez.
+      // Başlık çubuğu yok, geri oku da yok.
       expect(find.byType(IconButton), findsNothing);
 
       // Sistem geri hareketi de `PopScope(canPop:false)` tarafından yutulur.
