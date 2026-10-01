@@ -1,0 +1,15 @@
+# Wheels vendored into the iPhone app by tools/package_phone.sh.
+#
+# Direct dependencies of both back-ends, pinned to what was verified on-device
+# (iPhone SE, 2026-10-01). pydantic-core has no PyPI iOS wheel: it comes from
+# https://pypi.flet.dev, so only versions published there can be used - bump
+# pydantic and pydantic-core together and re-run tools/phone/smoke_test.py on the device.
+#
+# Deliberately NOT here: uvicorn's [standard] extras (uvloop, httptools, websockets,
+# watchfiles - native or reload-only; phone_main.py selects the pure-Python
+# asyncio/h11 stack), and pytest/pytest-asyncio (tests do not ship).
+fastapi==0.142.2
+uvicorn==0.54.0
+pydantic==2.13.4
+pydantic-core==2.46.4
+httpx==0.28.1

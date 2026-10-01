@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:project_srpg/boot/boot_gate.dart';
 import 'package:project_srpg/screens/landing_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 
@@ -39,7 +40,9 @@ class MyApp extends StatelessWidget {
           brightness: Brightness.dark,
           useMaterial3: true,
         ),
-        home: const LandingScreen(),
+        // iOS'ta back-end'ler gömülü Python'da kalkana dek splash; diğer
+        // hedeflerde doğrudan LandingScreen (bkz. lib/boot/).
+        home: const BootGate(child: LandingScreen()),
       ),
     );
   }
