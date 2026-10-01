@@ -54,9 +54,13 @@ SOCIAL_OFFERS = [
                 "Duyacakların hoşuna gitmeyebilir.",
         "accept_label": "İzleyelim",
         "decline_label": "Gerek yok",
-        "accept": {"relationship_delta": 4, "effects": {"attribute:intelligence": 0.5}},
+        "accept": {"relationship_delta": 4, "effects": {}},
         "decline": {"relationship_delta": -4, "effects": {}},
-        "costs": {"time": 90},
+        "costs": {"time": 120},
+        # The invitation names a day and a lifestyle activity: accepting books
+        # it, attending runs that activity (costs/effects come from the lifestyle
+        # catalog) and opens its "it was done" dialogue.
+        "catalog_id": "ev-mac-analizi", "plan_days_ahead": 1,
     },
 
     # --- team -------------------------------------------------------------
@@ -70,10 +74,10 @@ SOCIAL_OFFERS = [
                 "gelmeyenler bir hafta konuşulur.",
         "accept_label": "Varım",
         "decline_label": "Bu akşam pas",
-        "accept": {"relationship_delta": 6, "effects": {"condition": -4, "money": -8,
-                                                        "attribute:charisma": 0.4}},
+        "accept": {"relationship_delta": 6, "effects": {}},
         "decline": {"relationship_delta": -4, "effects": {}},
-        "costs": {"time": 180},
+        "costs": {"time": 120},
+        "catalog_id": "kulup-kaptan-yemegi", "plan_days_ahead": 2,
     },
     {
         "template_id": "team_console_night",
@@ -84,9 +88,10 @@ SOCIAL_OFFERS = [
         "body": "Takımın genç grubu odada turnuva kuruyor. Kısa sürer, öyle diyorlar.",
         "accept_label": "Kolları sıvarım",
         "decline_label": "Erken yatacağım",
-        "accept": {"relationship_delta": 3, "effects": {"condition": -3}},
+        "accept": {"relationship_delta": 3, "effects": {}},
         "decline": {"relationship_delta": -1, "effects": {}},
-        "costs": {"time": 120},
+        "costs": {"time": 180},
+        "catalog_id": "kulup-konsol-turnuvasi", "plan_days_ahead": 1,
     },
 
     # --- media ------------------------------------------------------------
@@ -95,16 +100,16 @@ SOCIAL_OFFERS = [
         "relationship_id": "media",
         "weight": 3, "cooldown_days": 21,
         "min_score": 0, "max_score": 100,
-        "title": "Röportaj talebi",
-        "body": "Spor Manşet'ten Ayça Kılıç yarım saatlik bir söyleşi istiyor. "
+        "title": "Podcast daveti",
+        "body": "Spor Manşet'ten Ayça Kılıç, podcast kaydına konuk olmanı istiyor. "
                 "Sorular önceden gelmiyor.",
         "accept_label": "Konuşurum",
         "decline_label": "Yorum yok",
-        "accept": {"relationship_delta": 6, "effects": {"fame:overall": 1,
-                                                        "attribute:charisma": 0.5}},
+        "accept": {"relationship_delta": 6, "effects": {}},
         "decline": {"relationship_delta": -5, "effects": {}},
-        "costs": {"time": 60},
+        "costs": {"time": 120},
         "requires": {"empathy": 3},
+        "catalog_id": "medya-podcast", "plan_days_ahead": 2,
     },
 
     # --- fans -------------------------------------------------------------
@@ -113,15 +118,15 @@ SOCIAL_OFFERS = [
         "relationship_id": "fans",
         "weight": 3, "cooldown_days": 28,
         "min_score": 0, "max_score": 100,
-        "title": "Okul ziyareti",
-        "body": "Taraftar grubu mahalle okulunda bir etkinlik düzenliyor. "
+        "title": "Mahalle maçı",
+        "body": "Taraftar grubu mahalle çocuklarıyla bir futbol günü düzenliyor. "
                 "Çocuklar formanı giymiş, seni bekliyorlar.",
         "accept_label": "Giderim",
         "decline_label": "Programım dolu",
-        "accept": {"relationship_delta": 7, "effects": {"condition": -3, "fame:overall": 1,
-                                                        "attribute:charisma": 0.4}},
+        "accept": {"relationship_delta": 7, "effects": {}},
         "decline": {"relationship_delta": -5, "effects": {}},
-        "costs": {"time": 150},
+        "costs": {"time": 90},
+        "catalog_id": "gece-sokak-futbolu", "plan_days_ahead": 2,
     },
 
     # --- partner ----------------------------------------------------------
@@ -130,14 +135,15 @@ SOCIAL_OFFERS = [
         "relationship_id": "partner",
         "weight": 3, "cooldown_days": 14,
         "min_score": 0, "max_score": 100,
-        "title": "Akşam planı",
-        "body": "Elif bu akşam dışarı çıkmayı öneriyor. Uzun bir haftaydı, "
+        "title": "Sinema daveti",
+        "body": "Elif yarın akşam sinemaya gitmeyi öneriyor. Uzun bir haftaydı, "
                 "ikiniz için de.",
         "accept_label": "Çıkalım",
         "decline_label": "Yorgunum",
-        "accept": {"relationship_delta": 7, "effects": {"condition": -5, "money": -6}},
+        "accept": {"relationship_delta": 7, "effects": {}},
         "decline": {"relationship_delta": -5, "effects": {}},
-        "costs": {"time": 210},
+        "costs": {"time": 180},
+        "catalog_id": "sehir-sinema", "plan_days_ahead": 1,
     },
 
     # --- family -----------------------------------------------------------
@@ -172,3 +178,25 @@ assert {t["relationship_id"] for t in SOCIAL_OFFERS} == set(RELATIONSHIP_KINDS),
 from content import validate_social_offers  # noqa: E402
 
 validate_social_offers(SOCIAL_OFFERS)
+
+
+# A template that names a lifestyle activity (`catalog_id`) is an invitation TO
+# that activity: accepting must schedule it (`plan_days_ahead`), and the
+# relationship must be one the activity can be done with, or the plan could
+# never be attended.
+from catalog.lifestyle import LIFESTYLE_ITEMS  # noqa: E402
+
+_LIFESTYLE_BY_ID = {i["catalog_id"]: i for i in LIFESTYLE_ITEMS}
+for _t in SOCIAL_OFFERS:
+    _cid = _t.get("catalog_id")
+    if _cid is None:
+        continue
+    _item = _LIFESTYLE_BY_ID.get(_cid)
+    assert _item is not None, f"social_offer {_t['template_id']!r} names unknown activity {_cid!r}"
+    assert _t.get("plan_days_ahead"), f"social_offer {_t['template_id']!r} names an activity but is not a plan"
+    assert _item.get("mode", "S") != "S" and _t["relationship_id"] in _item["with"], (
+        f"{_cid!r} cannot be done with {_t['relationship_id']!r}"
+    )
+    assert not _t["accept"].get("effects"), (
+        f"social_offer {_t['template_id']!r}: the activity supplies the effects"
+    )

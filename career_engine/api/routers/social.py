@@ -20,6 +20,8 @@ from fastapi import APIRouter, Depends
 
 from api import config, errors, serializers
 from api.deps import get_db
+from api.routers.time import run_action
+from api.schemas.time import ActionRequest
 from catalog import grant_item_id
 from domain import attributes, condition, day_budget, fame, inventory, requirements, social, wallet
 from domain import relationships as relationships_domain
@@ -222,6 +224,21 @@ def attend_plan(career_id: str, plan_id: str, conn: sqlite3.Connection = Depends
     template = social.template(plan["template_id"])
     branch = template["accept"] if template else {"effects": {}}
     costs = template.get("costs", {}) if template else {}
+
+    # An invitation to a lifestyle activity: turning up IS doing that activity.
+    # Budget, effects, risk and the partner's relationship all come from the
+    # lifestyle row (T2's own body), and its "it was done" dialogue opens.
+    activity_id = (template or {}).get("catalog_id")
+    if activity_id:
+        done = run_action(
+            conn, career_id,
+            ActionRequest(catalog_id=activity_id, relationship_id=plan["relationship_id"]),
+            performed=True,
+        )
+        social.mark_plan_done(conn, career_id, plan_id)
+        resolved = social.get_plan(conn, career_id, plan_id)
+        conn.commit()
+        return {**done, "plan": _public_plan(conn, career_id, resolved)}
 
     current_date = conn.execute(
         "SELECT game_date FROM career_state WHERE career_id = ?", (career_id,)

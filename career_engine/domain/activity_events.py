@@ -33,7 +33,7 @@ from typing import List, Optional
 
 from api import config
 from api.ids import new_activity_event_id
-from content.activity_events import for_catalog, option as template_option, template
+from content.activity_events import GENERIC_PERFORMED, for_catalog, option as template_option, template
 from domain import effects, requirements
 
 OPEN = "open"
@@ -147,6 +147,33 @@ def maybe_generate(
         return None
 
     tpl = _weighted_pick(rng, candidates)
+    event_id = new_activity_event_id()
+    conn.execute(
+        "INSERT INTO activity_event (career_id, event_id, template_id, catalog_id, "
+        "opened_on, status, chosen_option, resolved_on) VALUES (?, ?, ?, ?, ?, ?, NULL, NULL)",
+        (career_id, event_id, tpl["template_id"], catalog_id, on_date, OPEN),
+    )
+    return get(conn, career_id, event_id)
+
+
+def open_performed(
+    conn: sqlite3.Connection, career_id: str, catalog_id: str, on_date: str, seed: int
+) -> dict:
+    """The "it was done" dialogue of a planned activity: ALWAYS opens, unlike
+    maybe_generate's roll. An authored template for the activity is picked
+    (weighted, seeded) when one is eligible, else the generic one. An event
+    already open (INV-62) belongs to an earlier moment and is expired first,
+    so the performed dialogue is never swallowed."""
+    expire_open(conn, career_id, on_date)
+    candidates = [
+        tpl for tpl in for_catalog(catalog_id)
+        if requirements.met(conn, career_id, config.USER_PLAYER_ID, tpl.get("requires"))
+    ]
+    if candidates:
+        rng = random.Random(f"{seed}:activity_performed:{on_date}:{catalog_id}")
+        tpl = _weighted_pick(rng, candidates)
+    else:
+        tpl = GENERIC_PERFORMED
     event_id = new_activity_event_id()
     conn.execute(
         "INSERT INTO activity_event (career_id, event_id, template_id, catalog_id, "

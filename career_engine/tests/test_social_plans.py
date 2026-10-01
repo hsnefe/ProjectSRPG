@@ -15,11 +15,12 @@ from tests.conftest import new_career
 
 # --- the pool ---------------------------------------------------------------
 
-def test_exactly_one_shipped_template_schedules_a_plan():
-    """coach_extra_session is the only body that promises a specific future
-    day ("yarın sabah") — the other six stay instant."""
-    scheduled = [t["template_id"] for t in SOCIAL_OFFERS if t.get("plan_days_ahead")]
-    assert scheduled == ["coach_extra_session"]
+def test_shipped_plan_templates():
+    """coach_extra_session promises "yarın sabah"; the rest of the scheduled
+    templates are invitations to a lifestyle activity (`catalog_id`)."""
+    scheduled = {t["template_id"] for t in SOCIAL_OFFERS if t.get("plan_days_ahead")}
+    activities = {t["template_id"] for t in SOCIAL_OFFERS if t.get("catalog_id")}
+    assert scheduled == {"coach_extra_session"} | activities
     assert social.template("coach_extra_session")["plan_days_ahead"] == 1
 
 
@@ -124,7 +125,7 @@ def test_accepting_an_instant_template_still_carries_a_null_plan(api_client, moc
     as before, including the response shape (`plan` is always present, just
     null)."""
     career_id, _ = new_career(api_client)
-    _open_offer(api_client, career_id, "team_console_night", relationship_id="team")
+    _open_offer(api_client, career_id, "family_sunday_call", relationship_id="family")
 
     body = api_client.post(f"/careers/{career_id}/social/offers/so_test0001/accept").json()
     assert body["plan"] is None
@@ -260,3 +261,25 @@ def test_an_unknown_plan_is_a_404(api_client, mock_engine):
 def test_r4_style_listing_is_empty_on_a_fresh_career(api_client):
     career_id, _ = new_career(api_client)
     assert api_client.get(f"/careers/{career_id}/social/plans").json() == {"plans": []}
+
+
+def test_attending_an_activity_invitation_runs_the_activity(api_client, mock_engine):
+    """team_dinner invites to kulup-kaptan-yemegi: accepting books it and
+    spends nothing, attending applies the LIFESTYLE row's costs and opens the
+    "it was done" dialogue."""
+    career_id, _ = new_career(api_client)
+    _open_offer(api_client, career_id, "team_dinner", relationship_id="team")
+    before = api_client.get(f"/careers/{career_id}/day").json()["career_state"]["day_budget"]
+
+    accepted = api_client.post(f"/careers/{career_id}/social/offers/so_test0001/accept").json()
+    plan = accepted["plan"]
+    assert plan is not None
+    assert accepted["career_state"]["day_budget"] == before    # nothing spent yet
+
+    resp = api_client.post(f"/careers/{career_id}/social/plans/{plan['plan_id']}/attend")
+    assert resp.status_code == 200, resp.json()
+    body = resp.json()
+    assert body["plan"]["status"] == "done"
+    assert body["event"] is not None and body["event"]["options"]
+    assert body["career_state"]["day_budget"]["time"] == before["time"] - 120
+    assert body["with"] == "team"

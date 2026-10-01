@@ -53,7 +53,11 @@ class _Calls {
   final List<String> posts = [];
 }
 
-CareerSession _session(_Calls calls, List<Map<String, dynamic>> plans) {
+CareerSession _session(
+  _Calls calls,
+  List<Map<String, dynamic>> plans, {
+  Map<String, dynamic>? attendEvent,
+}) {
   final mock = MockClient((request) async {
     final path = request.url.path;
     if (path == '/careers') {
@@ -80,6 +84,8 @@ CareerSession _session(_Calls calls, List<Map<String, dynamic>> plans) {
         'relationship_changes': <dynamic>[],
         'attribute_changes': <dynamic>[],
         'ledger_entries': <dynamic>[],
+        if (path.endsWith('/attend') && attendEvent != null)
+          'event': attendEvent,
       });
     }
     return http.Response('unexpected ${request.url}', 404);
@@ -137,5 +143,41 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(calls.posts.single, endsWith('/social/plans/spl_1/skip'));
+  });
+
+  testWidgets('aktivite davetine gidince yapıldı diyaloğu açılır', (
+    tester,
+  ) async {
+    final calls = _Calls();
+    await _open(
+      tester,
+      _session(
+        calls,
+        [_plan()],
+        attendEvent: {
+          'event_id': 'ae_1',
+          'template_id': 'aktivite-yapildi',
+          'catalog_id': 'kulup-kaptan-yemegi',
+          'opened_on': '2026-09-21',
+          'status': 'open',
+          'title': 'Aktivite tamamlandı',
+          'body': 'Planladığın gibi geçti.',
+          'options': [
+            {
+              'option_id': 'devam',
+              'label': 'Devam',
+              'requires': {},
+              'costs': {},
+            },
+          ],
+        },
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('attend_spl_1')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Aktivite tamamlandı'), findsOneWidget);
+    expect(find.byKey(const Key('option_devam')), findsOneWidget);
   });
 }

@@ -230,8 +230,23 @@ from catalog import validate_catalog, validate_requires  # noqa: E402
 # their `catalog_ids` are empty by design. Each file validates its own rows.
 from content.relationship_events import RELATIONSHIP_EVENTS  # noqa: E402
 
-_BY_TEMPLATE = {t["template_id"]: t for t in ACTIVITY_EVENTS + RELATIONSHIP_EVENTS}
-assert len(_BY_TEMPLATE) == len(ACTIVITY_EVENTS) + len(RELATIONSHIP_EVENTS), "duplicate template_id"
+# The "it was done" screen of a planned lifestyle activity (social plan, content/social_offers.py):
+# played when no authored template hangs off the activity. Deliberately NOT in
+# ACTIVITY_EVENTS, so for_catalog() never offers it to the random roll.
+GENERIC_PERFORMED = {
+    "template_id": "aktivite-yapildi",
+    "catalog_ids": [],
+    "weight": 1,
+    "requires": {},
+    "title": "Aktivite tamamlandı",
+    "body": "Planladığın gibi geçti. Gün sonunda kendini biraz daha iyi hissediyorsun.",
+    "options": [
+        {"option_id": "devam", "label": "Devam", "costs": {}, "effects": {}},
+    ],
+}
+
+_BY_TEMPLATE = {t["template_id"]: t for t in ACTIVITY_EVENTS + RELATIONSHIP_EVENTS + [GENERIC_PERFORMED]}
+assert len(_BY_TEMPLATE) == len(ACTIVITY_EVENTS) + len(RELATIONSHIP_EVENTS) + 1, "duplicate template_id"
 
 _option_items = []
 for _tpl in ACTIVITY_EVENTS:

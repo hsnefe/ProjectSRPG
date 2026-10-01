@@ -3485,6 +3485,16 @@ kabulünde oluşturulan `social_plan`'ın genel görünümü. `attend`/`skip`
 yanıtları da aynı R5/R6 zarfını (`career_state` + `relationship_changes` +
 `attribute_changes` + `ledger_entries` + `plan`) kullanır (INV-18).
 
+#### Aktivite daveti (`catalog_id`)
+
+Bir şablon `catalog_id` taşıyorsa kişiden gelen bir **yaşam tarzı aktivitesi
+daveti**dir (kafe, sinema, kaptan yemeği…): `plan_days_ahead` zorunludur, kabul
+o güne plan yazar ve **hiçbir şey harcamaz**. `POST …/plans/{id}/attend`
+aktiviteyi yaşam tarzı satırının kendi maliyet/etkisiyle (T2 gövdesi) uygular,
+yanıta `event` olarak aktivitenin "yapıldı" diyaloğunu (T5/T6 olay makinesi,
+**her zaman** açılır) ve `with` alanını koyar. Oyuncunun kendi başına yaptığı
+aktivite (T2) davetsiz, anında ve eskisi gibi çalışır.
+
 #### Gün döngüsü kapısı
 
 `list_events()` bekleyen her planı `{"kind": "social_plan_due", ...}` olarak

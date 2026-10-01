@@ -388,6 +388,8 @@ def test_declining_costs_the_relationship_but_nothing_else(
 
 def test_accepting_spends_the_template_s_costs(api_client, mock_engine, offers_on):
     career_id, offer = _open_offer(api_client)
+    if social.template(offer["template_id"]).get("plan_days_ahead"):
+        pytest.skip("a plan template spends on the day it is attended, not at accept")
     before = api_client.get(f"/careers/{career_id}/day").json()["career_state"]["day_budget"]
 
     body = api_client.post(
@@ -423,8 +425,8 @@ def test_accepting_without_the_budget_changes_nothing(api_client, mock_engine, o
     import sqlite3
 
     career_id, offer = _open_offer(api_client)
-    if not offer["costs"]:
-        pytest.skip("this offer is free; the budget path is not exercised by it")
+    if not offer["costs"] or social.template(offer["template_id"]).get("plan_days_ahead"):
+        pytest.skip("free or scheduled offer; the accept-time budget path is not exercised by it")
 
     conn = sqlite3.connect(config.DB_PATH)
     conn.execute("UPDATE day_budget SET remaining = 0 WHERE career_id = ?", (career_id,))

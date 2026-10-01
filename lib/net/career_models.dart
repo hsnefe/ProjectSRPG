@@ -3580,6 +3580,7 @@ class SocialPlanResult {
     required this.relationshipChanges,
     required this.attributeChanges,
     required this.ledgerEntries,
+    this.event,
   });
 
   factory SocialPlanResult.fromJson(Map<String, dynamic> json) {
@@ -3595,6 +3596,9 @@ class SocialPlanResult {
           .map((e) => AttributeChange.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
       ledgerEntries: _parseLedgerEntries(json['ledger_entries']),
+      event: json['event'] == null
+          ? null
+          : ActivityEvent.fromJson(json['event'] as Map<String, dynamic>),
     );
   }
 
@@ -3603,6 +3607,9 @@ class SocialPlanResult {
   final List<RelationshipChange> relationshipChanges;
   final List<AttributeChange> attributeChanges;
   final List<LedgerEntry> ledgerEntries;
+
+  /// Bir aktivite davetine gidildiyse aktivitenin "yapıldı" diyaloğu.
+  final ActivityEvent? event;
 }
 
 // ---------------------------------------------------------------------------

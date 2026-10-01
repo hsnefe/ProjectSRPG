@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:project_srpg/net/career_api_client.dart';
 import 'package:project_srpg/net/career_models.dart' as api;
 import 'package:project_srpg/net/career_session.dart';
+import 'package:project_srpg/screens/activity_event_screen.dart';
 import 'package:project_srpg/state/player_scope.dart';
 import 'package:project_srpg/theme/app_colors.dart';
 
@@ -153,13 +154,32 @@ class _SocialPlanScreenState extends State<SocialPlanScreen> {
             child: _PlanCard(
               plan: plan,
               busy: _busyId == plan.planId,
-              onAttend: () => _run(
-                plan.planId,
-                (careerId) async => _applyState(
-                  (await _session.client.attendSocialPlan(careerId, plan.planId))
-                      .careerState,
-                ),
-              ),
+              onAttend: () => _run(plan.planId, (careerId) async {
+                final result = await _session.client.attendSocialPlan(
+                  careerId,
+                  plan.planId,
+                );
+                if (!mounted) return;
+                PlayerScope.of(context).applyServerUpdate(
+                  careerState: result.careerState,
+                  attributeChanges: result.attributeChanges,
+                );
+                // Aktivite davetiyse gidilen aktivitenin "yapıldı" diyaloğu.
+                if (result.event case final event?) {
+                  final outcome = await showActivityEventScreen(
+                    context,
+                    session: _session,
+                    event: event,
+                  );
+                  if (!mounted) return;
+                  if (outcome != null) {
+                    PlayerScope.of(context).applyServerUpdate(
+                      careerState: outcome.careerState,
+                      attributeChanges: outcome.attributeChanges,
+                    );
+                  }
+                }
+              }),
               onSkip: () => _run(
                 plan.planId,
                 (careerId) async => _applyState(

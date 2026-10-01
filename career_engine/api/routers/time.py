@@ -89,6 +89,17 @@ def get_day(career_id: str, conn: sqlite3.Connection = Depends(get_db)):
 @router.post("/actions")
 def post_action(career_id: str, body: ActionRequest, conn: sqlite3.Connection = Depends(get_db)):
     serializers.require_career(conn, career_id)
+    response = run_action(conn, career_id, body, performed=False)
+    conn.commit()
+    return response
+
+
+def run_action(
+    conn: sqlite3.Connection, career_id: str, body: ActionRequest, performed: bool
+) -> dict:
+    """The body of T2. Never commits - the caller does, once (INV-3). With
+    `performed` (a planned lifestyle activity reaching its day) the "it was
+    done" dialogue always opens instead of the random event roll."""
     item, source = _find_action_item(body.catalog_id)
     if item is None:
         raise errors.invalid_request(f"unknown catalog_id {body.catalog_id!r}")
@@ -156,10 +167,16 @@ def post_action(career_id: str, body: ActionRequest, conn: sqlite3.Connection = 
     # nothing is supposed to happen to you during a shooting drill.
     event = None
     if source == "lifestyle":
-        event = activity_events.maybe_generate(
-            conn, career_id, body.catalog_id, item,
-            _current_date(conn, career_id), _seed(conn, career_id),
-        )
+        if performed:
+            event = activity_events.open_performed(
+                conn, career_id, body.catalog_id,
+                _current_date(conn, career_id), _seed(conn, career_id),
+            )
+        else:
+            event = activity_events.maybe_generate(
+                conn, career_id, body.catalog_id, item,
+                _current_date(conn, career_id), _seed(conn, career_id),
+            )
         # §14.5 D91 - a dressing-room joke that backfired is also a trigger. It
         # only queues; the queue opens it when INV-62 allows, which is right now
         # unless the roll above already opened something.
@@ -182,7 +199,6 @@ def post_action(career_id: str, body: ActionRequest, conn: sqlite3.Connection = 
             json.dumps(body.result, ensure_ascii=False) if body.result is not None else None,
         ),
     )
-    conn.commit()
 
     return {
         "career_state": serializers.fetch_career_state(conn, career_id),

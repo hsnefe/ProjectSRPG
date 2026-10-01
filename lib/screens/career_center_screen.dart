@@ -267,6 +267,13 @@ class _CareerCenterScreenState extends State<CareerCenterScreen> {
       return;
     }
 
+    // Verilmiş bir sözün günü geldi (kabul edilmiş teklif/aktivite daveti):
+    // bir sonraki İlerle'nin 409'unu beklemeden plan ekranı açılır.
+    if (last.stopReason == 'social_plan_due') {
+      await _openSocialPlans();
+      return;
+    }
+
     // §14.5 · kuyruktan bir ilişki olayı açıldı ve gün onun için durdu. Olay
     // cevapsız kalırsa ertesi gün kapanır (INV-63), o yüzden hemen gösterilir.
     if (last.stopReason == 'relationship_event') {
