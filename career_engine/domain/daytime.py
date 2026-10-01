@@ -20,7 +20,7 @@ from api import config
 from api.ids import new_news_id
 from catalog import shop
 from domain import (
-    condition, contracts, deferred, engine_client, fame, formulas, housing, inventory, investments,
+    condition, context, contracts, deferred, engine_client, fame, formulas, housing, inventory, investments,
     scheduling, season as season_mod, social, sponsorship, squad, transfer, triggers, wallet,
 )
 from catalog import housing as housing_catalog
@@ -585,6 +585,13 @@ def process_day(conn: sqlite3.Connection, career_id: str, on_date: str, seed: in
     ledger_entries, news_created, repossessed = [], [], []
 
     if is_monday:
+        # §14.7 - a worn content channel puts something out every Monday.
+        for story in context.weekly_headlines(conn, career_id, on_date, seed):
+            news_created.append(_create_news(
+                conn, career_id, story.get("category", "Röportaj"), story["title"], story["body"],
+                on_date, source=story.get("source", "Sosyal Medya"),
+            ))
+
         # §12.7 - sponsorship money lands on Monday whatever else happens.
         # Outside the warned/else split on purpose: income arriving is not
         # conditional on the upkeep being affordable, and it is exactly what

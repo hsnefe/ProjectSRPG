@@ -15,7 +15,7 @@ from catalog.shop import SHOP_ITEMS
 from catalog.training import TRAINING_ITEMS
 from domain import activity_events, attributes, condition, day_budget, daytime, fame, inventory, requirements, social
 from domain import effects as effects_domain
-from domain import deferred, social_activity, triggers
+from domain import context, deferred, social_activity, triggers
 from domain import relationships as relationships_domain
 from domain import season as season_mod
 from domain import sponsorship
@@ -102,6 +102,8 @@ def post_action(career_id: str, body: ActionRequest, conn: sqlite3.Connection = 
     # writes, and it comes before the budget for the same reason.
     partner = social_activity.resolve_partner(conn, career_id, item, body.relationship_id)
     effects = social_activity.effects_for(item, partner)
+    # §14.7 - a worn stream kit / camera crew / jacket makes this activity teach more.
+    effects = context.boost_effects(conn, career_id, item, effects)
 
     happened_at = f"{_current_date(conn, career_id)}T00:00:00+03:00"
 
@@ -313,6 +315,14 @@ def post_purchase(career_id: str, body: PurchaseRequest, conn: sqlite3.Connectio
     # §14.2 D80: inventory.add() also freezes slot/grade and wears the item
     # when its slot is empty. weekly_return is computed there from the same rule.
     row = inventory.add(conn, career_id, item, current_date, item["price"])
+    # §14.7 - some purchases make the papers (the painted supercar).
+    story = context.acquire_story(body.catalog_id)
+    news_id = None
+    if story is not None:
+        news_id = daytime._create_news(
+            conn, career_id, story.get("category", "Röportaj"), story["title"], story["body"],
+            current_date, source=story.get("source", "Sosyal Medya"),
+        )
     conn.commit()
 
     return {
@@ -323,6 +333,7 @@ def post_purchase(career_id: str, body: PurchaseRequest, conn: sqlite3.Connectio
             "slot": row["slot"], "grade": row["grade"], "equipped": row["equipped"],
         },
         "ledger_entries": [entry],
+        "news_id": news_id,
     }
 
 

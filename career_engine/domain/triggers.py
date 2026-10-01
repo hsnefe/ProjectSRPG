@@ -45,7 +45,7 @@ from typing import Iterable, List, Optional
 from api import config
 from api.ids import new_activity_event_id, new_event_candidate_id
 from content.relationship_events import RELATIONSHIP_EVENTS, SPECIAL_DAYS
-from domain import activity_events, contracts, relationships, requirements, sponsorship
+from domain import activity_events, contracts, form, relationships, requirements, sponsorship
 from domain import season as season_mod
 from domain import transfer
 
@@ -275,16 +275,7 @@ def post_match_facts(
         facts.add("subbed_early")
 
     team_id = _user_team_id(conn, career_id)
-    last_three = conn.execute(
-        "SELECT home_team_id, home_score, away_score FROM fixture WHERE career_id = ? AND status = 'played' "
-        "AND (home_team_id = ? OR away_team_id = ?) ORDER BY kickoff_at DESC, fixture_id DESC LIMIT 3",
-        (career_id, team_id, team_id),
-    ).fetchall()
-    if len(last_three) == 3 and all(
-        (r["home_score"] < r["away_score"]) == (r["home_team_id"] == team_id)
-        and r["home_score"] != r["away_score"]
-        for r in last_three
-    ):
+    if form.losing_streak(conn, career_id):      # §14.7: one definition of "bad form"
         facts.add("losing_streak")
 
     opponent_id = fixture["away_team_id"] if user_side == "home" else fixture["home_team_id"]

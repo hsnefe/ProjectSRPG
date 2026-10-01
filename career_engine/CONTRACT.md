@@ -4904,7 +4904,7 @@ yazılması gerekiyor, D23 gereği FE'de), ama imza sonrası iş listesine dahil
 `sosyal-sistem-tasarim-dokumani.md`'nin uygulanması. §11, §12 ve §13 gibi imza
 sonrası eklenmiştir; yalnızca kendi "Geçersiz kılananlar" tablosundakileri
 geçersiz kılar. §14.1 (skill'ler) uygulanmıştır; §14.2–§14.6 **kararları**
-kaydeder; §14.2–§14.6'nın hepsi uygulanmıştır, yalnız §14.7 (bilinen eksikler) açıktır — her alt
+kaydeder; §14.2–§14.6'nın hepsi uygulanmıştır, §14.7 bağlam etkilerini (uygulandı) ve bilinen eksikleri taşır — her alt
 bölüm kendi fazıyla ayrıntılanır ve o fazın commit'inde "planlanan" etiketi kalkar.
 
 ### 14.0 Geçersiz kılananlar
@@ -5008,9 +5008,9 @@ kümesi 12'de kalır (INV-21); yalnızca üç anahtar adını değiştirir, iki 
   kaynaklar sonraki fazlarla bağlanır (olay seçenekleri §14.5–§14.6, krampon
   serisi sponsorluk anlaşmasıyla, ilk gol topu maç sonrası tetikleyiciyle). #41
   lüks kulüp kartı satın alınır (derece 4).
-- **Henüz yapılmayanlar.** Dokümanın bağlam notları — kışın aktif palto, kötü
-  formda ters tepen spor araba, haber manşetleri, sahne görünümü — bu sürümde
-  yalnız `note` metnidir; mekaniği §14.7'deki haber/bağlam fazındadır.
+- **Bağlam notları.** Dokümanın bağlam notlarının bir kısmı §14.7'de mekaniğe
+  döndü (palto, spor araba, kamera ekibi, kanal, süper araba); kalanı hâlâ yalnız
+  `note` metnidir ve §14.7'de listelidir.
 - **INV-66.** Bir kariyerde aynı yuvada birden fazla `equipped = 1` satırı
   yoktur. Bu, sadece `domain/inventory.py`'de değil, veritabanında kısmi bir
   benzersiz indekstir (`idx_inventory_one_equipped_per_slot`); koddaki bir hata
@@ -5231,6 +5231,34 @@ kümesi 12'de kalır (INV-21); yalnızca üç anahtar adını değiştirir, iki 
 
 ### 14.7 Bilinen eksikler ve açık değerler
 
+**Bağlam etkileri (D96, INV-71).** Dokümanın bazı itemleri, derecelerinin ötesinde
+bir anlam taşır; `catalog/shop.py::ITEM_CONTEXT` bunu satırların yanında tutar
+(`domain/context.py` tek okuyucusudur, içe aktarmada doğrulanır) ve yalnız **giyilen**
+item sayılır:
+
+| Item | Bağlam | Mekanik |
+|---|---|---|
+| `cloth-cashmere-coat` | `months` | Pasif karizması yalnız Kasım–Mart'ta sayılır, diğer aylarda 0 |
+| `veh-sports-car` · `veh-custom-supercar` | `bad_form` | Üç maçlık mağlubiyet serisinde pasif karizması **işaret değiştirir** (+2 → −2); seri bozulunca (beraberlik/galibiyet) geri döner. Seriyi süren her yenilgi M2'de bir manşet yazar (`"Maçları bırakmış, araba alıyor"`) |
+| `veh-custom-supercar` | `news_on_acquire` | Satın almak manşet olur (T4 yanıtı `news_id` taşır) |
+| `tech-stream-kit` · `tech-photographer` · `cloth-luxury-outfit` · `cloth-leather-jacket` | `boosts` | Giyilirken, ilgili aktivitenin (kimlikle ya da `group:`la) **pozitif** `attribute:` kazancı ×1,3–1,5; kayıp ve para çarpılmaz. Aktivite yanıtının `applied_effects`'i çarpılmış hâli taşır |
+| `tech-youtube-team` | `weekly_news` | Her Pazartesi tohumlu bir "Röportaj" haberi |
+
+- **D96.** "Kötü form" tek yerde tanımlıdır (`domain/form.py`): kullanıcı takımının son
+  3 maçı üst üste yenilgi. Maç sonrası tetikleyicisi (`losing_streak`, §14.5) ve
+  araba bağlamı aynı tanımı okur; biri değişirse öteki ayrışmaz.
+- **INV-71.** Bağlam **türetilir, saklanmaz** (INV-60'ın gerekçesi): palto yazın geri
+  alınacak bir şey yazmaz, seri bozulunca iade edilecek bir değer yoktur. Bu yüzden
+  INV-22 ("bir nitelik kendiliğinden düşmez") bozulmaz — değişen taban değil okuma
+  katmanıdır; etkin değer ve bütün `requires` kapıları (INV-61) bunu görür.
+- **Yapılmayanlar (bağlam notu olarak durur):** telefonun sosyal medya aktivitelerini
+  "açması", kulüp kartının gece mekânlarını "açması", sinema/plak çalarla açılan
+  seçenekler, gençlerde hoodie, basın toplantısında saat, galada takım elbise, parfümün
+  yakın diyalog etkisi, retro motosiklet–kulüp yasağı çatışması, kibirli bulan
+  karakterler, sahne görünümü (arka plan). Bunlar bir aktivitenin ya da diyaloğun
+  *kapısını* değiştirir; kapı kilidi için aktivite satırında item şartı ve FE'de kilit
+  gösterimi gerekir (⟦AÇIK-24⟧).
+
 **Maç içi tetikleyiciler bu sürümde yoktur.** Kırmızı kart, oyundan alınma ve
 gol pozisyonunda pas/şut kararı (dokümandaki #2, #4, #13) `match_engine`'in
 olay akışına ve client'ın `MatchController`'ına bağlıdır; `career_engine` bugün
@@ -5242,6 +5270,7 @@ Bu olaylar maç sonrası tetikleyicilere uyarlanır; gerçek maç içi tetikleyi
 |---|---|---|
 | ⟦AÇIK-19⟧ | §14.5 maç içi tetikleyiciler | Kırmızı kart, oyundan alınma ve gol pozisyonu olaylarının `match_engine` → `career_engine` taşınması; bu sürümde yok |
 | ⟦AÇIK-20⟧ | §14.3 "biriyle" çarpanı | Solo ile partnerli aktivite arasındaki skill/ilişki takasının sayıları |
+| ⟦AÇIK-24⟧ | §14.7 item kapıları | "Açar" diyen itemlerin (telefon, kulüp kartı, sinema…) bir aktivite/diyalog kapısı olması; `requires_item` ve FE kilit gösterimi gerekir, bu sürümde yok |
 | ⟦AÇIK-22⟧ | §14.5 tetikleyici olasılıkları ve kuyruk sayıları | Günlük zarların şansları, post-match `chance`'lar, 2 günlük aralık, `expires_in_days`'ler ve `on_ignore` bedelleri yer tutucudur |
 | ⟦AÇIK-23⟧ | §14.6 `special-foundation` kaynağı | "Kendi adına hayır vakfı" (#42) hiçbir olayın/ödülün sonucu değil; bugün ne satılır ne verilir |
 | ⟦AÇIK-21⟧ | §14.4 konut katalog değerleri | 0,3 katı kondisyon ölçeği, günlük tavan 20, kira/fiyat/otel ücreti tutarları, otelin 14 günü ve gürültünün %20'si yer tutucudur |

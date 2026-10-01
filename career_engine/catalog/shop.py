@@ -223,6 +223,49 @@ SHOP_ITEMS = [
 ]
 
 assert len(SHOP_ITEMS) == 43
+
+# §14.7 - the design doc's "context" notes, the ones that make an item mean
+# something beyond its grade. Kept beside the rows rather than inside `_gear()`
+# calls because it is a second concern (domain/context.py is its only reader) and
+# only a dozen rows carry one. Shapes, all optional:
+#
+#   months         [1-12]   the item counts only in these calendar months (the coat)
+#   bad_form       {title, body}  in a bad run (three straight losses) its charisma
+#                  FLIPS sign, and the first such match writes this headline
+#   boosts         {catalog_id | "group:<name>": factor}  worn, multiplies the
+#                  skill gain of those lifestyle activities
+#   news_on_acquire {category, title, body}  buying it makes the papers
+#   weekly_news    [{category, title, body}, ...]  worn, one of these each Monday
+#
+# Every number is ⟦AÇIK-16⟧ (the grade scale's open question).
+ITEM_CONTEXT = {
+    "cloth-cashmere-coat": {"months": [11, 12, 1, 2, 3]},
+    "cloth-leather-jacket": {"boosts": {"group:GECE VE SOSYAL HAYAT": 1.3}},
+    "cloth-luxury-outfit": {"boosts": {"medya-paylasim": 1.3}},
+    "tech-stream-kit": {"boosts": {"medya-canli-yayin": 1.5}},
+    "tech-photographer": {"boosts": {"medya-paylasim": 1.5}},
+    "tech-youtube-team": {"weekly_news": [
+        {"category": "Röportaj", "title": "Kendi kanalında yeni bölüm",
+         "body": "Prodüksiyon ekibinin hazırladığı yeni video yayında: antrenman günlüğü bu hafta kamerada."},
+        {"category": "Röportaj", "title": "Kanalından soru-cevap videosu",
+         "body": "Taraftarların sorularını yanıtladığı video, ilk saatlerde yüz binlerce izlenmeye ulaştı."},
+        {"category": "Röportaj", "title": "Sezon özeti yayınlandı",
+         "body": "Kendi kanalında yayımlanan özet video, sezonun perde arkasını gösteriyor."},
+    ]},
+    "veh-sports-car": {"bad_form": {
+        "title": "\"Maçları bırakmış, araba alıyor\"",
+        "body": "Üst üste kaybedilen maçların ardından, oyuncunun spor arabasıyla antrenmana gelmesi tribünde tepki çekti."}},
+    "veh-custom-supercar": {
+        "bad_form": {
+            "title": "Kötü dönemde süper araba tartışması",
+            "body": "Takım kaybederken oyuncunun özel boyalı süper arabası sosyal medyada eleştiri topluyor."},
+        "news_on_acquire": {
+            "category": "Röportaj", "title": "Özel boyalı süper araba manşette",
+            "body": "Oyuncunun yeni arabası, yarım saat içinde sosyal medyanın gündemine oturdu."}},
+}
+for _item in SHOP_ITEMS:
+    if _item["catalog_id"] in ITEM_CONTEXT:
+        _item["context"] = ITEM_CONTEXT[_item["catalog_id"]]
 assert len({i["catalog_id"] for i in SHOP_ITEMS}) == len(SHOP_ITEMS)
 
 # D45 says derived values aren't stored; this one is derived at IMPORT from the
@@ -314,6 +357,32 @@ def validate_gear(items: list) -> None:
             raise ValueError(f"{where} is grant-only but priced {item['price']}")
 
 
+def validate_context(items: list) -> None:
+    """§14.7 - a typo'd boost target or month must fail at import, like every other
+    catalog field, not on the first night the item is worn."""
+    from catalog.lifestyle import LIFESTYLE_ITEMS
+
+    ids = {i["catalog_id"] for i in LIFESTYLE_ITEMS}
+    groups = {i.get("group") for i in LIFESTYLE_ITEMS}
+    for item in items:
+        context = item.get("context")
+        if not context:
+            continue
+        where = f"shop:{item['catalog_id']!r} context"
+        unknown = set(context) - {"months", "bad_form", "boosts", "news_on_acquire", "weekly_news"}
+        if unknown:
+            raise ValueError(f"{where} has unknown keys {sorted(unknown)}")
+        if any(not isinstance(m, int) or not 1 <= m <= 12 for m in context.get("months", [])):
+            raise ValueError(f"{where} has a month outside 1-12")
+        for target, factor in context.get("boosts", {}).items():
+            known = target.removeprefix("group:") in groups if target.startswith("group:") else target in ids
+            if not known or factor <= 1:
+                raise ValueError(f"{where} boosts {target!r} by {factor!r}")
+        for story in [context.get("bad_form"), context.get("news_on_acquire"), *context.get("weekly_news", [])]:
+            if story is not None and not {"title", "body"} <= set(story):
+                raise ValueError(f"{where} has a headline without title/body")
+
+
 def gear_by_id(catalog_id: str):
     return next((i for i in SHOP_ITEMS if i["catalog_id"] == catalog_id), None)
 
@@ -322,3 +391,4 @@ from catalog import validate_catalog  # noqa: E402 (after data, INV-28)
 
 validate_catalog(SHOP_ITEMS, "shop")
 validate_gear(SHOP_ITEMS)
+validate_context(SHOP_ITEMS)

@@ -12,7 +12,7 @@ from typing import Optional
 
 from api import config, errors, serializers
 from catalog.match_actions import ACTION_SCHEMAS, OUTCOME_SETS, is_assist, is_goal
-from domain import condition, daytime, formulas, instructions, relationships, squad, triggers, wallet
+from domain import condition, context as context_mod, daytime, formulas, instructions, relationships, squad, triggers, wallet
 from worlddata import positions
 from worlddata.formations import DEFAULT_FORMATION
 from worlddata.teams import ALL_TEAMS
@@ -425,6 +425,16 @@ def apply_result(conn: sqlite3.Connection, career_id: str, fixture_id: str, body
     triggers.run_post_match(conn, career_id, fixture, facts, on_date, seed)
     event = triggers.promote(conn, career_id, on_date)
 
+    # §14.7 - the flashy car in a losing run is a headline. Asked after the result is
+    # written, because it reads the last three results, this one included.
+    context_news = [
+        daytime._create_news(
+            conn, career_id, story.get("category", "Dedikodu"), story["title"], story["body"],
+            on_date, source=story.get("source", "Sosyal Medya"),
+        )
+        for story in context_mod.bad_form_headlines(conn, career_id)
+    ]
+
     sim = daytime._simulate_day_fixtures(conn, career_id, on_date, seed)
     other_results = sim["results"]
 
@@ -459,7 +469,7 @@ def apply_result(conn: sqlite3.Connection, career_id: str, fixture_id: str, body
         "relationship_changes": relationship_changes,
         "trait_changes": trait_changes,
         "ledger_entries": ledger_entries,
-        "news_created": [news_id],
+        "news_created": [news_id, *context_news],
         # §14.5 - null on most matches; the event T5 would list, so FE can open it
         # without a second call.
         "event": event,
