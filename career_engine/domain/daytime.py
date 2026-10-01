@@ -169,12 +169,15 @@ def stop_worthy(events: List[dict], on_date: str = None) -> List[dict]:
 
 
 def team_match_today(conn: sqlite3.Connection, career_id: str, on_date: str) -> Optional[str]:
-    """The user's TEAM's fixture kicking off on_date, if it's still
-    'scheduled'. Says nothing about whether the user is in the squad for it —
-    that is squad.status_for's job (§12.2)."""
+    """The user's TEAM's fixture kicking off on_date, if it is not played yet.
+    'in_progress' counts: M1 flips the fixture to it the moment the pre-match
+    screen opens, so a player who backs out without playing must still meet
+    the match-day gate (§6.1 D57) - the unfinished match is recovered by
+    M3 on the next M1. Says nothing about whether the user is in the squad
+    for it - that is squad.status_for's job (§12.2)."""
     user_team_id = _user_team_id(conn, career_id)
     row = conn.execute(
-        "SELECT fixture_id FROM fixture WHERE career_id = ? AND status = 'scheduled' "
+        "SELECT fixture_id FROM fixture WHERE career_id = ? AND status IN ('scheduled', 'in_progress') "
         "AND kickoff_at LIKE ? AND (home_team_id = ? OR away_team_id = ?)",
         (career_id, f"{on_date}%", user_team_id, user_team_id),
     ).fetchone()

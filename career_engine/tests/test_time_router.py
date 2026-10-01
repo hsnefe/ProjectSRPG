@@ -640,3 +640,29 @@ def test_post_training_action_costs_condition(api_client, created_career):
     resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "sut"})
     assert resp.status_code == 200
     assert resp.json()["career_state"]["condition"] == 94   # starts at 100, sut costs 6
+
+
+def test_advance_is_still_refused_after_opening_and_leaving_the_pre_match_screen(
+    api_client, created_career, mock_engine
+):
+    """M1 flips the fixture to 'in_progress' the moment the pre-match screen
+    opens. Backing out without playing must not lift the match-day gate."""
+    career_id = created_career["career_id"]
+    user_team = created_career["player"]["team"]["team_id"]
+    advance_to_match_day(api_client, career_id)
+    assert api_client.get(f"/careers/{career_id}/matches/next").status_code == 200
+    fixture = api_client.get(f"/careers/{career_id}/fixtures", params={
+        "team_id": user_team, "limit": 1,
+    }).json()["fixtures"][0]
+    assert fixture["status"] == "in_progress"
+    date_before = api_client.get(f"/careers/{career_id}/day").json()["career_state"]["current_date"]
+
+    for to in ("next_day", "next_event"):
+        resp = api_client.post(f"/careers/{career_id}/advance", json={"to": to})
+        assert resp.status_code == 409
+        assert resp.json()["code"] == "match_day_unplayed"
+
+    assert api_client.get(f"/careers/{career_id}/day").json()["career_state"]["current_date"] == date_before
+    # ... and the pre-match screen can still be re-entered (M3 recovers it).
+    again = api_client.get(f"/careers/{career_id}/matches/next")
+    assert again.status_code == 409 and again.json()["code"] == "match_in_progress"
