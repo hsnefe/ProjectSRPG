@@ -128,6 +128,7 @@ class _NewCareerScreenState extends State<NewCareerScreen> {
   }
 
   void _onPrimary(api.CareerOptions options) {
+    FocusManager.instance.primaryFocus?.unfocus();
     switch (_step) {
       case 0:
         setState(() => _nameChecked = true);
@@ -265,64 +266,68 @@ class _NewCareerScreenState extends State<NewCareerScreen> {
   Widget _buildWizard(api.CareerOptions options) {
     _applyDefaults(options);
 
-    return Column(
-      children: [
-        _WizardHeader(
-          step: _step,
-          careerCreated: _careerId != null,
-          onBack: _step == 0 || _careerId != null
-              ? null
-              : () => _goTo(_step - 1),
-        ),
-        Expanded(
-          child: PageView(
-            controller: _pageController,
-            physics: const NeverScrollableScrollPhysics(),
-            children: [
-              IdentityStep(
-                options: options,
-                firstName: _firstName,
-                lastName: _lastName,
-                nationality: _nationality,
-                showErrors: _nameChecked,
-                onChanged: () => setState(() {}),
-                onNationality: (code) => setState(() => _nationality = code),
-              ),
-              RoleStep(
-                options: options,
-                position: _position,
-                roleId: _roleId,
-                onPosition: (position) => setState(() {
-                  _position = position;
-                  _roleId = null;
-                }),
-                onRole: (roleId) => setState(() => _roleId = roleId),
-              ),
-              TargetStep(
-                options: options,
-                targetTeamId: _targetTeamId,
-                onTarget: (teamId) => setState(() => _targetTeamId = teamId),
-              ),
-              ExamStep(
-                options: options,
-                levels: _examLevels,
-                outcomes: _outcomes,
-                previewOf: (exam) => _examPreview(options, exam),
-                baseOf: (exam) => _baseSkill(options, exam.attributeKey),
-                onLevel: (examId, level) =>
-                    setState(() => _examLevels[examId] = level),
-              ),
-            ],
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      child: Column(
+        children: [
+          _WizardHeader(
+            step: _step,
+            careerCreated: _careerId != null,
+            onBack: _step == 0 || _careerId != null
+                ? null
+                : () => _goTo(_step - 1),
           ),
-        ),
-        _ActionBar(
-          label: _primaryLabel(),
-          enabled: _canContinue(options) && !_busy,
-          busy: _busy,
-          hint: _hint(options),
-          onPressed: () => _onPrimary(options),
-        ),
-      ],
+          Expanded(
+            child: PageView(
+              controller: _pageController,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                IdentityStep(
+                  options: options,
+                  firstName: _firstName,
+                  lastName: _lastName,
+                  nationality: _nationality,
+                  showErrors: _nameChecked,
+                  onChanged: () => setState(() {}),
+                  onNationality: (code) => setState(() => _nationality = code),
+                ),
+                RoleStep(
+                  options: options,
+                  position: _position,
+                  roleId: _roleId,
+                  onPosition: (position) => setState(() {
+                    _position = position;
+                    _roleId = null;
+                  }),
+                  onRole: (roleId) => setState(() => _roleId = roleId),
+                ),
+                TargetStep(
+                  options: options,
+                  targetTeamId: _targetTeamId,
+                  onTarget: (teamId) => setState(() => _targetTeamId = teamId),
+                ),
+                ExamStep(
+                  options: options,
+                  levels: _examLevels,
+                  outcomes: _outcomes,
+                  previewOf: (exam) => _examPreview(options, exam),
+                  baseOf: (exam) => _baseSkill(options, exam.attributeKey),
+                  onLevel: (examId, level) =>
+                      setState(() => _examLevels[examId] = level),
+                ),
+              ],
+            ),
+          ),
+          _ActionBar(
+            label: _primaryLabel(),
+            enabled: _canContinue(options) && !_busy,
+            busy: _busy,
+            hint: _hint(options),
+            onPressed: () => _onPrimary(options),
+          ),
+        ],
+      ),
     );
   }
 
