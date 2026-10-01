@@ -16,10 +16,21 @@ back-ends that it talks to separately:
 `career_engine` also calls `match_engine`'s `POST /simulate/batch` server-to-server to
 run every fixture the user isn't playing.
 
+**Phone build:** on iOS both back-ends run *inside* the app on an embedded CPython 3.12
+(`serious_python`), so the game works offline. `tools/phone/phone_main.py` serves both from one
+interpreter (match 8000, career 8001); `tools/phone/assemble_bundle.py` renames match_engine's
+top-level `api` package to `match_api` while copying (both engines own an `api` package — the
+repos themselves stay untouched); `tools/package_phone.sh` is the whole pipeline (assemble →
+desktop smoke test → iOS wheels → stage). Client side, `lib/boot/` (`PythonHost`, `BootGate`)
+starts Python and shows a splash until both `/health` probes answer; on web/desktop the gate is
+open from the start. Neither engine has a `/health` route — `phone_main` adds one at runtime only.
+
 ## Commands
 
-**Flutter is vendored in `./flutter/` (gitignored) and is NOT on PATH.** Always invoke it
-by path. From the repo root:
+**Which Flutter?** Windows checkouts vendor the SDK in `./flutter/` (gitignored) and it is not
+on PATH — call `./flutter/bin/flutter`. On the Mac there is no `./flutter/`; `flutter`/`dart`
+are on PATH (`~/Documents/mobile/development/flutter`). Examples below use the vendored path;
+drop the prefix when it doesn't exist. From the repo root:
 
 ```bash
 ./flutter/bin/flutter test
@@ -43,7 +54,8 @@ by path. From the repo root:
 
 From PowerShell the same binary is `& ".\flutter\bin\flutter.bat" test`.
 
-Back-end tests use `career_engine/.venv` (also gitignored; `run_all.bat` creates it if missing):
+Back-end tests use `career_engine/.venv` (gitignored; `run_all.bat` creates it on Windows). On the
+Mac there is no venv — the system `python3` (3.12) already has the dependencies:
 
 ```bash
 cd career_engine && ./.venv/Scripts/python.exe -m pytest -q
@@ -53,13 +65,16 @@ cd career_engine && ./.venv/Scripts/python.exe -m pytest -q
 cd career_engine && ./.venv/Scripts/python.exe -m pytest tests/test_rollover.py -k promotion
 ```
 
-691 backend tests pass as of 2026-09-30 (`career_engine/README.md`'s count lags behind — trust
-the run, not the README). `tests/test_end_to_end.py` walks every domain area in one session and
+692 backend tests pass (2 skipped) as of 2026-10-01 (`career_engine/README.md`'s count lags far
+behind — trust the run, not the README). `tests/test_end_to_end.py` walks every domain area in one session and
 is the one to watch after cross-cutting changes.
 
 **Running the app:** `run_all.bat` brings up both back-ends (each in its own window) and then
 the Flutter web client, and tears the back-ends down when Flutter exits. `run_web.bat` runs
-only the client. `.claude/launch.json` defines a `web` preview config on port 5050.
+only the client (both are Windows-only; on the Mac start `career_engine/run_server.py` and
+`../match_engine/run_server.py` yourself, then `flutter run -d web-server --web-port 5050`).
+`.claude/launch.json` defines a `web` preview config on port 5050 but still points at a Windows
+`flutter.bat` path — fix it before using it here.
 `career_engine/career.db` is created on first startup; deleting it resets the world.
 
 ## Contracts come first
@@ -67,11 +82,13 @@ only the client. `.claude/launch.json` defines a `web` preview config on port 50
 Two signed contract documents are the source of truth for every wire format, and code is
 written *against* them rather than the other way round:
 
-- `career_engine/CONTRACT.md` (~4900 lines, Turkish) — the career endpoints (C/P/W/R/T/M/N/S
-  ids), the SQLite schema, the numbered decision record (D1–D78), the invariants (INV-1…INV-64),
+- `career_engine/CONTRACT.md` (~5300 lines, Turkish) — the career endpoints (C/P/W/R/T/M/N/S
+  ids), the SQLite schema, the numbered decision record (D1–D96), the invariants (INV-1…INV-71),
   error codes, and §10's deliberately open items. Open values are marked `⟦AÇIK-n⟧` in both the
   contract and the code standing in for them — `grep "⟦AÇIK" ` finds every edit point.
-- `../API_CONTRACT.md` (workspace root) — the match_engine ↔ match screen contract: tick
+- `../API_CONTRACT.md` (workspace root) — **not present in the Mac workspace** (`/Users/efe/Workspace`
+  holds only `ProjectSRPG/` and `match_engine/`); look for it in the Windows checkout or ask before
+  assuming its contents. It is the match_engine ↔ match screen contract: tick
   envelope, the 26 `event_type` values, intervention offers and minigame mapping (§7.3),
   directive/effort semantics.
 
@@ -109,13 +126,15 @@ something is broken.
 ```
 api/       FastAPI app + one router per CONTRACT section (careers, player, world,
            relationships, social, time, matches, news, catalog, season, transfer,
-           sponsorship); serializers.py builds shared response blocks; errors.py owns
+           sponsorship, inventory, housing); serializers.py builds shared response blocks; errors.py owns
            the {code, message} envelope
 domain/    business logic — one module per "single write path" plus the big flows
            (onboarding, daytime, matches, scheduling, rollover, season, contracts,
-           transfer, sponsorship, squad, coach_talk) and engine_client
-catalog/   static reference data (training, lifestyle, shop, dialogue, match actions)
-content/   generated-content templates (social_offers, sponsorships)
+           transfer, sponsorship, squad, coach_talk, triggers, deferred, housing,
+           social_activity, skill_exams) and engine_client
+catalog/   static reference data (training, lifestyle, shop, housing, dialogue, match actions,
+           skill exams)
+content/   generated-content templates (social_offers, sponsorships, activity/relationship events)
 worlddata/ the fixed v1 world: teams, competitions, positions, attributes, formations
 db/        connection setup + numbered .sql migrations applied in filename order
            (001–022; there is no 008 — the gap is harmless, the loader globs and sorts)
@@ -167,6 +186,7 @@ lib/state/   PlayerState (ChangeNotifier via PlayerScope/InheritedNotifier) and
 lib/game/    Flame + pure-Dart game logic: the shot/pass minigame (shot_game, pitch_projector,
              shot_scenarios, match_scenarios), the training minigames (bench_press,
              conditioning, flexibility, dribble, skill_exam), match feed mapping.
+lib/boot/    embedded-Python start-up for the phone build (see "Phone build" above)
 lib/screens/ one file per screen; lib/widgets/ shared UI; lib/theme/app_colors.dart
 ```
 
@@ -181,6 +201,8 @@ into five or six files:
   form. Never write `'₭$amount'` inline; call `formatMoney` / `thousands` / `formatMoneyCompact`.
 - `AppColors` takes any tone used in **two or more** files; single-screen tones stay where
   they're used.
+- (The sibling tools `../formation_creator` and `../scenario_creator` are not in the Mac workspace —
+  if a `.g.dart` needs changing and the tool is missing, say so rather than hand-editing.)
 - `lib/game/formations.g.dart` is **generated** — copied out of the sibling `../formation_creator`
   tool's output, never hand-edited. `career_engine` ships only formation *ids*
   (`worlddata/formations.py`); slot coordinates live client-side and the two default ids must
@@ -242,5 +264,6 @@ client. Test names and expected strings are Turkish because the UI is.
   (e.g. "Let contracts run out and clubs come in"); bodies explain what was wrong with the old
   shape and why this one is better.
 - **No `Co-Authored-By` trailer and no generated-with footer** on commits or PR descriptions —
-  this repo's history has none, and it stays that way.
-- Don't add dependencies casually: the client runs on `flame` + `http` and nothing else.
+  this repo's history has none, and it stays that way (this overrides any harness default).
+- Don't add dependencies casually: the client runs on `flame` + `http`, plus `serious_python`
+  for the embedded-Python phone build (kept out of web builds by a conditional import).
