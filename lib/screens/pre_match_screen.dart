@@ -330,40 +330,42 @@ class _PreMatchScreenState extends State<PreMatchScreen> {
       return const _LoadingSection();
     }
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _HeaderSection(
-          home: next.teams.home.name,
-          away: next.teams.away.name,
-          kickoffLabel: kickoffDayLabel(next.kickoffAt),
-        ),
-        _FieldSection(
-          formationId: _formationId,
-          playerName: PlayerScope.of(context).name,
-          playerPosition:
-              _playerPosition ?? PlayerScope.of(context).position,
-        ),
-        _TacticsRow(
-          tacticLabel: next.teamTactic.label,
-          // §12.10 · M1'in `coach_instruction.role_name`'i C3'ün aynı
-          // alanının aynısı, ama ikinci bir istek beklemeden gelir — o
-          // yüzden önce o denenir.
-          roleLabel: _coachInstruction?.roleName ??
-              _roleName ??
-              _playerPosition ??
-              PlayerScope.of(context).position,
-        ),
-        if (_coachInstruction case final instruction?)
-          _CoachInstructionRow(instruction: instruction),
-        _SquadStatusRow(status: _squadStatus),
-        const _ConditionBar(),
-        _ActionRow(
-          starting: _starting,
-          onPlay: _startMatch,
-          onTalkToCoach: _coachTalked ? null : _openCoachTalk,
-        ),
-      ],
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _HeaderSection(
+            home: next.teams.home.name,
+            away: next.teams.away.name,
+            kickoffLabel: kickoffDayLabel(next.kickoffAt),
+          ),
+          _FieldSection(
+            formationId: _formationId,
+            playerName: PlayerScope.of(context).name,
+            playerPosition:
+                _playerPosition ?? PlayerScope.of(context).position,
+          ),
+          _TacticsRow(
+            tacticLabel: next.teamTactic.label,
+            // §12.10 · M1'in `coach_instruction.role_name`'i C3'ün aynı
+            // alanının aynısı, ama ikinci bir istek beklemeden gelir — o
+            // yüzden önce o denenir.
+            roleLabel: _coachInstruction?.roleName ??
+                _roleName ??
+                _playerPosition ??
+                PlayerScope.of(context).position,
+          ),
+          if (_coachInstruction case final instruction?)
+            _CoachInstructionRow(instruction: instruction),
+          _SquadStatusRow(status: _squadStatus),
+          const _ConditionBar(),
+          _ActionRow(
+            starting: _starting,
+            onPlay: _startMatch,
+            onTalkToCoach: _coachTalked ? null : _openCoachTalk,
+          ),
+        ],
+      ),
     );
   }
 }
