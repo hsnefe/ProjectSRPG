@@ -163,6 +163,24 @@ void main() {
       expect(calls, 1);
     });
 
+    test(
+      'a finished session stays on its result: a tap opens no 4th attempt',
+      () {
+        var calls = 0;
+        final game = _game(ShotMode.pass, onFinished: (_) => calls++);
+        for (var i = 0; i < ShotGame.attemptsPerSession; i++) {
+          _catchableAttempt(game);
+        }
+        expect(game.sessionOver, isTrue);
+
+        game.handleTap(Offset.zero);
+
+        expect(game.phase, ShotPhase.result);
+        expect(game.attempts, ShotGame.attemptsPerSession);
+        expect(calls, 1);
+      },
+    );
+
     test('free mode never finishes, however many flights resolve', () {
       var calls = 0;
       final game = ShotGame(onStateChanged: () {}, onFinished: (_) => calls++);

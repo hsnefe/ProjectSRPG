@@ -569,6 +569,12 @@ class ShotGame extends FlameGame {
 
   int get attempts => attemptLog.length;
 
+  /// The scored session has had all its attempts. From here the game stays on
+  /// the result frame: a tap must not line up a fourth attempt underneath the
+  /// result panel.
+  bool get sessionOver =>
+      mode != ShotMode.free && attempts >= attemptsPerSession;
+
   int get made => attemptLog.where((a) => a.made).length;
 
   /// How many of the made attempts were the *good* answer rather than the safe
@@ -753,7 +759,7 @@ class ShotGame extends FlameGame {
   void handleTap(Offset local) {
     if (phase == ShotPhase.strike) {
       _strike(local);
-    } else if (phase == ShotPhase.result) {
+    } else if (phase == ShotPhase.result && !sessionOver) {
       reset();
     }
   }
@@ -1134,7 +1140,7 @@ class ShotGame extends FlameGame {
           scenarioId: scenario?.id,
         ),
       );
-      if (attempts >= attemptsPerSession) onFinished?.call(sessionResult);
+      if (attempts == attemptsPerSession) onFinished?.call(sessionResult);
     }
 
     onStateChanged();
