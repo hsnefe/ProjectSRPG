@@ -35,49 +35,49 @@ TRAINING_ITEMS = [
         "description": "Tempolu bir koşu ile dayanıklılığını geliştir.",
         "family": "saha", "drill": "conditioning",
         "costs": {"time": 90, "energy": 15},          # ⟦AÇIK-5⟧
-        "effects": {"attribute:condition": 1.2},       # ⟦AÇIK-5⟧
+        "effects": {"attribute:condition": 1.2, "condition": -10},       # ⟦AÇIK-5⟧
     },
     {
         "catalog_id": "guc-antrenmani", "title": "Güç Antrenmanı",
         "description": "Ağırlık çalışmasıyla fiziksel gücünü artır.",
         "family": "saha", "drill": "strength",
         "costs": {"time": 75, "energy": 20},
-        "effects": {"attribute:strength": 1.2},
+        "effects": {"attribute:strength": 1.2, "condition": -8},
     },
     {
         "catalog_id": "esneklik-toparlanma", "title": "Esneklik & Toparlanma",
         "description": "Germe ve toparlanma çalışmasıyla sakatlık riskini azalt.",
         "family": "saha", "drill": "flexibility",
         "costs": {"time": 45, "energy": 8},
-        "effects": {"attribute:flexibility": 1.0, "condition": 4},
+        "effects": {"attribute:flexibility": 1.0, "condition": 2},
     },
     {
         "catalog_id": "sut", "title": "Şut",
         "description": "Şut isabetini ve gücünü çalış.",
         "family": "saha", "drill": "shot",
         "costs": {"time": 60, "energy": 18},
-        "effects": {"attribute:shooting": 1.2},
+        "effects": {"attribute:shooting": 1.2, "condition": -6},
     },
     {
         "catalog_id": "pas", "title": "Pas",
         "description": "Pas isabetini ve zamanlamasını çalış.",
         "family": "saha", "drill": "pass",
         "costs": {"time": 60, "energy": 12},
-        "effects": {"attribute:passing": 1.2},
+        "effects": {"attribute:passing": 1.2, "condition": -5},
     },
     {
         "catalog_id": "dribling", "title": "Dribling",
         "description": "Koridorda top sürme: aynı yöne kaydırdıkça hızlan, ters yön frenler.",
         "family": "saha", "drill": "dribble",
         "costs": {"time": 60, "energy": 18},
-        "effects": {"attribute:dribbling": 1.0},
+        "effects": {"attribute:dribbling": 1.0, "condition": -7},
     },
     {
         "catalog_id": "mudahale", "title": "Müdahale",
         "description": "Baskı zinciri: tempoyu tutturarak rakibe yetiş, açılan pencerede dal.",
         "family": "saha", "drill": "tackling",
         "costs": {"time": 60, "energy": 20},
-        "effects": {"attribute:tackling": 1.0},
+        "effects": {"attribute:tackling": 1.0, "condition": -8},
     },
     # --- taktik: §12.11, D63, bir kartı olmayan üç yeterlilik ---
     {
@@ -85,21 +85,21 @@ TRAINING_ITEMS = [
         "description": "Topu kaybettiğin anda yüksek hatta baskıyı çalış.",
         "family": "taktik", "drill": None,
         "costs": {"time": 60, "energy": 8},
-        "effects": {"tactic:gegenpress": 0.8},
+        "effects": {"tactic:gegenpress": 0.8, "condition": -3},
     },
     {
         "catalog_id": "pozisyonel-oyun", "title": "Pozisyonel Oyun",
         "description": "Topsuz konumlanmayı ve saha genişliğini çalış.",
         "family": "taktik", "drill": None,
         "costs": {"time": 75, "energy": 6},
-        "effects": {"tactic:pozisyonel_oyun": 0.8},
+        "effects": {"tactic:pozisyonel_oyun": 0.8, "condition": -2},
     },
     {
         "catalog_id": "derin-blok", "title": "Derin Blok",
         "description": "Geri çekilip alanı daraltmayı ve geçişi çalış.",
         "family": "taktik", "drill": None,
         "costs": {"time": 45, "energy": 5},
-        "effects": {"tactic:derin_blok": 0.8},
+        "effects": {"tactic:derin_blok": 0.8, "condition": -2},
     },
 ]
 

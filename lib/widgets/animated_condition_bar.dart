@@ -104,12 +104,19 @@ class _AnimatedConditionBarState extends State<AnimatedConditionBar> {
                     ),
                   ),
                   const SizedBox(width: 4),
-                  Text(
-                    '$shown/100',
-                    maxLines: 1,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 11,
+                  Flexible(
+                    // Dar çubukta '100/100' + fark rozeti sığmazsa küçülür,
+                    // taşmaz.
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        '$shown/100',
+                        maxLines: 1,
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                        ),
+                      ),
                     ),
                   ),
                   if (_deltaToShow case final delta?) ...[

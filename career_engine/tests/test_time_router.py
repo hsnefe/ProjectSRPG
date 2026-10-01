@@ -633,3 +633,10 @@ def test_attribute_change_reports_the_level_it_crossed(api_client, created_caree
     assert change["before"] == 59.8
     assert change["after"] == pytest.approx(60.2)   # float; the level is the point
     assert (change["level_before"], change["level_after"]) == (5, 6)
+
+
+def test_post_training_action_costs_condition(api_client, created_career):
+    career_id = created_career["career_id"]
+    resp = api_client.post(f"/careers/{career_id}/actions", json={"catalog_id": "sut"})
+    assert resp.status_code == 200
+    assert resp.json()["career_state"]["condition"] == 94   # starts at 100, sut costs 6

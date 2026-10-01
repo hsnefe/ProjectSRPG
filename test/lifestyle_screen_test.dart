@@ -303,7 +303,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Kondisyon'), findsOneWidget);
-    expect(find.text('72/100'), findsOneWidget);
+    expect(find.text('100/100'), findsOneWidget);
 
     expect(find.text('EV AKTİVİTELERİ'), findsOneWidget);
     expect(find.text('FİZİKSEL AKTİVİTELER'), findsOneWidget);
@@ -507,7 +507,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Yap'), findsNothing);
-    expect(find.text('72/100'), findsOneWidget);
+    expect(find.text('100/100'), findsOneWidget);
   });
 
   testWidgets('kondisyon ve para diğer ekranlarla paylaşılır', (tester) async {
@@ -523,7 +523,7 @@ void main() {
     await tester.pumpWidget(_wrap(const CareerCenterScreen()));
     await tester.pumpAndSettle();
 
-    expect(find.text('%72'), findsOneWidget);
+    expect(find.text('%100'), findsOneWidget);
     expect(find.text('48.200 ₭'), findsOneWidget);
 
     // Kariyer merkezinden yaşam tarzına geç.
@@ -531,7 +531,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Yaşam tarzı'));
     await tester.pumpAndSettle();
-    expect(find.text('72/100'), findsOneWidget);
+    expect(find.text('100/100'), findsOneWidget);
 
     // Ücretli bir aktivite yap: hem kondisyon hem para değişmeli.
     await tester.tap(_card('Yüzme'));
