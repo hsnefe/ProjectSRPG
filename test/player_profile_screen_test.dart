@@ -102,7 +102,7 @@ Future<void> _pick(
 void main() {
   // Kimlik alanları (yaş/isim/takım) PlayerScope'un P1'inden gelir; test
   // ortamında career_engine çalışmadığından PlayerState kendi yer
-  // tutucularına düşer — bunlar da tam olarak 21/'Efe Kaan'/'FK Yıldız'.
+  // tutucularına düşer — bunlar da tam olarak 16/'Efe Kaan'/'FK Yıldız'.
   // İstatistikler ise bu ekranın kendi P2 çağrısından, sahte backend'den gelir.
   testWidgets('profil ekranı kimlik satırını ve bu sezonun istatistiklerini '
       'gösterir', (tester) async {
@@ -111,7 +111,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Yaş: 21'), findsOneWidget);
+    expect(find.text('Yaş: 16'), findsOneWidget);
     expect(find.text('Efe Kaan'), findsOneWidget);
     expect(find.text('FK Yıldız'), findsOneWidget);
     expect(find.text('Oynanan dakika'), findsOneWidget);
@@ -214,7 +214,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Kariyer merkezi alttaki rotada mount kaldığı için 'Efe Kaan' iki kez
-    // bulunur; profile özgü olan 'Yaş: 21'e assert ediyoruz.
-    expect(find.text('Yaş: 21'), findsOneWidget);
+    // bulunur; profile özgü olan 'Yaş: 16'e assert ediyoruz.
+    expect(find.text('Yaş: 16'), findsOneWidget);
   });
 }

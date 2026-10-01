@@ -207,7 +207,7 @@ def _seed_player(
     target_team_id: str,
 ) -> None:
     player_id = config.USER_PLAYER_ID
-    birth_year = date.today().year - 21
+    birth_year = date.today().year - 16
     conn.execute(
         "INSERT INTO player (career_id, player_id, name, first_name, last_name, nationality, "
         "position, role, birth_date, team_id, target_team_id, is_user) "

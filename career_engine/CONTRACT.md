@@ -1134,7 +1134,7 @@ rollerini sayar), tanınmayan `target_team_id`.
 { "careers": [
     { "career_id":    "car_9f2a71c4e0b8",
       "player_name":  "Efe Kaan",
-      "player_age":   21,
+      "player_age":   16,
       "team":         { /* TeamRef */ },
       "competition":  { /* CompetitionRef */ },
       "season_id":    "25/26",
@@ -1152,7 +1152,7 @@ Tek çağrıda hub verisi. FE'nin ana ekranı bununla dolar.
 { "career_id":    "car_9f2a71c4e0b8",
   "career_state": { /* CareerState */ },
 
-  "player": { "name": "Efe Kaan", "position": "Orta saha", "age": 21,
+  "player": { "name": "Efe Kaan", "position": "Orta saha", "age": 16,
               "team": { /* TeamRef */ } },
 
   "next_fixture": {
@@ -1216,8 +1216,8 @@ sınav varsa **hiçbiri** uygulanmaz. Güç ve Esneklik sınavlardan etkilenmez.
 { "player_id":   "p_user",
   "name":        "Efe Kaan",
   "position":    "Orta saha",
-  "birth_date":  "2004-08-19",
-  "age":         21,                    // türetilmiş
+  "birth_date":  "2010-08-19",
+  "age":         16,                    // türetilmiş
   "team":        { /* TeamRef */ },
   "career_state": { /* CareerState */ },
 

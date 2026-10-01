@@ -27,7 +27,7 @@ class PlayerState extends ChangeNotifier {
   String _name = 'Efe Kaan';
   String _position = 'Orta saha';
   String _teamName = 'FK Yıldız';
-  int _age = 21;
+  int _age = 16;
   int _condition = 72;
   int _money = 48200;
   List<PlayerAttribute> _attributes = const [];
